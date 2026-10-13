@@ -1,7 +1,7 @@
 import { postgresUrl } from './config.js';
 import { CentersUnavailable } from './errors.js';
 
-export const SCHEMA_VERSION = '001';
+export const SCHEMA_VERSION = '002';
 
 // An application connection must never inherit the bootstrap/migrator's DDL or RLS bypass.
 async function requireApplicationRole(client) {
@@ -46,6 +46,22 @@ export function createCentersDatabase(config, { loadPool = async () => (await im
     }
   };
 
+  const run = async (uid, centerId, platform, work) => {
+    if (typeof uid !== 'string' || !uid || typeof centerId !== 'string') throw new TypeError('authorized identity context required');
+    const client = await acquire();
+    let broken = false;
+    try {
+      await client.query('BEGIN');
+      await client.query(`SELECT set_config('centers.uid', $1, true), set_config('centers.center_id', $2, true), set_config('centers.platform', $3, true)`, [uid, centerId, platform ? '1' : '0']);
+      const value = await work(client);
+      await client.query('COMMIT');
+      return value;
+    } catch (error) {
+      try { await client.query('ROLLBACK'); } catch { broken = true; }
+      throw error;
+    } finally { client.release(broken); }
+  };
+
   return {
     async status() {
       const client = await acquire();
@@ -61,18 +77,16 @@ export function createCentersDatabase(config, { loadPool = async () => (await im
     async transaction(context, work) {
       if (!context || typeof context.uid !== 'string' || !context.uid ||
           typeof context.centerId !== 'string' || !context.centerId) throw new TypeError('authorized center context required');
-      const client = await acquire();
-      let broken = false;
-      try {
-        await client.query('BEGIN');
-        await client.query(`SELECT set_config('centers.uid', $1, true), set_config('centers.center_id', $2, true)`, [context.uid, context.centerId]);
-        const value = await work(client);
-        await client.query('COMMIT');
-        return value;
-      } catch (error) {
-        try { await client.query('ROLLBACK'); } catch { broken = true; }
-        throw error;
-      } finally { client.release(broken); }
+      return run(context.uid, context.centerId, false, work);
+    },
+    accountTransaction(uid, work) { return run(uid, '', false, work); },
+    // Only platform services that checked the explicit superadmin allowlist may call this.
+    platformTransaction(uid, work) { return run(uid, '', true, work); },
+    async hasAccountReferences(actorUid, targetUid) {
+      return run(actorUid, '', false, async client => {
+        const { rows } = await client.query('SELECT centers.has_account_references($1) AS linked', [targetUid]);
+        return rows[0].linked;
+      });
     },
 
     async close() {

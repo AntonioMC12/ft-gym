@@ -19,6 +19,8 @@ import { coachRoutes } from './coach/routes.js';
 import { centersConfig, publicCentersConfig } from './centers/config.js';
 import { createCentersDatabase } from './centers/db.js';
 import { centersRoutes } from './centers/routes.js';
+import { createAccountLocks } from './centers/account-links.js';
+import { CentersError } from './centers/errors.js';
 import { startCadence } from './coach/cadence.js';
 import { startWarmup } from './coach/warmup.js';
 import { dayReminderPush, nudgePush, restTimerPush, testPush } from './push-messages.js';
@@ -95,12 +97,16 @@ const TRUST_PROXY = /^(1|true|yes|on)$/i.test(process.env.TRUST_PROXY || '');
 const SESSION_DAYS = Math.max(1, +(process.env.SESSION_DAYS || 90) || 90);
 const MAX_BODY = 5 * 1024 * 1024;
 const CENTERS_CONFIG = centersConfig();
+const CENTERS_LINK_MARKER = path.join(DATA, 'centers-attached');
+const CENTERS_REFERENCE_GUARD = CENTERS_CONFIG.enabled || fs.existsSync(CENTERS_LINK_MARKER);
 // Lazy and independent of the training store: an unavailable SQL server never prevents boot.
-const CENTERS_DATABASE = createCentersDatabase(CENTERS_CONFIG);
+const CENTERS_DATABASE = createCentersDatabase({ ...CENTERS_CONFIG, enabled: CENTERS_REFERENCE_GUARD });
 // Secure cookies require HTTPS; over plain http://localhost the flag would drop the cookie
 const SECURE = /^https:/i.test(ORIGIN) ? ' Secure;' : '';
 
 fs.mkdirSync(DATA, { recursive: true });
+// This durable marker survives hiding the module. Referenced identities still require SQL checks.
+if (CENTERS_CONFIG.enabled && !fs.existsSync(CENTERS_LINK_MARKER)) atomicWrite(CENTERS_LINK_MARKER, '1\n', 0o600);
 /* The secrets are locked down file by file rather than by sealing the whole directory.
  *
  * A blanket `chmod 0700` on DATA looks stronger and is worse: ./data is a host bind mount and
@@ -153,6 +159,7 @@ db.subs = db.subs || [];
 db.invites = db.invites || [];
 db.deviceLinks = db.deviceLinks || [];   // unused one-time device links, hashed (device-link.js)
 const isAdmin = user => !!user && (user.admin === true || ADMIN_UIDS.includes(user.id));
+const CENTERS_ACCOUNT_LOCKS = createAccountLocks(uid => db.users.find(user => user.id === uid));
 // 0600: db.json holds passkey credential material. It used to be covered by a blanket 0700 on
 // the whole directory; now that the directory stays traversable, the file carries its own mode.
 // Once the new version is on disk, a second copy of it goes to db.json.bak, the same durable
@@ -2486,21 +2493,38 @@ const routes = {
     if (!u) return json(res, 404, { error: 'no such user' });
     if (u.id === admin.id) return json(res, 400, { error: 'you cannot delete your own account' });
     if (isAdmin(u) && db.users.filter(isAdmin).length <= 1) return json(res, 400, { error: 'cannot delete the last admin' });
-    const name = u.name;
-    db.users = db.users.filter(x => x.id !== u.id);
-    db.creds = (db.creds || []).filter(c => c.userId !== u.id);
-    db.subs = (db.subs || []).filter(x => x.userId !== u.id);
-    dropDeviceLinks(db, u.id);
-    presence.delete(u.id);
-    // The training history and any Coach credential of theirs, both outside db.json.
-    try { fs.unlinkSync(stateFile(u.id)); } catch { /* already gone */ }
-    try { coachConfig.clearProfileAuth(u.id); } catch { /* nothing stored */ }
-    // Their photos and videos — the one place a profile's folder under uploads/ is removed.
-    try { MEDIA.removeUser(u.id); } catch (e) { console.error('media: could not remove uploads of', u.id, e.message); }
-    saveDb();
-    // Logged with the name, because the id is about to mean nothing to anyone reading this back.
-    audit(req, 'admin.user.delete', { user: admin, msg: name });
-    json(res, 200, { ok: true, id: u.id });
+    const adminVersion = admin.sv || 0;
+    try {
+      await CENTERS_ACCOUNT_LOCKS.withAccounts([admin.id, u.id], async () => {
+        if (CENTERS_REFERENCE_GUARD) {
+          let linked;
+          try { linked = await CENTERS_DATABASE.hasAccountReferences(admin.id, u.id); }
+          catch { throw new CentersError(503, 'centers-unavailable', 'center references could not be checked'); }
+          if (linked) throw new CentersError(409, 'account-linked', 'account has center references; unlink it before deleting');
+        }
+        if (readSession(req) !== admin || (admin.sv || 0) !== adminVersion || !isAdmin(admin)) {
+          throw new CentersError(401, 'not-signed-in', 'not signed in');
+        }
+        const name = u.name;
+        db.users = db.users.filter(x => x.id !== u.id);
+        db.creds = (db.creds || []).filter(c => c.userId !== u.id);
+        db.subs = (db.subs || []).filter(x => x.userId !== u.id);
+        dropDeviceLinks(db, u.id);
+        presence.delete(u.id);
+        // The training history and any Coach credential of theirs, both outside db.json.
+        try { fs.unlinkSync(stateFile(u.id)); } catch { /* already gone */ }
+        try { coachConfig.clearProfileAuth(u.id); } catch { /* nothing stored */ }
+        // Their photos and videos — the one place a profile's folder under uploads/ is removed.
+        try { MEDIA.removeUser(u.id); } catch (e) { console.error('media: could not remove uploads of', u.id, e.message); }
+        saveDb();
+        // Logged with the name, because the id is about to mean nothing to anyone reading this back.
+        audit(req, 'admin.user.delete', { user: admin, msg: name });
+        json(res, 200, { ok: true, id: u.id });
+      });
+    } catch (error) {
+      if (error instanceof CentersError) return json(res, error.status, { error: error.message, code: error.code });
+      throw error;
+    }
   },
 
   'GET /api/admin/invites': async (req, res) => {
@@ -2581,7 +2605,7 @@ const routes = {
   // them: they are closures over db and SECRET, and passing them in keeps that module free of
   // a cycle. Every one of them is inert while the feature is unconfigured.
   ...coachRoutes({ json, readBody, readSession, requireAdmin }),
-  ...centersRoutes({ config: CENTERS_CONFIG, database: CENTERS_DATABASE, json, readSession }),
+  ...centersRoutes({ config: CENTERS_CONFIG, database: CENTERS_DATABASE, json, readSession, accountIds: () => db.users.map(u => u.id) }),
 
   /* ---------- photos & videos ---------- */
   // Absent, not refusing, when MEDIA_UPLOADS=0: a 404 is what a server from before the feature

@@ -5,11 +5,11 @@
 ## Punto de reanudación
 
 - Trabajo actual autorizado: implementación en rama separada, avanzando por el roadmap hasta el límite solicitado del 20% restante de uso.
-- Rama: `codex/centers-module`, creada desde `53ef0baf`. F0 y F1 implementadas y verificadas en entorno ficticio; pg instalado y PostgreSQL real de pruebas disponible.
+- Rama: `codex/centers-module`, creada desde `53ef0baf`. F0-F2 verificadas en entorno ficticio. Primer commit de infraestructura: `75e1160d`.
 - Guía: [CENTERS_ROADMAP.md](CENTERS_ROADMAP.md). Instrucciones: [AGENTS.md](../../AGENTS.md).
-- Siguiente tarea: **C06**, esquema de negocio; después autorización/RLS y protección de referencias C07-C09.
-- Último hito cerrado: infraestructura F1. La fase no incluye todavía CRUD de centros o cobros.
-- Pruebas: 27 unitarias/contratos/empaquetado y 10 HTTP/regresión pertinentes pasan; 2 integraciones SQL+HTTP reales pasan también tras reiniciar PostgreSQL.
+- Siguiente tarea: **C10-C12 / F3**, creación de centros, responsables y UI de plataforma.
+- Último hito cerrado: aislamiento F2. Todavía no hay alta de centros desde interfaz ni cobros.
+- Pruebas F2: 31 unitarias/contratos/empaquetado, 14 HTTP/regresión y 3 SQL+HTTP reales pasan. API completa: 626 tests, 599 pass/27 fail previos, sin fallos nuevos frente al baseline.
 
 Este registro contiene el estado de ejecución; el roadmap define requisitos y dependencias. La autorización vigente siempre procede del usuario, no de una casilla de este archivo.
 
@@ -35,10 +35,10 @@ Estados permitidos: `todo`, `in_progress`, `done`, `blocked`. Una tarea done nec
 | C03 | F1 | Compose y PostgreSQL | done |
 | C04 | F1 | pg, migraciones y roles SQL | done |
 | C05 | F1 | Esqueleto, contratos y harness | done |
-| C06 | F2 | Esquema inicial | todo |
-| C07 | F2 | Authz, RLS y DTO | todo |
-| C08 | F2 | Referencias JSON-SQL y borrado | todo |
-| C09 | F2 | Admin técnico y superadmin | todo |
+| C06 | F2 | Esquema inicial | done |
+| C07 | F2 | Authz, RLS y DTO | done |
+| C08 | F2 | Referencias JSON-SQL y borrado | done |
+| C09 | F2 | Admin técnico y superadmin | done |
 | C10 | F3 | Bootstrap y centros | todo |
 | C11 | F3 | Roles y responsables | todo |
 | C12 | F3 | UI de plataforma | todo |
@@ -78,7 +78,7 @@ Estados permitidos: `todo`, `in_progress`, `done`, `blocked`. Una tarea done nec
 | Gate | Condiciones | Estado |
 |---|---|---|
 | Infraestructura | C03-C05 + módulo apagado/activo/SQL caído + empaquetado | verificado, target default |
-| Aislamiento | C06-C09 + RLS real, revocación y protección de identidad | pendiente |
+| Aislamiento | C06-C09 + RLS real, revocación y protección de identidad | verificado |
 | MVP de ensayo | C00-C24 + recorrido completo, suites/build y restore | pendiente |
 | Cobros automáticos | C25-C28 según pasarela + sandbox y conciliación | pendiente |
 | Entrenador | C29-C30 + convergencia y privacidad | pendiente |
@@ -128,6 +128,17 @@ Formato para nuevas entradas: tarea, motivo, evidencia, trabajo independiente po
 - Frontend build pasa; 18 locales/2258 claves y 1762 cadenas de fuente cubiertas. API docs generadas y --check pasa. MCP no modificado; no se instaló su runtime de tests aún.
 - Estado: C00-C05 done; gate infraestructura verificado para target default. Módulo sin centros reales y apagado en despliegue habitual. Demo existente intacta.
 - Siguiente: C06-C09; ningún permiso de gestión se concede hasta completar aislamiento y protección de cuentas.
+
+### 2026-10-13 · C06-C09 / F2
+
+- Esquema 002: centros, asignaciones, socios, consentimientos, auditoría e idempotencia con claves por centro. Funciones SQL de permiso acotadas; metadatos de rol/referencia con RLS y acceso de propietario controlado para evitar recursión. FORCE RLS sobre negocio.
+- C07: afiliaciones /centers/me, ficha por rol, contexto de transacción que restablece el flag plataforma, capacidades y revocación vigentes. Locks de centro/roles para operaciones sensibles.
+- C08: registry mantenido por triggers, exclusión mutua entre enlazar/eliminar cuentas, marcador durable y borrado fail-closed aun con módulo oculto/SQL caído. Reconciliación read-only informa referencias huérfanas; no recrea usuarios ni concede acceso.
+- C09: allowlist CENTERS_SUPERADMIN_UIDS separada del admin técnico y de los roles manager/trainer. Se conserva la autoridad técnica heredada explícita; los responsables no obtienen /api/admin. Los permisos locales solo proceden de SQL.
+- Verificación: 26/26 unitarias del módulo + 5/5 contratos/COPY; 14/14 HTTP/config/sync/borrado legado; 3/3 integración real con RLS, FK cruzada rechazada, unicidad local, DTO trainer, revocación y protección al ocultar módulo. SQL probado en stack independiente, imagen Node 22 reconstruida.
+- Suite API completa: 626/599 pass/27 fail, ningún fallo nuevo frente a baseline. Contrato generado de 73 endpoints y --check pasa. Frontend no cambiado en F2, no se repitió su suite fallida sin motivo nuevo.
+- Limitaciones: restauración antigua sin marcador e imágenes previas sin protección necesitan el procedimiento de C40; no afirmar seguridad automática para esos casos. Políticas económicas reales y proveedores siguen pendientes de sus fases.
+- Estado: C06-C09 done. Siguiente: F3. El stack de demo continúa intacto.
 
 ### Plantilla de entrada futura
 

@@ -246,7 +246,7 @@ main.api-main .lead { color: var(--fg-2); max-width: 58ch; margin: 14px 0 0; fon
   <p class="api-facts">
     <span>OpenAPI 3.1.0</span>
     <span>openGym v1.4.1</span>
-    <span>70 endpoints</span>
+    <span>73 endpoints</span>
     <span>AGPL-3.0-or-later</span>
   </p>
 
@@ -297,6 +297,131 @@ main.api-main .lead { color: var(--fg-2); max-width: 58ch; margin: 14px 0 0; fon
   <p class="sub">Opt-in centers module. Foundation only; no business records or permissions are created yet.</p>
   <div class="eps">
 
+<details class="ep" id="op-getCentersMe">
+  <summary>
+    <span class="m get">GET</span>
+    <span class="ep-path"><code>/api/centers/me</code></span>
+    <span class="ep-chev" aria-hidden="true"></span>
+    <span class="ep-sum">Own affiliations and explicit platform capabilities</span>
+  </summary>
+  <div class="ep-body">
+<p>Resolves current roles and memberships from SQL using the authenticated account. Never trusts a center or role from personal synced state. Platform capabilities require an explicit CENTERS_SUPERADMIN_UIDS allowlist, independently of user.admin.</p>
+    <p class="ep-auth"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="4" y="11" width="16" height="10" rx="2.5"/><path d="M8 11V7a4 4 0 0 1 8 0v4"/></svg><span>Requires a session: the cookie set at sign-in, or <code>Authorization: Bearer &lt;token&gt;</code> from mobile-app pairing.</span></p>
+
+
+    <p class="ep-h">Responses</p>
+    <div class="ptab">
+  <div class="prow rrow">
+    <span class="r-code s2">200</span>
+    <span class="p-desc">Own centers and current capabilities; no economic or contact details.<span class="r-sig">{ platformCapabilities: string[], centers: object[] }</span></span>
+  </div>
+  <div class="prow rrow">
+    <span class="r-code s4">401</span>
+    <span class="p-desc">No current session.</span>
+  </div>
+  <div class="prow rrow">
+    <span class="r-code s4">404</span>
+    <span class="p-desc">Module switched off.</span>
+  </div>
+  <div class="prow rrow">
+    <span class="r-code s5">503</span>
+    <span class="p-desc">Centers unavailable; code centers-unavailable.</span>
+  </div>
+    </div>
+  </div>
+</details>
+
+<details class="ep" id="op-getCenterMember">
+  <summary>
+    <span class="m get">GET</span>
+    <span class="ep-path"><code>/api/centers/member</code></span>
+    <span class="ep-chev" aria-hidden="true"></span>
+    <span class="ep-sum">Role-filtered member profile within one center</span>
+  </summary>
+  <div class="ep-body">
+<p>Staff only: manager receives contact fields; trainer receives only id, centerId, number, name, state and version. A member id from another center returns a generic 404. No IBAN, payments or arbitrary source fields are included in either projection.</p>
+    <p class="ep-auth"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="4" y="11" width="16" height="10" rx="2.5"/><path d="M8 11V7a4 4 0 0 1 8 0v4"/></svg><span>Requires a session: the cookie set at sign-in, or <code>Authorization: Bearer &lt;token&gt;</code> from mobile-app pairing.</span></p>
+<p class="ep-h">Query parameters</p><div class="ptab">
+  <div class="prow">
+    <span class="p-name">centerId<em class="p-req" title="required">required</em></span>
+    <span class="p-type">string</span>
+    <span class="p-desc"></span>
+  </div>
+  <div class="prow">
+    <span class="p-name">id<em class="p-req" title="required">required</em></span>
+    <span class="p-type">string</span>
+    <span class="p-desc"></span>
+  </div>
+</div>
+
+    <p class="ep-h">Responses</p>
+    <div class="ptab">
+  <div class="prow rrow">
+    <span class="r-code s2">200</span>
+    <span class="p-desc">An allowlisted member projection for the caller's role.<span class="r-sig">{ member: object }</span></span>
+  </div>
+  <div class="prow rrow">
+    <span class="r-code s4">401</span>
+    <span class="p-desc">No current session.</span>
+  </div>
+  <div class="prow rrow">
+    <span class="r-code s4">403</span>
+    <span class="p-desc">Insufficient capability in an accessible center; code forbidden.</span>
+  </div>
+  <div class="prow rrow">
+    <span class="r-code s4">404</span>
+    <span class="p-desc">Module off or resource not accessible; never reveals an external center.</span>
+  </div>
+  <div class="prow rrow">
+    <span class="r-code s4">409</span>
+    <span class="p-desc">Center inactive; code center-inactive.</span>
+  </div>
+  <div class="prow rrow">
+    <span class="r-code s5">503</span>
+    <span class="p-desc">Centers unavailable; code centers-unavailable.</span>
+  </div>
+    </div>
+  </div>
+</details>
+
+<details class="ep" id="op-getCentersReconciliation">
+  <summary>
+    <span class="m get">GET</span>
+    <span class="ep-path"><code>/api/platform/centers/reconciliation</code></span>
+    <span class="ep-chev" aria-hidden="true"></span>
+    <span class="ep-sum">Identify logical SQL references whose JSON accounts are absent</span>
+  </summary>
+  <div class="ep-body">
+<p>Read-only reconciliation for the explicit platform allowlist. Does not grant roles, recreate identities or delete data automatically. A missing account cannot establish an authenticated session even if restored SQL still contains its previous assignment.</p>
+    <p class="ep-auth"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="4" y="11" width="16" height="10" rx="2.5"/><path d="M8 11V7a4 4 0 0 1 8 0v4"/></svg><span>Requires a session: the cookie set at sign-in, or <code>Authorization: Bearer &lt;token&gt;</code> from mobile-app pairing.</span></p>
+
+
+    <p class="ep-h">Responses</p>
+    <div class="ptab">
+  <div class="prow rrow">
+    <span class="r-code s2">200</span>
+    <span class="p-desc">Reference count and orphaned account ids, without profile or financial data.<span class="r-sig">{ referencedAccounts: integer, orphanedAccounts: string[] }</span></span>
+  </div>
+  <div class="prow rrow">
+    <span class="r-code s4">401</span>
+    <span class="p-desc">No current session.</span>
+  </div>
+  <div class="prow rrow">
+    <span class="r-code s4">403</span>
+    <span class="p-desc">Not in the explicit platform allowlist.</span>
+  </div>
+  <div class="prow rrow">
+    <span class="r-code s4">404</span>
+    <span class="p-desc">Module off.</span>
+  </div>
+  <div class="prow rrow">
+    <span class="r-code s5">503</span>
+    <span class="p-desc">Centers unavailable; code centers-unavailable.</span>
+  </div>
+    </div>
+  </div>
+</details>
+
 <details class="ep" id="op-getCentersStatus">
   <summary>
     <span class="m get">GET</span>
@@ -313,7 +438,7 @@ main.api-main .lead { color: var(--fg-2); max-width: 58ch; margin: 14px 0 0; fon
     <div class="ptab">
   <div class="prow rrow">
     <span class="r-code s2">200</span>
-    <span class="p-desc">The foundation database is available and migrated.<span class="r-sig">{ enabled: always true, stage: always &quot;foundation&quot;, available: always true, schemaVersion: always &quot;001&quot; }</span></span>
+    <span class="p-desc">The foundation database is available and migrated.<span class="r-sig">{ enabled: always true, stage: always &quot;foundation&quot;, available: always true, schemaVersion: always &quot;002&quot; }</span></span>
   </div>
   <div class="prow rrow">
     <span class="r-code s4">401</span>
@@ -2696,7 +2821,7 @@ main.api-main .lead { color: var(--fg-2); max-width: 58ch; margin: 14px 0 0; fon
     <span class="ep-sum">Delete a user and everything of theirs</span>
   </summary>
   <div class="ep-body">
-<p>Removes the account for good: the user record, their passkeys, their push subscriptions, their live presence, their training history file, their uploaded photos and videos (<code>DATA_DIR/uploads/&lt;uid&gt;/</code>) and any Coach credential stored for them. Not reversible; <code>/api/admin/user/disable</code> is the reversible one. An admin cannot delete their own account, and the last admin cannot be deleted. Audited by name, since the id stops meaning anything.</p>
+<p>Removes the account for good: the user record, their passkeys, their push subscriptions, their live presence, their training history file, their uploaded photos and videos (<code>DATA_DIR/uploads/&lt;uid&gt;/</code>) and any Coach credential stored for them. Not reversible; <code>/api/admin/user/disable</code> is the reversible one. An admin cannot delete their own account, and the last admin cannot be deleted. Audited by name, since the id stops meaning anything. Once centers has been attached, a durable marker keeps SQL-reference checks active even if the centers UI is switched off. Linked accounts are refused with 409; unavailable SQL fails closed with 503. Unlinked legacy accounts keep the same deletion behavior. Linking and deletion share a process-local lock.</p>
     <p class="ep-auth"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="4" y="11" width="16" height="10" rx="2.5"/><path d="M8 11V7a4 4 0 0 1 8 0v4"/></svg><span>Admin only: a signed-in session whose user is an admin (<code>ADMIN_UIDS</code> or <code>admin:true</code>), as the session cookie or a Bearer token.</span></p>
 
 <p class="ep-h">Request body <span class="p-hint">(JSON)</span></p><div class="ptab">
@@ -2727,6 +2852,14 @@ main.api-main .lead { color: var(--fg-2); max-width: 58ch; margin: 14px 0 0; fon
   <div class="prow rrow">
     <span class="r-code s4">404</span>
     <span class="p-desc">No user with that id.<span class="r-sig"><code>{&quot;error&quot;:&quot;no such user&quot;}</code></span></span>
+  </div>
+  <div class="prow rrow">
+    <span class="r-code s4">409</span>
+    <span class="p-desc">Account has administrative references (account-linked), or is currently being linked/deleted (account-busy).</span>
+  </div>
+  <div class="prow rrow">
+    <span class="r-code s5">503</span>
+    <span class="p-desc">Center references could not be checked; centers-unavailable. No deletion is performed.</span>
   </div>
     </div>
   </div>

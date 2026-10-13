@@ -24,7 +24,7 @@ const files = [{ version: '001', name: '001_test.sql', checksum: 'checksum', sql
 
 test('migration checksums are stable and real files have distinct ordered versions', async () => {
   const migrations = await migrationFiles();
-  assert.equal(migrations.length, 1);
+  assert.equal(migrations.length, 2);
   assert.equal(migrations[0].version, '001');
   assert.equal(migrations[0].checksum.length, 64);
 });

@@ -3,6 +3,7 @@ export function centersConfig(env = process.env) {
   return Object.freeze({
     enabled: /^(1|true|yes|on)$/i.test(env.CENTERS_ENABLED || ''),
     databaseUrl: databaseUrlFrom(env),
+    superadminUids: Object.freeze(String(env.CENTERS_SUPERADMIN_UIDS || '').split(',').map(s => s.trim()).filter(Boolean)),
   });
 }
 

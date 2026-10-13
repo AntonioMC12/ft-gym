@@ -32,7 +32,11 @@ Fuera de Compose se usan CENTERS_DATABASE_URL para runtime y CENTERS_MIGRATION_D
 
 `GET /api/config` omite centers al estar apagado; activo anuncia `{ enabled: true, stage: "foundation" }`, sin consultar SQL. `GET /api/centers/status` devuelve 404 apagado, 401 sin sesión vigente, 200 si rol/esquema son compatibles y 503 genérico si SQL/configuración/migración no están disponibles. No expone DSN, permisos ficticios o datos de negocio. `/api/data` sigue independiente.
 
-No se ha creado aún /api/centers/me: requiere afiliaciones reales de F2. Capacidad global y rol local no se deducen de user.admin.
+F2 añade /api/centers/me, la ficha operativa /api/centers/member y reconciliación de referencias. Las capacidades globales requieren CENTERS_SUPERADMIN_UIDS explícito y no se deducen de user.admin. El admin técnico heredado sigue siendo una autoridad global de confianza, distinta del responsable; ningún rol local lo activa.
+
+La migración 002 crea centros, roles, socios, consentimientos, auditoría, idempotencia y referencias de cuenta. Las entidades de negocio aplican FORCE RLS. Dos tablas de metadatos (role_assignments y account_references) aplican RLS al runtime pero permiten bypass exclusivamente a su propietario para funciones SECURITY DEFINER acotadas, no recursivas, con search_path fijo y sin EXECUTE público. No usar el migrador como conexión API.
+
+El marcador durable data/centers-attached mantiene la comprobación de referencias aunque se oculte el módulo. SQL caído o configuración ausente bloquean el borrado global de cuentas mientras entrenamiento sigue disponible. El enlace SQL y el borrado JSON se coordinan mediante locks en el único proceso API. Las restauraciones deben conservar el marcador y ambos almacenes; restaurar una copia antigua sin él o volver a una imagen anterior requiere el procedimiento de C40, no es una reversión automática segura.
 
 ## Pruebas aisladas
 
@@ -51,7 +55,7 @@ No usar down -v en un stack compartido o productivo. Detener el stack no elimina
 
 Alternativa local: `npm run test:centers` con CENTERS_TEST_DATABASE_URL y CENTERS_TEST_MIGRATION_DATABASE_URL. Se exigen patrón *_centers_test, host/base iguales, roles separados y marcador SQL test. Nunca se toman URLs runtime ni se omiten tests cuando faltan parámetros.
 
-RLS sobre una tabla probe acredita contexto transaccional, no tablas de negocio todavía inexistentes. F2 añade las entidades y su verificación específica.
+La suite incluye RLS de entidades reales, referencias entre centros, unicidad local, DTO de entrenador, revocación, reconciliación y protección del borrado. Las fixtures de negocio usan IDs aleatorios en la base test, conservando historial; no se borran tablas inmutables para dejar una prueba verde.
 
 ## Dominio y baseline
 

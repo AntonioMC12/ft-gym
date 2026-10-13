@@ -4,3 +4,7 @@ export class CentersUnavailable extends Error {
     this.code = 'centers-unavailable';
   }
 }
+
+export class CentersError extends Error {
+  constructor(status, code, message) { super(message); this.status = status; this.code = code; }
+}

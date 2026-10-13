@@ -165,6 +165,94 @@ security:
   - bearerAuth: []
 
 paths:
+  /api/centers/me:
+    get:
+      tags: [centers]
+      operationId: getCentersMe
+      summary: Own affiliations and explicit platform capabilities
+      description: |
+        Resolves current roles and memberships from SQL using the authenticated account.
+        Never trusts a center or role from personal synced state. Platform capabilities
+        require an explicit CENTERS_SUPERADMIN_UIDS allowlist, independently of user.admin.
+      responses:
+        '200':
+          description: Own centers and current capabilities; no economic or contact details.
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [platformCapabilities, centers]
+                properties:
+                  platformCapabilities: { type: array, items: { type: string } }
+                  centers:
+                    type: array
+                    items:
+                      type: object
+                      required: [id, name, state, capabilities]
+                      properties:
+                        id: { type: string }
+                        name: { type: string }
+                        state: { type: string, enum: [draft, active, inactive] }
+                        capabilities: { type: array, items: { type: string } }
+        '401': { description: No current session. }
+        '404': { description: Module switched off. }
+        '503': { description: Centers unavailable; code centers-unavailable. }
+  /api/centers/member:
+    get:
+      tags: [centers]
+      operationId: getCenterMember
+      summary: Role-filtered member profile within one center
+      description: |
+        Staff only: manager receives contact fields; trainer receives only id, centerId,
+        number, name, state and version. A member id from another center returns a generic
+        404. No IBAN, payments or arbitrary source fields are included in either projection.
+      parameters:
+        - name: centerId
+          in: query
+          required: true
+          schema: { type: string, pattern: '^[a-zA-Z0-9_-]{1,64}$' }
+        - name: id
+          in: query
+          required: true
+          schema: { type: string, pattern: '^[a-zA-Z0-9_-]{1,64}$' }
+      responses:
+        '200':
+          description: An allowlisted member projection for the caller's role.
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [member]
+                properties:
+                  member: { type: object, description: Operational fields, plus contact fields only for managers. }
+        '401': { description: No current session. }
+        '403': { description: Insufficient capability in an accessible center; code forbidden. }
+        '404': { description: Module off or resource not accessible; never reveals an external center. }
+        '409': { description: Center inactive; code center-inactive. }
+        '503': { description: Centers unavailable; code centers-unavailable. }
+  /api/platform/centers/reconciliation:
+    get:
+      tags: [centers]
+      operationId: getCentersReconciliation
+      summary: Identify logical SQL references whose JSON accounts are absent
+      description: |
+        Read-only reconciliation for the explicit platform allowlist. Does not grant roles,
+        recreate identities or delete data automatically. A missing account cannot establish
+        an authenticated session even if restored SQL still contains its previous assignment.
+      responses:
+        '200':
+          description: Reference count and orphaned account ids, without profile or financial data.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  referencedAccounts: { type: integer }
+                  orphanedAccounts: { type: array, items: { type: string } }
+        '401': { description: No current session. }
+        '403': { description: Not in the explicit platform allowlist. }
+        '404': { description: Module off. }
+        '503': { description: Centers unavailable; code centers-unavailable. }
   /api/centers/status:
     get:
       tags: [centers]
@@ -189,7 +277,7 @@ paths:
                   enabled: { type: boolean, const: true }
                   stage: { type: string, const: foundation }
                   available: { type: boolean, const: true }
-                  schemaVersion: { type: string, const: '001' }
+                  schemaVersion: { type: string, const: '002' }
         '401':
           description: No valid session, or the session was revoked during the check.
         '404':
@@ -2282,6 +2370,10 @@ paths:
         them. Not reversible; `/api/admin/user/disable` is the
         reversible one. An admin cannot delete their own account, and the last admin
         cannot be deleted. Audited by name, since the id stops meaning anything.
+        Once centers has been attached, a durable marker keeps SQL-reference checks
+        active even if the centers UI is switched off. Linked accounts are refused
+        with 409; unavailable SQL fails closed with 503. Unlinked legacy accounts
+        keep the same deletion behavior. Linking and deletion share a process-local lock.
       requestBody:
         required: true
         content:
@@ -2307,6 +2399,10 @@ paths:
             application/json:
               schema: { $ref: '#/components/schemas/Error' }
               example: { error: "you cannot delete your own account" }
+        '409':
+          description: Account has administrative references (account-linked), or is currently being linked/deleted (account-busy).
+        '503':
+          description: Center references could not be checked; centers-unavailable. No deletion is performed.
         '401': { $ref: '#/components/responses/Unauthorized' }
         '403': { $ref: '#/components/responses/Forbidden' }
         '404':

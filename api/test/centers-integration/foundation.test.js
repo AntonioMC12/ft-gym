@@ -8,7 +8,7 @@ import path from 'node:path';
 import { spawn } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
 import { isolatedDatabase } from './helpers.mjs';
-import { createCentersDatabase } from '../../centers/db.js';
+import { createCentersDatabase, SCHEMA_VERSION } from '../../centers/db.js';
 import { applyMigrations, migrationFiles } from '../../centers/migrate.js';
 
 test('real PostgreSQL: migrations, limited application role, rollback and transaction context isolation', async t => {
@@ -26,7 +26,7 @@ test('real PostgreSQL: migrations, limited application role, rollback and transa
   await assert.rejects(applyMigrations(migrator, { kind: 'test', files: files.map(f => ({ ...f, checksum: 'changed' })) }),
     /applied migrations differ/);
   await assert.rejects(applyMigrations(migrator, { kind: 'production' }), /environment does not match/);
-  assert.deepEqual(await db.status(), { available: true, schemaVersion: '001' });
+  assert.deepEqual(await db.status(), { available: true, schemaVersion: SCHEMA_VERSION });
   await assert.rejects(privilegedDb.status(), { code: 'centers-unavailable' });
 
   // A unique probe table belongs only to this test; never delete or truncate actual business tables.
@@ -57,7 +57,7 @@ test('real PostgreSQL: migrations, limited application role, rollback and transa
   });
   await assert.rejects(db.transaction({ uid: 'manager_a', centerId: 'a' }, client =>
     client.query('UPDATE centers.environment SET kind = $1', ['production'])), { code: '42501' });
-  assert.deepEqual(await db.status(), { available: true, schemaVersion: '001' }, 'connection remains usable after failed transaction');
+  assert.deepEqual(await db.status(), { available: true, schemaVersion: SCHEMA_VERSION }, 'connection remains usable after failed transaction');
 });
 
 test('real PostgreSQL + HTTP: availability recovers without rebooting or breaking personal sync', async t => {

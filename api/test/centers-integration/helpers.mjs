@@ -1,6 +1,12 @@
 import pg from 'pg';
 import { postgresUrl } from '../../centers/config.js';
 import { applyMigrations } from '../../centers/migrate.js';
+import fs from 'node:fs';
+import os from 'node:os';
+import path from 'node:path';
+import { randomBytes, createHmac } from 'node:crypto';
+import { spawn } from 'node:child_process';
+import { fileURLToPath } from 'node:url';
 
 // No fallback to application credentials. A test suffix alone is insufficient: the SQL marker
 // and the separate app/migrator identities are also checked before test writes.
@@ -20,6 +26,34 @@ export function testUrls(env = process.env) {
     return real.hostname === a.hostname && (real.port || '5432') === (a.port || '5432') && real.pathname === a.pathname;
   })) throw new Error('centers tests must not target the application database');
   return { app, migration };
+}
+
+export async function startHttp(t, { app, users, enabled = true, attached = false, superadminUids = [] }) {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'gym-centers-business-'));
+  const secret = randomBytes(32).toString('hex');
+  fs.writeFileSync(path.join(dir, 'secret'), secret);
+  fs.writeFileSync(path.join(dir, 'db.json'), JSON.stringify({ users, creds: [], subs: [], invites: [] }));
+  if (attached) fs.writeFileSync(path.join(dir, 'centers-attached'), '1\n');
+  const child = spawn(process.execPath, ['server.js'], { cwd: fileURLToPath(new URL('../../', import.meta.url)), stdio: ['ignore','pipe','pipe'],
+    env: { ...process.env, PORT: '0', DATA_DIR: dir, CENTERS_ENABLED: enabled ? '1' : '0', CENTERS_DATABASE_URL: app,
+      CENTERS_SUPERADMIN_UIDS: superadminUids.join(','), COACH_DISABLED: '1', MEDIA_UPLOADS: '0' } });
+  t.after(async () => {
+    if (child.exitCode == null) await new Promise(resolve => { child.once('exit', resolve); child.kill(); });
+    fs.rmSync(dir, { recursive: true, force: true });
+  });
+  const port = await new Promise((resolve,reject) => {
+    let log = ''; const timer = setTimeout(() => reject(new Error('test server did not start')), 15000);
+    child.stdout.on('data', chunk => { log += chunk; const m = /gym-api on :(\d+)/.exec(log); if (m) { clearTimeout(timer); resolve(+m[1]); } });
+    child.stderr.on('data', () => {});
+    child.once('exit', () => { clearTimeout(timer); reject(new Error('test server exited')); });
+  });
+  return {
+    base: `http://127.0.0.1:${port}`, dir,
+    headers(uid) {
+      const payload = `${uid}:${Date.now() + 60000}:0`;
+      return { Authorization: `Bearer ${payload}.${createHmac('sha256', secret).update(payload).digest('base64url')}`, 'Content-Type': 'application/json' };
+    },
+  };
 }
 
 export async function isolatedDatabase() {

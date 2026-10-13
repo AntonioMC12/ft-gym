@@ -7,7 +7,7 @@
 - Trabajo actual autorizado: implementación en rama separada, avanzando por el roadmap. El usuario amplió el trabajo para continuar hasta agotar el presupuesto disponible, sustituyendo la reserva anterior del 20%. Guardar hitos verificables y el estado pendiente antes de terminar.
 - Rama: `codex/centers-module`, creada desde `53ef0baf`. F0-F3 verificadas en entorno ficticio. Commits: `75e1160d`, `433764a5`, `24cb5a42`.
 - Guía: [CENTERS_ROADMAP.md](CENTERS_ROADMAP.md). Instrucciones: [AGENTS.md](../../AGENTS.md).
-- Siguiente tarea: **C14 / F4**, transiciones de baja/pausa con fecha efectiva; después C15.
+- Siguiente tarea: **continuar C14 / F4**. Dominio puro implementado; faltan persistencia temporal, endpoints y UI de baja/pausa; después C15.
 - Último hito cerrado: C13, alta/ficha/edición/listado paginado de socios sin cuenta. No hay cobros ni enlace de cuentas de socios.
 - Pruebas C13: 11 unitarias/contratos, 17 frontend y 5 SQL+HTTP reales pasan. Suites completas sin fallos nuevos frente al baseline; detalle en el historial.
 
@@ -43,7 +43,7 @@ Estados permitidos: `todo`, `in_progress`, `done`, `blocked`. Una tarea done nec
 | C11 | F3 | Roles y responsables | done |
 | C12 | F3 | UI de plataforma | done |
 | C13 | F4 | Alta y ficha de socio | done |
-| C14 | F4 | Baja/pausa contractual | todo |
+| C14 | F4 | Baja/pausa contractual | in_progress |
 | C15 | F4 | Invitaciones y vinculación | todo |
 | C16 | F5 | Cuotas versionadas | todo |
 | C17 | F5 | Suscripciones | todo |
@@ -171,6 +171,13 @@ Formato para nuevas entradas: tarea, motivo, evidencia, trabajo independiente po
 - Tests: centers-f4-unit.log 11/11, frontend/centers-f4-ui.log 17/17, centers-f4-sql.log 5/5 reales. API general api/centers-f4-full-api.log 630/603 pass/27 fail previos; frontend/centers-f4-full-frontend.log 405 archivos/390 pass/15 fail, 5066 tests/5012 pass/54 fail previos. Comparación por nombres sin fallo nuevo. Controles/pestañas finales verificados específicamente; build final pasa.
 - 18 locales/2311 claves y 1813 cadenas de fuente cubiertas; pt-BR explícito. Navegador: responsable ficticio crea socio/abre ficha; escritorio y 390 px sin overflow. Captura fuera del repo. Reconstrucción de API temporal reinicia sesiones ficticias: volver a entrar.
 - C13 done. C14/C15 pendientes; activación contractual con C17. No hay datos de administración en S ni despliegue productivo.
+
+### 2026-10-13 · Inicio C14 / dominio
+
+- membership-transitions.js planifica end/freeze/resume con fuente válida, fechas ISO reales, motivo, fecha de reanudación posterior y distinción inmediato/programado. Fecha actual debe proceder de la zona del centro. No muta cuenta/SQL/cobros ni activa socios preactive; activación pertenece a C17.
+- centers-f4-transitions-unit.log: 6/6 (incluye 2 de validación C13), límites de calendario/bisiesto, transición inválida, ausencia de mutación, fechas futuras/retroactividad y campos de privilegio rechazados. Sin rutas ni cambios SQL para estas transiciones todavía.
+- C14 in_progress: falta diseño/persistencia de historial y planificación, coordinación/versionado, aplicación efectiva, API/DTO/UI y pruebas SQL. Al continuar, comprobar conflictos entre eventos futuros bajo lock; no guardar frozen/ended inmediatamente si su fecha aún no ha llegado. Estados leídos y filtros deben concordar con fecha local. Efectos económicos se completan en C17 y jobs en C25.
+- C13 guardada en 5d3c9bfc; mantener su resultado y los cambios previos de demo. Vista local deja disponible la pestaña Socios para Responsable Pruebas (password ficticio del preview); Plataforma Centros conserva gestión global de centros, sin acceso automático a fichas de socios.
 
 ### Plantilla de entrada futura
 

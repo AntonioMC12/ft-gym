@@ -8,6 +8,13 @@ export const centerAccounts = query => api('/api/platform/centers/accounts?query
 export const centerCommand = (path, body) => api(path, { method: 'POST', body: JSON.stringify(body) })
 export const centerMembers = (centerId, options = {}) => api('/api/centers/members?' + new URLSearchParams({centerId,...options}))
 export const centerMember = (centerId, id) => api('/api/centers/member?' + new URLSearchParams({centerId,id}))
+export const centerPlans = (centerId, options={}) => api('/api/centers/plans?'+new URLSearchParams({centerId,...options}))
+export const centerPlan = (centerId,id) => api('/api/centers/plan?'+new URLSearchParams({centerId,id}))
+export function plansErrorKey(error) {
+  if((error?.data?.code||error?.code)==='plan-archived')return 'Archived plans'
+  if((error?.data?.code||error?.code)==='invalid-input'||error?.message==='invalid price')return 'Check the membership plan details.'
+  return centersErrorKey(error)
+}
 export const centerInvitations = (centerId, kind, memberId) => api('/api/centers/invitations?' + new URLSearchParams({centerId,kind,...(memberId?{memberId}:{})}))
 export const inspectCenterInvitation = token => centerCommand('/api/centers/invitations/inspect',{token})
 export const acceptCenterInvitation = token => centerCommand('/api/centers/invitations/accept',{token})

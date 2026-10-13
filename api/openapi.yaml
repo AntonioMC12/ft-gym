@@ -165,6 +165,134 @@ security:
   - bearerAuth: []
 
 paths:
+  /api/centers/plans:
+    get:
+      tags: [centers]
+      operationId: listMembershipPlans
+      summary: List current membership fee plans in a selected center
+      description: Requires plans.manage or configured platform superadmin. Current price versions only. Cursor bound to caller/center/filters. No trainer/member financial access.
+      security: [{ session: [] }, { bearer: [] }]
+      parameters:
+        - { name: centerId, in: query, required: true, schema: { type: string } }
+        - { name: query, in: query, schema: { type: string, maxLength: 120 } }
+        - { name: archived, in: query, schema: { type: string, enum: [active, archived, all], default: active } }
+        - { name: limit, in: query, schema: { type: integer, minimum: 1, maximum: 100, default: 30 } }
+        - { name: cursor, in: query, schema: { type: string, maxLength: 1024 } }
+      responses:
+        '200': { description: plans and nextCursor; exact minor-unit prices as decimal strings. }
+        '400': { description: Invalid filters or cursor. }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { description: Current capability unavailable. }
+        '404': { description: Center inaccessible or module off. }
+  /api/centers/plan:
+    get:
+      tags: [centers]
+      operationId: getMembershipPlan
+      summary: Read a membership fee plan and its immutable price history
+      security: [{ session: [] }, { bearer: [] }]
+      parameters:
+        - { name: centerId, in: query, required: true, schema: { type: string } }
+        - { name: id, in: query, required: true, schema: { type: string } }
+      responses:
+        '200': { description: plan and versions descending by revision; archived history retained. }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { description: Current plans.manage unavailable. }
+        '404': { description: Plan inaccessible in selected center. }
+  /api/centers/plans/create:
+    post:
+      tags: [centers]
+      operationId: createMembershipPlan
+      summary: Create a fee plan and its first immutable price version
+      description: Requires plans.manage or platform. requestId is idempotent. Incomplete tax/proration is allowed for catalog preparation but cannot produce definitive charges. Currency is currently EUR only.
+      security: [{ session: [] }, { bearer: [] }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/MembershipPlanCreate' }
+      responses:
+        '200': { description: Current plan with priceVersionId, revision and optimistic version. }
+        '400': { description: Invalid decimal minor-unit text or conditions. }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { description: Current capability unavailable. }
+        '409': { description: Idempotency conflict or inactive center. }
+  /api/centers/plans/revise:
+    post:
+      tags: [centers]
+      operationId: reviseMembershipPlan
+      summary: Append a new price and condition version
+      description: Requires current plan version and requestId. Existing price rows are never modified; subscriptions retain their pinned version. Archived plans cannot be revised.
+      security: [{ session: [] }, { bearer: [] }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              allOf:
+                - { $ref: '#/components/schemas/MembershipPlanCreate' }
+                - type: object
+                  required: [id, version]
+                  properties:
+                    id: { type: string }
+                    version: { type: integer, minimum: 1 }
+      responses:
+        '200': { description: New immutable price version and current plan. }
+        '400': { description: Invalid conditions. }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { description: Current capability unavailable. }
+        '404': { description: Plan unavailable in selected center. }
+        '409': { description: Stale version, archived plan, inactive center or idempotency conflict. }
+  /api/centers/plans/duplicate:
+    post:
+      tags: [centers]
+      operationId: duplicateMembershipPlan
+      summary: Copy a selected historical version into a new fee plan
+      description: Pins source priceVersionId; concurrent price changes never alter what is duplicated. Archived plans can be copied; original remains archived. Only the new name is editable.
+      security: [{ session: [] }, { bearer: [] }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties: false
+              required: [centerId, id, priceVersionId, name, requestId]
+              properties:
+                centerId: { type: string }
+                id: { type: string }
+                priceVersionId: { type: string }
+                name: { type: string, minLength: 1, maxLength: 120 }
+                requestId: { type: string, pattern: '^[a-zA-Z0-9_-]{8,128}$' }
+      responses:
+        '200': { description: New active plan with copied conditions. }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { description: Current capability unavailable. }
+        '404': { description: Source plan/version unavailable in selected center. }
+        '409': { description: Idempotency conflict or inactive center. }
+  /api/centers/plans/archive:
+    post:
+      tags: [centers]
+      operationId: archiveMembershipPlan
+      summary: Archive a fee plan without deleting prices or existing contracts
+      security: [{ session: [] }, { bearer: [] }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties: false
+              required: [centerId, id, version]
+              properties:
+                centerId: { type: string }
+                id: { type: string }
+                version: { type: integer, minimum: 1 }
+      responses:
+        '200': { description: Archived current plan. }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { description: Current capability unavailable. }
+        '404': { description: Plan unavailable in selected center. }
+        '409': { description: Stale version or already archived. }
   /api/centers/invitations:
     get:
       tags: [centers]
@@ -3729,6 +3857,19 @@ components:
           example: { error: "that code is wrong, used or expired", code: "link-invalid" }
 
   schemas:
+    MembershipPlanCreate:
+      type: object
+      required: [centerId, name, priceMinor, currency, intervalMonths, requestId]
+      properties:
+        centerId: { type: string }
+        name: { type: string, minLength: 1, maxLength: 120 }
+        priceMinor: { type: string, pattern: '^(0|[1-9][0-9]{0,12})$', description: 'Exact nonnegative minor units, maximum 1000000000000. No floating point.' }
+        currency: { type: string, enum: [EUR] }
+        intervalMonths: { type: integer, enum: [1, 3, 6, 12] }
+        priceIncludesTax: { type: [boolean, 'null'], description: Must be configured together with taxBasisPoints. }
+        taxBasisPoints: { type: [integer, 'null'], minimum: 0, maximum: 10000, description: Explicit tax rate in hundredths of a percent. No assumed legal tax rate. }
+        proration: { type: [string, 'null'], enum: [none, actual-days, null] }
+        requestId: { type: string, pattern: '^[a-zA-Z0-9_-]{8,128}$' }
     CenterInvitationInput:
       type: object
       additionalProperties: false

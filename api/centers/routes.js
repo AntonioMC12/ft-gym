@@ -6,6 +6,7 @@ import { createMember, updateMember, listMembers, getMember } from './services/m
 import { memberListOptions } from './domain/member-validation.js';
 import { transitionMember,cancelMemberTransition } from './services/membership-lifecycle.js';
 import {createInvitation,listInvitations,revokeInvitation,inspectInvitation,acceptInvitation} from './services/invitations.js';
+import {createMembershipPlan,reviseMembershipPlan,duplicateMembershipPlan,archiveMembershipPlan,listMembershipPlans,getMembershipPlan,planListOptions} from './services/membership-plans.js';
 
 // Inject the same session and response helpers used by the rest of node:http.
 export function centersRoutes({ config, database, json, readSession, readBody, accountLocks, lookupAccount,
@@ -35,6 +36,22 @@ export function centersRoutes({ config, database, json, readSession, readBody, a
     }catch(error){return failure(res,error);}
   };
   return {
+    'POST /api/centers/plans/create': mutate(false,(context,body)=>createMembershipPlan(context,body,{platform:isPlatformUser(config,context.user)})),
+    'POST /api/centers/plans/revise': mutate(false,(context,body)=>reviseMembershipPlan(context,body,{platform:isPlatformUser(config,context.user)})),
+    'POST /api/centers/plans/duplicate': mutate(false,(context,body)=>duplicateMembershipPlan(context,body,{platform:isPlatformUser(config,context.user)})),
+    'POST /api/centers/plans/archive': mutate(false,(context,body)=>archiveMembershipPlan(context,body,{platform:isPlatformUser(config,context.user)})),
+    'GET /api/centers/plans': async(req,res)=>{
+      const user=guard(req,res);if(!user)return;const sv=user.sv||0;
+      const params=new URL(req.url,'http://x').searchParams,centerId=params.get('centerId');
+      if(!recordId(centerId))return json(res,404,{error:'not found',code:'not-found'});
+      try{const result=await listMembershipPlans(database,user.id,centerId,planListOptions(params),{platform:isPlatformUser(config,user)});if(!current(req,user,sv))return json(res,401,{error:'not signed in'});return json(res,200,result);}catch(error){return failure(res,error);}
+    },
+    'GET /api/centers/plan': async(req,res)=>{
+      const user=guard(req,res);if(!user)return;const sv=user.sv||0;
+      const params=new URL(req.url,'http://x').searchParams,centerId=params.get('centerId'),id=params.get('id');
+      if(!recordId(centerId)||!recordId(id))return json(res,404,{error:'not found',code:'not-found'});
+      try{const result=await getMembershipPlan(database,user.id,centerId,id,{platform:isPlatformUser(config,user)});if(!current(req,user,sv))return json(res,401,{error:'not signed in'});return json(res,200,result);}catch(error){return failure(res,error);}
+    },
     'POST /api/centers/invitations/create': mutate(false,(context,body)=>createInvitation(context,body,{platform:isPlatformUser(config,context.user)})),
     'POST /api/centers/invitations/revoke': mutate(false,(context,body)=>revokeInvitation(context,body,{platform:isPlatformUser(config,context.user)})),
     'POST /api/centers/invitations/inspect': mutate(false,inspectInvitation),

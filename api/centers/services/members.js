@@ -1,11 +1,12 @@
 import { createHash } from 'node:crypto';
 import { CentersError } from '../errors.js';
-import { memberDto, recordId } from '../authz.js';
+import { memberDto } from '../authz.js';
 import { businessTransaction } from './context.js';
 import { MEMBER_PROJECTION as projection, memberRecord } from './member-records.js';
 import { membershipHistory } from './membership-lifecycle.js';
 import { objectBody, idField, requestField, versionField } from '../domain/validation.js';
 import { memberFields } from '../domain/member-validation.js';
+import {cursorScope,readCursor,nextCursor} from '../domain/pagination.js';
 
 const conflict=code=>new CentersError(409,code,'member changed; reload it');
 const audit=(client,centerId,uid,action,id)=>client.query('INSERT INTO centers.business_audit(center_id,actor_uid,action,target_id) VALUES($1,$2,$3,$4)',[centerId,uid,action,id]);
@@ -57,17 +58,7 @@ export function getMember(database,uid,centerId,id,{platform=false}={}) {
   },{platform,allowInactive:platform});
 }
 export async function listMembers(database,uid,centerId,{query,state,limit,cursor},{platform=false}={}) {
-  const scope=createHash('sha256').update(JSON.stringify([uid,centerId,query,state])).digest('hex');
-  let after=null;
-  if(cursor){
-    try {
-      after=JSON.parse(Buffer.from(cursor,'base64url').toString('utf8'));
-      if(after.scope!==scope||!recordId(after.id)||typeof after.at!=='string'||
-        !/^\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}(?:\.\d{1,6})?[+-]\d{2}(?::\d{2})?$/.test(after.at)||!Number.isFinite(Date.parse(after.at)))throw new Error();
-      const [year,month,day]=after.at.slice(0,10).split('-').map(Number);
-      if(new Date(Date.UTC(year,month-1,day)).toISOString().slice(0,10)!==after.at.slice(0,10))throw new Error();
-    } catch {throw new CentersError(400,'invalid-input','invalid member cursor');}
-  }
+  const scope=cursorScope([uid,centerId,query,state]),after=readCursor(cursor,scope);
   return businessTransaction(database,uid,centerId,'members.read',async(client,context)=>{
     const pattern='%'+query.replace(/[\\%_]/g,'\\$&')+'%';
     const {rows}=await client.query(`SELECT ${projection},created_at::text AS cursor_at FROM centers.member_profiles
@@ -76,6 +67,6 @@ export async function listMembers(database,uid,centerId,{query,state,limit,curso
       ORDER BY created_at DESC,id DESC LIMIT $7`,[centerId,query,pattern,state,after?.at||null,after?.id||null,limit+1]);
     const page=rows.slice(0,limit),last=page.at(-1);
     return {members:page.map(row=>memberDto(row,context.capabilities)),nextCursor:rows.length>limit?
-      Buffer.from(JSON.stringify({scope,at:last.cursor_at,id:last.id})).toString('base64url'):null};
+      nextCursor(scope,last):null};
   },{platform,allowInactive:platform});
 }

@@ -7,9 +7,9 @@
 - Trabajo actual autorizado: continuar implementación hasta que reste el 5% del presupuesto consumible; después guardar el punto de continuación y apagar el ordenador, por orden explícita del usuario en esta sesión. Esta orden de apagado se aplica al cierre de esta ejecución, no a sesiones futuras.
 - Rama: `codex/centers-module`, creada desde `53ef0baf`. F0-F3 verificadas en entorno ficticio. Commits: `75e1160d`, `433764a5`, `24cb5a42`.
 - Guía: [CENTERS_ROADMAP.md](CENTERS_ROADMAP.md). Instrucciones: [AGENTS.md](../../AGENTS.md).
-- Siguiente tarea: **C16 / F5**, planes de cuota con condiciones y versiones inmutables.
-- Último hito cerrado: C15, invitaciones para socios/responsables/entrenadores ligadas a una cuenta existente. No hay cobros todavía.
-- Pruebas C15: 52 frontend/controles, 3 OpenAPI y 7 SQL+HTTP reales pasan. Comparativa general y comprobación visual registradas abajo.
+- Siguiente tarea: **C17 / F5**, suscripciones sin solapamientos y efectos de baja/pausa; después C18 cálculo económico.
+- Último hito cerrado: C16, catálogo de cuotas con precio/condiciones inmutables, duplicación y archivo. No hay contratos ni cobros todavía.
+- Pruebas C16: 37 unitarias API, 58 frontend/controles, 3 OpenAPI y 8 SQL+HTTP reales pasan. Comparativa general y comprobación visual registradas abajo.
 
 Este registro contiene el estado de ejecución; el roadmap define requisitos y dependencias. La autorización vigente siempre procede del usuario, no de una casilla de este archivo.
 
@@ -45,7 +45,7 @@ Estados permitidos: `todo`, `in_progress`, `done`, `blocked`. Una tarea done nec
 | C13 | F4 | Alta y ficha de socio | done |
 | C14 | F4 | Baja/pausa contractual | done |
 | C15 | F4 | Invitaciones y vinculación | done |
-| C16 | F5 | Cuotas versionadas | todo |
+| C16 | F5 | Cuotas versionadas | done |
 | C17 | F5 | Suscripciones | todo |
 | C18 | F5 | Cálculo económico | todo |
 | C19 | F6 | Recibos idempotentes | todo |
@@ -225,3 +225,14 @@ No guardar credenciales, bodies privados, volcados de socios, IBAN, tarjetas o r
 - Suites completas: API 634/607 pasan/27 fallan, sin nuevos casos respecto al baseline; frontend 409 archivos, 394 pasan/15 fallan, 5084 tests, 5029 pasan/55 fallan. Un fallo adicional era timeout del test de límite de archivo multimedia con carga concurrente; al ejecutar ese archivo solo, 9 pasan/1 falla (texto de marca previo), sin timeout. No hay regresiones identificadas en centros. MCP no modificado.
 - Prueba visual en localhost: superadmin creó Centro pruebas invitaciones y Socio prueba enlace; invitó a preview_trainer; la cuenta Entrenador Pruebas accedió desde enlace, inició sesión sin perderlo y aceptó. UI muestra Invitación aceptada y afiliación de socio; cuenta global sin administración. Evidencia externa al repo: informes/centros-c15-invitacion-aceptada.jpg del workspace.
 - C15 done. Siguiente C16; conservar cambios anteriores de demo y continuar solo en rama local. La orden de apagado sigue pendiente del umbral del 5% restante en esta ejecución.
+
+### C16 / F5: cuotas y precios versionados
+
+- Migración 008: membership_plans y membership_plan_versions, FK diferida a versión vigente, FK/IDs del mismo centro, índices de paginación y FORCE RLS. Runtime tiene SELECT/INSERT de versiones, sin UPDATE/DELETE: todo precio/condición se conserva incluso antes de usarse. Archivo lógico del catálogo no elimina historial.
+- Crear/revisar/duplicar tienen requestId idempotente; modificar precios añade versión nueva con control optimista. Duplicar exige priceVersionId explícito para que el origen no cambie bajo concurrencia; se puede copiar una versión de plan archivado a un plan nuevo. Revisar plan archivado se rechaza. C17 comprobará archivo antes de nuevas suscripciones.
+- Importes son texto canónico de céntimos, EUR explícito, intervalos 1/3/6/12 meses. Precio incluido/excluido y porcentaje fiscal se configuran conjuntamente; prorrateo none/actual-days explícito. Catálogo puede prepararse con política pendiente, conditionsReady false; nunca se supone impuesto legal o se emiten cobros. Conversión de campos decimal/coma usa BigInt, sin aritmética float.
+- Superadmin recibe plans.manage explícito; responsables de centro conservan esa capacidad. Entrenador/admin técnico/otro responsable no leen condiciones financieras ajenas. UI Cuotas integrada mediante Segmented, Section/Row, SearchField, Switch, SelectRow, confirmSheet y useAutoMore; memoria local, sin datos financieros en S. Se extrae cursor compartido con socios manteniendo formato anterior y precisión SQL de microsegundos.
+- Verificación: api/centers-plans-unit.log 37/37, centers-plans-sql.log 8/8 SQL+HTTP reales, frontend/centers-plans-ui.log 58/58 (11 archivos), OpenAPI 3/3; build pasa. 18 locales/2364 claves y 1861 cadenas en sincronía. 100 rutas documentadas y referencia HTML generada.
+- Suite completa API 637/610 pasan/27 fallan; sin casos nuevos frente al baseline. Frontend 411 archivos, 396 pasan/15 fallan, 5090 tests, 5035 pasan/55 fallan; mismo timeout multimedia bajo carga concurrente de C15, que pasó aislado, además de fallos previos de marca. No hay regresiones identificadas en centros. MCP no modificado.
+- Prueba visual localhost como Responsable Pruebas: cuota ficticia de 29,99 EUR, impuestos incluidos al 21% como dato sintético y prorrateo por días; nueva versión 34,99 EUR. Historial muestra ambos precios. Evidencia externa al repo: informes/centros-c16-precios-versionados.jpg. Ningún importe cobrado, suscripción o dato real.
+- C16 done. Siguiente C17 suscripciones; C18 calculará prorrateo/calendario/impuestos con estas condiciones explícitas. Orden de apagado pendiente al 5% de límite restante.

@@ -13,4 +13,4 @@ export const ROLE_CAPABILITIES = Object.freeze({
 });
 
 // Extra export/refund capabilities and platform access are granted explicitly in later phases.
-export const PLATFORM_CAPABILITIES = Object.freeze(['centers.manage', 'managers.manage', 'metrics.global.read', 'members.read', 'members.manage']);
+export const PLATFORM_CAPABILITIES = Object.freeze(['centers.manage', 'managers.manage', 'metrics.global.read', 'members.read', 'members.manage', 'staff.manage']);

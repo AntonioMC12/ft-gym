@@ -1,7 +1,7 @@
 import { postgresUrl } from './config.js';
 import { CentersUnavailable } from './errors.js';
 
-export const SCHEMA_VERSION = '006';
+export const SCHEMA_VERSION = '007';
 
 // An application connection must never inherit the bootstrap/migrator's DDL or RLS bypass.
 async function requireApplicationRole(client) {
@@ -80,7 +80,8 @@ export function createCentersDatabase(config, { loadPool = async () => (await im
       return run(context.uid, context.centerId, false, work);
     },
     accountTransaction(uid, work) { return run(uid, '', false, work); },
-    // Only platform services that checked the explicit superadmin allowlist may call this.
+    // Only services checking the explicit allowlist or a recipient-bound invitation grant
+    // may call this. Never accept a platform flag from an HTTP body or personal state.
     platformTransaction(uid, work, centerId = '') { return run(uid, centerId, true, work); },
     async hasAccountReferences(actorUid, targetUid) {
       return run(actorUid, '', false, async client => {

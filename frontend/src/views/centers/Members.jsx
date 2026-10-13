@@ -7,6 +7,7 @@ import { useStore } from '../../store/useStore.js'
 import { useCenters } from '../../store/useCenters.js'
 import { useUI } from '../../store/useUI.js'
 import MembershipActions from './MembershipActions.jsx'
+import Invitations from './Invitations.jsx'
 
 const stateText=state=>state==='active'?t('Active member'):state==='frozen'?t('Frozen member'):state==='ended'?t('Ended member'):t('Pending activation')
 const fieldsOf=member=>({name:member?.name||'',email:member?.email||'',phone:member?.phone||'',nationalDocument:member?.nationalDocument||''})
@@ -30,7 +31,8 @@ function MemberForm({centerId,member,lifecycle,ownerUid,close,saved}) {
     <div className="centers-fields">{input('name',t('Member name'))}{input('email',t('Contact email'),'email')}{input('phone',t('Phone'))}{input('nationalDocument',t('National document'))}</div>
     {error&&<p role="alert">{t(membersErrorKey(error))}</p>}
     <div className="centers-actions"><Button type="button" disabled={busy} onClick={close}>{t('Back')}</Button><Button type="submit" variant="primary" disabled={busy||!fields.name.trim()}>{t('Save')}</Button></div>
-  </form></Section>{currentMember&&info?.today&&<MembershipActions key={currentMember.version} centerId={centerId} member={currentMember} info={info} ownerUid={ownerUid} changed={result=>{setCurrentMember(result.member);setInfo({today:result.today,changes:result.changes})}}/>}</>
+  </form></Section>{currentMember&&info?.today&&<MembershipActions key={currentMember.version} centerId={centerId} member={currentMember} info={info} ownerUid={ownerUid} changed={result=>{setCurrentMember(result.member);setInfo({today:result.today,changes:result.changes})}}/>}
+    {currentMember&&<Invitations centerId={centerId} ownerUid={ownerUid} memberId={currentMember.id} linked={currentMember.accountLinked}/>}</>
 }
 
 export default function Members({centerId,ownerUid,capabilities}) {

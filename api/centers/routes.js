@@ -5,6 +5,7 @@ import { listPlatformCenters, createCenter, updateCenter, assignRole, revokeRole
 import { createMember, updateMember, listMembers, getMember } from './services/members.js';
 import { memberListOptions } from './domain/member-validation.js';
 import { transitionMember,cancelMemberTransition } from './services/membership-lifecycle.js';
+import {createInvitation,listInvitations,revokeInvitation,inspectInvitation,acceptInvitation} from './services/invitations.js';
 
 // Inject the same session and response helpers used by the rest of node:http.
 export function centersRoutes({ config, database, json, readSession, readBody, accountLocks, lookupAccount,
@@ -29,11 +30,21 @@ export function centersRoutes({ config, database, json, readSession, readBody, a
     const checkSession=()=>{if(!current(req,user,sv))throw new CentersError(401,'not-signed-in','not signed in');};
     try{
       const body=await readBody(req);checkSession();
-      const result=await operation({database,accountLocks,lookupAccount,user,checkSession},body,{platform});
+      const result=await operation({database,accountLocks,lookupAccount,user,checkSession,config},body,{platform});
       checkSession();return json(res,200,result);
     }catch(error){return failure(res,error);}
   };
   return {
+    'POST /api/centers/invitations/create': mutate(false,(context,body)=>createInvitation(context,body,{platform:isPlatformUser(config,context.user)})),
+    'POST /api/centers/invitations/revoke': mutate(false,(context,body)=>revokeInvitation(context,body,{platform:isPlatformUser(config,context.user)})),
+    'POST /api/centers/invitations/inspect': mutate(false,inspectInvitation),
+    'POST /api/centers/invitations/accept': mutate(false,acceptInvitation),
+    'GET /api/centers/invitations': async(req,res)=>{
+      const user=guard(req,res);if(!user)return;const sv=user.sv||0;
+      const params=new URL(req.url,'http://x').searchParams,centerId=params.get('centerId'),kind=params.get('kind')||'member',memberId=params.get('memberId');
+      if(!recordId(centerId)||memberId&&!recordId(memberId))return json(res,404,{error:'not found',code:'not-found'});
+      try{const result=await listInvitations(database,user.id,centerId,kind,memberId,{platform:isPlatformUser(config,user)});if(!current(req,user,sv))return json(res,401,{error:'not signed in'});return json(res,200,result);}catch(error){return failure(res,error);}
+    },
     'POST /api/centers/members/transition': mutate(false,(context,body)=>transitionMember(context,body,{platform:isPlatformUser(config,context.user)})),
     'POST /api/centers/members/transition/cancel': mutate(false,(context,body)=>cancelMemberTransition(context,body,{platform:isPlatformUser(config,context.user)})),
     'POST /api/centers/members/create': mutate(false,(context,body)=>createMember(context,body,{platform:isPlatformUser(config,context.user)})),
@@ -91,9 +102,12 @@ export function centersRoutes({ config, database, json, readSession, readBody, a
       if(body?.role&&body.role!=='manager')throw new CentersError(403,'forbidden','forbidden');
       return assignRole(context,{...body,role:'manager'},{platform:true});
     }),
-    'POST /api/platform/centers/revoke-role': mutate(true,(context,body)=>revokeRole(context,body,{platform:true,managersOnly:true})),
+    'POST /api/platform/centers/revoke-role': mutate(true,(context,body)=>revokeRole(context,body,{platform:true})),
     'POST /api/centers/update': mutate(false,updateCenter),
-    'POST /api/centers/staff/assign': mutate(false,assignRole),
+    'POST /api/centers/staff/assign': mutate(false,(context,body)=>{
+      if(body?.role&&body.role!=='trainer')throw new CentersError(403,'forbidden','forbidden');
+      return assignRole(context,{...body,role:'trainer'},{platform:isPlatformUser(config,context.user)});
+    }),
     'POST /api/centers/staff/revoke': mutate(false,revokeRole),
     'GET /api/centers/me': async (req, res) => {
       const user = guard(req, res); if (!user) return;
@@ -122,7 +136,7 @@ export function centersRoutes({ config, database, json, readSession, readBody, a
       if (!isPlatformUser(config, user)) return json(res, 403, { error: 'forbidden', code: 'forbidden' });
       try {
         const result = await database.platformTransaction(user.id, async client => {
-          const { rows } = await client.query('SELECT DISTINCT account_uid FROM centers.account_references ORDER BY account_uid');
+          const { rows } = await client.query('SELECT DISTINCT account_uid FROM centers.account_references WHERE centers.has_account_references(account_uid) ORDER BY account_uid');
           const known = new Set(accountIds());
           return { referencedAccounts: rows.length, orphanedAccounts: rows.filter(r => !known.has(r.account_uid)).map(r => r.account_uid) };
         });

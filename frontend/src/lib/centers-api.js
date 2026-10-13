@@ -8,6 +8,18 @@ export const centerAccounts = query => api('/api/platform/centers/accounts?query
 export const centerCommand = (path, body) => api(path, { method: 'POST', body: JSON.stringify(body) })
 export const centerMembers = (centerId, options = {}) => api('/api/centers/members?' + new URLSearchParams({centerId,...options}))
 export const centerMember = (centerId, id) => api('/api/centers/member?' + new URLSearchParams({centerId,id}))
+export const centerInvitations = (centerId, kind, memberId) => api('/api/centers/invitations?' + new URLSearchParams({centerId,kind,...(memberId?{memberId}:{})}))
+export const inspectCenterInvitation = token => centerCommand('/api/centers/invitations/inspect',{token})
+export const acceptCenterInvitation = token => centerCommand('/api/centers/invitations/accept',{token})
+
+export function invitationErrorKey(error) {
+  const code=error?.data?.code||error?.code
+  if(code==='duplicate')return 'An invitation is already pending.'
+  if(code==='account-linked')return 'Account linked'
+  if(code==='invitation-expired'||error?.status===410)return 'Invitation expired'
+  if(error?.status===404||error?.status===403)return 'This invitation is not available for this account.'
+  return centersErrorKey(error)
+}
 
 export function membersErrorKey(error) {
   const code=error?.data?.code||error?.code

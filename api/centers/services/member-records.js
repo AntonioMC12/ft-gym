@@ -1,5 +1,5 @@
 import { CentersError } from '../errors.js';
-export const MEMBER_PROJECTION=`id,center_id,member_number,name,state,version,email,phone,national_document,
+export const MEMBER_PROJECTION=`id,center_id,account_uid,member_number,name,state,version,email,phone,national_document,
   joined_on::text AS joined_on,ends_on::text AS ends_on`;
 
 // Only called with a client already authorized for the selected center.

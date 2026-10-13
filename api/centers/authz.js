@@ -39,6 +39,6 @@ export function memberDto(member, capabilities) {
   const operational = { id: member.id, centerId: member.center_id, number: member.member_number,
     name: member.name, state: member.state, version: member.version };
   if (!capabilities.includes('members.read')) return operational;
-  return { ...operational, email: member.email, phone: member.phone, nationalDocument: member.national_document,
+  return { ...operational, accountLinked:!!member.account_uid, email: member.email, phone: member.phone, nationalDocument: member.national_document,
     joinedOn: member.joined_on, endsOn: member.ends_on };
 }

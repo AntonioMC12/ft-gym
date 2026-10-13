@@ -165,6 +165,119 @@ security:
   - bearerAuth: []
 
 paths:
+  /api/centers/invitations:
+    get:
+      tags: [centers]
+      operationId: listCenterInvitations
+      summary: List recipient-bound invitation metadata
+      description: Center manager can list member/trainer invitations; platform can also list managers. Last 50, no secret or hash. Selected center and current capability are checked.
+      security: [{ session: [] }, { bearer: [] }]
+      parameters:
+        - { name: centerId, in: query, required: true, schema: { type: string } }
+        - { name: kind, in: query, schema: { type: string, enum: [member, trainer, manager], default: member } }
+        - { name: memberId, in: query, schema: { type: string } }
+      responses:
+        '200': { description: Invitation metadata with status and server-computed expired flag. }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { description: Current capability unavailable. }
+        '503': { description: Centers database unavailable. }
+  /api/centers/invitations/create:
+    post:
+      tags: [centers]
+      operationId: createCenterInvitation
+      summary: Invite an existing enabled account to a center
+      description: >-
+        Manager invites members/trainers; only configured platform superadmin invites managers.
+        Contact email never proves ownership. Recipient must create a personal account first,
+        subject to existing registration policy. Member and center must match and be unlinked.
+        Server creates a 256-bit secret, stores only SHA-256 and metadata, and returns the token once.
+        An identical requestId replay returns the metadata with token null. Lost links must be revoked
+        and replaced. Deliver the hash-route link through a controlled channel; no automatic email.
+      security: [{ session: [] }, { bearer: [] }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/CenterInvitationInput' }
+      responses:
+        '200':
+          description: Metadata and one-time secret; null secret on replay.
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [invite, token]
+                properties:
+                  invite: { $ref: '#/components/schemas/CenterInvitation' }
+                  token: { type: [string, 'null'], pattern: '^[a-zA-Z0-9_-]{43}$' }
+        '400': { description: Invalid input. }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { description: Capability unavailable or manager role escalation attempted. }
+        '404': { description: Recipient or selected member unavailable. }
+        '409': { description: Pending invitation exists, account already linked, or idempotency conflict. }
+  /api/centers/invitations/revoke:
+    post:
+      tags: [centers]
+      operationId: revokeCenterInvitation
+      summary: Revoke a pending invitation with optimistic version check
+      security: [{ session: [] }, { bearer: [] }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties: false
+              required: [centerId, id, version]
+              properties:
+                centerId: { type: string }
+                id: { type: string }
+                version: { type: integer, minimum: 1 }
+      responses:
+        '200': { description: Revoked metadata. }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { description: Capability unavailable; manager invitation requires platform. }
+        '404': { description: Invitation unavailable in selected center. }
+        '409': { description: Version conflict or invitation already accepted/revoked. }
+  /api/centers/invitations/inspect:
+    post:
+      tags: [centers]
+      operationId: inspectCenterInvitation
+      summary: Preview an invitation as its authenticated recipient
+      description: Checks recipient, expiration and issuer current authority. Returns only selected invitation metadata and center name; never grants access. Wrong account has the same 404 as unknown token.
+      security: [{ session: [] }, { bearer: [] }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/CenterInvitationToken' }
+      responses:
+        '200': { description: Selected invitation metadata and centerName. }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '404': { description: Invitation or recipient/issuer unavailable. }
+        '410': { description: Invitation expired. }
+  /api/centers/invitations/accept:
+    post:
+      tags: [centers]
+      operationId: acceptCenterInvitation
+      summary: Explicitly accept a recipient-bound invitation
+      description: >-
+        Rechecks current issuer authority, account availability, center, expiration and row locks.
+        Linking the member or assigning staff and marking accepted commit atomically in SQL.
+        JSON account/training and global admin remain unchanged. Retry of an accepted token returns
+        alreadyAccepted without regranting a revoked role. A manager can activate a draft center.
+      security: [{ session: [] }, { bearer: [] }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/CenterInvitationToken' }
+      responses:
+        '200': { description: accepted, centerId, kind and optional alreadyAccepted. }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '404': { description: Invitation unavailable for caller. }
+        '409': { description: Recipient lock busy, member already linked or center inactive. }
+        '410': { description: Invitation expired; no partial link or role assignment. }
   /api/centers/members/transition:
     post:
       tags: [centers]
@@ -476,8 +589,8 @@ paths:
     post:
       tags: [centers]
       operationId: revokeCenterManager
-      summary: Revoke manager
-      description: Platform only, manager assignments only. Concurrent revocations cannot remove the last enabled manager from an active center.
+      summary: Revoke center manager or trainer as platform
+      description: Configured platform superadmin only. Concurrent revocations cannot remove the last enabled manager from an active center.
       requestBody:
         required: true
         content:
@@ -496,7 +609,7 @@ paths:
       tags: [centers]
       operationId: assignCenterTrainer
       summary: Assign trainer
-      description: Requires staff.manage; trainer role only, no extra capabilities or global admin.
+      description: Requires center staff.manage or configured platform superadmin; trainer role only, no extra capabilities or global admin.
       requestBody:
         required: true
         content:
@@ -3616,6 +3729,35 @@ components:
           example: { error: "that code is wrong, used or expired", code: "link-invalid" }
 
   schemas:
+    CenterInvitationInput:
+      type: object
+      additionalProperties: false
+      required: [centerId, kind, accountUid, requestId]
+      properties:
+        centerId: { type: string }
+        kind: { type: string, enum: [member, manager, trainer] }
+        memberId: { type: string, description: Required only for member invitations. }
+        accountUid: { type: string, description: Existing enabled recipient account ID. }
+        ttlHours: { type: integer, minimum: 1, maximum: 168, default: 72 }
+        requestId: { type: string, pattern: '^[a-zA-Z0-9_-]{8,128}$' }
+    CenterInvitationToken:
+      type: object
+      additionalProperties: false
+      required: [token]
+      properties:
+        token: { type: string, pattern: '^[a-zA-Z0-9_-]{43}$' }
+    CenterInvitation:
+      type: object
+      properties:
+        id: { type: string }
+        centerId: { type: string }
+        kind: { type: string, enum: [member, manager, trainer] }
+        memberId: { type: [string, 'null'] }
+        accountUid: { type: string }
+        status: { type: string, enum: [pending, accepted, revoked] }
+        expiresAt: { type: string, format: date-time }
+        expired: { type: boolean }
+        version: { type: integer, minimum: 1 }
     MembershipTransitionInput:
       type: object
       additionalProperties: false

@@ -4,7 +4,7 @@ import {createRoot} from 'react-dom/client'
 import {beforeEach,afterEach,it,expect,vi} from 'vitest'
 vi.mock('../../lib/i18n.js',()=>({t:key=>key}))
 vi.mock('../../store/useStore.js',()=>{const state={user:{id:'manager'}};return{useStore:Object.assign(selector=>selector(state),{getState:()=>state})}})
-vi.mock('../../lib/centers-api.js',()=>({centerMembers:vi.fn(),centerMember:vi.fn(),centerCommand:vi.fn(),membersErrorKey:()=> 'error',centersMe:vi.fn()}))
+vi.mock('../../lib/centers-api.js',()=>({centerMembers:vi.fn(),centerMember:vi.fn(),centerCommand:vi.fn(),membersErrorKey:()=> 'error',centersMe:vi.fn(),centerInvitations:vi.fn().mockResolvedValue({invites:[]}),invitationErrorKey:()=> 'error'}))
 vi.mock('../../sheets.jsx',()=>({confirmSheet:vi.fn(options=>options.onConfirm())}))
 import {centerMembers,centerMember,centerCommand} from '../../lib/centers-api.js'
 import Members from './Members.jsx'

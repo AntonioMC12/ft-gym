@@ -6,6 +6,11 @@ import { centersStrings } from './modules/centers.js'
 
 export const PT_BR_OVERRIDES = {
   ...centersStrings('pt'),
+  'Invitation accepted': 'Convite aceito',
+  'Invitation already accepted': 'Convite já aceito',
+  'Invitation link': 'Link do convite',
+  'The link is shown once. If lost, revoke and create another.': 'O link aparece uma vez. Se você perder, revogue e crie outro.',
+  'Create the personal account first, then use its account ID.': 'Crie primeiro a conta pessoal e depois use seu ID de conta.',
   'Resumption date': 'Data de retomada',
   'Automatic resumption': 'Retomada automática',
   'Resume membership': 'Retomar inscrição',

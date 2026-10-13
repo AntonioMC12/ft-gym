@@ -68,3 +68,11 @@ Baseline: Windows, Node 24.20.0 frente a Node 22 de las imágenes. Las suites ge
 La CI heredada no acredita ejecución en GitHub: workflows está vacío. La configuración Gitea solo selecciona frontend/MCP. Mantener verificación local reproducible y no reactivar workflows deshabilitados por el usuario como efecto lateral.
 
 Fuentes: [imagen oficial PostgreSQL](https://hub.docker.com/_/postgres), [transacciones pg](https://node-postgres.com/features/transactions), [pool pg](https://node-postgres.com/apis/pool). Versiones fijadas: pg 8.23.1 y PostgreSQL 18.6-alpine3.24; verificadas el 13 de octubre de 2026.
+
+## Invitaciones de centro (C15)
+
+Schema 007 incorpora invitaciones para socios, responsables y entrenadores. La cuenta destinataria debe existir y estar habilitada; el email de contacto no identifica a una cuenta. El primer canal es un enlace entregado de forma controlada, sin envío automático.
+
+El secreto de 256 bits se entrega una vez y solo se guarda su SHA-256. Expira a las 72 horas por defecto, hasta 168. Un reintento idempotente devuelve metadatos y token null: revocar y crear otra invitación si se perdió el enlace. El canje usa la sesión del destinatario, revalida permisos del emisor y consume la invitación en la misma transacción que el vínculo o rol. Repetir un código aceptado no reasigna permisos revocados.
+
+No se modifican JSON personal, estado de entrenamiento o admin técnico. Invitaciones vigentes protegen al destinatario frente al borrado global; caducadas/revocadas sin otros vínculos dejan de bloquearlo. Toda prueba de canje debe usar cuentas ficticias de la base aislada.

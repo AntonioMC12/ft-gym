@@ -25,7 +25,10 @@ fs.writeFileSync(path.join(directory,'db.json'),JSON.stringify({users,creds:[],s
 const db=createCentersDatabase({enabled:true,databaseUrl:urls.app});
 try {
   await db.status();
-  await createCenter({database:db,accountLocks:createAccountLocks(uid=>users.find(u=>u.id===uid)),lookupAccount:uid=>users.find(u=>u.id===uid),user:users[0],checkSession:()=>{}},
+  const existing=await db.platformTransaction(users[0].id,client=>client.query(`SELECT c.id FROM centers.centers c WHERE c.name='Centro de pruebas' AND c.state='active'
+    AND EXISTS(SELECT 1 FROM centers.role_assignments r WHERE r.center_id=c.id AND r.account_uid='preview_manager' AND r.role='manager' AND r.revoked_at IS NULL)
+    ORDER BY c.created_at DESC LIMIT 1`));
+  if(!existing.rows.length)await createCenter({database:db,accountLocks:createAccountLocks(uid=>users.find(u=>u.id===uid)),lookupAccount:uid=>users.find(u=>u.id===uid),user:users[0],checkSession:()=>{}},
     {name:'Centro de pruebas',capacity:120,managerUid:'preview_manager',requestId:'preview_'+randomUUID(),openingHours:{1:[['08:00','22:00']],2:[['08:00','22:00']],3:[['08:00','22:00']],4:[['08:00','22:00']],5:[['08:00','22:00']]}});
 }finally{await db.close();}
 Object.assign(process.env,{DATA_DIR:directory,CENTERS_ENABLED:'1',CENTERS_DATABASE_URL:urls.app,CENTERS_SUPERADMIN_UIDS:'preview_platform',

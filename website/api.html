@@ -246,7 +246,7 @@ main.api-main .lead { color: var(--fg-2); max-width: 58ch; margin: 14px 0 0; fon
   <p class="api-facts">
     <span>OpenAPI 3.1.0</span>
     <span>openGym v1.4.1</span>
-    <span>89 endpoints</span>
+    <span>94 endpoints</span>
     <span>AGPL-3.0-or-later</span>
   </p>
 
@@ -296,6 +296,224 @@ main.api-main .lead { color: var(--fg-2); max-width: 58ch; margin: 14px 0 0; fon
   <h2>Centers</h2>
   <p class="sub">Opt-in centers module. Tenant-scoped center administration with separate platform authorization.</p>
   <div class="eps">
+
+<details class="ep" id="op-listCenterInvitations">
+  <summary>
+    <span class="m get">GET</span>
+    <span class="ep-path"><code>/api/centers/invitations</code></span>
+    <span class="ep-chev" aria-hidden="true"></span>
+    <span class="ep-sum">List recipient-bound invitation metadata</span>
+  </summary>
+  <div class="ep-body">
+<p>Center manager can list member/trainer invitations; platform can also list managers. Last 50, no secret or hash. Selected center and current capability are checked.</p>
+    <p class="ep-auth"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="4" y="11" width="16" height="10" rx="2.5"/><path d="M8 11V7a4 4 0 0 1 8 0v4"/></svg><span>Requires a session: the cookie set at sign-in, or <code>Authorization: Bearer &lt;token&gt;</code> from mobile-app pairing.</span></p>
+<p class="ep-h">Query parameters</p><div class="ptab">
+  <div class="prow">
+    <span class="p-name">centerId<em class="p-req" title="required">required</em></span>
+    <span class="p-type">string</span>
+    <span class="p-desc"></span>
+  </div>
+  <div class="prow">
+    <span class="p-name">kind</span>
+    <span class="p-type">&quot;member&quot; | &quot;trainer&quot; | &quot;manager&quot;</span>
+    <span class="p-desc"></span>
+  </div>
+  <div class="prow">
+    <span class="p-name">memberId</span>
+    <span class="p-type">string</span>
+    <span class="p-desc"></span>
+  </div>
+</div>
+
+    <p class="ep-h">Responses</p>
+    <div class="ptab">
+  <div class="prow rrow">
+    <span class="r-code s2">200</span>
+    <span class="p-desc">Invitation metadata with status and server-computed expired flag.</span>
+  </div>
+  <div class="prow rrow">
+    <span class="r-code s4">401</span>
+    <span class="p-desc">No session, expired/revoked session, or a disabled account.<span class="r-sig"><code>{&quot;error&quot;:&quot;not signed in&quot;}</code></span></span>
+  </div>
+  <div class="prow rrow">
+    <span class="r-code s4">403</span>
+    <span class="p-desc">Current capability unavailable.</span>
+  </div>
+  <div class="prow rrow">
+    <span class="r-code s5">503</span>
+    <span class="p-desc">Centers database unavailable.</span>
+  </div>
+    </div>
+  </div>
+</details>
+
+<details class="ep" id="op-createCenterInvitation">
+  <summary>
+    <span class="m post">POST</span>
+    <span class="ep-path"><code>/api/centers/invitations/create</code></span>
+    <span class="ep-chev" aria-hidden="true"></span>
+    <span class="ep-sum">Invite an existing enabled account to a center</span>
+  </summary>
+  <div class="ep-body">
+<p>Manager invites members/trainers; only configured platform superadmin invites managers. Contact email never proves ownership. Recipient must create a personal account first, subject to existing registration policy. Member and center must match and be unlinked. Server creates a 256-bit secret, stores only SHA-256 and metadata, and returns the token once. An identical requestId replay returns the metadata with token null. Lost links must be revoked and replaced. Deliver the hash-route link through a controlled channel; no automatic email.</p>
+    <p class="ep-auth"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="4" y="11" width="16" height="10" rx="2.5"/><path d="M8 11V7a4 4 0 0 1 8 0v4"/></svg><span>Requires a session: the cookie set at sign-in, or <code>Authorization: Bearer &lt;token&gt;</code> from mobile-app pairing.</span></p>
+
+<p class="ep-h">Request body</p><p class="p-desc"><a href="#schema-CenterInvitationInput">CenterInvitationInput</a></p>
+    <p class="ep-h">Responses</p>
+    <div class="ptab">
+  <div class="prow rrow">
+    <span class="r-code s2">200</span>
+    <span class="p-desc">Metadata and one-time secret; null secret on replay.<span class="r-sig">{ invite: <a href="#schema-CenterInvitation">CenterInvitation</a>, token: string | null }</span></span>
+  </div>
+  <div class="prow rrow">
+    <span class="r-code s4">400</span>
+    <span class="p-desc">Invalid input.</span>
+  </div>
+  <div class="prow rrow">
+    <span class="r-code s4">401</span>
+    <span class="p-desc">No session, expired/revoked session, or a disabled account.<span class="r-sig"><code>{&quot;error&quot;:&quot;not signed in&quot;}</code></span></span>
+  </div>
+  <div class="prow rrow">
+    <span class="r-code s4">403</span>
+    <span class="p-desc">Capability unavailable or manager role escalation attempted.</span>
+  </div>
+  <div class="prow rrow">
+    <span class="r-code s4">404</span>
+    <span class="p-desc">Recipient or selected member unavailable.</span>
+  </div>
+  <div class="prow rrow">
+    <span class="r-code s4">409</span>
+    <span class="p-desc">Pending invitation exists</span>
+  </div>
+    </div>
+  </div>
+</details>
+
+<details class="ep" id="op-revokeCenterInvitation">
+  <summary>
+    <span class="m post">POST</span>
+    <span class="ep-path"><code>/api/centers/invitations/revoke</code></span>
+    <span class="ep-chev" aria-hidden="true"></span>
+    <span class="ep-sum">Revoke a pending invitation with optimistic version check</span>
+  </summary>
+  <div class="ep-body">
+
+    <p class="ep-auth"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="4" y="11" width="16" height="10" rx="2.5"/><path d="M8 11V7a4 4 0 0 1 8 0v4"/></svg><span>Requires a session: the cookie set at sign-in, or <code>Authorization: Bearer &lt;token&gt;</code> from mobile-app pairing.</span></p>
+
+<p class="ep-h">Request body <span class="p-hint">(JSON)</span></p><div class="ptab">
+  <div class="prow">
+    <span class="p-name">centerId<em class="p-req" title="required">required</em></span>
+    <span class="p-type">string</span>
+    <span class="p-desc"></span>
+  </div>
+  <div class="prow">
+    <span class="p-name">id<em class="p-req" title="required">required</em></span>
+    <span class="p-type">string</span>
+    <span class="p-desc"></span>
+  </div>
+  <div class="prow">
+    <span class="p-name">version<em class="p-req" title="required">required</em></span>
+    <span class="p-type">integer <span class="p-hint">(1&ndash;)</span></span>
+    <span class="p-desc"></span>
+  </div>
+</div>
+    <p class="ep-h">Responses</p>
+    <div class="ptab">
+  <div class="prow rrow">
+    <span class="r-code s2">200</span>
+    <span class="p-desc">Revoked metadata.</span>
+  </div>
+  <div class="prow rrow">
+    <span class="r-code s4">401</span>
+    <span class="p-desc">No session, expired/revoked session, or a disabled account.<span class="r-sig"><code>{&quot;error&quot;:&quot;not signed in&quot;}</code></span></span>
+  </div>
+  <div class="prow rrow">
+    <span class="r-code s4">403</span>
+    <span class="p-desc">Capability unavailable; manager invitation requires platform.</span>
+  </div>
+  <div class="prow rrow">
+    <span class="r-code s4">404</span>
+    <span class="p-desc">Invitation unavailable in selected center.</span>
+  </div>
+  <div class="prow rrow">
+    <span class="r-code s4">409</span>
+    <span class="p-desc">Version conflict or invitation already accepted/revoked.</span>
+  </div>
+    </div>
+  </div>
+</details>
+
+<details class="ep" id="op-inspectCenterInvitation">
+  <summary>
+    <span class="m post">POST</span>
+    <span class="ep-path"><code>/api/centers/invitations/inspect</code></span>
+    <span class="ep-chev" aria-hidden="true"></span>
+    <span class="ep-sum">Preview an invitation as its authenticated recipient</span>
+  </summary>
+  <div class="ep-body">
+<p>Checks recipient, expiration and issuer current authority. Returns only selected invitation metadata and center name; never grants access. Wrong account has the same 404 as unknown token.</p>
+    <p class="ep-auth"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="4" y="11" width="16" height="10" rx="2.5"/><path d="M8 11V7a4 4 0 0 1 8 0v4"/></svg><span>Requires a session: the cookie set at sign-in, or <code>Authorization: Bearer &lt;token&gt;</code> from mobile-app pairing.</span></p>
+
+<p class="ep-h">Request body</p><p class="p-desc"><a href="#schema-CenterInvitationToken">CenterInvitationToken</a></p>
+    <p class="ep-h">Responses</p>
+    <div class="ptab">
+  <div class="prow rrow">
+    <span class="r-code s2">200</span>
+    <span class="p-desc">Selected invitation metadata and centerName.</span>
+  </div>
+  <div class="prow rrow">
+    <span class="r-code s4">401</span>
+    <span class="p-desc">No session, expired/revoked session, or a disabled account.<span class="r-sig"><code>{&quot;error&quot;:&quot;not signed in&quot;}</code></span></span>
+  </div>
+  <div class="prow rrow">
+    <span class="r-code s4">404</span>
+    <span class="p-desc">Invitation or recipient/issuer unavailable.</span>
+  </div>
+  <div class="prow rrow">
+    <span class="r-code s4">410</span>
+    <span class="p-desc">Invitation expired.</span>
+  </div>
+    </div>
+  </div>
+</details>
+
+<details class="ep" id="op-acceptCenterInvitation">
+  <summary>
+    <span class="m post">POST</span>
+    <span class="ep-path"><code>/api/centers/invitations/accept</code></span>
+    <span class="ep-chev" aria-hidden="true"></span>
+    <span class="ep-sum">Explicitly accept a recipient-bound invitation</span>
+  </summary>
+  <div class="ep-body">
+<p>Rechecks current issuer authority, account availability, center, expiration and row locks. Linking the member or assigning staff and marking accepted commit atomically in SQL. JSON account/training and global admin remain unchanged. Retry of an accepted token returns alreadyAccepted without regranting a revoked role. A manager can activate a draft center.</p>
+    <p class="ep-auth"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="4" y="11" width="16" height="10" rx="2.5"/><path d="M8 11V7a4 4 0 0 1 8 0v4"/></svg><span>Requires a session: the cookie set at sign-in, or <code>Authorization: Bearer &lt;token&gt;</code> from mobile-app pairing.</span></p>
+
+<p class="ep-h">Request body</p><p class="p-desc"><a href="#schema-CenterInvitationToken">CenterInvitationToken</a></p>
+    <p class="ep-h">Responses</p>
+    <div class="ptab">
+  <div class="prow rrow">
+    <span class="r-code s2">200</span>
+    <span class="p-desc">accepted</span>
+  </div>
+  <div class="prow rrow">
+    <span class="r-code s4">401</span>
+    <span class="p-desc">No session, expired/revoked session, or a disabled account.<span class="r-sig"><code>{&quot;error&quot;:&quot;not signed in&quot;}</code></span></span>
+  </div>
+  <div class="prow rrow">
+    <span class="r-code s4">404</span>
+    <span class="p-desc">Invitation unavailable for caller.</span>
+  </div>
+  <div class="prow rrow">
+    <span class="r-code s4">409</span>
+    <span class="p-desc">Recipient lock busy</span>
+  </div>
+  <div class="prow rrow">
+    <span class="r-code s4">410</span>
+    <span class="p-desc">Invitation expired; no partial link or role assignment.</span>
+  </div>
+    </div>
+  </div>
+</details>
 
 <details class="ep" id="op-transitionCenterMember">
   <summary>
@@ -970,10 +1188,10 @@ main.api-main .lead { color: var(--fg-2); max-width: 58ch; margin: 14px 0 0; fon
     <span class="m post">POST</span>
     <span class="ep-path"><code>/api/platform/centers/revoke-role</code></span>
     <span class="ep-chev" aria-hidden="true"></span>
-    <span class="ep-sum">Revoke manager</span>
+    <span class="ep-sum">Revoke center manager or trainer as platform</span>
   </summary>
   <div class="ep-body">
-<p>Platform only, manager assignments only. Concurrent revocations cannot remove the last enabled manager from an active center.</p>
+<p>Configured platform superadmin only. Concurrent revocations cannot remove the last enabled manager from an active center.</p>
     <p class="ep-auth"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="4" y="11" width="16" height="10" rx="2.5"/><path d="M8 11V7a4 4 0 0 1 8 0v4"/></svg><span>Requires a session: the cookie set at sign-in, or <code>Authorization: Bearer &lt;token&gt;</code> from mobile-app pairing.</span></p>
 
 <p class="ep-h">Request body</p><p class="p-desc"><a href="#schema-CenterRevokeInput">CenterRevokeInput</a></p>
@@ -1019,7 +1237,7 @@ main.api-main .lead { color: var(--fg-2); max-width: 58ch; margin: 14px 0 0; fon
     <span class="ep-sum">Assign trainer</span>
   </summary>
   <div class="ep-body">
-<p>Requires staff.manage; trainer role only, no extra capabilities or global admin.</p>
+<p>Requires center staff.manage or configured platform superadmin; trainer role only, no extra capabilities or global admin.</p>
     <p class="ep-auth"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="4" y="11" width="16" height="10" rx="2.5"/><path d="M8 11V7a4 4 0 0 1 8 0v4"/></svg><span>Requires a session: the cookie set at sign-in, or <code>Authorization: Bearer &lt;token&gt;</code> from mobile-app pairing.</span></p>
 
 <p class="ep-h">Request body</p><p class="p-desc"><a href="#schema-CenterRoleInput">CenterRoleInput</a></p>
@@ -4155,6 +4373,125 @@ main.api-main .lead { color: var(--fg-2); max-width: 58ch; margin: 14px 0 0; fon
        is <b>representative, not enforced</b>: the server stores it opaquely and the app
        grows it over time.</p>
     <div class="eps">
+
+<details class="ep sch" id="schema-CenterInvitationInput">
+  <summary>
+    <span class="sch-name"><code>CenterInvitationInput</code></span>
+    <span class="ep-chev" aria-hidden="true"></span>
+    <span class="ep-sum"></span>
+  </summary>
+  <div class="ep-body">
+
+<div class="ptab">
+  <div class="prow">
+    <span class="p-name">centerId<em class="p-req" title="required">required</em></span>
+    <span class="p-type">string</span>
+    <span class="p-desc"></span>
+  </div>
+  <div class="prow">
+    <span class="p-name">kind<em class="p-req" title="required">required</em></span>
+    <span class="p-type">&quot;member&quot; | &quot;manager&quot; | &quot;trainer&quot;</span>
+    <span class="p-desc"></span>
+  </div>
+  <div class="prow">
+    <span class="p-name">memberId</span>
+    <span class="p-type">string</span>
+    <span class="p-desc">Required only for member invitations.</span>
+  </div>
+  <div class="prow">
+    <span class="p-name">accountUid<em class="p-req" title="required">required</em></span>
+    <span class="p-type">string</span>
+    <span class="p-desc">Existing enabled recipient account ID.</span>
+  </div>
+  <div class="prow">
+    <span class="p-name">ttlHours</span>
+    <span class="p-type">integer <span class="p-hint">(1&ndash;168, default 72)</span></span>
+    <span class="p-desc"></span>
+  </div>
+  <div class="prow">
+    <span class="p-name">requestId<em class="p-req" title="required">required</em></span>
+    <span class="p-type">string</span>
+    <span class="p-desc"></span>
+  </div>
+</div>
+  </div>
+</details>
+
+<details class="ep sch" id="schema-CenterInvitationToken">
+  <summary>
+    <span class="sch-name"><code>CenterInvitationToken</code></span>
+    <span class="ep-chev" aria-hidden="true"></span>
+    <span class="ep-sum"></span>
+  </summary>
+  <div class="ep-body">
+
+<div class="ptab">
+  <div class="prow">
+    <span class="p-name">token<em class="p-req" title="required">required</em></span>
+    <span class="p-type">string</span>
+    <span class="p-desc"></span>
+  </div>
+</div>
+  </div>
+</details>
+
+<details class="ep sch" id="schema-CenterInvitation">
+  <summary>
+    <span class="sch-name"><code>CenterInvitation</code></span>
+    <span class="ep-chev" aria-hidden="true"></span>
+    <span class="ep-sum"></span>
+  </summary>
+  <div class="ep-body">
+
+<div class="ptab">
+  <div class="prow">
+    <span class="p-name">id</span>
+    <span class="p-type">string</span>
+    <span class="p-desc"></span>
+  </div>
+  <div class="prow">
+    <span class="p-name">centerId</span>
+    <span class="p-type">string</span>
+    <span class="p-desc"></span>
+  </div>
+  <div class="prow">
+    <span class="p-name">kind</span>
+    <span class="p-type">&quot;member&quot; | &quot;manager&quot; | &quot;trainer&quot;</span>
+    <span class="p-desc"></span>
+  </div>
+  <div class="prow">
+    <span class="p-name">memberId</span>
+    <span class="p-type">string | null</span>
+    <span class="p-desc"></span>
+  </div>
+  <div class="prow">
+    <span class="p-name">accountUid</span>
+    <span class="p-type">string</span>
+    <span class="p-desc"></span>
+  </div>
+  <div class="prow">
+    <span class="p-name">status</span>
+    <span class="p-type">&quot;pending&quot; | &quot;accepted&quot; | &quot;revoked&quot;</span>
+    <span class="p-desc"></span>
+  </div>
+  <div class="prow">
+    <span class="p-name">expiresAt</span>
+    <span class="p-type">string <span class="p-hint">(date-time)</span></span>
+    <span class="p-desc"></span>
+  </div>
+  <div class="prow">
+    <span class="p-name">expired</span>
+    <span class="p-type">boolean</span>
+    <span class="p-desc"></span>
+  </div>
+  <div class="prow">
+    <span class="p-name">version</span>
+    <span class="p-type">integer <span class="p-hint">(1&ndash;)</span></span>
+    <span class="p-desc"></span>
+  </div>
+</div>
+  </div>
+</details>
 
 <details class="ep sch" id="schema-MembershipTransitionInput">
   <summary>

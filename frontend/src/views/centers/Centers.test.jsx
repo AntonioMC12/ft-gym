@@ -10,7 +10,7 @@ vi.mock('../../store/useStore.js', () => {
   useStore.getState = () => state
   return { useStore }
 })
-vi.mock('../../lib/centers-api.js', () => ({ platformCenters: vi.fn(), centerDetail: vi.fn(), centerStaff: vi.fn(), centerCommand: vi.fn(), centersMe: vi.fn(), centerAccounts: vi.fn(), centerMembers: vi.fn().mockResolvedValue({members:[],nextCursor:null}), centerMember:vi.fn(), membersErrorKey:()=> 'error', centersErrorKey: () => 'error' }))
+vi.mock('../../lib/centers-api.js', () => ({ platformCenters: vi.fn(), centerDetail: vi.fn(), centerStaff: vi.fn(), centerCommand: vi.fn(), centersMe: vi.fn(), centerAccounts: vi.fn(), centerMembers: vi.fn().mockResolvedValue({members:[],nextCursor:null}), centerMember:vi.fn(), centerInvitations:vi.fn().mockResolvedValue({invites:[]}), invitationErrorKey:()=> 'error', membersErrorKey:()=> 'error', centersErrorKey: () => 'error' }))
 import { useStore } from '../../store/useStore.js'
 import { useCenters } from '../../store/useCenters.js'
 import { platformCenters, centerDetail, centerStaff, centerCommand, centersMe } from '../../lib/centers-api.js'

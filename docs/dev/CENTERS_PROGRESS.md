@@ -7,9 +7,9 @@
 - Trabajo actual autorizado: continuar implementación hasta que reste el 5% del presupuesto consumible; después guardar el punto de continuación y apagar el ordenador, por orden explícita del usuario en esta sesión. Esta orden de apagado se aplica al cierre de esta ejecución, no a sesiones futuras.
 - Rama: `codex/centers-module`, creada desde `53ef0baf`. F0-F3 verificadas en entorno ficticio. Commits: `75e1160d`, `433764a5`, `24cb5a42`.
 - Guía: [CENTERS_ROADMAP.md](CENTERS_ROADMAP.md). Instrucciones: [AGENTS.md](../../AGENTS.md).
-- Siguiente tarea: **C15 / F4**, invitaciones con destinatario comprobado y vínculo de cuentas recuperable.
-- Último hito cerrado: C14, baja/pausa/reanudación por fecha y cancelación recuperable; superadmin puede gestionar socios globalmente. No hay cobros ni enlace de cuentas de socios todavía.
-- Pruebas C14: 34 unitarias, 42 frontend/controles y 6 SQL+HTTP reales pasan; suites completas conservan los mismos fallos previos.
+- Siguiente tarea: **C16 / F5**, planes de cuota con condiciones y versiones inmutables.
+- Último hito cerrado: C15, invitaciones para socios/responsables/entrenadores ligadas a una cuenta existente. No hay cobros todavía.
+- Pruebas C15: 52 frontend/controles, 3 OpenAPI y 7 SQL+HTTP reales pasan. Comparativa general y comprobación visual registradas abajo.
 
 Este registro contiene el estado de ejecución; el roadmap define requisitos y dependencias. La autorización vigente siempre procede del usuario, no de una casilla de este archivo.
 
@@ -44,7 +44,7 @@ Estados permitidos: `todo`, `in_progress`, `done`, `blocked`. Una tarea done nec
 | C12 | F3 | UI de plataforma | done |
 | C13 | F4 | Alta y ficha de socio | done |
 | C14 | F4 | Baja/pausa contractual | done |
-| C15 | F4 | Invitaciones y vinculación | todo |
+| C15 | F4 | Invitaciones y vinculación | done |
 | C16 | F5 | Cuotas versionadas | todo |
 | C17 | F5 | Suscripciones | todo |
 | C18 | F5 | Cálculo económico | todo |
@@ -213,3 +213,15 @@ Siguiente tarea alcanzable y dependencias:
 ```
 
 No guardar credenciales, bodies privados, volcados de socios, IBAN, tarjetas o resultados de docker compose config con secretos. Para reanudar, basta este registro y las secciones pertinentes del roadmap; las pruebas ejecutadas deben poder localizarse en el repositorio o repetirse en un entorno aislado.
+
+### C15 / F4: invitación con destinatario y canje recuperable
+
+- Migración 007: invitaciones por centro, destinatario account_uid, hash SHA-256 de secreto aleatorio de 256 bits, caducidad 1-168 horas (72 por defecto), estado/versionado y unicidad de invitación pendiente. RLS, grants limitados, relaciones de socio del mismo centro y protección de borrado de la cuenta mientras existe invitación vigente. Invitaciones caducadas/revocadas no bloquean una cuenta sin otros vínculos.
+- Crear/listar/revocar exige capacidad actual; solo superadmin configurado invita responsables. Canje exige sesión de la cuenta destinataria y autoridad vigente del emisor. Transacción SQL vincula socio/asigna rol y consume código; ninguna escritura de cuenta/entrenamiento JSON. El uso repetido confirma el resultado anterior y nunca restaura un rol revocado. Bloqueos de cuentas coordinan con baja/borrado global.
+- El secreto se devuelve una vez, no entra en auditoría, idempotencia, S ni almacenamiento local. Si se pierde por timeout, el reintento devuelve token null: revocar y crear otro. Recuperación explícita en UI. Enlace conserva subruta web o servidor móvil emparejado y pone el código en fragmento hash.
+- Panel reutiliza Section/Row/SelectRow/campos/confirmSheet; receptor reutiliza Login y muestra consentimiento explícito. Una invitación de staff pendiente no impide invitar otra cuenta. Respuestas de centro/cuenta/token anterior se descartan. Superadmin puede asignar/revocar entrenadores globalmente y gestionar socios sin afiliación local.
+- Límites: cuenta personal debe existir primero, con política de registro actual; no confundir email de contacto con identidad. Sin envío automático de correo (C26), alta pública nueva (C35), QR ni cobros. Listado de invitaciones acotado a últimas 50. Listado global existente acotado a 100 centros: en entorno con muchas fixtures antiguas se creó otro centro ficticio para la prueba visual.
+- Verificación: centros-invitations-sql.log 7/7 (PostgreSQL real aislado, migración existente verificada), frontend/centers-invitations-ui.log 52/52 en 9 archivos, centers-invitations-openapi.log 3/3; build pasa. 18 locales/2344 claves y 1842 cadenas fuente en sincronía. OpenAPI y website/api.html actualizados.
+- Suites completas: API 634/607 pasan/27 fallan, sin nuevos casos respecto al baseline; frontend 409 archivos, 394 pasan/15 fallan, 5084 tests, 5029 pasan/55 fallan. Un fallo adicional era timeout del test de límite de archivo multimedia con carga concurrente; al ejecutar ese archivo solo, 9 pasan/1 falla (texto de marca previo), sin timeout. No hay regresiones identificadas en centros. MCP no modificado.
+- Prueba visual en localhost: superadmin creó Centro pruebas invitaciones y Socio prueba enlace; invitó a preview_trainer; la cuenta Entrenador Pruebas accedió desde enlace, inició sesión sin perderlo y aceptó. UI muestra Invitación aceptada y afiliación de socio; cuenta global sin administración. Evidencia externa al repo: informes/centros-c15-invitacion-aceptada.jpg del workspace.
+- C15 done. Siguiente C16; conservar cambios anteriores de demo y continuar solo en rama local. La orden de apagado sigue pendiente del umbral del 5% restante en esta ejecución.

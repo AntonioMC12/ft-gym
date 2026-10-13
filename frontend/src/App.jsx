@@ -44,6 +44,7 @@ import ProgressPhotos from './views/ProgressPhotos.jsx'
 import { SettingsRoute } from './views/Settings.jsx'
 import Admin from './views/Admin.jsx'
 import Centers from './views/centers/Centers.jsx'
+import InviteAccept from './views/centers/InviteAccept.jsx'
 import CoachChat from './views/CoachChat.jsx'
 import Measurements from './views/Measurements.jsx'
 import CoachIntake from './views/CoachIntake.jsx'
@@ -215,6 +216,7 @@ function Shell() {
             <Routes>
               <Route path="/home" element={<Home />} />
               <Route path="/centers" element={<Centers />} />
+              <Route path="/centers/invite" element={<InviteAccept />} />
               {/* Gym check-in — switched off in Settings, the route falls through to the
                   catch-all redirect below. */}
               {S.checkIn !== false && <Route path="/checkin" element={<CheckIn />} />}

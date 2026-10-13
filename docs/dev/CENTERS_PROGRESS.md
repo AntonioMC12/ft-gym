@@ -4,12 +4,12 @@
 
 ## Punto de reanudación
 
-- Trabajo actual autorizado: crear el roadmap y las instrucciones de trabajo. Completado como documentación.
-- Implementación: no iniciada. No se ha instalado pg, creado PostgreSQL, modificado código de aplicación ni ejecutado migraciones.
+- Trabajo actual autorizado: implementación en rama separada, avanzando por el roadmap hasta el límite solicitado del 20% restante de uso.
+- Rama: `codex/centers-module`, creada desde `53ef0baf`. F0 y F1 implementadas y verificadas en entorno ficticio; pg instalado y PostgreSQL real de pruebas disponible.
 - Guía: [CENTERS_ROADMAP.md](CENTERS_ROADMAP.md). Instrucciones: [AGENTS.md](../../AGENTS.md).
-- Siguiente tarea cuando se autorice implementar: **C00**, registrar baseline y entorno; después C01-C02 y las tareas alcanzables de F1.
-- Último hito de implementación cerrado: ninguno.
-- Pruebas funcionales de la integración: `not_run`; todavía no existe funcionalidad que validar.
+- Siguiente tarea: **C06**, esquema de negocio; después autorización/RLS y protección de referencias C07-C09.
+- Último hito cerrado: infraestructura F1. La fase no incluye todavía CRUD de centros o cobros.
+- Pruebas: 27 unitarias/contratos/empaquetado y 10 HTTP/regresión pertinentes pasan; 2 integraciones SQL+HTTP reales pasan también tras reiniciar PostgreSQL.
 
 Este registro contiene el estado de ejecución; el roadmap define requisitos y dependencias. La autorización vigente siempre procede del usuario, no de una casilla de este archivo.
 
@@ -21,7 +21,7 @@ Había modificaciones previas en `.dockerignore`, `.gitignore`, `docs/diagrams/r
 
 La configuración Docker del repositorio separa `web` y `api`. En la sesión de análisis el comando docker no estaba disponible en PATH; el estado de contenedores ejecutándose no se pudo comprobar. Esto es una observación del entorno, no una prueba de que Docker no esté instalado en el equipo ni un bloqueo permanente de las tareas futuras.
 
-No se ha medido una suite baseline. `.github/workflows/test.yml` no existe en esta copia; hay configuración en `.gitea/` y `.gitlab-ci.yml`. La CI efectiva y sus permisos deben verificarse en C02.
+En la preparación no se había medido una suite baseline; C00-C02 la midieron después (historial abajo). `.github/workflows/test.yml` no existe en esta copia. Gitea solo selecciona frontend/MCP; no se ha activado CI remota del fork.
 
 ## Tablero de tareas
 
@@ -29,12 +29,12 @@ Estados permitidos: `todo`, `in_progress`, `done`, `blocked`. Una tarea done nec
 
 | ID | Fase | Entrega abreviada | Estado |
 |---|---|---|---|
-| C00 | F0 | Baseline y entorno | todo |
-| C01 | F0 | Capacidades y políticas | todo |
-| C02 | F0 | Verificación y CI | todo |
-| C03 | F1 | Compose y PostgreSQL | todo |
-| C04 | F1 | pg, migraciones y roles SQL | todo |
-| C05 | F1 | Esqueleto, contratos y harness | todo |
+| C00 | F0 | Baseline y entorno | done |
+| C01 | F0 | Capacidades y políticas | done |
+| C02 | F0 | Verificación y CI | done |
+| C03 | F1 | Compose y PostgreSQL | done |
+| C04 | F1 | pg, migraciones y roles SQL | done |
+| C05 | F1 | Esqueleto, contratos y harness | done |
 | C06 | F2 | Esquema inicial | todo |
 | C07 | F2 | Authz, RLS y DTO | todo |
 | C08 | F2 | Referencias JSON-SQL y borrado | todo |
@@ -77,7 +77,7 @@ Estados permitidos: `todo`, `in_progress`, `done`, `blocked`. Una tarea done nec
 
 | Gate | Condiciones | Estado |
 |---|---|---|
-| Infraestructura | C03-C05 + módulo apagado/activo/SQL caído + empaquetado | pendiente |
+| Infraestructura | C03-C05 + módulo apagado/activo/SQL caído + empaquetado | verificado, target default |
 | Aislamiento | C06-C09 + RLS real, revocación y protección de identidad | pendiente |
 | MVP de ensayo | C00-C24 + recorrido completo, suites/build y restore | pendiente |
 | Cobros automáticos | C25-C28 según pasarela + sandbox y conciliación | pendiente |
@@ -93,14 +93,14 @@ Registrar únicamente decisiones tomadas y supuestos adoptados, con alcance y mo
 
 | ID | Decisión | Estado | Evidencia/impacto |
 |---|---|---|---|
-| D00 | Mantener web/api y añadir PostgreSQL en el mismo Compose | propuesta técnica del roadmap | Sin implementación |
-| D01 | Mantener inicialmente identidad/entrenamiento JSON | propuesta técnica del roadmap | Requiere C08 y backup conjunto |
-| D02 | Políticas económicas, acceso y conservación | pendiente de concretar durante C01 | Bloquean solo las tareas que las necesiten |
+| D00 | Mantener web/api y añadir PostgreSQL en el mismo Compose | implementada F1 | Overlay local y stack test independientes |
+| D01 | Mantener inicialmente identidad/entrenamiento JSON | implementada F1 | C08 protege los futuros vínculos |
+| D02 | Capacidades y defaults ficticios versionados; impuestos/precio/conservación aún sin aprobar para producción | contrato de desarrollo C01 | policies.js; no emisión monetaria ni suspensión automática todavía |
 | D03 | Proveedores, credenciales y hardware | pendiente según integración | No necesarios para preparar MVP ficticio |
 
 ## Bloqueos técnicos e información pendiente
 
-No se ha intentado implementar ninguna tarea. No existe todavía un bloqueo de ejecución comprobado. Consultar la tabla de decisiones del roadmap cuando una tarea lo necesite; no tratar toda la implementación como bloqueada por proveedores de fases futuras.
+No existe bloqueo de Docker/SQL: Docker Desktop se localizó fuera de PATH y está operativo. Las suites generales tienen fallos previos documentados; no se han convertido en un bloqueo del módulo. Las decisiones comerciales pendientes solo afectan a sus tareas dependientes.
 
 Formato para nuevas entradas: tarea, motivo, evidencia, trabajo independiente posible y condición de desbloqueo.
 
@@ -113,6 +113,21 @@ Formato para nuevas entradas: tarea, motivo, evidencia, trabajo independiente po
 - Resultado funcional: ninguno; todas las Cxx continúan todo.
 - Evidencia de documentación: referencias locales, IDs/dependencias y diff revisados en la sesión de creación.
 - Siguiente paso: autorización futura de implementación y C00.
+
+### 2026-10-13 · C00-C05 / F0-F1
+
+- Alcance: implementación en rama separada, ampliado por el usuario para continuar fases hasta reservar el 20% del uso. Base `53ef0baf`; cambios previos conservados.
+- Entorno: Node 24.20.0/npm 12 en Windows; Docker Desktop 29.8.2 encontrado en AppData/Local/Programs/DockerDesktop/resources/bin, fuera de PATH. Pruebas de imagen usan Node 22 Linux.
+- C01: capacidades manager/trainer/member y plataforma separadas; defaults ficticios versionados en policies.js. Impuesto/precio y condiciones productivas siguen pendientes, sin bloquear infraestructura.
+- C03-C05: overlay Compose, pg 8.23.1, roles separados, migración 001 con checksum/advisory lock, conexión lazy y endpoint status. Credenciales privilegiadas solo en .env.centers/interpolación, no en env_file runtime. Documentación de operación en CENTERS_DEVELOPMENT.md.
+- Baseline API: 596 tests, 568 pass y 28 fail. Baseline frontend: 402 archivos, 387 pass/15 fail; 5055 tests, 5001 pass/54 fail. Se repitieron fuera del sandbox por errores EPERM de rename de temporales. Logs locales ignorados: baseline-api-unrestricted.log y baseline-frontend-unrestricted.log.
+- Después de F1: API completa 622 tests, 595 pass/27 fail; comparación de nombres: ningún fallo nuevo. Corregido el scanner OpenAPI frente a CRLF, que era uno de los fallos previos. No se corrigieron fallos de Coach, filesystem/Windows o frontend ajenos al módulo.
+- Verificación específica: 27/27 unitarias/contratos/COPY; 10/10 HTTP y sincronización personal; 2/2 integración PostgreSQL+HTTP reales. Repetición tras restart de centers-test-db: 2/2; versiones persistidas e idempotentes.
+- SQL real: compose.centers.test.yml, proyecto ft-gym-centers-tests, sin puertos ni datos de la demo; RLS de tabla probe, rollback, rechazo de migrador runtime y recuperación de disponibilidad sin reiniciar API.
+- Compose base+overlay validado con configuración ficticia y sin env_file real: red SQL privada, sin credenciales bootstrap/migrador en API. Imagen default construida y arrancada. Target Coach opcional no activado ni construido.
+- Frontend build pasa; 18 locales/2258 claves y 1762 cadenas de fuente cubiertas. API docs generadas y --check pasa. MCP no modificado; no se instaló su runtime de tests aún.
+- Estado: C00-C05 done; gate infraestructura verificado para target default. Módulo sin centros reales y apagado en despliegue habitual. Demo existente intacta.
+- Siguiente: C06-C09; ningún permiso de gestión se concede hasta completar aislamiento y protección de cuentas.
 
 ### Plantilla de entrada futura
 

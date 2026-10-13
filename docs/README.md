@@ -49,6 +49,7 @@ Design notes for specific features, kept next to the code they describe:
 | [Combine routines](dev/COMBINE_ROUTINES.md) | Spec for running more than one routine in a session |
 | [Integración de centros](dev/CENTERS_ROADMAP.md) | Roadmap para Codex: Docker/PostgreSQL, permisos por centro, socios, cuotas, cobros y ampliaciones |
 | [Progreso del módulo de centros](dev/CENTERS_PROGRESS.md) | Estado de tareas, criterios de cierre y evidencia para continuar la implementación |
+| [Desarrollo de centros](dev/CENTERS_DEVELOPMENT.md) | Docker/PostgreSQL, credenciales separadas, migraciones y pruebas aisladas |
 
 ## Still stuck?
 

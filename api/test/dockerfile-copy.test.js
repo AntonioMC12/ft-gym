@@ -33,3 +33,23 @@ test('every root-level module server.js needs is on the Dockerfile COPY line', (
   assert.deepEqual(missing, [], `add ${missing.join(', ')} to the COPY line in api/Dockerfile`);
   for (const f of copied) assert.ok(fs.existsSync(path.join(API, f)), `${f} is copied but does not exist`);
 });
+
+test('the centers module and migrations needed by the opt-in deployment are shipped', () => {
+  const dockerfile = read('Dockerfile');
+  assert.match(dockerfile, /^COPY centers \.\/centers\r?$/m);
+  // Follow local imports from each entry point, including the migrator used by Compose.
+  const queue = ['centers/routes.js', 'centers/db.js', 'centers/migrate.js'];
+  const checked = new Set();
+  while (queue.length) {
+    const file = queue.shift();
+    if (checked.has(file)) continue;
+    checked.add(file);
+    assert.ok(fs.existsSync(path.join(API, file)), `${file} is required by the centers image`);
+    for (const dep of [...read(file).matchAll(/(?:from\s+|import\s*\(\s*)['"](\.\.?\/[^'"]+\.js)['"]/g)].map(m => m[1])) {
+      const target = path.posix.normalize(path.posix.join(path.posix.dirname(file), dep));
+      assert.ok(target.startsWith('centers/'), 'centers remains self-contained inside its copied folder');
+      queue.push(target);
+    }
+  }
+  assert.ok(fs.existsSync(path.join(API, 'centers/migrations/001_foundation.sql')));
+});

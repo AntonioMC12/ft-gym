@@ -125,6 +125,8 @@ servers:
     description: Your self-hosted instance
 
 tags:
+  - name: centers
+    description: Opt-in centers module. Foundation only; no business records or permissions are created yet.
   - name: meta
     description: Health and public configuration
   - name: auth
@@ -163,6 +165,45 @@ security:
   - bearerAuth: []
 
 paths:
+  /api/centers/status:
+    get:
+      tags: [centers]
+      operationId: getCentersStatus
+      summary: Centers foundation availability
+      description: |
+        Requires a valid cookie or paired-mobile Bearer session. With `CENTERS_ENABLED`
+        off (default), answers 404 without opening a SQL connection. When enabled,
+        checks that SQL uses a limited application role and the supported schema version.
+        Database absence, unsafe credentials or unapplied migrations return a bounded,
+        generic 503; personal training routes continue to work independently.
+        This stage does not expose affiliations, center permissions, members or billing.
+      responses:
+        '200':
+          description: The foundation database is available and migrated.
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [enabled, stage, available, schemaVersion]
+                properties:
+                  enabled: { type: boolean, const: true }
+                  stage: { type: string, const: foundation }
+                  available: { type: boolean, const: true }
+                  schemaVersion: { type: string, const: '001' }
+        '401':
+          description: No valid session, or the session was revoked during the check.
+        '404':
+          description: The module is switched off.
+        '503':
+          description: Centers storage is unavailable; no connection details are exposed.
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [error, code]
+                properties:
+                  error: { type: string, const: centers are temporarily unavailable }
+                  code: { type: string, const: centers-unavailable }
   /api/health:
     get:
       tags: [meta]
@@ -219,6 +260,9 @@ paths:
         `password_login`, which is there only when `PASSWORD_LOGIN=1`, and `default_lang`,
         which is there only when `DEFAULT_LANG` is set.
 
+        `centers` is present only with `CENTERS_ENABLED=1`, for everybody. It advertises
+        the implemented foundation stage, not SQL credentials, business permissions or health.
+
         `media` is there unless the instance runs with `MEDIA_UPLOADS=0`, for everybody: the
         caps are not a secret, and its absence is how the app knows this server does not
         store photos and videos at all.
@@ -244,6 +288,13 @@ paths:
                   invite_only:
                     type: boolean
                     description: When true, registration requires a valid invite code.
+                  centers:
+                    type: object
+                    description: Present only when the centers module is enabled. Does not query SQL.
+                    required: [enabled, stage]
+                    properties:
+                      enabled: { type: boolean, const: true }
+                      stage: { type: string, const: foundation }
                   allow_guest:
                     type: boolean
                     description: >-

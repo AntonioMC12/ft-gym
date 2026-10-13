@@ -2,7 +2,7 @@
 
 Fecha: 13 de octubre de 2026. Proyecto: Fernando Tienda Training / ft-gym. Versión del plan: 1.0.
 
-Estado: planificación. Las funcionalidades descritas no están implementadas. Este documento guía a Codex cuando el usuario autorice su ejecución; no inicia trabajos, servicios ni cobros por sí mismo.
+Estado: ejecución iniciada; consultar [CENTERS_PROGRESS.md](CENTERS_PROGRESS.md) para distinguir tareas implementadas y pendientes. Este documento define el alcance objetivo; no inicia trabajos, servicios ni cobros por sí mismo.
 
 ## 1. Objetivo y resultado final
 
@@ -20,7 +20,7 @@ Un proyecto Docker Compose en un servidor
   postgres: volumen persistente, acceso interno de la API
 ```
 
-Conservar `web` y `api` actuales. Añadir PostgreSQL al mismo despliegue; no requiere alojamiento externo. Si una instalación personalizada combina frontend y API en una imagen, se puede mantener esa imagen y sumar PostgreSQL, pero no cambiar la topología del repositorio sin comprobar esa instalación. No agrupar PostgreSQL con Node/nginx en un único proceso de despliegue.
+Conservar `web` y `api` actuales. Añadir PostgreSQL al mismo despliegue; no requiere alojamiento externo. Si una instalación personalizada combina frontend y API en una imagen, se puede mantener esa imagen y sumar PostgreSQL, pero no cambiar la topología del repositorio sin comprobar esa instalación. No agrupar PostgreSQL con Node/nginx en el mismo contenedor.
 
 El primer hito funcional será un MVP con centros, roles, socios, cuotas versionadas, suscripciones, recibos, pagos manuales y área del socio. Los cobros externos y el resto se añaden tras validar este núcleo.
 

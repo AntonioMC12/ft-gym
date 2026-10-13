@@ -16,6 +16,9 @@ import webpush from 'web-push';
 import * as coachConfig from './coach/config.js';
 import * as coachJobs from './coach/jobs.js';
 import { coachRoutes } from './coach/routes.js';
+import { centersConfig, publicCentersConfig } from './centers/config.js';
+import { createCentersDatabase } from './centers/db.js';
+import { centersRoutes } from './centers/routes.js';
 import { startCadence } from './coach/cadence.js';
 import { startWarmup } from './coach/warmup.js';
 import { dayReminderPush, nudgePush, restTimerPush, testPush } from './push-messages.js';
@@ -91,6 +94,9 @@ const TRUST_PROXY = /^(1|true|yes|on)$/i.test(process.env.TRUST_PROXY || '');
 // baked into each cookie when it's issued, so lowering this never cuts an existing session short.
 const SESSION_DAYS = Math.max(1, +(process.env.SESSION_DAYS || 90) || 90);
 const MAX_BODY = 5 * 1024 * 1024;
+const CENTERS_CONFIG = centersConfig();
+// Lazy and independent of the training store: an unavailable SQL server never prevents boot.
+const CENTERS_DATABASE = createCentersDatabase(CENTERS_CONFIG);
 // Secure cookies require HTTPS; over plain http://localhost the flag would drop the cookie
 const SECURE = /^https:/i.test(ORIGIN) ? ' Secure;' : '';
 
@@ -1941,6 +1947,7 @@ const routes = {
       // Public like the two flags above: the caps are not a secret, and the absence of the
       // block is how the app knows this server does not take photos and videos at all.
       ...(MEDIA_ON ? { media: mediaConfig(MEDIA_LIMITS) } : {}),
+      ...(CENTERS_CONFIG.enabled ? { centers: publicCentersConfig(CENTERS_CONFIG) } : {}),
       ...(readSession(req) ? { coach: coachConfig.publicConfig() } : {})
     });
   },
@@ -2574,6 +2581,7 @@ const routes = {
   // them: they are closures over db and SECRET, and passing them in keeps that module free of
   // a cycle. Every one of them is inert while the feature is unconfigured.
   ...coachRoutes({ json, readBody, readSession, requireAdmin }),
+  ...centersRoutes({ config: CENTERS_CONFIG, database: CENTERS_DATABASE, json, readSession }),
 
   /* ---------- photos & videos ---------- */
   // Absent, not refusing, when MEDIA_UPLOADS=0: a 404 is what a server from before the feature
@@ -2696,6 +2704,7 @@ const server = http.createServer(async (req, res) => {
     if (!res.headersSent) json(res, 500, { error: 'server error' });
   }
 });
+server.on('close', () => { CENTERS_DATABASE.close().catch(() => {}); });
 // Node's default of 300 s for a whole request would answer 408 to a 40 MB video on a ~1 Mbit/s
 // uplink. Half an hour covers that; a stalled upload is cut much sooner by its own 60 s idle
 // timer in media.js, a client that never finishes its headers still meets headersTimeout, and

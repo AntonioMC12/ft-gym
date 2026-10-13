@@ -1,0 +1,3 @@
+# Bootstrap files mounted into the Linux PostgreSQL image must also work from Windows checkouts.
+docker/*.sh text eol=lf
+migrations/*.sql text eol=lf

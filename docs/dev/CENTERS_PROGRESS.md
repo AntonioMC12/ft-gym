@@ -5,7 +5,7 @@
 ## Punto de reanudación
 
 - Trabajo actual autorizado: implementación en rama separada, avanzando por el roadmap hasta el límite solicitado del 20% restante de uso.
-- Rama: `codex/centers-module`, creada desde `53ef0baf`. F0-F3 verificadas en entorno ficticio. Commits previos: `75e1160d`, `433764a5`.
+- Rama: `codex/centers-module`, creada desde `53ef0baf`. F0-F3 verificadas en entorno ficticio. Commits: `75e1160d`, `433764a5`, `24cb5a42`.
 - Guía: [CENTERS_ROADMAP.md](CENTERS_ROADMAP.md). Instrucciones: [AGENTS.md](../../AGENTS.md).
 - Siguiente tarea: **C13 / F4**, alta/ficha/listado paginado de socios sin cuenta; después C14-C15.
 - Último hito cerrado: F3, centros, responsables, staff y panel integrado en Ajustes. No hay alta de socios desde UI ni cobros.
@@ -152,6 +152,14 @@ Formato para nuevas entradas: tarea, motivo, evidencia, trabajo independiente po
 - Navegador: login ficticio, creación draft y edición persistida; escritorio y 390 px sin desbordamiento (contenido 375 px). Captura fuera del repo. API temporal loopback 3011/5178, PostgreSQL sin puertos; no usa datos reales. Docker Desktop se restableció y las pruebas SQL se repitieron.
 - Límites: plataforma lista hasta 100 centros. Invitaciones de responsable se completan en C15; sin cuenta asignada permanece draft. UI de capacidades económicas extraordinarias y operación productiva dependen de fases posteriores. MCP no modificado. F4-F13 pendientes.
 - Se cierra la sesión al alcanzar la reserva de uso solicitada; reanudar por C13, conservando cambios locales previos de demo.
+
+### Preparación de C13 / siguiente recorrido
+
+- Reutilizar members, memberDto y requireCenter; alta/edición requieren members.manage, listado/ficha usan members.read u operational.read con DTO por fila. Nunca promover una cuenta por contacto coincidente.
+- Socio sin cuenta: account_uid null; vínculo e invitaciones se reservan a C15. Generar id y número de socio por centro en transacción, con reintento idempotente; no implementar MAX(number)+1 sin serialización.
+- Listado con cursor estable y límite máximo; filtros parametrizados dentro del centro seleccionado. Validar contacto/documento y tratar unicidad local mediante 23505, manteniendo permitido el mismo dato en otro centro.
+- Auditar altas/ediciones sin copiar documentos/contacto completos al detalle del evento. Edición con versión; no mezclar con baja/pausa de C14 ni modificar entrenamiento JSON.
+- Añadir services/members.js y rutas junto a OpenAPI, una vista de listado/ficha sobre useCenters, traducciones y pruebas SQL reales de duplicados/cursor/roles/cruce de centros. C13 sigue todo hasta completar ese recorrido.
 
 ### Plantilla de entrada futura
 

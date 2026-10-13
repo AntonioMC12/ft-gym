@@ -24,7 +24,7 @@ services:
     build:
       context: ./api
       target: default
-    command: [node, --test, --test-concurrency=1, test/centers-integration/foundation.test.js, test/centers-integration/authorization.test.js]
+    command: [node, --test, --test-concurrency=1, test/centers-integration/foundation.test.js, test/centers-integration/authorization.test.js, test/centers-integration/management.test.js]
     environment:
       CENTERS_TEST_DATABASE_URL: postgresql://centers_app:fictional-runtime-test-only@centers-test-db/ft_gym_centers_test
       CENTERS_TEST_MIGRATION_DATABASE_URL: postgresql://centers_migrator:fictional-migrator-test-only@centers-test-db/ft_gym_centers_test

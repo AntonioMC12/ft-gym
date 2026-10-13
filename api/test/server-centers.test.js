@@ -43,7 +43,7 @@ test('centers off preserves the configuration contract and personal sync, withou
 test('centers on with SQL down returns a bounded, private 503 but training can still read and write', async t => {
   const s = await server(t, true, 'postgresql://centers_app:secret@127.0.0.1:1/ft_gym_centers');
   const config = await fetch(s.base + '/api/config').then(r => r.json());
-  assert.deepEqual(config.centers, { enabled: true, stage: 'foundation' });
+  assert.deepEqual(config.centers, { enabled: true, stage: 'centers' });
   assert.equal((await fetch(s.base + '/api/centers/status')).status, 401);
   const answer = await fetch(s.base + '/api/centers/status', { headers: s.headers });
   assert.equal(answer.status, 503);

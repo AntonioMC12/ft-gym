@@ -5,11 +5,11 @@
 ## Punto de reanudación
 
 - Trabajo actual autorizado: implementación en rama separada, avanzando por el roadmap hasta el límite solicitado del 20% restante de uso.
-- Rama: `codex/centers-module`, creada desde `53ef0baf`. F0-F2 verificadas en entorno ficticio. Primer commit de infraestructura: `75e1160d`.
+- Rama: `codex/centers-module`, creada desde `53ef0baf`. F0-F3 verificadas en entorno ficticio. Commits previos: `75e1160d`, `433764a5`.
 - Guía: [CENTERS_ROADMAP.md](CENTERS_ROADMAP.md). Instrucciones: [AGENTS.md](../../AGENTS.md).
-- Siguiente tarea: **C10-C12 / F3**, creación de centros, responsables y UI de plataforma.
-- Último hito cerrado: aislamiento F2. Todavía no hay alta de centros desde interfaz ni cobros.
-- Pruebas F2: 31 unitarias/contratos/empaquetado, 14 HTTP/regresión y 3 SQL+HTTP reales pasan. API completa: 626 tests, 599 pass/27 fail previos, sin fallos nuevos frente al baseline.
+- Siguiente tarea: **C13 / F4**, alta/ficha/listado paginado de socios sin cuenta; después C14-C15.
+- Último hito cerrado: F3, centros, responsables, staff y panel integrado en Ajustes. No hay alta de socios desde UI ni cobros.
+- Pruebas F3: 25 unitarias/contratos, 12 frontend y 4 SQL+HTTP reales pasan. Suites completas sin fallos nuevos frente al baseline; detalle en el historial.
 
 Este registro contiene el estado de ejecución; el roadmap define requisitos y dependencias. La autorización vigente siempre procede del usuario, no de una casilla de este archivo.
 
@@ -39,9 +39,9 @@ Estados permitidos: `todo`, `in_progress`, `done`, `blocked`. Una tarea done nec
 | C07 | F2 | Authz, RLS y DTO | done |
 | C08 | F2 | Referencias JSON-SQL y borrado | done |
 | C09 | F2 | Admin técnico y superadmin | done |
-| C10 | F3 | Bootstrap y centros | todo |
-| C11 | F3 | Roles y responsables | todo |
-| C12 | F3 | UI de plataforma | todo |
+| C10 | F3 | Bootstrap y centros | done |
+| C11 | F3 | Roles y responsables | done |
+| C12 | F3 | UI de plataforma | done |
 | C13 | F4 | Alta y ficha de socio | todo |
 | C14 | F4 | Baja/pausa contractual | todo |
 | C15 | F4 | Invitaciones y vinculación | todo |
@@ -139,6 +139,19 @@ Formato para nuevas entradas: tarea, motivo, evidencia, trabajo independiente po
 - Suite API completa: 626/599 pass/27 fail, ningún fallo nuevo frente a baseline. Contrato generado de 73 endpoints y --check pasa. Frontend no cambiado en F2, no se repitió su suite fallida sin motivo nuevo.
 - Limitaciones: restauración antigua sin marcador e imágenes previas sin protección necesitan el procedimiento de C40; no afirmar seguridad automática para esos casos. Políticas económicas reales y proveedores siguen pendientes de sus fases.
 - Estado: C06-C09 done. Siguiente: F3. El stack de demo continúa intacto.
+
+### 2026-10-13 · C10-C12 / F3
+
+- Bootstrap por uid existente/allowlist; creación idempotente actor/requestId. Sin responsable permanece draft; cuenta existente habilitada activa el centro en la misma transacción. Configuración: contacto/fiscal, aforo, zona horaria, día de cobro y hasta cuatro franjas diarias. No genera importes.
+- Migraciones 003/004 aplicadas en SQL de pruebas: restricción diferida de responsable vigente, gestión local de trainers y configuración. No editar migraciones aplicadas.
+- Sustitución/revocación serializadas por centro, versión optimista y auditoría. Dos revocaciones concurrentes conservan un responsable. Deshabilitar una cuenta global también verifica responsables habilitados bajo los mismos locks; último superadmin protegido. No borra centros físicamente.
+- UI Settings + HashRouter /centers, asistente de tres pasos, búsqueda limitada de cuentas de plataforma, panel de configuración/responsables/staff. Trainer recibe DTO operativo. Store separado en memoria, limpieza en logout/cambio/revocación, respuestas tardías descartadas; refrescos sin cambios conservan formularios.
+- Contrato: 84 endpoints/34 schemas; generador --check pasa. stage centers/schemaVersion 004. 18 locales/2297 claves; nuevas traducciones pt-BR revisadas explícitamente.
+- Tests: centers-f3-unit.log 25/25; frontend/centers-f3-ui-final.log 12/12; centers-f3-final-sql.log 4/4 Node 22/PostgreSQL real, incluyendo concurrencia y DTO de configuración. API general api/centers-f3-full-api.log: 628 tests/601 pass/27 fail, ningún nombre de fallo nuevo.
+- Frontend final frontend/centers-f3-full-frontend-verified.log: 404 archivos/389 pass/15 fail; 5062 tests/5008 pass/54 fail. Mismos fallos previos del baseline. Build pasa con avisos heredados; locales pasan. Error de sintaxis del shell y snapshot pt-BR detectados y corregidos antes del cierre.
+- Navegador: login ficticio, creación draft y edición persistida; escritorio y 390 px sin desbordamiento (contenido 375 px). Captura fuera del repo. API temporal loopback 3011/5178, PostgreSQL sin puertos; no usa datos reales. Docker Desktop se restableció y las pruebas SQL se repitieron.
+- Límites: plataforma lista hasta 100 centros. Invitaciones de responsable se completan en C15; sin cuenta asignada permanece draft. UI de capacidades económicas extraordinarias y operación productiva dependen de fases posteriores. MCP no modificado. F4-F13 pendientes.
+- Se cierra la sesión al alcanzar la reserva de uso solicitada; reanudar por C13, conservando cambios locales previos de demo.
 
 ### Plantilla de entrada futura
 

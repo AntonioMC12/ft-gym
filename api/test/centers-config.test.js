@@ -7,7 +7,7 @@ test('centers is opt-in and advertises no credentials or invented business capab
   assert.equal(centersConfig({}).enabled, false);
   assert.equal(publicCentersConfig(centersConfig({})), null);
   const cfg = centersConfig({ CENTERS_ENABLED: '1', CENTERS_DATABASE_URL: 'postgresql://app:secret@localhost/centers' });
-  assert.deepEqual(publicCentersConfig(cfg), { enabled: true, stage: 'foundation' });
+  assert.deepEqual(publicCentersConfig(cfg), { enabled: true, stage: 'centers' });
   assert.ok(!JSON.stringify(publicCentersConfig(cfg)).includes('secret'));
   assert.equal(centersConfig({ CENTERS_ENABLED: 'false' }).enabled, false);
 });

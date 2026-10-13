@@ -126,7 +126,7 @@ servers:
 
 tags:
   - name: centers
-    description: Opt-in centers module. Foundation only; no business records or permissions are created yet.
+    description: Opt-in centers module. Tenant-scoped center administration with separate platform authorization.
   - name: meta
     description: Health and public configuration
   - name: auth
@@ -165,6 +165,210 @@ security:
   - bearerAuth: []
 
 paths:
+  /api/centers/detail:
+    get:
+      tags: [centers]
+      operationId: getCenterDetail
+      summary: Center configuration filtered by role
+      description: Requires center.read; full metadata for platform or manager, operational data only for trainer. Inactive centers are readable.
+      parameters:
+        - name: centerId
+          in: query
+          required: true
+          schema: { type: string }
+      responses:
+        '200': { description: Authorized projection or committed audited change. }
+        '400': { description: Invalid input or unexpected field. }
+        '401': { description: No current session. }
+        '403': { description: Insufficient capability. }
+        '404': { description: Module off or resource not accessible. }
+        '409': { description: 'Conflict; version-conflict, duplicate, last-manager, account-inactive, center-inactive, idempotency-conflict or invalid-state.' }
+        '503': { description: Centers unavailable. }
+  /api/centers/staff:
+    get:
+      tags: [centers]
+      operationId: getCenterStaff
+      summary: Staff assignments and revoked history
+      description: Requires staff.manage or explicit platform allowlist.
+      parameters:
+        - name: centerId
+          in: query
+          required: true
+          schema: { type: string }
+      responses:
+        '200': { description: Authorized projection or committed audited change. }
+        '400': { description: Invalid input or unexpected field. }
+        '401': { description: No current session. }
+        '403': { description: Insufficient capability. }
+        '404': { description: Module off or resource not accessible. }
+        '409': { description: 'Conflict; version-conflict, duplicate, last-manager, account-inactive, center-inactive, idempotency-conflict or invalid-state.' }
+        '503': { description: Centers unavailable. }
+  /api/platform/centers:
+    get:
+      tags: [centers]
+      operationId: getPlatformCenters
+      summary: List centers
+      description: Explicit platform allowlist only; at most 100 records ordered by creation descending.
+      responses:
+        '200': { description: Authorized projection or committed audited change. }
+        '400': { description: Invalid input or unexpected field. }
+        '401': { description: No current session. }
+        '403': { description: Insufficient capability. }
+        '404': { description: Module off or resource not accessible. }
+        '409': { description: 'Conflict; version-conflict, duplicate, last-manager, account-inactive, center-inactive, idempotency-conflict or invalid-state.' }
+        '503': { description: Centers unavailable. }
+  /api/platform/centers/accounts:
+    get:
+      tags: [centers]
+      operationId: getPlatformCenterAccounts
+      summary: Search existing accounts
+      description: Platform only. Name prefix or exact uid, 2..128 characters, at most 20 matches. Returns id/name/disabled. Contact does not prove ownership.
+      parameters:
+        - name: query
+          in: query
+          required: true
+          schema: { type: string }
+      responses:
+        '200': { description: Authorized projection or committed audited change. }
+        '400': { description: Invalid input or unexpected field. }
+        '401': { description: No current session. }
+        '403': { description: Insufficient capability. }
+        '404': { description: Module off or resource not accessible. }
+        '409': { description: 'Conflict; version-conflict, duplicate, last-manager, account-inactive, center-inactive, idempotency-conflict or invalid-state.' }
+        '503': { description: Centers unavailable. }
+  /api/platform/centers/create:
+    post:
+      tags: [centers]
+      operationId: createPlatformCenter
+      summary: Create a center
+      description: Platform only. Stable actor/requestId retries replay the same result; different content conflicts. Optional enabled manager activates the center transactionally, otherwise draft.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/CenterCreateInput' }
+      responses:
+        '200': { description: Authorized projection or committed audited change. }
+        '400': { description: Invalid input or unexpected field. }
+        '401': { description: No current session. }
+        '403': { description: Insufficient capability. }
+        '404': { description: Module off or resource not accessible. }
+        '409': { description: 'Conflict; version-conflict, duplicate, last-manager, account-inactive, center-inactive, idempotency-conflict or invalid-state.' }
+        '503': { description: Centers unavailable. }
+  /api/platform/centers/update:
+    post:
+      tags: [centers]
+      operationId: updatePlatformCenter
+      summary: Update configuration and logical state
+      description: Platform only. Full snapshot, optimistic version; active center requires enabled manager.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/CenterUpdateInput' }
+      responses:
+        '200': { description: Authorized projection or committed audited change. }
+        '400': { description: Invalid input or unexpected field. }
+        '401': { description: No current session. }
+        '403': { description: Insufficient capability. }
+        '404': { description: Module off or resource not accessible. }
+        '409': { description: 'Conflict; version-conflict, duplicate, last-manager, account-inactive, center-inactive, idempotency-conflict or invalid-state.' }
+        '503': { description: Centers unavailable. }
+  /api/centers/update:
+    post:
+      tags: [centers]
+      operationId: updateManagedCenter
+      summary: Update managed center configuration
+      description: Requires center.update. Local managers cannot change state.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/CenterUpdateInput' }
+      responses:
+        '200': { description: Authorized projection or committed audited change. }
+        '400': { description: Invalid input or unexpected field. }
+        '401': { description: No current session. }
+        '403': { description: Insufficient capability. }
+        '404': { description: Module off or resource not accessible. }
+        '409': { description: 'Conflict; version-conflict, duplicate, last-manager, account-inactive, center-inactive, idempotency-conflict or invalid-state.' }
+        '503': { description: Centers unavailable. }
+  /api/platform/centers/assign-manager:
+    post:
+      tags: [centers]
+      operationId: assignCenterManager
+      summary: Assign or replace manager
+      description: Platform only. Existing enabled account required. Optional replacement is atomic; draft becomes active.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/CenterRoleInput' }
+      responses:
+        '200': { description: Authorized projection or committed audited change. }
+        '400': { description: Invalid input or unexpected field. }
+        '401': { description: No current session. }
+        '403': { description: Insufficient capability. }
+        '404': { description: Module off or resource not accessible. }
+        '409': { description: 'Conflict; version-conflict, duplicate, last-manager, account-inactive, center-inactive, idempotency-conflict or invalid-state.' }
+        '503': { description: Centers unavailable. }
+  /api/platform/centers/revoke-role:
+    post:
+      tags: [centers]
+      operationId: revokeCenterManager
+      summary: Revoke manager
+      description: Platform only, manager assignments only. Concurrent revocations cannot remove the last enabled manager from an active center.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/CenterRevokeInput' }
+      responses:
+        '200': { description: Authorized projection or committed audited change. }
+        '400': { description: Invalid input or unexpected field. }
+        '401': { description: No current session. }
+        '403': { description: Insufficient capability. }
+        '404': { description: Module off or resource not accessible. }
+        '409': { description: 'Conflict; version-conflict, duplicate, last-manager, account-inactive, center-inactive, idempotency-conflict or invalid-state.' }
+        '503': { description: Centers unavailable. }
+  /api/centers/staff/assign:
+    post:
+      tags: [centers]
+      operationId: assignCenterTrainer
+      summary: Assign trainer
+      description: Requires staff.manage; trainer role only, no extra capabilities or global admin.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/CenterRoleInput' }
+      responses:
+        '200': { description: Authorized projection or committed audited change. }
+        '400': { description: Invalid input or unexpected field. }
+        '401': { description: No current session. }
+        '403': { description: Insufficient capability. }
+        '404': { description: Module off or resource not accessible. }
+        '409': { description: 'Conflict; version-conflict, duplicate, last-manager, account-inactive, center-inactive, idempotency-conflict or invalid-state.' }
+        '503': { description: Centers unavailable. }
+  /api/centers/staff/revoke:
+    post:
+      tags: [centers]
+      operationId: revokeCenterTrainer
+      summary: Revoke trainer
+      description: Requires staff.manage; trainer assignments only.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/CenterRevokeInput' }
+      responses:
+        '200': { description: Authorized projection or committed audited change. }
+        '400': { description: Invalid input or unexpected field. }
+        '401': { description: No current session. }
+        '403': { description: Insufficient capability. }
+        '404': { description: Module off or resource not accessible. }
+        '409': { description: 'Conflict; version-conflict, duplicate, last-manager, account-inactive, center-inactive, idempotency-conflict or invalid-state.' }
+        '503': { description: Centers unavailable. }
   /api/centers/me:
     get:
       tags: [centers]
@@ -257,17 +461,17 @@ paths:
     get:
       tags: [centers]
       operationId: getCentersStatus
-      summary: Centers foundation availability
+      summary: Centers storage availability
       description: |
         Requires a valid cookie or paired-mobile Bearer session. With `CENTERS_ENABLED`
         off (default), answers 404 without opening a SQL connection. When enabled,
         checks that SQL uses a limited application role and the supported schema version.
         Database absence, unsafe credentials or unapplied migrations return a bounded,
         generic 503; personal training routes continue to work independently.
-        This stage does not expose affiliations, center permissions, members or billing.
+        This endpoint exposes availability only; no business records or credentials.
       responses:
         '200':
-          description: The foundation database is available and migrated.
+          description: The centers database is available and migrated.
           content:
             application/json:
               schema:
@@ -275,9 +479,9 @@ paths:
                 required: [enabled, stage, available, schemaVersion]
                 properties:
                   enabled: { type: boolean, const: true }
-                  stage: { type: string, const: foundation }
+                  stage: { type: string, const: centers }
                   available: { type: boolean, const: true }
-                  schemaVersion: { type: string, const: '002' }
+                  schemaVersion: { type: string, const: '004' }
         '401':
           description: No valid session, or the session was revoked during the check.
         '404':
@@ -349,7 +553,7 @@ paths:
         which is there only when `DEFAULT_LANG` is set.
 
         `centers` is present only with `CENTERS_ENABLED=1`, for everybody. It advertises
-        the implemented foundation stage, not SQL credentials, business permissions or health.
+        the implemented centers stage, not SQL credentials, business permissions or health.
 
         `media` is there unless the instance runs with `MEDIA_UPLOADS=0`, for everybody: the
         caps are not a secret, and its absence is how the app knows this server does not
@@ -382,7 +586,7 @@ paths:
                     required: [enabled, stage]
                     properties:
                       enabled: { type: boolean, const: true }
-                      stage: { type: string, const: foundation }
+                      stage: { type: string, const: centers }
                   allow_guest:
                     type: boolean
                     description: >-
@@ -2317,6 +2521,7 @@ paths:
     post:
       tags: [admin]
       operationId: adminUserDisable
+      x-centers-constraints: Last enabled manager or platform administrator cannot be disabled; SQL unavailable fails closed.
       summary: 'Admin: disable or re-enable a user'
       description: |
         Sets the `disabled` flag. A disabled account is locked out everywhere at once
@@ -2349,6 +2554,8 @@ paths:
             application/json:
               schema: { $ref: '#/components/schemas/Error' }
               example: { error: "cannot disable an admin" }
+        '409': { description: Last enabled manager or platform administrator. }
+        '503': { description: Centers references could not be checked. }
         '401': { $ref: '#/components/responses/Unauthorized' }
         '403': { $ref: '#/components/responses/Forbidden' }
         '404':
@@ -3246,6 +3453,64 @@ components:
           example: { error: "that code is wrong, used or expired", code: "link-invalid" }
 
   schemas:
+    CenterCreateInput:
+      type: object
+      additionalProperties: false
+      required: [name, requestId]
+      properties:
+        name: { type: string, minLength: 1, maxLength: 120 }
+        taxId: { type: [string, 'null'], maxLength: 40 }
+        address: { type: [string, 'null'], maxLength: 250 }
+        contactEmail: { type: [string, 'null'], maxLength: 254 }
+        phone: { type: [string, 'null'], maxLength: 40 }
+        timezone: { type: string, default: Europe/Madrid, description: Valid IANA timezone. }
+        capacity: { type: [integer, 'null'], minimum: 1, maximum: 100000 }
+        billingDay: { type: integer, minimum: 1, maximum: 31 }
+        openingHours:
+          type: object
+          description: 'Keys 0..6; at most four sorted nonoverlapping [HH:mm, HH:mm] intervals per day; end 24:00 allowed.'
+          additionalProperties: { type: array, maxItems: 4, items: { type: array, minItems: 2, maxItems: 2, items: { type: string } } }
+        managerUid: { type: string, description: Existing enabled account; omitted for draft. }
+        requestId: { type: string, minLength: 8, maxLength: 128, description: Letters digits underscore or hyphen. }
+    CenterUpdateInput:
+      type: object
+      additionalProperties: false
+      required: [centerId, version, name]
+      properties:
+        name: { type: string, minLength: 1, maxLength: 120 }
+        taxId: { type: [string, 'null'], maxLength: 40 }
+        address: { type: [string, 'null'], maxLength: 250 }
+        contactEmail: { type: [string, 'null'], maxLength: 254 }
+        phone: { type: [string, 'null'], maxLength: 40 }
+        timezone: { type: string, default: Europe/Madrid, description: Valid IANA timezone. }
+        capacity: { type: [integer, 'null'], minimum: 1, maximum: 100000 }
+        billingDay: { type: integer, minimum: 1, maximum: 31 }
+        openingHours:
+          type: object
+          description: 'Keys 0..6; at most four sorted nonoverlapping [HH:mm, HH:mm] intervals per day; end 24:00 allowed.'
+          additionalProperties: { type: array, maxItems: 4, items: { type: array, minItems: 2, maxItems: 2, items: { type: string } } }
+        centerId: { type: string }
+        version: { type: integer, minimum: 1 }
+        state: { type: string, enum: [draft, active, inactive], description: Platform only. }
+    CenterRoleInput:
+      type: object
+      additionalProperties: false
+      required: [centerId, version, accountUid]
+      properties:
+        centerId: { type: string }
+        version: { type: integer, minimum: 1 }
+        accountUid: { type: string }
+        role: { type: string, enum: [manager, trainer], description: Endpoint constrains role. }
+        replaceAssignmentId: { type: string, description: Platform only. }
+        extraCapabilities: { type: array, uniqueItems: true, items: { type: string, enum: [data.export, payments.refund] }, description: Platform manager assignment only. }
+    CenterRevokeInput:
+      type: object
+      additionalProperties: false
+      required: [centerId, version, assignmentId]
+      properties:
+        centerId: { type: string }
+        version: { type: integer, minimum: 1 }
+        assignmentId: { type: string }
     Error:
       type: object
       required: [error]

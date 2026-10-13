@@ -2,8 +2,21 @@
 // Tests fingerprint every deliberately inherited entry so upstream changes require review.
 // Some byte-identical overrides intentionally pin wording that must not drift with pt-PT.
 import pt from './pt.js'
+import { centersStrings } from './modules/centers.js'
 
 export const PT_BR_OVERRIDES = {
+  ...centersStrings('pt'),
+  'Manage centers': 'Gerenciar centros',
+  'Center address': 'Endereço do centro',
+  'Contact email': 'Email de contato',
+  'Center capacity': 'Capacidade do centro',
+  'Center staff': 'Equipe do centro',
+  'Loading centers': 'Carregando centros',
+  'Centers are unavailable. Try again.': 'Os centros não estão disponíveis. Tente novamente.',
+  'You do not have access to this center.': 'Você não tem acesso a este centro.',
+  'Check the center details.': 'Confira os dados do centro.',
+  'Assign a replacement before removing the last manager.': 'Atribua um substituto antes de remover o último responsável.',
+  'Center changed. Reload and try again.': 'O centro mudou. Recarregue e tente novamente.',
   '{0} set brings an {1} with it. Switch on Effort per set in Settings to see it.': '{0} série traz um {1} junto. Ative “Esforço por série” nas Configurações para ver.',
   'Add to this set': 'Adicionar a esta série',
   'Copy this exercise’s warm-up sets, and the rest and note from its Exercise settings, into the routine. A note added for today stays with this workout. Your workout history is kept.': 'Copia para a rotina as séries de aquecimento deste exercício, e o descanso e a anotação das Configurações do exercício dele. Uma anotação adicionada para hoje fica com este treino. Seu histórico de treinos é mantido.',

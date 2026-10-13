@@ -1,7 +1,7 @@
 import { postgresUrl } from './config.js';
 import { CentersUnavailable } from './errors.js';
 
-export const SCHEMA_VERSION = '002';
+export const SCHEMA_VERSION = '004';
 
 // An application connection must never inherit the bootstrap/migrator's DDL or RLS bypass.
 async function requireApplicationRole(client) {
@@ -81,11 +81,28 @@ export function createCentersDatabase(config, { loadPool = async () => (await im
     },
     accountTransaction(uid, work) { return run(uid, '', false, work); },
     // Only platform services that checked the explicit superadmin allowlist may call this.
-    platformTransaction(uid, work) { return run(uid, '', true, work); },
+    platformTransaction(uid, work, centerId = '') { return run(uid, centerId, true, work); },
     async hasAccountReferences(actorUid, targetUid) {
       return run(actorUid, '', false, async client => {
         const { rows } = await client.query('SELECT centers.has_account_references($1) AS linked', [targetUid]);
         return rows[0].linked;
+      });
+    },
+    async managerCentersForAccount(actorUid, targetUid) {
+      return run(actorUid, '', false, async client => {
+        const { rows } = await client.query('SELECT * FROM centers.manager_centers_for_account($1)', [targetUid]);
+        return rows;
+      });
+    },
+    async withManagerCenters(actorUid, targetUid, work) {
+      return run(actorUid,'',false,async client=>{
+        const read=async()=> (await client.query('SELECT * FROM centers.manager_centers_for_account($1)',[targetUid])).rows;
+        const centers=await read();
+        for(const center of centers.sort((a,b)=>a.center_id.localeCompare(b.center_id))) {
+          await client.query("SELECT pg_advisory_xact_lock(hashtext('ft-gym-center:' || $1))",[center.center_id]);
+        }
+        // Read again after locking: role mutations in those centers may have committed meanwhile.
+        return work(await read());
       });
     },
 

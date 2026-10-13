@@ -2471,13 +2471,36 @@ const routes = {
     const u = db.users.find(x => x.id === body.id);
     if (!u) return json(res, 404, { error: 'no such user' });
     if (isAdmin(u)) return json(res, 400, { error: 'cannot disable an admin' });
-    u.disabled = !!body.disabled;
-    if (u.disabled) presence.delete(u.id);   // drop them off "training now" at once
-    // A device link made before the lock would otherwise still be waiting when it is lifted.
-    if (u.disabled) dropDeviceLinks(db, u.id);
-    saveDb();
-    audit(req, u.disabled ? 'admin.user.disable' : 'admin.user.enable', { user: admin, target: u });
-    json(res, 200, { ok: true, id: u.id, disabled: u.disabled });
+    const adminVersion = admin.sv || 0;
+    try {
+      await CENTERS_ACCOUNT_LOCKS.withAccounts([admin.id,u.id],async()=>{
+        const change = centers => {
+          for (const center of centers) {
+            if (!center.manager_uids.some(uid=>uid!==u.id && db.users.some(a=>a.id===uid&&!a.disabled))) {
+              throw new CentersError(409,'last-manager','assign a replacement before disabling the last manager');
+            }
+          }
+          if (readSession(req)!==admin||(admin.sv||0)!==adminVersion||!isAdmin(admin))throw new CentersError(401,'not-signed-in','not signed in');
+          if (body.disabled && CENTERS_CONFIG.superadminUids.includes(u.id) &&
+              !db.users.some(a=>a.id!==u.id&&!a.disabled&&CENTERS_CONFIG.superadminUids.includes(a.id))) {
+            throw new CentersError(409,'last-platform-admin','cannot disable the last platform administrator');
+          }
+          u.disabled = !!body.disabled;
+          if (u.disabled) presence.delete(u.id);
+          if (u.disabled) dropDeviceLinks(db, u.id);
+          saveDb();
+          audit(req, u.disabled ? 'admin.user.disable' : 'admin.user.enable', { user: admin, target: u });
+        };
+        if (CENTERS_REFERENCE_GUARD && body.disabled) {
+          try { await CENTERS_DATABASE.withManagerCenters(admin.id,u.id,change); }
+          catch(error) { if(error instanceof CentersError)throw error;throw new CentersError(503,'centers-unavailable','center references could not be checked'); }
+        } else change([]);
+        json(res, 200, { ok: true, id: u.id, disabled: u.disabled });
+      });
+    } catch(error) {
+      if(error instanceof CentersError)return json(res,error.status,{error:error.message,code:error.code});
+      throw error;
+    }
   },
 
   // Disable locks an account out; this removes it. The one destructive action in the app, so the
@@ -2504,6 +2527,10 @@ const routes = {
         }
         if (readSession(req) !== admin || (admin.sv || 0) !== adminVersion || !isAdmin(admin)) {
           throw new CentersError(401, 'not-signed-in', 'not signed in');
+        }
+        if (CENTERS_CONFIG.superadminUids.includes(u.id) &&
+            !db.users.some(a=>a.id!==u.id&&!a.disabled&&CENTERS_CONFIG.superadminUids.includes(a.id))) {
+          throw new CentersError(409,'last-platform-admin','cannot delete the last platform administrator');
         }
         const name = u.name;
         db.users = db.users.filter(x => x.id !== u.id);
@@ -2605,7 +2632,9 @@ const routes = {
   // them: they are closures over db and SECRET, and passing them in keeps that module free of
   // a cycle. Every one of them is inert while the feature is unconfigured.
   ...coachRoutes({ json, readBody, readSession, requireAdmin }),
-  ...centersRoutes({ config: CENTERS_CONFIG, database: CENTERS_DATABASE, json, readSession, accountIds: () => db.users.map(u => u.id) }),
+  ...centersRoutes({ config: CENTERS_CONFIG, database: CENTERS_DATABASE, json, readSession, readBody,
+    accountLocks: CENTERS_ACCOUNT_LOCKS, lookupAccount: uid => db.users.find(u => u.id === uid),
+    accountIds: () => db.users.map(u => u.id), accountDirectory: () => db.users.map(u => ({id:u.id,name:String(u.name||''),disabled:!!u.disabled})) }),
 
   /* ---------- photos & videos ---------- */
   // Absent, not refusing, when MEDIA_UPLOADS=0: a 404 is what a server from before the feature

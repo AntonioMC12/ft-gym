@@ -20,7 +20,7 @@ export function databaseUrlFrom(env, explicit = 'CENTERS_DATABASE_URL') {
 
 export function publicCentersConfig(config) {
   // Only the module's implemented stage is advertised. No DSN or database health here.
-  return config.enabled ? { enabled: true, stage: 'foundation' } : null;
+  return config.enabled ? { enabled: true, stage: 'centers' } : null;
 }
 
 export function postgresUrl(value, label = 'database URL') {

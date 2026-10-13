@@ -1,0 +1,22 @@
+.centers-page { padding-bottom: 32px; }
+.centers-page .hdr h1 { font-size: 28px; }
+.centers-actions { display: flex; gap: 10px; align-items: center; justify-content: space-between; flex-wrap: wrap; margin: 16px 0; }
+.centers-form { padding: 18px; }
+.centers-fields { display: grid; gap: 14px; grid-template-columns: repeat(2, minmax(0, 1fr)); margin: 16px 0; }
+.centers-field { display: grid; gap: 6px; min-width: 0; }
+.centers-field > span { font-size: 13px; color: var(--label-2); }
+.centers-field .field { width: 100%; }
+.centers-hours { grid-column: 1 / -1; }
+.centers-hour-day { border-bottom: var(--hair) solid var(--sep); padding-bottom: 12px; }
+.centers-hour-row { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) auto; gap: 8px; align-items: center; margin: 8px 0; }
+.centers-list { display: grid; gap: 14px; }
+.centers-card { border: var(--hair) solid var(--sep); border-radius: 18px; background: var(--surface); padding: 20px; }
+.centers-card h2 { font-size: 20px; }
+.centers-account { display: flex; flex-direction: column; align-items: start; width: 100%; margin: 8px 0; text-align: start; }
+.centers-selected, .centers-staff-row { display: flex; justify-content: space-between; align-items: center; gap: 12px; flex-wrap: wrap; padding: 12px 0; border-bottom: var(--hair) solid var(--sep); }
+.centers-page [role=alert] { color: var(--red); padding: 12px; }
+@media (max-width: 500px) {
+  .centers-fields { grid-template-columns: 1fr; }
+  .centers-hour-row { gap: 5px; font-size: 12px; }
+  .centers-form { padding: 14px; }
+}

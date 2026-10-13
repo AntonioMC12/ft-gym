@@ -1,4 +1,6 @@
+import { centersStrings } from './modules/centers.js'
 export default {
+  ...centersStrings('zh-TW'),
   'Confirm': '確認',
   'Cancel': '取消',
   'Press back again to exit': '再按一次返回以退出',

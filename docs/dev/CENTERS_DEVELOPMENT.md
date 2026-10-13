@@ -1,6 +1,8 @@
 # Desarrollo del módulo de centros
 
-Primera entrega: infraestructura y disponibilidad de API, sin CRUD de centros, socios ni cobros. Rama: `codex/centers-module`. Apagado por defecto; cuentas y entrenamiento siguen en JSON. Consultar CENTERS_PROGRESS para el estado posterior.
+Entrega actual: infraestructura, aislamiento SQL, centros, responsables y staff con panel en Ajustes. Rama: `codex/centers-module`. Apagado por defecto; cuentas y entrenamiento siguen en JSON. Socios y cobros pendientes. Consultar CENTERS_PROGRESS para evidencia y siguiente tarea.
+
+Con `CENTERS_ENABLED=1`, las cuentas enumeradas en `CENTERS_SUPERADMIN_UIDS` pueden crear centros desde Ajustes → Gestionar centros. Deben existir y estar habilitadas; `user.admin` no concede este permiso. El asistente permite draft sin responsable; asignar una cuenta existente habilitada lo activa. Responsables gestionan configuración y trainers de sus centros, sin administración técnica global. El estado y permisos administrativos nunca se exportan con entrenamiento.
 
 ## Configuración de desarrollo
 

@@ -22,7 +22,7 @@ test('database details are never exposed by the unavailable response', async () 
 });
 
 test('a healthy foundation does not claim implemented affiliations or payment features', async () => {
-  assert.deepEqual(await call(), { code: 200, body: { enabled: true, stage: 'foundation', available: true, schemaVersion: '001' } });
+  assert.deepEqual(await call(), { code: 200, body: { enabled: true, stage: 'centers', available: true, schemaVersion: '001' } });
 });
 
 test('revocation during an awaited SQL check invalidates the response', async () => {

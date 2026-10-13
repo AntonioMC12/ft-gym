@@ -12,18 +12,18 @@ test('business SQL and HTTP enforce center isolation, role projections, revocati
   const prefix = 't_' + randomBytes(6).toString('hex');
   const id = key => `${prefix}_${key}`;
   const centerA = id('a'), centerB = id('b');
-  const managerA = id('manager_a'), managerB = id('manager_b'), trainer = id('trainer'), multi = id('multi');
+  const managerA = id('manager_a'), managerB = id('manager_b'), backupManager = id('backup'), trainer = id('trainer'), multi = id('multi');
   const platform = id('platform'), technical = id('technical'), personal = id('personal'), orphan = id('orphan');
   await db.platformTransaction(platform, async client => {
     for (const center of [centerA, centerB]) await client.query('INSERT INTO centers.centers(id,name,state) VALUES($1,$2,$3)', [center, center, 'active']);
-    for (const [key, center, uid, role] of [['ra',centerA,managerA,'manager'], ['rb',centerB,managerB,'manager'], ['rt',centerA,trainer,'trainer'], ['orphan',centerA,orphan,'trainer']]) {
+    for (const [key, center, uid, role] of [['ra',centerA,managerA,'manager'], ['backup',centerA,backupManager,'manager'], ['rb',centerB,managerB,'manager'], ['rt',centerA,trainer,'trainer'], ['orphan',centerA,orphan,'trainer']]) {
       await client.query('INSERT INTO centers.role_assignments(id,center_id,account_uid,role) VALUES($1,$2,$3,$4)', [id(key), center, uid, role]);
     }
     for (const [key, center] of [['ma',centerA], ['mb',centerB]]) await client.query(`INSERT INTO centers.members
       (id,center_id,account_uid,member_number,name,email,national_document,state) VALUES($1,$2,$3,$4,$5,$6,$7,'active')`,
       [id(key), center, multi, '1', key, 'same@test.invalid', '12345678Z']);
   });
-  const h = await startHttp(t, { app, users: [managerA,managerB,trainer,multi,platform,personal].map(uid => ({ id:uid,name:uid })).concat([{ id:technical,name:technical,admin:true }]), superadminUids:[platform] });
+  const h = await startHttp(t, { app, users: [managerA,managerB,backupManager,trainer,multi,platform,personal].map(uid => ({ id:uid,name:uid })).concat([{ id:technical,name:technical,admin:true }]), superadminUids:[platform] });
   const request = async (path, uid, body) => {
     const r = await fetch(h.base+path, { headers:h.headers(uid), ...(body ? { method:'POST',body:JSON.stringify(body) } : {}) });
     return { status:r.status,body:await r.json() };

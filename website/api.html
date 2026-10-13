@@ -246,7 +246,7 @@ main.api-main .lead { color: var(--fg-2); max-width: 58ch; margin: 14px 0 0; fon
   <p class="api-facts">
     <span>OpenAPI 3.1.0</span>
     <span>openGym v1.4.1</span>
-    <span>73 endpoints</span>
+    <span>84 endpoints</span>
     <span>AGPL-3.0-or-later</span>
   </p>
 
@@ -294,8 +294,532 @@ main.api-main .lead { color: var(--fg-2); max-width: 58ch; margin: 14px 0 0; fon
 
 <section class="api-sec" id="centers">
   <h2>Centers</h2>
-  <p class="sub">Opt-in centers module. Foundation only; no business records or permissions are created yet.</p>
+  <p class="sub">Opt-in centers module. Tenant-scoped center administration with separate platform authorization.</p>
   <div class="eps">
+
+<details class="ep" id="op-getCenterDetail">
+  <summary>
+    <span class="m get">GET</span>
+    <span class="ep-path"><code>/api/centers/detail</code></span>
+    <span class="ep-chev" aria-hidden="true"></span>
+    <span class="ep-sum">Center configuration filtered by role</span>
+  </summary>
+  <div class="ep-body">
+<p>Requires center.read; full metadata for platform or manager, operational data only for trainer. Inactive centers are readable.</p>
+    <p class="ep-auth"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="4" y="11" width="16" height="10" rx="2.5"/><path d="M8 11V7a4 4 0 0 1 8 0v4"/></svg><span>Requires a session: the cookie set at sign-in, or <code>Authorization: Bearer &lt;token&gt;</code> from mobile-app pairing.</span></p>
+<p class="ep-h">Query parameters</p><div class="ptab">
+  <div class="prow">
+    <span class="p-name">centerId<em class="p-req" title="required">required</em></span>
+    <span class="p-type">string</span>
+    <span class="p-desc"></span>
+  </div>
+</div>
+
+    <p class="ep-h">Responses</p>
+    <div class="ptab">
+  <div class="prow rrow">
+    <span class="r-code s2">200</span>
+    <span class="p-desc">Authorized projection or committed audited change.</span>
+  </div>
+  <div class="prow rrow">
+    <span class="r-code s4">400</span>
+    <span class="p-desc">Invalid input or unexpected field.</span>
+  </div>
+  <div class="prow rrow">
+    <span class="r-code s4">401</span>
+    <span class="p-desc">No current session.</span>
+  </div>
+  <div class="prow rrow">
+    <span class="r-code s4">403</span>
+    <span class="p-desc">Insufficient capability.</span>
+  </div>
+  <div class="prow rrow">
+    <span class="r-code s4">404</span>
+    <span class="p-desc">Module off or resource not accessible.</span>
+  </div>
+  <div class="prow rrow">
+    <span class="r-code s4">409</span>
+    <span class="p-desc">Conflict; version-conflict, duplicate, last-manager, account-inactive, center-inactive, idempotency-conflict or invalid-state.</span>
+  </div>
+  <div class="prow rrow">
+    <span class="r-code s5">503</span>
+    <span class="p-desc">Centers unavailable.</span>
+  </div>
+    </div>
+  </div>
+</details>
+
+<details class="ep" id="op-getCenterStaff">
+  <summary>
+    <span class="m get">GET</span>
+    <span class="ep-path"><code>/api/centers/staff</code></span>
+    <span class="ep-chev" aria-hidden="true"></span>
+    <span class="ep-sum">Staff assignments and revoked history</span>
+  </summary>
+  <div class="ep-body">
+<p>Requires staff.manage or explicit platform allowlist.</p>
+    <p class="ep-auth"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="4" y="11" width="16" height="10" rx="2.5"/><path d="M8 11V7a4 4 0 0 1 8 0v4"/></svg><span>Requires a session: the cookie set at sign-in, or <code>Authorization: Bearer &lt;token&gt;</code> from mobile-app pairing.</span></p>
+<p class="ep-h">Query parameters</p><div class="ptab">
+  <div class="prow">
+    <span class="p-name">centerId<em class="p-req" title="required">required</em></span>
+    <span class="p-type">string</span>
+    <span class="p-desc"></span>
+  </div>
+</div>
+
+    <p class="ep-h">Responses</p>
+    <div class="ptab">
+  <div class="prow rrow">
+    <span class="r-code s2">200</span>
+    <span class="p-desc">Authorized projection or committed audited change.</span>
+  </div>
+  <div class="prow rrow">
+    <span class="r-code s4">400</span>
+    <span class="p-desc">Invalid input or unexpected field.</span>
+  </div>
+  <div class="prow rrow">
+    <span class="r-code s4">401</span>
+    <span class="p-desc">No current session.</span>
+  </div>
+  <div class="prow rrow">
+    <span class="r-code s4">403</span>
+    <span class="p-desc">Insufficient capability.</span>
+  </div>
+  <div class="prow rrow">
+    <span class="r-code s4">404</span>
+    <span class="p-desc">Module off or resource not accessible.</span>
+  </div>
+  <div class="prow rrow">
+    <span class="r-code s4">409</span>
+    <span class="p-desc">Conflict; version-conflict, duplicate, last-manager, account-inactive, center-inactive, idempotency-conflict or invalid-state.</span>
+  </div>
+  <div class="prow rrow">
+    <span class="r-code s5">503</span>
+    <span class="p-desc">Centers unavailable.</span>
+  </div>
+    </div>
+  </div>
+</details>
+
+<details class="ep" id="op-getPlatformCenters">
+  <summary>
+    <span class="m get">GET</span>
+    <span class="ep-path"><code>/api/platform/centers</code></span>
+    <span class="ep-chev" aria-hidden="true"></span>
+    <span class="ep-sum">List centers</span>
+  </summary>
+  <div class="ep-body">
+<p>Explicit platform allowlist only; at most 100 records ordered by creation descending.</p>
+    <p class="ep-auth"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="4" y="11" width="16" height="10" rx="2.5"/><path d="M8 11V7a4 4 0 0 1 8 0v4"/></svg><span>Requires a session: the cookie set at sign-in, or <code>Authorization: Bearer &lt;token&gt;</code> from mobile-app pairing.</span></p>
+
+
+    <p class="ep-h">Responses</p>
+    <div class="ptab">
+  <div class="prow rrow">
+    <span class="r-code s2">200</span>
+    <span class="p-desc">Authorized projection or committed audited change.</span>
+  </div>
+  <div class="prow rrow">
+    <span class="r-code s4">400</span>
+    <span class="p-desc">Invalid input or unexpected field.</span>
+  </div>
+  <div class="prow rrow">
+    <span class="r-code s4">401</span>
+    <span class="p-desc">No current session.</span>
+  </div>
+  <div class="prow rrow">
+    <span class="r-code s4">403</span>
+    <span class="p-desc">Insufficient capability.</span>
+  </div>
+  <div class="prow rrow">
+    <span class="r-code s4">404</span>
+    <span class="p-desc">Module off or resource not accessible.</span>
+  </div>
+  <div class="prow rrow">
+    <span class="r-code s4">409</span>
+    <span class="p-desc">Conflict; version-conflict, duplicate, last-manager, account-inactive, center-inactive, idempotency-conflict or invalid-state.</span>
+  </div>
+  <div class="prow rrow">
+    <span class="r-code s5">503</span>
+    <span class="p-desc">Centers unavailable.</span>
+  </div>
+    </div>
+  </div>
+</details>
+
+<details class="ep" id="op-getPlatformCenterAccounts">
+  <summary>
+    <span class="m get">GET</span>
+    <span class="ep-path"><code>/api/platform/centers/accounts</code></span>
+    <span class="ep-chev" aria-hidden="true"></span>
+    <span class="ep-sum">Search existing accounts</span>
+  </summary>
+  <div class="ep-body">
+<p>Platform only. Name prefix or exact uid, 2..128 characters, at most 20 matches. Returns id/name/disabled. Contact does not prove ownership.</p>
+    <p class="ep-auth"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="4" y="11" width="16" height="10" rx="2.5"/><path d="M8 11V7a4 4 0 0 1 8 0v4"/></svg><span>Requires a session: the cookie set at sign-in, or <code>Authorization: Bearer &lt;token&gt;</code> from mobile-app pairing.</span></p>
+<p class="ep-h">Query parameters</p><div class="ptab">
+  <div class="prow">
+    <span class="p-name">query<em class="p-req" title="required">required</em></span>
+    <span class="p-type">string</span>
+    <span class="p-desc"></span>
+  </div>
+</div>
+
+    <p class="ep-h">Responses</p>
+    <div class="ptab">
+  <div class="prow rrow">
+    <span class="r-code s2">200</span>
+    <span class="p-desc">Authorized projection or committed audited change.</span>
+  </div>
+  <div class="prow rrow">
+    <span class="r-code s4">400</span>
+    <span class="p-desc">Invalid input or unexpected field.</span>
+  </div>
+  <div class="prow rrow">
+    <span class="r-code s4">401</span>
+    <span class="p-desc">No current session.</span>
+  </div>
+  <div class="prow rrow">
+    <span class="r-code s4">403</span>
+    <span class="p-desc">Insufficient capability.</span>
+  </div>
+  <div class="prow rrow">
+    <span class="r-code s4">404</span>
+    <span class="p-desc">Module off or resource not accessible.</span>
+  </div>
+  <div class="prow rrow">
+    <span class="r-code s4">409</span>
+    <span class="p-desc">Conflict; version-conflict, duplicate, last-manager, account-inactive, center-inactive, idempotency-conflict or invalid-state.</span>
+  </div>
+  <div class="prow rrow">
+    <span class="r-code s5">503</span>
+    <span class="p-desc">Centers unavailable.</span>
+  </div>
+    </div>
+  </div>
+</details>
+
+<details class="ep" id="op-createPlatformCenter">
+  <summary>
+    <span class="m post">POST</span>
+    <span class="ep-path"><code>/api/platform/centers/create</code></span>
+    <span class="ep-chev" aria-hidden="true"></span>
+    <span class="ep-sum">Create a center</span>
+  </summary>
+  <div class="ep-body">
+<p>Platform only. Stable actor/requestId retries replay the same result; different content conflicts. Optional enabled manager activates the center transactionally, otherwise draft.</p>
+    <p class="ep-auth"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="4" y="11" width="16" height="10" rx="2.5"/><path d="M8 11V7a4 4 0 0 1 8 0v4"/></svg><span>Requires a session: the cookie set at sign-in, or <code>Authorization: Bearer &lt;token&gt;</code> from mobile-app pairing.</span></p>
+
+<p class="ep-h">Request body</p><p class="p-desc"><a href="#schema-CenterCreateInput">CenterCreateInput</a></p>
+    <p class="ep-h">Responses</p>
+    <div class="ptab">
+  <div class="prow rrow">
+    <span class="r-code s2">200</span>
+    <span class="p-desc">Authorized projection or committed audited change.</span>
+  </div>
+  <div class="prow rrow">
+    <span class="r-code s4">400</span>
+    <span class="p-desc">Invalid input or unexpected field.</span>
+  </div>
+  <div class="prow rrow">
+    <span class="r-code s4">401</span>
+    <span class="p-desc">No current session.</span>
+  </div>
+  <div class="prow rrow">
+    <span class="r-code s4">403</span>
+    <span class="p-desc">Insufficient capability.</span>
+  </div>
+  <div class="prow rrow">
+    <span class="r-code s4">404</span>
+    <span class="p-desc">Module off or resource not accessible.</span>
+  </div>
+  <div class="prow rrow">
+    <span class="r-code s4">409</span>
+    <span class="p-desc">Conflict; version-conflict, duplicate, last-manager, account-inactive, center-inactive, idempotency-conflict or invalid-state.</span>
+  </div>
+  <div class="prow rrow">
+    <span class="r-code s5">503</span>
+    <span class="p-desc">Centers unavailable.</span>
+  </div>
+    </div>
+  </div>
+</details>
+
+<details class="ep" id="op-updatePlatformCenter">
+  <summary>
+    <span class="m post">POST</span>
+    <span class="ep-path"><code>/api/platform/centers/update</code></span>
+    <span class="ep-chev" aria-hidden="true"></span>
+    <span class="ep-sum">Update configuration and logical state</span>
+  </summary>
+  <div class="ep-body">
+<p>Platform only. Full snapshot, optimistic version; active center requires enabled manager.</p>
+    <p class="ep-auth"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="4" y="11" width="16" height="10" rx="2.5"/><path d="M8 11V7a4 4 0 0 1 8 0v4"/></svg><span>Requires a session: the cookie set at sign-in, or <code>Authorization: Bearer &lt;token&gt;</code> from mobile-app pairing.</span></p>
+
+<p class="ep-h">Request body</p><p class="p-desc"><a href="#schema-CenterUpdateInput">CenterUpdateInput</a></p>
+    <p class="ep-h">Responses</p>
+    <div class="ptab">
+  <div class="prow rrow">
+    <span class="r-code s2">200</span>
+    <span class="p-desc">Authorized projection or committed audited change.</span>
+  </div>
+  <div class="prow rrow">
+    <span class="r-code s4">400</span>
+    <span class="p-desc">Invalid input or unexpected field.</span>
+  </div>
+  <div class="prow rrow">
+    <span class="r-code s4">401</span>
+    <span class="p-desc">No current session.</span>
+  </div>
+  <div class="prow rrow">
+    <span class="r-code s4">403</span>
+    <span class="p-desc">Insufficient capability.</span>
+  </div>
+  <div class="prow rrow">
+    <span class="r-code s4">404</span>
+    <span class="p-desc">Module off or resource not accessible.</span>
+  </div>
+  <div class="prow rrow">
+    <span class="r-code s4">409</span>
+    <span class="p-desc">Conflict; version-conflict, duplicate, last-manager, account-inactive, center-inactive, idempotency-conflict or invalid-state.</span>
+  </div>
+  <div class="prow rrow">
+    <span class="r-code s5">503</span>
+    <span class="p-desc">Centers unavailable.</span>
+  </div>
+    </div>
+  </div>
+</details>
+
+<details class="ep" id="op-updateManagedCenter">
+  <summary>
+    <span class="m post">POST</span>
+    <span class="ep-path"><code>/api/centers/update</code></span>
+    <span class="ep-chev" aria-hidden="true"></span>
+    <span class="ep-sum">Update managed center configuration</span>
+  </summary>
+  <div class="ep-body">
+<p>Requires center.update. Local managers cannot change state.</p>
+    <p class="ep-auth"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="4" y="11" width="16" height="10" rx="2.5"/><path d="M8 11V7a4 4 0 0 1 8 0v4"/></svg><span>Requires a session: the cookie set at sign-in, or <code>Authorization: Bearer &lt;token&gt;</code> from mobile-app pairing.</span></p>
+
+<p class="ep-h">Request body</p><p class="p-desc"><a href="#schema-CenterUpdateInput">CenterUpdateInput</a></p>
+    <p class="ep-h">Responses</p>
+    <div class="ptab">
+  <div class="prow rrow">
+    <span class="r-code s2">200</span>
+    <span class="p-desc">Authorized projection or committed audited change.</span>
+  </div>
+  <div class="prow rrow">
+    <span class="r-code s4">400</span>
+    <span class="p-desc">Invalid input or unexpected field.</span>
+  </div>
+  <div class="prow rrow">
+    <span class="r-code s4">401</span>
+    <span class="p-desc">No current session.</span>
+  </div>
+  <div class="prow rrow">
+    <span class="r-code s4">403</span>
+    <span class="p-desc">Insufficient capability.</span>
+  </div>
+  <div class="prow rrow">
+    <span class="r-code s4">404</span>
+    <span class="p-desc">Module off or resource not accessible.</span>
+  </div>
+  <div class="prow rrow">
+    <span class="r-code s4">409</span>
+    <span class="p-desc">Conflict; version-conflict, duplicate, last-manager, account-inactive, center-inactive, idempotency-conflict or invalid-state.</span>
+  </div>
+  <div class="prow rrow">
+    <span class="r-code s5">503</span>
+    <span class="p-desc">Centers unavailable.</span>
+  </div>
+    </div>
+  </div>
+</details>
+
+<details class="ep" id="op-assignCenterManager">
+  <summary>
+    <span class="m post">POST</span>
+    <span class="ep-path"><code>/api/platform/centers/assign-manager</code></span>
+    <span class="ep-chev" aria-hidden="true"></span>
+    <span class="ep-sum">Assign or replace manager</span>
+  </summary>
+  <div class="ep-body">
+<p>Platform only. Existing enabled account required. Optional replacement is atomic; draft becomes active.</p>
+    <p class="ep-auth"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="4" y="11" width="16" height="10" rx="2.5"/><path d="M8 11V7a4 4 0 0 1 8 0v4"/></svg><span>Requires a session: the cookie set at sign-in, or <code>Authorization: Bearer &lt;token&gt;</code> from mobile-app pairing.</span></p>
+
+<p class="ep-h">Request body</p><p class="p-desc"><a href="#schema-CenterRoleInput">CenterRoleInput</a></p>
+    <p class="ep-h">Responses</p>
+    <div class="ptab">
+  <div class="prow rrow">
+    <span class="r-code s2">200</span>
+    <span class="p-desc">Authorized projection or committed audited change.</span>
+  </div>
+  <div class="prow rrow">
+    <span class="r-code s4">400</span>
+    <span class="p-desc">Invalid input or unexpected field.</span>
+  </div>
+  <div class="prow rrow">
+    <span class="r-code s4">401</span>
+    <span class="p-desc">No current session.</span>
+  </div>
+  <div class="prow rrow">
+    <span class="r-code s4">403</span>
+    <span class="p-desc">Insufficient capability.</span>
+  </div>
+  <div class="prow rrow">
+    <span class="r-code s4">404</span>
+    <span class="p-desc">Module off or resource not accessible.</span>
+  </div>
+  <div class="prow rrow">
+    <span class="r-code s4">409</span>
+    <span class="p-desc">Conflict; version-conflict, duplicate, last-manager, account-inactive, center-inactive, idempotency-conflict or invalid-state.</span>
+  </div>
+  <div class="prow rrow">
+    <span class="r-code s5">503</span>
+    <span class="p-desc">Centers unavailable.</span>
+  </div>
+    </div>
+  </div>
+</details>
+
+<details class="ep" id="op-revokeCenterManager">
+  <summary>
+    <span class="m post">POST</span>
+    <span class="ep-path"><code>/api/platform/centers/revoke-role</code></span>
+    <span class="ep-chev" aria-hidden="true"></span>
+    <span class="ep-sum">Revoke manager</span>
+  </summary>
+  <div class="ep-body">
+<p>Platform only, manager assignments only. Concurrent revocations cannot remove the last enabled manager from an active center.</p>
+    <p class="ep-auth"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="4" y="11" width="16" height="10" rx="2.5"/><path d="M8 11V7a4 4 0 0 1 8 0v4"/></svg><span>Requires a session: the cookie set at sign-in, or <code>Authorization: Bearer &lt;token&gt;</code> from mobile-app pairing.</span></p>
+
+<p class="ep-h">Request body</p><p class="p-desc"><a href="#schema-CenterRevokeInput">CenterRevokeInput</a></p>
+    <p class="ep-h">Responses</p>
+    <div class="ptab">
+  <div class="prow rrow">
+    <span class="r-code s2">200</span>
+    <span class="p-desc">Authorized projection or committed audited change.</span>
+  </div>
+  <div class="prow rrow">
+    <span class="r-code s4">400</span>
+    <span class="p-desc">Invalid input or unexpected field.</span>
+  </div>
+  <div class="prow rrow">
+    <span class="r-code s4">401</span>
+    <span class="p-desc">No current session.</span>
+  </div>
+  <div class="prow rrow">
+    <span class="r-code s4">403</span>
+    <span class="p-desc">Insufficient capability.</span>
+  </div>
+  <div class="prow rrow">
+    <span class="r-code s4">404</span>
+    <span class="p-desc">Module off or resource not accessible.</span>
+  </div>
+  <div class="prow rrow">
+    <span class="r-code s4">409</span>
+    <span class="p-desc">Conflict; version-conflict, duplicate, last-manager, account-inactive, center-inactive, idempotency-conflict or invalid-state.</span>
+  </div>
+  <div class="prow rrow">
+    <span class="r-code s5">503</span>
+    <span class="p-desc">Centers unavailable.</span>
+  </div>
+    </div>
+  </div>
+</details>
+
+<details class="ep" id="op-assignCenterTrainer">
+  <summary>
+    <span class="m post">POST</span>
+    <span class="ep-path"><code>/api/centers/staff/assign</code></span>
+    <span class="ep-chev" aria-hidden="true"></span>
+    <span class="ep-sum">Assign trainer</span>
+  </summary>
+  <div class="ep-body">
+<p>Requires staff.manage; trainer role only, no extra capabilities or global admin.</p>
+    <p class="ep-auth"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="4" y="11" width="16" height="10" rx="2.5"/><path d="M8 11V7a4 4 0 0 1 8 0v4"/></svg><span>Requires a session: the cookie set at sign-in, or <code>Authorization: Bearer &lt;token&gt;</code> from mobile-app pairing.</span></p>
+
+<p class="ep-h">Request body</p><p class="p-desc"><a href="#schema-CenterRoleInput">CenterRoleInput</a></p>
+    <p class="ep-h">Responses</p>
+    <div class="ptab">
+  <div class="prow rrow">
+    <span class="r-code s2">200</span>
+    <span class="p-desc">Authorized projection or committed audited change.</span>
+  </div>
+  <div class="prow rrow">
+    <span class="r-code s4">400</span>
+    <span class="p-desc">Invalid input or unexpected field.</span>
+  </div>
+  <div class="prow rrow">
+    <span class="r-code s4">401</span>
+    <span class="p-desc">No current session.</span>
+  </div>
+  <div class="prow rrow">
+    <span class="r-code s4">403</span>
+    <span class="p-desc">Insufficient capability.</span>
+  </div>
+  <div class="prow rrow">
+    <span class="r-code s4">404</span>
+    <span class="p-desc">Module off or resource not accessible.</span>
+  </div>
+  <div class="prow rrow">
+    <span class="r-code s4">409</span>
+    <span class="p-desc">Conflict; version-conflict, duplicate, last-manager, account-inactive, center-inactive, idempotency-conflict or invalid-state.</span>
+  </div>
+  <div class="prow rrow">
+    <span class="r-code s5">503</span>
+    <span class="p-desc">Centers unavailable.</span>
+  </div>
+    </div>
+  </div>
+</details>
+
+<details class="ep" id="op-revokeCenterTrainer">
+  <summary>
+    <span class="m post">POST</span>
+    <span class="ep-path"><code>/api/centers/staff/revoke</code></span>
+    <span class="ep-chev" aria-hidden="true"></span>
+    <span class="ep-sum">Revoke trainer</span>
+  </summary>
+  <div class="ep-body">
+<p>Requires staff.manage; trainer assignments only.</p>
+    <p class="ep-auth"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="4" y="11" width="16" height="10" rx="2.5"/><path d="M8 11V7a4 4 0 0 1 8 0v4"/></svg><span>Requires a session: the cookie set at sign-in, or <code>Authorization: Bearer &lt;token&gt;</code> from mobile-app pairing.</span></p>
+
+<p class="ep-h">Request body</p><p class="p-desc"><a href="#schema-CenterRevokeInput">CenterRevokeInput</a></p>
+    <p class="ep-h">Responses</p>
+    <div class="ptab">
+  <div class="prow rrow">
+    <span class="r-code s2">200</span>
+    <span class="p-desc">Authorized projection or committed audited change.</span>
+  </div>
+  <div class="prow rrow">
+    <span class="r-code s4">400</span>
+    <span class="p-desc">Invalid input or unexpected field.</span>
+  </div>
+  <div class="prow rrow">
+    <span class="r-code s4">401</span>
+    <span class="p-desc">No current session.</span>
+  </div>
+  <div class="prow rrow">
+    <span class="r-code s4">403</span>
+    <span class="p-desc">Insufficient capability.</span>
+  </div>
+  <div class="prow rrow">
+    <span class="r-code s4">404</span>
+    <span class="p-desc">Module off or resource not accessible.</span>
+  </div>
+  <div class="prow rrow">
+    <span class="r-code s4">409</span>
+    <span class="p-desc">Conflict; version-conflict, duplicate, last-manager, account-inactive, center-inactive, idempotency-conflict or invalid-state.</span>
+  </div>
+  <div class="prow rrow">
+    <span class="r-code s5">503</span>
+    <span class="p-desc">Centers unavailable.</span>
+  </div>
+    </div>
+  </div>
+</details>
 
 <details class="ep" id="op-getCentersMe">
   <summary>
@@ -427,10 +951,10 @@ main.api-main .lead { color: var(--fg-2); max-width: 58ch; margin: 14px 0 0; fon
     <span class="m get">GET</span>
     <span class="ep-path"><code>/api/centers/status</code></span>
     <span class="ep-chev" aria-hidden="true"></span>
-    <span class="ep-sum">Centers foundation availability</span>
+    <span class="ep-sum">Centers storage availability</span>
   </summary>
   <div class="ep-body">
-<p>Requires a valid cookie or paired-mobile Bearer session. With <code>CENTERS_ENABLED</code> off (default), answers 404 without opening a SQL connection. When enabled, checks that SQL uses a limited application role and the supported schema version. Database absence, unsafe credentials or unapplied migrations return a bounded, generic 503; personal training routes continue to work independently. This stage does not expose affiliations, center permissions, members or billing.</p>
+<p>Requires a valid cookie or paired-mobile Bearer session. With <code>CENTERS_ENABLED</code> off (default), answers 404 without opening a SQL connection. When enabled, checks that SQL uses a limited application role and the supported schema version. Database absence, unsafe credentials or unapplied migrations return a bounded, generic 503; personal training routes continue to work independently. This endpoint exposes availability only; no business records or credentials.</p>
     <p class="ep-auth"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="4" y="11" width="16" height="10" rx="2.5"/><path d="M8 11V7a4 4 0 0 1 8 0v4"/></svg><span>Requires a session: the cookie set at sign-in, or <code>Authorization: Bearer &lt;token&gt;</code> from mobile-app pairing.</span></p>
 
 
@@ -438,7 +962,7 @@ main.api-main .lead { color: var(--fg-2); max-width: 58ch; margin: 14px 0 0; fon
     <div class="ptab">
   <div class="prow rrow">
     <span class="r-code s2">200</span>
-    <span class="p-desc">The foundation database is available and migrated.<span class="r-sig">{ enabled: always true, stage: always &quot;foundation&quot;, available: always true, schemaVersion: always &quot;002&quot; }</span></span>
+    <span class="p-desc">The centers database is available and migrated.<span class="r-sig">{ enabled: always true, stage: always &quot;centers&quot;, available: always true, schemaVersion: always &quot;004&quot; }</span></span>
   </div>
   <div class="prow rrow">
     <span class="r-code s4">401</span>
@@ -500,7 +1024,7 @@ main.api-main .lead { color: var(--fg-2); max-width: 58ch; margin: 14px 0 0; fon
   </summary>
   <div class="ep-body">
 <p>The flags the login screen needs before anyone is signed in. Both reflect environment variables on the server (<code>INVITE_ONLY</code>, <code>ALLOW_GUEST</code>), and so does <code>password_login</code>, which is there only when <code>PASSWORD_LOGIN=1</code>, and <code>default_lang</code>, which is there only when <code>DEFAULT_LANG</code> is set.</p>
-<p><code>centers</code> is present only with <code>CENTERS_ENABLED=1</code>, for everybody. It advertises the implemented foundation stage, not SQL credentials, business permissions or health.</p>
+<p><code>centers</code> is present only with <code>CENTERS_ENABLED=1</code>, for everybody. It advertises the implemented centers stage, not SQL credentials, business permissions or health.</p>
 <p><code>media</code> is there unless the instance runs with <code>MEDIA_UPLOADS=0</code>, for everybody: the caps are not a secret, and its absence is how the app knows this server does not store photos and videos at all.</p>
 <p>A caller with a valid session also gets a <code>coach</code> key: the block when the instance has the AI Coach switched on <b>and</b> a provider connected, and <code>null</code> when it has not. A caller with no session gets no key at all. The block names the provider this instance talks to, which is the same fact <code>GET /api/coach/disclosure</code> will not hand out unauthenticated.</p>
 <p>The key is always present for a session, <code>null</code> included, so a client that caches this answer can tell &quot;no Coach on this instance&quot; from &quot;you were not signed in when you asked&quot; and knows whether asking again would change it.</p>
@@ -2809,6 +3333,14 @@ main.api-main .lead { color: var(--fg-2); max-width: 58ch; margin: 14px 0 0; fon
     <span class="r-code s4">404</span>
     <span class="p-desc">No user with that id.<span class="r-sig"><code>{&quot;error&quot;:&quot;no such user&quot;}</code></span></span>
   </div>
+  <div class="prow rrow">
+    <span class="r-code s4">409</span>
+    <span class="p-desc">Last enabled manager or platform administrator.</span>
+  </div>
+  <div class="prow rrow">
+    <span class="r-code s5">503</span>
+    <span class="p-desc">Centers references could not be checked.</span>
+  </div>
     </div>
   </div>
 </details>
@@ -3341,6 +3873,218 @@ main.api-main .lead { color: var(--fg-2); max-width: 58ch; margin: 14px 0 0; fon
        is <b>representative, not enforced</b>: the server stores it opaquely and the app
        grows it over time.</p>
     <div class="eps">
+
+<details class="ep sch" id="schema-CenterCreateInput">
+  <summary>
+    <span class="sch-name"><code>CenterCreateInput</code></span>
+    <span class="ep-chev" aria-hidden="true"></span>
+    <span class="ep-sum"></span>
+  </summary>
+  <div class="ep-body">
+
+<div class="ptab">
+  <div class="prow">
+    <span class="p-name">name<em class="p-req" title="required">required</em></span>
+    <span class="p-type">string <span class="p-hint">(&le; 120 chars)</span></span>
+    <span class="p-desc"></span>
+  </div>
+  <div class="prow">
+    <span class="p-name">taxId</span>
+    <span class="p-type">string | null <span class="p-hint">(&le; 40 chars)</span></span>
+    <span class="p-desc"></span>
+  </div>
+  <div class="prow">
+    <span class="p-name">address</span>
+    <span class="p-type">string | null <span class="p-hint">(&le; 250 chars)</span></span>
+    <span class="p-desc"></span>
+  </div>
+  <div class="prow">
+    <span class="p-name">contactEmail</span>
+    <span class="p-type">string | null <span class="p-hint">(&le; 254 chars)</span></span>
+    <span class="p-desc"></span>
+  </div>
+  <div class="prow">
+    <span class="p-name">phone</span>
+    <span class="p-type">string | null <span class="p-hint">(&le; 40 chars)</span></span>
+    <span class="p-desc"></span>
+  </div>
+  <div class="prow">
+    <span class="p-name">timezone</span>
+    <span class="p-type">string <span class="p-hint">(default &quot;Europe/Madrid&quot;)</span></span>
+    <span class="p-desc">Valid IANA timezone.</span>
+  </div>
+  <div class="prow">
+    <span class="p-name">capacity</span>
+    <span class="p-type">integer | null <span class="p-hint">(1&ndash;100000)</span></span>
+    <span class="p-desc"></span>
+  </div>
+  <div class="prow">
+    <span class="p-name">billingDay</span>
+    <span class="p-type">integer <span class="p-hint">(1&ndash;31)</span></span>
+    <span class="p-desc"></span>
+  </div>
+  <div class="prow">
+    <span class="p-name">openingHours</span>
+    <span class="p-type">object</span>
+    <span class="p-desc">Keys 0..6; at most four sorted nonoverlapping [HH:mm, HH:mm] intervals per day; end 24:00 allowed.</span>
+  </div>
+  <div class="prow">
+    <span class="p-name">managerUid</span>
+    <span class="p-type">string</span>
+    <span class="p-desc">Existing enabled account; omitted for draft.</span>
+  </div>
+  <div class="prow">
+    <span class="p-name">requestId<em class="p-req" title="required">required</em></span>
+    <span class="p-type">string <span class="p-hint">(&le; 128 chars)</span></span>
+    <span class="p-desc">Letters digits underscore or hyphen.</span>
+  </div>
+</div>
+  </div>
+</details>
+
+<details class="ep sch" id="schema-CenterUpdateInput">
+  <summary>
+    <span class="sch-name"><code>CenterUpdateInput</code></span>
+    <span class="ep-chev" aria-hidden="true"></span>
+    <span class="ep-sum"></span>
+  </summary>
+  <div class="ep-body">
+
+<div class="ptab">
+  <div class="prow">
+    <span class="p-name">name<em class="p-req" title="required">required</em></span>
+    <span class="p-type">string <span class="p-hint">(&le; 120 chars)</span></span>
+    <span class="p-desc"></span>
+  </div>
+  <div class="prow">
+    <span class="p-name">taxId</span>
+    <span class="p-type">string | null <span class="p-hint">(&le; 40 chars)</span></span>
+    <span class="p-desc"></span>
+  </div>
+  <div class="prow">
+    <span class="p-name">address</span>
+    <span class="p-type">string | null <span class="p-hint">(&le; 250 chars)</span></span>
+    <span class="p-desc"></span>
+  </div>
+  <div class="prow">
+    <span class="p-name">contactEmail</span>
+    <span class="p-type">string | null <span class="p-hint">(&le; 254 chars)</span></span>
+    <span class="p-desc"></span>
+  </div>
+  <div class="prow">
+    <span class="p-name">phone</span>
+    <span class="p-type">string | null <span class="p-hint">(&le; 40 chars)</span></span>
+    <span class="p-desc"></span>
+  </div>
+  <div class="prow">
+    <span class="p-name">timezone</span>
+    <span class="p-type">string <span class="p-hint">(default &quot;Europe/Madrid&quot;)</span></span>
+    <span class="p-desc">Valid IANA timezone.</span>
+  </div>
+  <div class="prow">
+    <span class="p-name">capacity</span>
+    <span class="p-type">integer | null <span class="p-hint">(1&ndash;100000)</span></span>
+    <span class="p-desc"></span>
+  </div>
+  <div class="prow">
+    <span class="p-name">billingDay</span>
+    <span class="p-type">integer <span class="p-hint">(1&ndash;31)</span></span>
+    <span class="p-desc"></span>
+  </div>
+  <div class="prow">
+    <span class="p-name">openingHours</span>
+    <span class="p-type">object</span>
+    <span class="p-desc">Keys 0..6; at most four sorted nonoverlapping [HH:mm, HH:mm] intervals per day; end 24:00 allowed.</span>
+  </div>
+  <div class="prow">
+    <span class="p-name">centerId<em class="p-req" title="required">required</em></span>
+    <span class="p-type">string</span>
+    <span class="p-desc"></span>
+  </div>
+  <div class="prow">
+    <span class="p-name">version<em class="p-req" title="required">required</em></span>
+    <span class="p-type">integer <span class="p-hint">(1&ndash;)</span></span>
+    <span class="p-desc"></span>
+  </div>
+  <div class="prow">
+    <span class="p-name">state</span>
+    <span class="p-type">&quot;draft&quot; | &quot;active&quot; | &quot;inactive&quot;</span>
+    <span class="p-desc">Platform only.</span>
+  </div>
+</div>
+  </div>
+</details>
+
+<details class="ep sch" id="schema-CenterRoleInput">
+  <summary>
+    <span class="sch-name"><code>CenterRoleInput</code></span>
+    <span class="ep-chev" aria-hidden="true"></span>
+    <span class="ep-sum"></span>
+  </summary>
+  <div class="ep-body">
+
+<div class="ptab">
+  <div class="prow">
+    <span class="p-name">centerId<em class="p-req" title="required">required</em></span>
+    <span class="p-type">string</span>
+    <span class="p-desc"></span>
+  </div>
+  <div class="prow">
+    <span class="p-name">version<em class="p-req" title="required">required</em></span>
+    <span class="p-type">integer <span class="p-hint">(1&ndash;)</span></span>
+    <span class="p-desc"></span>
+  </div>
+  <div class="prow">
+    <span class="p-name">accountUid<em class="p-req" title="required">required</em></span>
+    <span class="p-type">string</span>
+    <span class="p-desc"></span>
+  </div>
+  <div class="prow">
+    <span class="p-name">role</span>
+    <span class="p-type">&quot;manager&quot; | &quot;trainer&quot;</span>
+    <span class="p-desc">Endpoint constrains role.</span>
+  </div>
+  <div class="prow">
+    <span class="p-name">replaceAssignmentId</span>
+    <span class="p-type">string</span>
+    <span class="p-desc">Platform only.</span>
+  </div>
+  <div class="prow">
+    <span class="p-name">extraCapabilities</span>
+    <span class="p-type">(&quot;data.export&quot; | &quot;payments.refund&quot;)[]</span>
+    <span class="p-desc">Platform manager assignment only.</span>
+  </div>
+</div>
+  </div>
+</details>
+
+<details class="ep sch" id="schema-CenterRevokeInput">
+  <summary>
+    <span class="sch-name"><code>CenterRevokeInput</code></span>
+    <span class="ep-chev" aria-hidden="true"></span>
+    <span class="ep-sum"></span>
+  </summary>
+  <div class="ep-body">
+
+<div class="ptab">
+  <div class="prow">
+    <span class="p-name">centerId<em class="p-req" title="required">required</em></span>
+    <span class="p-type">string</span>
+    <span class="p-desc"></span>
+  </div>
+  <div class="prow">
+    <span class="p-name">version<em class="p-req" title="required">required</em></span>
+    <span class="p-type">integer <span class="p-hint">(1&ndash;)</span></span>
+    <span class="p-desc"></span>
+  </div>
+  <div class="prow">
+    <span class="p-name">assignmentId<em class="p-req" title="required">required</em></span>
+    <span class="p-type">string</span>
+    <span class="p-desc"></span>
+  </div>
+</div>
+  </div>
+</details>
 
 <details class="ep sch" id="schema-Error">
   <summary>

@@ -246,7 +246,7 @@ main.api-main .lead { color: var(--fg-2); max-width: 58ch; margin: 14px 0 0; fon
   <p class="api-facts">
     <span>OpenAPI 3.1.0</span>
     <span>openGym v1.4.1</span>
-    <span>100 endpoints</span>
+    <span>104 endpoints</span>
     <span>AGPL-3.0-or-later</span>
   </p>
 
@@ -296,6 +296,195 @@ main.api-main .lead { color: var(--fg-2); max-width: 58ch; margin: 14px 0 0; fon
   <h2>Centers</h2>
   <p class="sub">Opt-in centers module. Tenant-scoped center administration with separate platform authorization.</p>
   <div class="eps">
+
+<details class="ep" id="op-listCenterSubscriptions">
+  <summary>
+    <span class="m get">GET</span>
+    <span class="ep-path"><code>/api/centers/subscriptions</code></span>
+    <span class="ep-chev" aria-hidden="true"></span>
+    <span class="ep-sum">Read member contracts with pinned prices and effective dates</span>
+  </summary>
+  <div class="ep-body">
+<p>Requires billing.read or platform. Selected member/center verified. Up to 100 contracts, prioritizing uncanceled rows before canceled history. Effective end includes membership termination; freeze state derives from dated membership history, independent of jobs. No billing issuance.</p>
+    <p class="ep-auth"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="4" y="11" width="16" height="10" rx="2.5"/><path d="M8 11V7a4 4 0 0 1 8 0v4"/></svg><span>Requires a session: the cookie set at sign-in, or <code>Authorization: Bearer &lt;token&gt;</code> from mobile-app pairing.</span></p>
+<p class="ep-h">Query parameters</p><div class="ptab">
+  <div class="prow">
+    <span class="p-name">centerId<em class="p-req" title="required">required</em></span>
+    <span class="p-type">string</span>
+    <span class="p-desc"></span>
+  </div>
+  <div class="prow">
+    <span class="p-name">memberId<em class="p-req" title="required">required</em></span>
+    <span class="p-type">string</span>
+    <span class="p-desc"></span>
+  </div>
+</div>
+
+    <p class="ep-h">Responses</p>
+    <div class="ptab">
+  <div class="prow rrow">
+    <span class="r-code s2">200</span>
+    <span class="p-desc">Current member</span>
+  </div>
+  <div class="prow rrow">
+    <span class="r-code s4">401</span>
+    <span class="p-desc">No session, expired/revoked session, or a disabled account.<span class="r-sig"><code>{&quot;error&quot;:&quot;not signed in&quot;}</code></span></span>
+  </div>
+  <div class="prow rrow">
+    <span class="r-code s4">403</span>
+    <span class="p-desc">Financial read capability unavailable.</span>
+  </div>
+  <div class="prow rrow">
+    <span class="r-code s4">404</span>
+    <span class="p-desc">Member inaccessible in selected center.</span>
+  </div>
+    </div>
+  </div>
+</details>
+
+<details class="ep" id="op-createCenterSubscription">
+  <summary>
+    <span class="m post">POST</span>
+    <span class="ep-path"><code>/api/centers/subscriptions/create</code></span>
+    <span class="ep-chev" aria-hidden="true"></span>
+    <span class="ep-sum">Assign a current fee version and activate membership on its effective date</span>
+  </summary>
+  <div class="ep-body">
+<p>Requires billing.manage or platform. Price version and member must belong to selected center; archived or stale catalog versions cannot start new contracts. Pins calendar, discount and immutable terms. Member version serializes changes; SQL exclusion also prevents overlapping uncanceled primary contracts. Preactive activation is recorded for effectiveOn, without changing personal account or training. Incomplete tax conditions cannot generate charges.</p>
+    <p class="ep-auth"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="4" y="11" width="16" height="10" rx="2.5"/><path d="M8 11V7a4 4 0 0 1 8 0v4"/></svg><span>Requires a session: the cookie set at sign-in, or <code>Authorization: Bearer &lt;token&gt;</code> from mobile-app pairing.</span></p>
+
+<p class="ep-h">Request body</p><p class="p-desc"><a href="#schema-SubscriptionInput">SubscriptionInput</a></p>
+    <p class="ep-h">Responses</p>
+    <div class="ptab">
+  <div class="prow rrow">
+    <span class="r-code s2">200</span>
+    <span class="p-desc">Authoritative member/history/subscriptions with updated member version.</span>
+  </div>
+  <div class="prow rrow">
+    <span class="r-code s4">400</span>
+    <span class="p-desc">Invalid date</span>
+  </div>
+  <div class="prow rrow">
+    <span class="r-code s4">401</span>
+    <span class="p-desc">No session, expired/revoked session, or a disabled account.<span class="r-sig"><code>{&quot;error&quot;:&quot;not signed in&quot;}</code></span></span>
+  </div>
+  <div class="prow rrow">
+    <span class="r-code s4">403</span>
+    <span class="p-desc">Financial management capability unavailable.</span>
+  </div>
+  <div class="prow rrow">
+    <span class="r-code s4">404</span>
+    <span class="p-desc">Member or price unavailable in selected center.</span>
+  </div>
+  <div class="prow rrow">
+    <span class="r-code s4">409</span>
+    <span class="p-desc">Version/overlap</span>
+  </div>
+    </div>
+  </div>
+</details>
+
+<details class="ep" id="op-changeCenterSubscription">
+  <summary>
+    <span class="m post">POST</span>
+    <span class="ep-path"><code>/api/centers/subscriptions/change</code></span>
+    <span class="ep-chev" aria-hidden="true"></span>
+    <span class="ep-sum">Change fee or discount with a new dated contract</span>
+  </summary>
+  <div class="ep-body">
+<p>Closes the old range at effectiveOn and starts a new pinned contract atomically. Old price, discount and calendar stay immutable. No second future change while one is pending. A same-day replacement can leave an empty historical period; no deletion. requestId is idempotent.</p>
+    <p class="ep-auth"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="4" y="11" width="16" height="10" rx="2.5"/><path d="M8 11V7a4 4 0 0 1 8 0v4"/></svg><span>Requires a session: the cookie set at sign-in, or <code>Authorization: Bearer &lt;token&gt;</code> from mobile-app pairing.</span></p>
+
+<p class="ep-h">Request body <span class="p-hint">(JSON)</span></p>
+    <p class="ep-h">Responses</p>
+    <div class="ptab">
+  <div class="prow rrow">
+    <span class="r-code s2">200</span>
+    <span class="p-desc">Updated authoritative member/history/subscriptions.</span>
+  </div>
+  <div class="prow rrow">
+    <span class="r-code s4">401</span>
+    <span class="p-desc">No session, expired/revoked session, or a disabled account.<span class="r-sig"><code>{&quot;error&quot;:&quot;not signed in&quot;}</code></span></span>
+  </div>
+  <div class="prow rrow">
+    <span class="r-code s4">403</span>
+    <span class="p-desc">Financial management capability unavailable.</span>
+  </div>
+  <div class="prow rrow">
+    <span class="r-code s4">404</span>
+    <span class="p-desc">Member</span>
+  </div>
+  <div class="prow rrow">
+    <span class="r-code s4">409</span>
+    <span class="p-desc">Stale version</span>
+  </div>
+    </div>
+  </div>
+</details>
+
+<details class="ep" id="op-cancelScheduledCenterSubscription">
+  <summary>
+    <span class="m post">POST</span>
+    <span class="ep-path"><code>/api/centers/subscriptions/cancel</code></span>
+    <span class="ep-chev" aria-hidden="true"></span>
+    <span class="ep-sum">Cancel a future contract and recover its previous range</span>
+  </summary>
+  <div class="ep-body">
+<p>Only startsOn strictly after today in center zone. Keeps canceled history. Restores the replaced contract previous end, or cancels a future activation event for a first contract. Membership end/pause events remain dated history; accounts never disabled. Repeating the same requestId returns the committed result. Applied contracts cannot be erased or canceled here.</p>
+    <p class="ep-auth"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="4" y="11" width="16" height="10" rx="2.5"/><path d="M8 11V7a4 4 0 0 1 8 0v4"/></svg><span>Requires a session: the cookie set at sign-in, or <code>Authorization: Bearer &lt;token&gt;</code> from mobile-app pairing.</span></p>
+
+<p class="ep-h">Request body <span class="p-hint">(JSON)</span></p><div class="ptab">
+  <div class="prow">
+    <span class="p-name">centerId<em class="p-req" title="required">required</em></span>
+    <span class="p-type">string</span>
+    <span class="p-desc"></span>
+  </div>
+  <div class="prow">
+    <span class="p-name">memberId<em class="p-req" title="required">required</em></span>
+    <span class="p-type">string</span>
+    <span class="p-desc"></span>
+  </div>
+  <div class="prow">
+    <span class="p-name">memberVersion<em class="p-req" title="required">required</em></span>
+    <span class="p-type">integer <span class="p-hint">(1&ndash;)</span></span>
+    <span class="p-desc"></span>
+  </div>
+  <div class="prow">
+    <span class="p-name">id<em class="p-req" title="required">required</em></span>
+    <span class="p-type">string</span>
+    <span class="p-desc"></span>
+  </div>
+  <div class="prow">
+    <span class="p-name">requestId<em class="p-req" title="required">required</em></span>
+    <span class="p-type">string</span>
+    <span class="p-desc"></span>
+  </div>
+</div>
+    <p class="ep-h">Responses</p>
+    <div class="ptab">
+  <div class="prow rrow">
+    <span class="r-code s2">200</span>
+    <span class="p-desc">Updated member/history/contracts; canceled record retained.</span>
+  </div>
+  <div class="prow rrow">
+    <span class="r-code s4">401</span>
+    <span class="p-desc">No session, expired/revoked session, or a disabled account.<span class="r-sig"><code>{&quot;error&quot;:&quot;not signed in&quot;}</code></span></span>
+  </div>
+  <div class="prow rrow">
+    <span class="r-code s4">403</span>
+    <span class="p-desc">Financial management capability unavailable.</span>
+  </div>
+  <div class="prow rrow">
+    <span class="r-code s4">404</span>
+    <span class="p-desc">Contract unavailable in selected member/center.</span>
+  </div>
+  <div class="prow rrow">
+    <span class="r-code s4">409</span>
+    <span class="p-desc">Stale member version</span>
+  </div>
+    </div>
+  </div>
+</details>
 
 <details class="ep" id="op-listMembershipPlans">
   <summary>
@@ -4680,6 +4869,59 @@ main.api-main .lead { color: var(--fg-2); max-width: 58ch; margin: 14px 0 0; fon
        is <b>representative, not enforced</b>: the server stores it opaquely and the app
        grows it over time.</p>
     <div class="eps">
+
+<details class="ep sch" id="schema-SubscriptionInput">
+  <summary>
+    <span class="sch-name"><code>SubscriptionInput</code></span>
+    <span class="ep-chev" aria-hidden="true"></span>
+    <span class="ep-sum"></span>
+  </summary>
+  <div class="ep-body">
+
+<div class="ptab">
+  <div class="prow">
+    <span class="p-name">centerId<em class="p-req" title="required">required</em></span>
+    <span class="p-type">string</span>
+    <span class="p-desc"></span>
+  </div>
+  <div class="prow">
+    <span class="p-name">memberId<em class="p-req" title="required">required</em></span>
+    <span class="p-type">string</span>
+    <span class="p-desc"></span>
+  </div>
+  <div class="prow">
+    <span class="p-name">memberVersion<em class="p-req" title="required">required</em></span>
+    <span class="p-type">integer <span class="p-hint">(1&ndash;)</span></span>
+    <span class="p-desc"></span>
+  </div>
+  <div class="prow">
+    <span class="p-name">priceVersionId<em class="p-req" title="required">required</em></span>
+    <span class="p-type">string</span>
+    <span class="p-desc">Current non-archived immutable price in selected center.</span>
+  </div>
+  <div class="prow">
+    <span class="p-name">effectiveOn<em class="p-req" title="required">required</em></span>
+    <span class="p-type">string <span class="p-hint">(date)</span></span>
+    <span class="p-desc">Today or later in center zone and not before member joined date.</span>
+  </div>
+  <div class="prow">
+    <span class="p-name">discountBasisPoints</span>
+    <span class="p-type">integer <span class="p-hint">(0&ndash;10000, default 0)</span></span>
+    <span class="p-desc"></span>
+  </div>
+  <div class="prow">
+    <span class="p-name">discountReason</span>
+    <span class="p-type">string | null <span class="p-hint">(&le; 250 chars)</span></span>
+    <span class="p-desc">Nonempty reason required for nonzero discount.</span>
+  </div>
+  <div class="prow">
+    <span class="p-name">requestId<em class="p-req" title="required">required</em></span>
+    <span class="p-type">string</span>
+    <span class="p-desc"></span>
+  </div>
+</div>
+  </div>
+</details>
 
 <details class="ep sch" id="schema-MembershipPlanCreate">
   <summary>

@@ -7,9 +7,9 @@
 - Trabajo actual autorizado: continuar implementación hasta que reste el 5% del presupuesto consumible; después guardar el punto de continuación y apagar el ordenador, por orden explícita del usuario en esta sesión. Esta orden de apagado se aplica al cierre de esta ejecución, no a sesiones futuras.
 - Rama: `codex/centers-module`, creada desde `53ef0baf`. F0-F3 verificadas en entorno ficticio. Commits: `75e1160d`, `433764a5`, `24cb5a42`.
 - Guía: [CENTERS_ROADMAP.md](CENTERS_ROADMAP.md). Instrucciones: [AGENTS.md](../../AGENTS.md).
-- Siguiente tarea: **C17 / F5**, suscripciones sin solapamientos y efectos de baja/pausa; después C18 cálculo económico.
-- Último hito cerrado: C16, catálogo de cuotas con precio/condiciones inmutables, duplicación y archivo. No hay contratos ni cobros todavía.
-- Pruebas C16: 37 unitarias API, 58 frontend/controles, 3 OpenAPI y 8 SQL+HTTP reales pasan. Comparativa general y comprobación visual registradas abajo.
+- Siguiente tarea: **C18 / F5**, cálculo exacto de dinero, calendario, impuestos y previsualización por periodo.
+- Último hito cerrado: C17, contratos fechados con precio fijado, descuentos, activación y cambios futuros recuperables. No hay recibos ni cobros todavía.
+- Pruebas C17: 40 unitarias API, 62 frontend/controles, 3 OpenAPI y 9 SQL+HTTP reales pasan. Comparativa general y comprobación visual registradas abajo.
 
 Este registro contiene el estado de ejecución; el roadmap define requisitos y dependencias. La autorización vigente siempre procede del usuario, no de una casilla de este archivo.
 
@@ -46,7 +46,7 @@ Estados permitidos: `todo`, `in_progress`, `done`, `blocked`. Una tarea done nec
 | C14 | F4 | Baja/pausa contractual | done |
 | C15 | F4 | Invitaciones y vinculación | done |
 | C16 | F5 | Cuotas versionadas | done |
-| C17 | F5 | Suscripciones | todo |
+| C17 | F5 | Suscripciones | done |
 | C18 | F5 | Cálculo económico | todo |
 | C19 | F6 | Recibos idempotentes | todo |
 | C20 | F6 | Pagos y aplicaciones | todo |
@@ -236,3 +236,16 @@ No guardar credenciales, bodies privados, volcados de socios, IBAN, tarjetas o r
 - Suite completa API 637/610 pasan/27 fallan; sin casos nuevos frente al baseline. Frontend 411 archivos, 396 pasan/15 fallan, 5090 tests, 5035 pasan/55 fallan; mismo timeout multimedia bajo carga concurrente de C15, que pasó aislado, además de fallos previos de marca. No hay regresiones identificadas en centros. MCP no modificado.
 - Prueba visual localhost como Responsable Pruebas: cuota ficticia de 29,99 EUR, impuestos incluidos al 21% como dato sintético y prorrateo por días; nueva versión 34,99 EUR. Historial muestra ambos precios. Evidencia externa al repo: informes/centros-c16-precios-versionados.jpg. Ningún importe cobrado, suscripción o dato real.
 - C16 done. Siguiente C17 suscripciones; C18 calculará prorrateo/calendario/impuestos con estas condiciones explícitas. Orden de apagado pendiente al 5% de límite restante.
+
+### C17 / F5: suscripciones y efectos contractuales
+
+- Migración 009: contrato por socio/centro con precio/condiciones, calendario y descuento inmutables. FK compuestas del mismo centro, FORCE RLS y exclusión GiST del rango de fechas [inicio,fin) para impedir solapamiento aun escribiendo concurrentemente. btree_gist es extensión confiable instalada por migrador con CREATE en base; runtime conserva prohibición DDL/BYPASSRLS. Grants de UPDATE únicamente para cierre/cancelación/versionado.
+- Crear contrato usa versión del socio, precio vigente no archivado y requestId. Socio preactive recibe evento activate fechado (aplicado hoy o programado) sin desactivar ni cambiar la cuenta global. Cambiar cuota/descuento crea otro contrato y cierra el anterior transaccionalmente; selección de versión antigua se rechaza. Descuento en puntos básicos requiere motivo y se conserva con el contrato.
+- Cancelar contrato futuro conserva fila cancelada, restaura fecha final anterior o cancela activación futura. Reintento devuelve el resultado persistido. No hay borrado de contratos aplicados. Se admite cambio el mismo día con periodo histórico vacío; C18 cobra cero días por ese periodo. Segundo cambio futuro requiere cancelar el primero.
+- Baja de C14 limita effectiveEndsOn, pausa/reanudación definen estado por lectura. Cancelar baja futura recupera la continuidad automáticamente, sin reescribir términos. C18 calculará los días cobrables a partir del historial sin jobs. No hay emisión de recibos ni cobros. Cuenta vinculada/personal/entrenamiento permanecen independientes.
+- UI en ficha de socio usa Subscriptions, SelectRow, SearchField, Section/Row, confirmSheet y useAutoMore con planes paginados. Resultados autoritativos actualizan versión y estado sin perder borrador de contacto. Solo billing.manage; entrenador no accede. Historial acotado a 100 contratos prioriza no cancelados para no ocultar el vigente detrás de intentos cancelados.
+- Verificación: centers-subscriptions-sql.log 9/9 SQL+HTTP; api/centers-subscriptions-unit.log 40/40 (incluye día 31/bisiesto/trimestral/anual); frontend/centers-subscriptions-ui.log 62/62 en 12 archivos; OpenAPI 3/3, build pasa. 18 locales/2369 claves y 1866 cadenas fuente sincronizadas. Contrato documentado en 104 rutas.
+- Suites completas: API 640 tests, 613 pasan/27 fallan, sin nuevas identidades de fallo. Frontend 412 archivos, 397 pasan/15 fallan, 5094 tests, 5039 pasan/55 fallan; mismo timeout multimedia de C15/C16 por carga concurrente (pasó aislado), además de fallos previos. MCP no modificado.
+- Visual localhost: Responsable Pruebas asignó cuota de 34,99 EUR y descuento ficticio 10% a Socio prueba enlace: estado activo con evento de activación. Programó descuento 20% para 1 noviembre y lo canceló: contrato anterior recuperado sin fecha final, cancelación conservada. Evidencia externa al repo: informes/centros-c17-contrato-recuperado.jpg.
+- Fuentes técnicas consultadas: [btree_gist confiable](https://www.postgresql.org/docs/18/btree-gist.html) y [exclusión de rangos](https://www.postgresql.org/docs/18/rangetypes.html#RANGETYPES-CONSTRAINT), documentación primaria de PostgreSQL 18. No se ha cambiado privilegio del runtime ni migrado datos reales.
+- C17 done. C18 siguiente; el 5% restante y apagado se comprobarán antes del cierre de esta ejecución.

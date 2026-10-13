@@ -76,3 +76,11 @@ Schema 007 incorpora invitaciones para socios, responsables y entrenadores. La c
 El secreto de 256 bits se entrega una vez y solo se guarda su SHA-256. Expira a las 72 horas por defecto, hasta 168. Un reintento idempotente devuelve metadatos y token null: revocar y crear otra invitación si se perdió el enlace. El canje usa la sesión del destinatario, revalida permisos del emisor y consume la invitación en la misma transacción que el vínculo o rol. Repetir un código aceptado no reasigna permisos revocados.
 
 No se modifican JSON personal, estado de entrenamiento o admin técnico. Invitaciones vigentes protegen al destinatario frente al borrado global; caducadas/revocadas sin otros vínculos dejan de bloquearlo. Toda prueba de canje debe usar cuentas ficticias de la base aislada.
+
+## Cuotas y contratos (C16-C17)
+
+Las migraciones 008/009 añaden catálogo de cuotas, versiones de precio inmutables y contratos. Los importes son texto canónico en céntimos de EUR; condiciones fiscales y prorrateo deben definirse expresamente para calcular cobros. La versión contratada no cambia al editar el catálogo. Un plan archivado conserva históricos e impide nuevos contratos.
+
+C17 instala btree_gist en el esquema centers para exclusión concurrente de periodos. Es una extensión confiable instalable con CREATE en la base ([documentación oficial](https://www.postgresql.org/docs/18/btree-gist.html)); el runtime no recibe CREATE ni bypass. Una instalación previa en otro esquema requiere adaptar el entorno explícitamente; no aplicar migraciones manualmente sin el registro/checksum.
+
+Crear/cambiar/cancelar contrato requiere billing.manage y versión actual del socio. Activación, baja y pausa se resuelven en fechas locales; cancelaciones futuras mantienen filas y recuperan el contrato anterior. Ninguna acción emite un recibo, realiza un cobro o modifica la cuenta personal. Pruebas actuales solo sobre PostgreSQL marcado test y cuentas ficticias.

@@ -10,6 +10,14 @@ export const centerMembers = (centerId, options = {}) => api('/api/centers/membe
 export const centerMember = (centerId, id) => api('/api/centers/member?' + new URLSearchParams({centerId,id}))
 export const centerPlans = (centerId, options={}) => api('/api/centers/plans?'+new URLSearchParams({centerId,...options}))
 export const centerPlan = (centerId,id) => api('/api/centers/plan?'+new URLSearchParams({centerId,id}))
+export const centerSubscriptions = (centerId,memberId) => api('/api/centers/subscriptions?'+new URLSearchParams({centerId,memberId}))
+export function subscriptionsErrorKey(error) {
+  const code=error?.data?.code||error?.code
+  if(['subscription-overlap','pending-subscription','pending-transition'].includes(code))return 'Cancel the pending change before adding another.'
+  if(code==='price-version-changed')return 'Center changed. Reload and try again.'
+  if(code==='invalid-transition'||code==='subscription-ended')return 'Membership change is not allowed.'
+  return plansErrorKey(error)
+}
 export function plansErrorKey(error) {
   if((error?.data?.code||error?.code)==='plan-archived')return 'Archived plans'
   if((error?.data?.code||error?.code)==='invalid-input'||error?.message==='invalid price')return 'Check the membership plan details.'

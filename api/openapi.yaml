@@ -165,6 +165,103 @@ security:
   - bearerAuth: []
 
 paths:
+  /api/centers/subscriptions:
+    get:
+      tags: [centers]
+      operationId: listCenterSubscriptions
+      summary: Read member contracts with pinned prices and effective dates
+      description: Requires billing.read or platform. Selected member/center verified. Up to 100 contracts, prioritizing uncanceled rows before canceled history. Effective end includes membership termination; freeze state derives from dated membership history, independent of jobs. No billing issuance.
+      security: [{ session: [] }, { bearer: [] }]
+      parameters:
+        - { name: centerId, in: query, required: true, schema: { type: string } }
+        - { name: memberId, in: query, required: true, schema: { type: string } }
+      responses:
+        '200': { description: Current member, today in center zone, membership changes and subscriptions. }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { description: Financial read capability unavailable. }
+        '404': { description: Member inaccessible in selected center. }
+  /api/centers/subscriptions/create:
+    post:
+      tags: [centers]
+      operationId: createCenterSubscription
+      summary: Assign a current fee version and activate membership on its effective date
+      description: >-
+        Requires billing.manage or platform. Price version and member must belong to selected center;
+        archived or stale catalog versions cannot start new contracts. Pins calendar, discount and
+        immutable terms. Member version serializes changes; SQL exclusion also prevents overlapping
+        uncanceled primary contracts. Preactive activation is recorded for effectiveOn, without
+        changing personal account or training. Incomplete tax conditions cannot generate charges.
+      security: [{ session: [] }, { bearer: [] }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/SubscriptionInput' }
+      responses:
+        '200': { description: Authoritative member/history/subscriptions with updated member version. }
+        '400': { description: Invalid date, discount, reason or unexpected field. }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { description: Financial management capability unavailable. }
+        '404': { description: Member or price unavailable in selected center. }
+        '409': { description: Version/overlap, pending transition, ended membership or catalog conflict. }
+  /api/centers/subscriptions/change:
+    post:
+      tags: [centers]
+      operationId: changeCenterSubscription
+      summary: Change fee or discount with a new dated contract
+      description: >-
+        Closes the old range at effectiveOn and starts a new pinned contract atomically. Old price,
+        discount and calendar stay immutable. No second future change while one is pending.
+        A same-day replacement can leave an empty historical period; no deletion. requestId is idempotent.
+      security: [{ session: [] }, { bearer: [] }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              allOf:
+                - { $ref: '#/components/schemas/SubscriptionInput' }
+                - type: object
+                  required: [id]
+                  properties:
+                    id: { type: string, description: Current uncanceled contract ID within selected member. }
+      responses:
+        '200': { description: Updated authoritative member/history/subscriptions. }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { description: Financial management capability unavailable. }
+        '404': { description: Member, contract or price unavailable in selected center. }
+        '409': { description: Stale version, pending contract, invalid range or catalog conflict. }
+  /api/centers/subscriptions/cancel:
+    post:
+      tags: [centers]
+      operationId: cancelScheduledCenterSubscription
+      summary: Cancel a future contract and recover its previous range
+      description: >-
+        Only startsOn strictly after today in center zone. Keeps canceled history. Restores the
+        replaced contract previous end, or cancels a future activation event for a first contract.
+        Membership end/pause events remain dated history; accounts never disabled. Repeating the
+        same requestId returns the committed result. Applied contracts cannot be erased or canceled here.
+      security: [{ session: [] }, { bearer: [] }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties: false
+              required: [centerId, memberId, memberVersion, id, requestId]
+              properties:
+                centerId: { type: string }
+                memberId: { type: string }
+                memberVersion: { type: integer, minimum: 1 }
+                id: { type: string }
+                requestId: { type: string, pattern: '^[a-zA-Z0-9_-]{8,128}$' }
+      responses:
+        '200': { description: Updated member/history/contracts; canceled record retained. }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { description: Financial management capability unavailable. }
+        '404': { description: Contract unavailable in selected member/center. }
+        '409': { description: Stale member version, applied/canceled contract or idempotency conflict. }
   /api/centers/plans:
     get:
       tags: [centers]
@@ -3857,6 +3954,18 @@ components:
           example: { error: "that code is wrong, used or expired", code: "link-invalid" }
 
   schemas:
+    SubscriptionInput:
+      type: object
+      required: [centerId, memberId, memberVersion, priceVersionId, effectiveOn, requestId]
+      properties:
+        centerId: { type: string }
+        memberId: { type: string }
+        memberVersion: { type: integer, minimum: 1 }
+        priceVersionId: { type: string, description: Current non-archived immutable price in selected center. }
+        effectiveOn: { type: string, format: date, description: Today or later in center zone and not before member joined date. }
+        discountBasisPoints: { type: integer, minimum: 0, maximum: 10000, default: 0 }
+        discountReason: { type: [string, 'null'], maxLength: 250, description: Nonempty reason required for nonzero discount. }
+        requestId: { type: string, pattern: '^[a-zA-Z0-9_-]{8,128}$' }
     MembershipPlanCreate:
       type: object
       required: [centerId, name, priceMinor, currency, intervalMonths, requestId]

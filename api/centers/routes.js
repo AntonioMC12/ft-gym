@@ -7,6 +7,7 @@ import { memberListOptions } from './domain/member-validation.js';
 import { transitionMember,cancelMemberTransition } from './services/membership-lifecycle.js';
 import {createInvitation,listInvitations,revokeInvitation,inspectInvitation,acceptInvitation} from './services/invitations.js';
 import {createMembershipPlan,reviseMembershipPlan,duplicateMembershipPlan,archiveMembershipPlan,listMembershipPlans,getMembershipPlan,planListOptions} from './services/membership-plans.js';
+import {createSubscription,changeSubscription,cancelSubscription,listSubscriptions} from './services/subscriptions.js';
 
 // Inject the same session and response helpers used by the rest of node:http.
 export function centersRoutes({ config, database, json, readSession, readBody, accountLocks, lookupAccount,
@@ -20,6 +21,7 @@ export function centersRoutes({ config, database, json, readSession, readBody, a
   const failure = (res, error) => {
     if (error instanceof CentersError) return json(res, error.status, { error: error.message, code: error.code });
     if (error.code === '23505') return json(res, 409, { error: 'duplicate resource', code: 'duplicate' });
+    if (error.code === '23P01') return json(res,409,{error:'subscription periods overlap',code:'subscription-overlap'});
     if (error.code === '23514' || error.code === '23503') return json(res, 409, { error: 'invalid business relation or state', code: 'invalid-state' });
     return json(res, 503, { error: 'centers are temporarily unavailable', code: 'centers-unavailable' });
   };
@@ -36,6 +38,15 @@ export function centersRoutes({ config, database, json, readSession, readBody, a
     }catch(error){return failure(res,error);}
   };
   return {
+    'POST /api/centers/subscriptions/create': mutate(false,(context,body)=>createSubscription(context,body,{platform:isPlatformUser(config,context.user)})),
+    'POST /api/centers/subscriptions/change': mutate(false,(context,body)=>changeSubscription(context,body,{platform:isPlatformUser(config,context.user)})),
+    'POST /api/centers/subscriptions/cancel': mutate(false,(context,body)=>cancelSubscription(context,body,{platform:isPlatformUser(config,context.user)})),
+    'GET /api/centers/subscriptions': async(req,res)=>{
+      const user=guard(req,res);if(!user)return;const sv=user.sv||0;
+      const params=new URL(req.url,'http://x').searchParams,centerId=params.get('centerId'),memberId=params.get('memberId');
+      if(!recordId(centerId)||!recordId(memberId))return json(res,404,{error:'not found',code:'not-found'});
+      try{const result=await listSubscriptions(database,user.id,centerId,memberId,{platform:isPlatformUser(config,user)});if(!current(req,user,sv))return json(res,401,{error:'not signed in'});return json(res,200,result);}catch(error){return failure(res,error);}
+    },
     'POST /api/centers/plans/create': mutate(false,(context,body)=>createMembershipPlan(context,body,{platform:isPlatformUser(config,context.user)})),
     'POST /api/centers/plans/revise': mutate(false,(context,body)=>reviseMembershipPlan(context,body,{platform:isPlatformUser(config,context.user)})),
     'POST /api/centers/plans/duplicate': mutate(false,(context,body)=>duplicateMembershipPlan(context,body,{platform:isPlatformUser(config,context.user)})),

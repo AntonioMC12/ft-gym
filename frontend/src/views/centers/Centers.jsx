@@ -4,9 +4,12 @@ import { useStore } from '../../store/useStore.js'
 import { useCenters } from '../../store/useCenters.js'
 import { t } from '../../lib/i18n.js'
 import { platformCenters, centerAccounts, centerCommand, centerDetail, centerStaff, centersErrorKey } from '../../lib/centers-api.js'
-import { Button, TextField, NumberField, Section } from '../../components/ui.jsx'
+import { Button, TextField, NumberField, Section, Row, SearchField, Switch, Segmented } from '../../components/ui.jsx'
+import { confirmSheet } from '../../sheets.jsx'
+import { useUI } from '../../store/useUI.js'
 import Icon from '../../components/Icon.jsx'
 import './centers.css'
+import Members from './Members.jsx'
 
 const stateLabel = state => state === 'active' ? t('Active center') : state === 'inactive' ? t('Inactive center') : t('Draft center')
 const fieldsOf = center => ({ name: center?.name || '', taxId: center?.taxId || '', address: center?.address || '',
@@ -27,7 +30,7 @@ function Fields({ value, change }) {
       const names = [t('Sunday'), t('Monday'), t('Tuesday'), t('Wednesday'), t('Thursday'), t('Friday'), t('Saturday')]
       const set = next => change({ ...value, openingHours: { ...value.openingHours, [day]: next } })
       return <div key={day} className="centers-hour-day"><div className="centers-actions"><span>{names[day]}</span>
-        <Button type="button" onClick={() => set(interval ? [] : [['08:00', '22:00']])}>{interval ? t('On') : t('Off')}</Button>
+        <Switch type="button" aria-label={names[day]} checked={!!interval} onChange={enabled => set(enabled ? [['08:00', '22:00']] : [])} />
         </div>{(value.openingHours[day] || []).map((pair,index) => <div key={index} className="centers-hour-row">
           <TextField type="time" aria-label={names[day] + ' ' + t('From') + (index ? ' ' + (index + 1) : '')} value={pair[0]} onChange={e => set(value.openingHours[day].map((p,i) => i === index ? [e.target.value,p[1]] : p))} />
           <TextField placeholder="HH:mm" pattern="(?:[01][0-9]|2[0-3]):[0-5][0-9]|24:00" aria-label={names[day] + ' ' + t('To') + (index ? ' ' + (index + 1) : '')} value={pair[1]} onChange={e => set(value.openingHours[day].map((p,i) => i === index ? [p[0],e.target.value] : p))} />
@@ -48,7 +51,7 @@ function AccountPicker({ selected, choose }) {
     return () => { current = false; clearTimeout(timer) }
   }, [query])
   return <div>
-    <label className="centers-field"><span>{t('Search by name or account ID')}</span><TextField value={query} onChange={e => setQuery(e.target.value)} /></label>
+    <label className="centers-field"><span>{t('Search by name or account ID')}</span><SearchField value={query} onChange={e => setQuery(e.target.value)} onClear={e => { e.preventDefault(); setQuery('') }} onKeyDown={e => { if(e.key==='Enter')e.preventDefault() }} /></label>
     {selected && <div className="centers-selected"><strong>{selected.name}</strong><span className="small muted">{selected.id}</span><Button type="button" onClick={() => choose(null)}>{t('Cancel')}</Button></div>}
     {accounts.map(account => <Button className="centers-account" key={account.id} type="button" disabled={account.disabled} onClick={() => choose(account)}>{account.name}<span className="small muted">{account.id}</span></Button>)}
     {error && <p role="alert">{t(centersErrorKey(error))}</p>}
@@ -79,31 +82,37 @@ function NewCenter({ close, created, ownerUid }) {
 }
 
 function CenterPanel({ center, platform, capabilities, close, refresh, ownerUid }) {
+  const canMembers=capabilities.some(c=>['members.read','members.operational.read'].includes(c))
+  const [pane,setPane]=useState('details')
+  const memberPane=canMembers&&pane==='members'
   const [fields, setFields] = useState(() => fieldsOf(center)), [staff, setStaff] = useState([]), [manager, setManager] = useState(null)
   const [trainerUid, setTrainerUid] = useState(''), [replaceId, setReplaceId] = useState(null)
-  const [busy, setBusy] = useState(false), [error, setError] = useState(null), [confirmed, setConfirmed] = useState(false)
-  useEffect(() => { setFields(fieldsOf(center)); setConfirmed(false) }, [center])
+  const [busy, setBusy] = useState(false), [error, setError] = useState(null)
+  useEffect(() => { setFields(fieldsOf(center)) }, [center])
   useEffect(() => { let current = true; setStaff([]); if (platform || capabilities.includes('staff.manage')) centerStaff(center.id).then(r => { if (current) setStaff(r.staff) }).catch(e => { if (current) setError(e) }); return () => { current = false } }, [center, platform, capabilities])
   const perform = async (path, body) => {
     setBusy(true); setError(null)
-    try { await centerCommand(path, body); refresh(); setManager(null); setReplaceId(null) }
+    try { await centerCommand(path, body); if (useStore.getState().user?.id !== ownerUid) return; useUI.getState().toast(t('Saved')); refresh(); setManager(null); setReplaceId(null) }
     catch (e) { setError(e); if (useStore.getState().user?.id === ownerUid) useCenters.getState().revokeOn(e) }
     finally { setBusy(false) }
   }
   const updatePath = platform ? '/api/platform/centers/update' : '/api/centers/update'
-  return <Section title={center.name}><div className="centers-form">
+  return <><Section title={center.name}><div className="centers-form">
     <div className="centers-actions"><span className="muted small">{stateLabel(center.state)}</span><Button onClick={close}>{t('Back')}</Button></div>
+    {canMembers&&<Segmented options={[{value:'details',label:t('Center details')},{value:'members',label:t('Members')}]} value={memberPane?'members':'details'} onChange={setPane}/>}
+    {!memberPane&&<>
     {(platform || capabilities.includes('center.update')) && <form onSubmit={e => { e.preventDefault(); perform(updatePath, { ...fields, centerId: center.id, version: center.version }) }}><Fields value={fields} change={setFields} /><Button type="submit" variant="primary" disabled={busy}>{t('Save')}</Button></form>}
     {staff.length > 0 && <div><h3>{t('Center staff')}</h3>{staff.map(role => <div key={role.id} className="centers-staff-row"><div><strong>{role.role === 'manager' ? t('Center manager') : t('Trainer')}</strong><div className="small muted">{role.accountUid}</div></div>
       {role.revoked ? <span className="muted small">{t('Revoked role')}</span> : ((platform && role.role === 'manager') || (!platform && role.role === 'trainer')) && <div className="centers-actions">{platform && <Button onClick={() => setReplaceId(role.id)}>{t('Replace')}</Button>}<Button disabled={busy} onClick={() => perform(platform ? '/api/platform/centers/revoke-role' : '/api/centers/staff/revoke', { centerId: center.id, version: center.version, assignmentId: role.id })}>{t('Revoke role')}</Button></div>}
     </div>)}</div>}
     {!platform && capabilities.includes('staff.manage') && <div><h3>{t('Trainer')}</h3><label className="centers-field"><span>{t('Account ID')}</span><TextField value={trainerUid} onChange={e => setTrainerUid(e.target.value)} /></label><Button disabled={busy || !trainerUid.trim()} onClick={() => perform('/api/centers/staff/assign', { centerId: center.id, version: center.version, accountUid: trainerUid.trim() })}>{t('Save')}</Button></div>}
     {platform && <div><h3>{replaceId ? t('Replace') : t('Assign manager')}</h3>{replaceId && <Button onClick={() => setReplaceId(null)}>{t('Cancel')}</Button>}<AccountPicker selected={manager} choose={setManager} /><Button disabled={busy || !manager} onClick={() => perform('/api/platform/centers/assign-manager', { centerId: center.id, version: center.version, accountUid: manager.id, ...(replaceId ? { replaceAssignmentId: replaceId } : {}) })}>{t('Assign manager')}</Button>
-      {center.state !== 'inactive' && <div className="centers-actions"><Button variant="danger" disabled={busy} onClick={() => confirmed ? perform(updatePath, { ...fields, centerId: center.id, version: center.version, state: 'inactive' }) : setConfirmed(true)}>{confirmed ? t('Confirm deactivation') : t('Deactivate center')}</Button></div>}
+      {center.state !== 'inactive' && <div className="centers-actions"><Button variant="danger" disabled={busy} onClick={() => confirmSheet({title:t('Confirm deactivation'),message:center.name,confirmText:t('Deactivate center'),danger:true,onConfirm:() => { if (useStore.getState().user?.id === ownerUid) perform(updatePath, { ...fields, centerId: center.id, version: center.version, state: 'inactive' }) }})}>{t('Deactivate center')}</Button></div>}
       {center.state === 'inactive' && <Button disabled={busy} onClick={() => perform(updatePath, { ...fields, centerId: center.id, version: center.version, state: 'active' })}>{t('Activate center')}</Button>}
     </div>}
     {error && <p role="alert">{t(centersErrorKey(error))}</p>}
-  </div></Section>
+    </>}
+  </div></Section>{memberPane&&<Members key={center.id} centerId={center.id} ownerUid={ownerUid} capabilities={capabilities}/>}</>
 }
 
 function Content({ user }) {
@@ -125,7 +134,7 @@ function Content({ user }) {
     if (!state.selectedId || state.ownerUid !== user.id) return
     centerDetail(state.selectedId).then(r => { if (current) setDetail(r.center) }).catch(e => { if (current) { setError(e); useCenters.getState().revokeOn(e) } })
     return () => { current = false }
-  }, [state.selectedId, state.ownerUid, user.id, refreshKey])
+  }, [state.selectedId, state.ownerUid, state.centers, user.id, refreshKey])
   const selected = state.centers.find(c => c.id === state.selectedId)
   return <div className="narrow centers-page"><div className="hdr"><button className="iconbtn" onClick={() => nav('/home')} aria-label={t('Home')}><Icon name="chevronLeft" /></button><h1>{t('Manage centers')}</h1></div>
     <div className="centers-actions"><Button onClick={refresh}>{t('Reload centers')}</Button>{platform && <Button variant="primary" onClick={() => { state.select(null); setCreating(true) }}>{t('New center')}</Button>}</div>
@@ -133,7 +142,7 @@ function Content({ user }) {
     {(error || state.error) && <p role="alert">{t(centersErrorKey(error || state.error))}</p>}
     {state.status === 'ready' && state.ownerUid === user.id && (creating && platform ? <NewCenter ownerUid={user.id} close={() => setCreating(false)} created={center => { if (useStore.getState().user?.id !== user.id) return; setCreating(false); state.select(center.id); refresh() }} /> : detail ? <CenterPanel ownerUid={user.id} center={detail} platform={platform} capabilities={selected?.capabilities || []} close={() => state.select(null)} refresh={refresh} /> : <div className="centers-list">{!listed.length && <p className="muted">{t('No centers available')}</p>}{listed.map(center => {
       const canOpen = platform || center.capabilities?.includes('center.read')
-      return <div className="centers-card" key={center.id}><h2>{center.name}</h2><p className="muted small">{stateLabel(center.state)}</p>{canOpen && <Button onClick={() => state.select(center.id)}>{t('Center details')}</Button>}</div>
+      return <Section key={center.id}><Row title={center.name} subtitle={stateLabel(center.state)} value={canOpen ? t('Center details') : null} accessory={canOpen ? 'chevron' : 'none'} onClick={canOpen ? () => state.select(center.id) : undefined} /></Section>
     })}</div>)}
   </div>
 }

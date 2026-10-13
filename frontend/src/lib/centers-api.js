@@ -6,6 +6,15 @@ export const centerDetail = id => api('/api/centers/detail?centerId=' + encodeUR
 export const centerStaff = id => api('/api/centers/staff?centerId=' + encodeURIComponent(id))
 export const centerAccounts = query => api('/api/platform/centers/accounts?query=' + encodeURIComponent(query))
 export const centerCommand = (path, body) => api(path, { method: 'POST', body: JSON.stringify(body) })
+export const centerMembers = (centerId, options = {}) => api('/api/centers/members?' + new URLSearchParams({centerId,...options}))
+export const centerMember = (centerId, id) => api('/api/centers/member?' + new URLSearchParams({centerId,id}))
+
+export function membersErrorKey(error) {
+  const code=error?.data?.code||error?.code
+  if(code==='duplicate')return 'Duplicate member in this center.'
+  if(code==='invalid-input')return 'Check the member details.'
+  return centersErrorKey(error)
+}
 
 export function centersErrorKey(error) {
   const code = error?.data?.code || error?.code

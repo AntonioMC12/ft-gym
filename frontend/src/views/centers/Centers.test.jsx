@@ -29,7 +29,7 @@ beforeEach(() => {
 })
 afterEach(() => { act(() => root.unmount()); host.remove(); useCenters.getState().reset() })
 const render = () => act(async () => { root.render(<MemoryRouter><Centers /></MemoryRouter>); await Promise.resolve() })
-const button = text => [...host.querySelectorAll('button')].find(b => b.textContent === text)
+const button = text => [...host.querySelectorAll('button')].find(b => b.textContent === text || b.textContent.endsWith(text))
 const click = text => act(async () => { button(text).click(); await Promise.resolve() })
 const input = (element, value) => act(() => {
   Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value').set.call(element, value)
@@ -55,6 +55,15 @@ it('editing the first opening interval preserves the remaining intervals', async
   input(host.querySelector('input[aria-label="Monday From"]'), '09:00')
   await click('Save')
   expect(centerCommand.mock.calls[0][1].openingHours[1]).toEqual([['09:00', '12:00'], ['16:00', '22:00']])
+})
+
+it('schedule switches and clearing account search do not submit wizard steps', async () => {
+  await render(); await click('New center'); input(host.querySelector('input'),'Synthetic')
+  await act(async()=>{host.querySelector('button[role="switch"]').click()})
+  expect(host.textContent).toContain('Opening hours')
+  await click('Next'); input(host.querySelector('input'),'temporary')
+  await act(async()=>{host.querySelector('button[aria-label="Clear"]').click()}); expect(host.textContent).toContain('Center manager')
+  expect(host.textContent).not.toContain('Review')
 })
 
 it('a trainer sees operational details without platform controls or account lookup', async () => {

@@ -4,12 +4,12 @@
 
 ## Punto de reanudación
 
-- Trabajo actual autorizado: implementación en rama separada, avanzando por el roadmap hasta el límite solicitado del 20% restante de uso.
+- Trabajo actual autorizado: implementación en rama separada, avanzando por el roadmap. El usuario amplió el trabajo para continuar hasta agotar el presupuesto disponible, sustituyendo la reserva anterior del 20%. Guardar hitos verificables y el estado pendiente antes de terminar.
 - Rama: `codex/centers-module`, creada desde `53ef0baf`. F0-F3 verificadas en entorno ficticio. Commits: `75e1160d`, `433764a5`, `24cb5a42`.
 - Guía: [CENTERS_ROADMAP.md](CENTERS_ROADMAP.md). Instrucciones: [AGENTS.md](../../AGENTS.md).
-- Siguiente tarea: **C13 / F4**, alta/ficha/listado paginado de socios sin cuenta; después C14-C15.
-- Último hito cerrado: F3, centros, responsables, staff y panel integrado en Ajustes. No hay alta de socios desde UI ni cobros.
-- Pruebas F3: 25 unitarias/contratos, 12 frontend y 4 SQL+HTTP reales pasan. Suites completas sin fallos nuevos frente al baseline; detalle en el historial.
+- Siguiente tarea: **C14 / F4**, transiciones de baja/pausa con fecha efectiva; después C15.
+- Último hito cerrado: C13, alta/ficha/edición/listado paginado de socios sin cuenta. No hay cobros ni enlace de cuentas de socios.
+- Pruebas C13: 11 unitarias/contratos, 17 frontend y 5 SQL+HTTP reales pasan. Suites completas sin fallos nuevos frente al baseline; detalle en el historial.
 
 Este registro contiene el estado de ejecución; el roadmap define requisitos y dependencias. La autorización vigente siempre procede del usuario, no de una casilla de este archivo.
 
@@ -42,7 +42,7 @@ Estados permitidos: `todo`, `in_progress`, `done`, `blocked`. Una tarea done nec
 | C10 | F3 | Bootstrap y centros | done |
 | C11 | F3 | Roles y responsables | done |
 | C12 | F3 | UI de plataforma | done |
-| C13 | F4 | Alta y ficha de socio | todo |
+| C13 | F4 | Alta y ficha de socio | done |
 | C14 | F4 | Baja/pausa contractual | todo |
 | C15 | F4 | Invitaciones y vinculación | todo |
 | C16 | F5 | Cuotas versionadas | todo |
@@ -160,6 +160,17 @@ Formato para nuevas entradas: tarea, motivo, evidencia, trabajo independiente po
 - Listado con cursor estable y límite máximo; filtros parametrizados dentro del centro seleccionado. Validar contacto/documento y tratar unicidad local mediante 23505, manteniendo permitido el mismo dato en otro centro.
 - Auditar altas/ediciones sin copiar documentos/contacto completos al detalle del evento. Edición con versión; no mezclar con baja/pausa de C14 ni modificar entrenamiento JSON.
 - Añadir services/members.js y rutas junto a OpenAPI, una vista de listado/ficha sobre useCenters, traducciones y pruebas SQL reales de duplicados/cursor/roles/cruce de centros. C13 sigue todo hasta completar ese recorrido.
+
+### 2026-10-13 · C13 / F4 y reutilización
+
+- Usuario pidió conservar pautas de reutilización para sesiones futuras y continuar hasta agotar presupuesto disponible. Guardadas en AGENTS.md, sustituyendo la reserva anterior.
+- Alta sin cuenta, preactive, número M-xxxxxx bajo lock de centro, fecha local e idempotencia actor/requestId. Duplicados normalizados de email/documento solo dentro del centro. Edición con versión, sin alterar estados/fechas/permisos/entrenamiento.
+- Listado 1..100 con cursor created_at/id que conserva microsegundos y se vincula a cuenta/centro/filtros; búsqueda literal nombre/número. Manager recibe contacto/documento, trainer operación. Lecturas sensibles bloquean contexto/roles hasta proyectar DTO ante revocación concurrente.
+- Sin migración nueva: reutiliza esquema 004. Auditoría sin campos privados. Contrato de 87 endpoints/35 schemas generado.
+- UI Members.jsx separado, Section/Row, SearchField, paginación real + useAutoMore, formulario alta/ficha. Centros reutiliza Switch, búsqueda con limpieza, filas, confirmSheet, toast y Segmented datos/socios. Controles en formularios no envían pasos accidentalmente; contexto limpia al cambiar cuenta/centro/capacidades.
+- Tests: centers-f4-unit.log 11/11, frontend/centers-f4-ui.log 17/17, centers-f4-sql.log 5/5 reales. API general api/centers-f4-full-api.log 630/603 pass/27 fail previos; frontend/centers-f4-full-frontend.log 405 archivos/390 pass/15 fail, 5066 tests/5012 pass/54 fail previos. Comparación por nombres sin fallo nuevo. Controles/pestañas finales verificados específicamente; build final pasa.
+- 18 locales/2311 claves y 1813 cadenas de fuente cubiertas; pt-BR explícito. Navegador: responsable ficticio crea socio/abre ficha; escritorio y 390 px sin overflow. Captura fuera del repo. Reconstrucción de API temporal reinicia sesiones ficticias: volver a entrar.
+- C13 done. C14/C15 pendientes; activación contractual con C17. No hay datos de administración en S ni despliegue productivo.
 
 ### Plantilla de entrada futura
 

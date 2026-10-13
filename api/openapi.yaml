@@ -165,6 +165,99 @@ security:
   - bearerAuth: []
 
 paths:
+  /api/centers/members:
+    get:
+      tags: [centers]
+      operationId: listCenterMembers
+      summary: Paginated member list within the selected center
+      description: |
+        Requires members.read or members.operational.read. Trainers receive only operational
+        fields; managers also receive contact and document fields. Literal name/number search,
+        stable created_at/id keyset order. Cursor is bound to account, center and filters.
+        Platform allowlist alone does not grant member access.
+      parameters:
+        - { name: centerId, in: query, required: true, schema: { type: string } }
+        - { name: query, in: query, schema: { type: string, maxLength: 120 } }
+        - { name: state, in: query, schema: { type: string, enum: [preactive, active, frozen, ended] } }
+        - { name: limit, in: query, schema: { type: integer, minimum: 1, maximum: 100, default: 50 } }
+        - { name: cursor, in: query, schema: { type: string, maxLength: 2000 } }
+      responses:
+        '200':
+          description: Role-filtered page and next cursor, null at the end.
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [members, nextCursor]
+                properties:
+                  members: { type: array, items: { type: object } }
+                  nextCursor: { type: [string, 'null'] }
+        '400': { description: Invalid filter or cursor, including reuse in another account or center. }
+        '401': { description: No current session. }
+        '403': { description: Insufficient capability within accessible center. }
+        '404': { description: Module off or center not accessible. }
+        '409': { description: Center inactive. }
+        '503': { description: Centers unavailable. }
+  /api/centers/members/create:
+    post:
+      tags: [centers]
+      operationId: createCenterMember
+      summary: Create a preactive member without a linked account
+      description: |
+        Requires members.manage in an active center. Allocates a member number under the
+        shared center lock, audits without private fields and persists the idempotent result.
+        Equal actor/requestId/content replay the original response; changed content conflicts.
+        Email/document uniqueness is local to the center. No account is linked or activated;
+        joinedOn uses the center time zone. State changes belong to a separate workflow.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              allOf:
+                - { $ref: '#/components/schemas/MemberContactFields' }
+                - type: object
+                  required: [centerId, requestId]
+                  properties:
+                    centerId: { type: string }
+                    requestId: { type: string, minLength: 8, maxLength: 128 }
+              unevaluatedProperties: false
+      responses:
+        '200': { description: Created member projection, including number, preactive state and version. }
+        '400': { description: Invalid input or unexpected account/state/privilege field. }
+        '401': { description: No current session. }
+        '403': { description: Insufficient capability. }
+        '404': { description: Module off or center not accessible. }
+        '409': { description: Duplicate local contact/document, idempotency conflict or inactive center. }
+        '503': { description: Centers unavailable. }
+  /api/centers/members/update:
+    post:
+      tags: [centers]
+      operationId: updateCenterMember
+      summary: Update member contact fields with optimistic version
+      description: Full contact snapshot; omitted optional fields clear them. Does not change membership state, dates, account links or training.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              allOf:
+                - { $ref: '#/components/schemas/MemberContactFields' }
+                - type: object
+                  required: [centerId, id, version]
+                  properties:
+                    centerId: { type: string }
+                    id: { type: string }
+                    version: { type: integer, minimum: 1 }
+              unevaluatedProperties: false
+      responses:
+        '200': { description: Updated role-filtered member with incremented version. }
+        '400': { description: Invalid input or unexpected field. }
+        '401': { description: No current session. }
+        '403': { description: Insufficient capability. }
+        '404': { description: Module off or member outside accessible center. }
+        '409': { description: Version conflict, local duplicate or inactive center. }
+        '503': { description: Centers unavailable. }
   /api/centers/detail:
     get:
       tags: [centers]
@@ -3453,6 +3546,14 @@ components:
           example: { error: "that code is wrong, used or expired", code: "link-invalid" }
 
   schemas:
+    MemberContactFields:
+      type: object
+      required: [name]
+      properties:
+        name: { type: string, minLength: 1, maxLength: 120 }
+        email: { type: [string, 'null'], maxLength: 254, description: Optional contact email; never proof of account ownership. }
+        phone: { type: [string, 'null'], maxLength: 40 }
+        nationalDocument: { type: [string, 'null'], maxLength: 40, description: Optional document; normalized uniqueness only within a center. }
     CenterCreateInput:
       type: object
       additionalProperties: false

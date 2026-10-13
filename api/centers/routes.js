@@ -2,6 +2,8 @@ import { CentersError } from './errors.js';
 import { requireCenter, memberDto, recordId, isPlatformUser } from './authz.js';
 import { affiliations } from './services/identity.js';
 import { listPlatformCenters, createCenter, updateCenter, assignRole, revokeRole, listStaff, centerDto } from './services/centers.js';
+import { createMember, updateMember, listMembers } from './services/members.js';
+import { memberListOptions } from './domain/member-validation.js';
 
 // Inject the same session and response helpers used by the rest of node:http.
 export function centersRoutes({ config, database, json, readSession, readBody, accountLocks, lookupAccount,
@@ -31,18 +33,27 @@ export function centersRoutes({ config, database, json, readSession, readBody, a
     }catch(error){return failure(res,error);}
   };
   return {
+    'POST /api/centers/members/create': mutate(false,createMember),
+    'POST /api/centers/members/update': mutate(false,updateMember),
+    'GET /api/centers/members': async (req,res) => {
+      const user=guard(req,res);if(!user)return;const sv=user.sv||0;
+      const params=new URL(req.url,'http://x').searchParams,centerId=params.get('centerId');
+      if(!recordId(centerId))return json(res,404,{error:'not found',code:'not-found'});
+      try{const result=await listMembers(database,user.id,centerId,memberListOptions(params));if(!current(req,user,sv))return json(res,401,{error:'not signed in'});return json(res,200,result);}
+      catch(error){return failure(res,error);}
+    },
     'GET /api/centers/detail': async (req,res) => {
       const user=guard(req,res);if(!user)return;const sv=user.sv||0;
       const centerId=new URL(req.url,'http://x').searchParams.get('centerId');
       if(!recordId(centerId))return json(res,404,{error:'not found',code:'not-found'});
       const platform=isPlatformUser(config,user);
       const work=async client=>{
-        if(!platform)await requireCenter(client,user.id,centerId,'center.read',{allowInactive:true});
+        if(!platform)await requireCenter(client,user.id,centerId,'center.read',{allowInactive:true,lock:true});
         const {rows}=await client.query('SELECT * FROM centers.centers WHERE id=$1',[centerId]);
         if(!rows.length)throw new CentersError(404,'not-found','not found');
         const center=centerDto(rows[0]);
         if(!platform){
-          const context=await requireCenter(client,user.id,centerId,'center.read',{allowInactive:true});
+          const context=await requireCenter(client,user.id,centerId,'center.read',{allowInactive:true,lock:true});
           if(!context.capabilities.includes('center.update'))return {center:{id:center.id,name:center.name,state:center.state,timezone:center.timezone,capacity:center.capacity,openingHours:center.openingHours,version:center.version}};
         }
         return {center};
@@ -98,12 +109,12 @@ export function centersRoutes({ config, database, json, readSession, readBody, a
       if (!recordId(centerId) || !recordId(id)) return json(res, 404, { error: 'not found', code: 'not-found' });
       try {
         const result = await database.transaction({ uid: user.id, centerId }, async client => {
-          const context = await requireCenter(client, user.id, centerId, 'members.operational.read').catch(async error => {
+          const context = await requireCenter(client, user.id, centerId, 'members.operational.read', { lock: true }).catch(async error => {
             if (error.status !== 403) throw error;
-            return requireCenter(client, user.id, centerId, 'members.read');
+            return requireCenter(client, user.id, centerId, 'members.read', { lock: true });
           });
           const { rows } = await client.query(`SELECT id, center_id, member_number, name, state, version,
-            email, phone, national_document, joined_on, ends_on FROM centers.members WHERE center_id = $1 AND id = $2`, [centerId, id]);
+            email, phone, national_document, joined_on::text AS joined_on, ends_on::text AS ends_on FROM centers.members WHERE center_id = $1 AND id = $2`, [centerId, id]);
           if (!rows.length) throw new CentersError(404, 'not-found', 'not found');
           return { member: memberDto(rows[0], context.capabilities) };
         });

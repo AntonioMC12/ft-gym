@@ -6,6 +6,8 @@ import { centersStrings } from './modules/centers.js'
 
 export const PT_BR_OVERRIDES = {
   ...centersStrings('pt'),
+  'Check the member details.': 'Confira os dados do sócio.',
+  'Duplicate member in this center.': 'Já existe um sócio com estes dados neste centro.',
   'Manage centers': 'Gerenciar centros',
   'Center address': 'Endereço do centro',
   'Contact email': 'Email de contato',

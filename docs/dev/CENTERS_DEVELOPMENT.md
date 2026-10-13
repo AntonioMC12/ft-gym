@@ -1,6 +1,6 @@
 # Desarrollo del módulo de centros
 
-Entrega actual: infraestructura, aislamiento SQL, centros, responsables y staff con panel en Ajustes. Rama: `codex/centers-module`. Apagado por defecto; cuentas y entrenamiento siguen en JSON. Socios y cobros pendientes. Consultar CENTERS_PROGRESS para evidencia y siguiente tarea.
+Entrega actual: infraestructura, aislamiento SQL, centros, responsables, staff y alta/ficha/listado paginado de socios sin cuenta. Rama: `codex/centers-module`. Apagado por defecto; cuentas y entrenamiento siguen en JSON. Transiciones, invitaciones y cobros pendientes. Consultar CENTERS_PROGRESS para evidencia y siguiente tarea.
 
 Con `CENTERS_ENABLED=1`, las cuentas enumeradas en `CENTERS_SUPERADMIN_UIDS` pueden crear centros desde Ajustes → Gestionar centros. Deben existir y estar habilitadas; `user.admin` no concede este permiso. El asistente permite draft sin responsable; asignar una cuenta existente habilitada lo activa. Responsables gestionan configuración y trainers de sus centros, sin administración técnica global. El estado y permisos administrativos nunca se exportan con entrenamiento.
 
@@ -32,7 +32,7 @@ La migración 001 añade metadatos y marcador development/test/production. Ejecu
 
 Fuera de Compose se usan CENTERS_DATABASE_URL para runtime y CENTERS_MIGRATION_DATABASE_URL para migrar. No existe fallback del runtime al migrador. Compose suministra HOST/PORT/NAME/USER/PASSWORD separados, codificados una sola vez para soportar caracteres especiales.
 
-`GET /api/config` omite centers al estar apagado; activo anuncia `{ enabled: true, stage: "foundation" }`, sin consultar SQL. `GET /api/centers/status` devuelve 404 apagado, 401 sin sesión vigente, 200 si rol/esquema son compatibles y 503 genérico si SQL/configuración/migración no están disponibles. No expone DSN, permisos ficticios o datos de negocio. `/api/data` sigue independiente.
+`GET /api/config` omite centers al estar apagado; activo anuncia `{ enabled: true, stage: "centers" }`, sin consultar SQL. `GET /api/centers/status` devuelve 404 apagado, 401 sin sesión vigente, 200 si rol/esquema son compatibles y 503 genérico si SQL/configuración/migración no están disponibles. No expone DSN, permisos ficticios o datos de negocio. `/api/data` sigue independiente.
 
 F2 añade /api/centers/me, la ficha operativa /api/centers/member y reconciliación de referencias. Las capacidades globales requieren CENTERS_SUPERADMIN_UIDS explícito y no se deducen de user.admin. El admin técnico heredado sigue siendo una autoridad global de confianza, distinta del responsable; ningún rol local lo activa.
 

@@ -246,7 +246,7 @@ main.api-main .lead { color: var(--fg-2); max-width: 58ch; margin: 14px 0 0; fon
   <p class="api-facts">
     <span>OpenAPI 3.1.0</span>
     <span>openGym v1.4.1</span>
-    <span>84 endpoints</span>
+    <span>87 endpoints</span>
     <span>AGPL-3.0-or-later</span>
   </p>
 
@@ -296,6 +296,170 @@ main.api-main .lead { color: var(--fg-2); max-width: 58ch; margin: 14px 0 0; fon
   <h2>Centers</h2>
   <p class="sub">Opt-in centers module. Tenant-scoped center administration with separate platform authorization.</p>
   <div class="eps">
+
+<details class="ep" id="op-listCenterMembers">
+  <summary>
+    <span class="m get">GET</span>
+    <span class="ep-path"><code>/api/centers/members</code></span>
+    <span class="ep-chev" aria-hidden="true"></span>
+    <span class="ep-sum">Paginated member list within the selected center</span>
+  </summary>
+  <div class="ep-body">
+<p>Requires members.read or members.operational.read. Trainers receive only operational fields; managers also receive contact and document fields. Literal name/number search, stable created_at/id keyset order. Cursor is bound to account, center and filters. Platform allowlist alone does not grant member access.</p>
+    <p class="ep-auth"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="4" y="11" width="16" height="10" rx="2.5"/><path d="M8 11V7a4 4 0 0 1 8 0v4"/></svg><span>Requires a session: the cookie set at sign-in, or <code>Authorization: Bearer &lt;token&gt;</code> from mobile-app pairing.</span></p>
+<p class="ep-h">Query parameters</p><div class="ptab">
+  <div class="prow">
+    <span class="p-name">centerId<em class="p-req" title="required">required</em></span>
+    <span class="p-type">string</span>
+    <span class="p-desc"></span>
+  </div>
+  <div class="prow">
+    <span class="p-name">query</span>
+    <span class="p-type">string <span class="p-hint">(&le; 120 chars)</span></span>
+    <span class="p-desc"></span>
+  </div>
+  <div class="prow">
+    <span class="p-name">state</span>
+    <span class="p-type">&quot;preactive&quot; | &quot;active&quot; | &quot;frozen&quot; | &quot;ended&quot;</span>
+    <span class="p-desc"></span>
+  </div>
+  <div class="prow">
+    <span class="p-name">limit</span>
+    <span class="p-type">integer <span class="p-hint">(1&ndash;100, default 50)</span></span>
+    <span class="p-desc"></span>
+  </div>
+  <div class="prow">
+    <span class="p-name">cursor</span>
+    <span class="p-type">string <span class="p-hint">(&le; 2000 chars)</span></span>
+    <span class="p-desc"></span>
+  </div>
+</div>
+
+    <p class="ep-h">Responses</p>
+    <div class="ptab">
+  <div class="prow rrow">
+    <span class="r-code s2">200</span>
+    <span class="p-desc">Role-filtered page and next cursor, null at the end.<span class="r-sig">{ members: object[], nextCursor: string | null }</span></span>
+  </div>
+  <div class="prow rrow">
+    <span class="r-code s4">400</span>
+    <span class="p-desc">Invalid filter or cursor</span>
+  </div>
+  <div class="prow rrow">
+    <span class="r-code s4">401</span>
+    <span class="p-desc">No current session.</span>
+  </div>
+  <div class="prow rrow">
+    <span class="r-code s4">403</span>
+    <span class="p-desc">Insufficient capability within accessible center.</span>
+  </div>
+  <div class="prow rrow">
+    <span class="r-code s4">404</span>
+    <span class="p-desc">Module off or center not accessible.</span>
+  </div>
+  <div class="prow rrow">
+    <span class="r-code s4">409</span>
+    <span class="p-desc">Center inactive.</span>
+  </div>
+  <div class="prow rrow">
+    <span class="r-code s5">503</span>
+    <span class="p-desc">Centers unavailable.</span>
+  </div>
+    </div>
+  </div>
+</details>
+
+<details class="ep" id="op-createCenterMember">
+  <summary>
+    <span class="m post">POST</span>
+    <span class="ep-path"><code>/api/centers/members/create</code></span>
+    <span class="ep-chev" aria-hidden="true"></span>
+    <span class="ep-sum">Create a preactive member without a linked account</span>
+  </summary>
+  <div class="ep-body">
+<p>Requires members.manage in an active center. Allocates a member number under the shared center lock, audits without private fields and persists the idempotent result. Equal actor/requestId/content replay the original response; changed content conflicts. Email/document uniqueness is local to the center. No account is linked or activated; joinedOn uses the center time zone. State changes belong to a separate workflow.</p>
+    <p class="ep-auth"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="4" y="11" width="16" height="10" rx="2.5"/><path d="M8 11V7a4 4 0 0 1 8 0v4"/></svg><span>Requires a session: the cookie set at sign-in, or <code>Authorization: Bearer &lt;token&gt;</code> from mobile-app pairing.</span></p>
+
+<p class="ep-h">Request body <span class="p-hint">(JSON)</span></p>
+    <p class="ep-h">Responses</p>
+    <div class="ptab">
+  <div class="prow rrow">
+    <span class="r-code s2">200</span>
+    <span class="p-desc">Created member projection</span>
+  </div>
+  <div class="prow rrow">
+    <span class="r-code s4">400</span>
+    <span class="p-desc">Invalid input or unexpected account/state/privilege field.</span>
+  </div>
+  <div class="prow rrow">
+    <span class="r-code s4">401</span>
+    <span class="p-desc">No current session.</span>
+  </div>
+  <div class="prow rrow">
+    <span class="r-code s4">403</span>
+    <span class="p-desc">Insufficient capability.</span>
+  </div>
+  <div class="prow rrow">
+    <span class="r-code s4">404</span>
+    <span class="p-desc">Module off or center not accessible.</span>
+  </div>
+  <div class="prow rrow">
+    <span class="r-code s4">409</span>
+    <span class="p-desc">Duplicate local contact/document</span>
+  </div>
+  <div class="prow rrow">
+    <span class="r-code s5">503</span>
+    <span class="p-desc">Centers unavailable.</span>
+  </div>
+    </div>
+  </div>
+</details>
+
+<details class="ep" id="op-updateCenterMember">
+  <summary>
+    <span class="m post">POST</span>
+    <span class="ep-path"><code>/api/centers/members/update</code></span>
+    <span class="ep-chev" aria-hidden="true"></span>
+    <span class="ep-sum">Update member contact fields with optimistic version</span>
+  </summary>
+  <div class="ep-body">
+<p>Full contact snapshot; omitted optional fields clear them. Does not change membership state, dates, account links or training.</p>
+    <p class="ep-auth"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="4" y="11" width="16" height="10" rx="2.5"/><path d="M8 11V7a4 4 0 0 1 8 0v4"/></svg><span>Requires a session: the cookie set at sign-in, or <code>Authorization: Bearer &lt;token&gt;</code> from mobile-app pairing.</span></p>
+
+<p class="ep-h">Request body <span class="p-hint">(JSON)</span></p>
+    <p class="ep-h">Responses</p>
+    <div class="ptab">
+  <div class="prow rrow">
+    <span class="r-code s2">200</span>
+    <span class="p-desc">Updated role-filtered member with incremented version.</span>
+  </div>
+  <div class="prow rrow">
+    <span class="r-code s4">400</span>
+    <span class="p-desc">Invalid input or unexpected field.</span>
+  </div>
+  <div class="prow rrow">
+    <span class="r-code s4">401</span>
+    <span class="p-desc">No current session.</span>
+  </div>
+  <div class="prow rrow">
+    <span class="r-code s4">403</span>
+    <span class="p-desc">Insufficient capability.</span>
+  </div>
+  <div class="prow rrow">
+    <span class="r-code s4">404</span>
+    <span class="p-desc">Module off or member outside accessible center.</span>
+  </div>
+  <div class="prow rrow">
+    <span class="r-code s4">409</span>
+    <span class="p-desc">Version conflict</span>
+  </div>
+  <div class="prow rrow">
+    <span class="r-code s5">503</span>
+    <span class="p-desc">Centers unavailable.</span>
+  </div>
+    </div>
+  </div>
+</details>
 
 <details class="ep" id="op-getCenterDetail">
   <summary>
@@ -3873,6 +4037,39 @@ main.api-main .lead { color: var(--fg-2); max-width: 58ch; margin: 14px 0 0; fon
        is <b>representative, not enforced</b>: the server stores it opaquely and the app
        grows it over time.</p>
     <div class="eps">
+
+<details class="ep sch" id="schema-MemberContactFields">
+  <summary>
+    <span class="sch-name"><code>MemberContactFields</code></span>
+    <span class="ep-chev" aria-hidden="true"></span>
+    <span class="ep-sum"></span>
+  </summary>
+  <div class="ep-body">
+
+<div class="ptab">
+  <div class="prow">
+    <span class="p-name">name<em class="p-req" title="required">required</em></span>
+    <span class="p-type">string <span class="p-hint">(&le; 120 chars)</span></span>
+    <span class="p-desc"></span>
+  </div>
+  <div class="prow">
+    <span class="p-name">email</span>
+    <span class="p-type">string | null <span class="p-hint">(&le; 254 chars)</span></span>
+    <span class="p-desc">Optional contact email; never proof of account ownership.</span>
+  </div>
+  <div class="prow">
+    <span class="p-name">phone</span>
+    <span class="p-type">string | null <span class="p-hint">(&le; 40 chars)</span></span>
+    <span class="p-desc"></span>
+  </div>
+  <div class="prow">
+    <span class="p-name">nationalDocument</span>
+    <span class="p-type">string | null <span class="p-hint">(&le; 40 chars)</span></span>
+    <span class="p-desc">Optional document; normalized uniqueness only within a center.</span>
+  </div>
+</div>
+  </div>
+</details>
 
 <details class="ep sch" id="schema-CenterCreateInput">
   <summary>

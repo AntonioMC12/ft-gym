@@ -31,6 +31,12 @@ Los comandos actuales y los futuros se distinguen en el roadmap. Ejecutar tests 
 
 Textos nuevos usan i18n y locales existentes. La lógica de entrenamiento debe vivir en helpers de `frontend/src/lib/` con tests cercanos. No alterar recursos generados o multimedia del catálogo al implementar gestión.
 
+## Preferencia de reutilización del usuario
+
+En las siguientes iteraciones y sesiones, revisar los componentes existentes antes de crear controles o layouts de centros. Reutilizar ui.jsx (Button, campos, SearchField, Switch, Section/Row, SelectRow, Segmented y Check), confirmSheet y useUI.toast. Para listas extensas, adaptar el patrón de auditoría de Admin y useAutoMore con paginación real en API. Conservar tokens CSS e i18n. Extraer componentes internos solo cuando tengan un segundo uso concreto; no copiar acciones globales de Admin al ámbito de centros.
+
+Mantener useCenters en memoria y separado de S. Los helpers de presentación de fechas son reutilizables; dinero, vencimientos, permisos y acceso QR necesitan dominio propio. Esta preferencia fue indicada expresamente por el usuario el 13 de octubre de 2026; no autoriza despliegues ni operaciones productivas.
+
 No ejecutar tests contra datos reales ni copiar secretos a informes. No usar `compose.demo.yml` como producción. Antes de cobros reales, despliegues o migraciones sobre datos reales, comprobar que están autorizados y que se cumplen los criterios operativos del roadmap. La guía no añade confirmaciones para desarrollo local reversible ya autorizado.
 
 ## Referencias

@@ -47,6 +47,8 @@ Design notes for specific features, kept next to the code they describe:
 | [Set types](dev/SET_TYPES.md) | Drop sets and rest-pause: the set-row model and how totals are counted |
 | [Workout views](dev/LIST_VIEW.md) | The cards, list and compact layouts of the workout screen |
 | [Combine routines](dev/COMBINE_ROUTINES.md) | Spec for running more than one routine in a session |
+| [Integración de centros](dev/CENTERS_ROADMAP.md) | Roadmap para Codex: Docker/PostgreSQL, permisos por centro, socios, cuotas, cobros y ampliaciones |
+| [Progreso del módulo de centros](dev/CENTERS_PROGRESS.md) | Estado de tareas, criterios de cierre y evidencia para continuar la implementación |
 
 ## Still stuck?
 

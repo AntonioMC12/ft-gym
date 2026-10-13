@@ -9,6 +9,7 @@ import {createInvitation,listInvitations,revokeInvitation,inspectInvitation,acce
 import {createMembershipPlan,reviseMembershipPlan,duplicateMembershipPlan,archiveMembershipPlan,listMembershipPlans,getMembershipPlan,planListOptions} from './services/membership-plans.js';
 import {createSubscription,changeSubscription,cancelSubscription,listSubscriptions} from './services/subscriptions.js';
 import {previewBilling} from './services/billing-preview.js';
+import {generateReceipt,listReceipts,receiptListOptions} from './services/receipts.js';
 
 // Inject the same session and response helpers used by the rest of node:http.
 export function centersRoutes({ config, database, json, readSession, readBody, accountLocks, lookupAccount,
@@ -39,6 +40,13 @@ export function centersRoutes({ config, database, json, readSession, readBody, a
     }catch(error){return failure(res,error);}
   };
   return {
+    'POST /api/centers/receipts/generate': mutate(false,(context,body)=>generateReceipt(context,body,{platform:isPlatformUser(config,context.user)})),
+    'GET /api/centers/receipts': async(req,res)=>{
+      const user=guard(req,res);if(!user)return;const sv=user.sv||0;
+      const params=new URL(req.url,'http://x').searchParams,centerId=params.get('centerId'),memberId=params.get('memberId');
+      if(!recordId(centerId)||!recordId(memberId))return json(res,404,{error:'not found',code:'not-found'});
+      try{const result=await listReceipts(database,user.id,centerId,memberId,receiptListOptions(params),{platform:isPlatformUser(config,user)});if(!current(req,user,sv))return json(res,401,{error:'not signed in'});return json(res,200,result);}catch(error){return failure(res,error);}
+    },
     'POST /api/centers/billing/preview': mutate(false,(context,body)=>previewBilling(context,body,{platform:isPlatformUser(config,context.user)})),
     'POST /api/centers/subscriptions/create': mutate(false,(context,body)=>createSubscription(context,body,{platform:isPlatformUser(config,context.user)})),
     'POST /api/centers/subscriptions/change': mutate(false,(context,body)=>changeSubscription(context,body,{platform:isPlatformUser(config,context.user)})),

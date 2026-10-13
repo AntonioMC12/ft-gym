@@ -7,8 +7,8 @@
 - Trabajo actual autorizado: continuar implementación hasta que reste el 5% del presupuesto consumible; después guardar el punto de continuación y apagar el ordenador, por orden explícita del usuario en esta sesión. Esta orden de apagado se aplica al cierre de esta ejecución, no a sesiones futuras.
 - Rama: `codex/centers-module`, creada desde `53ef0baf`. F0-F3 verificadas en entorno ficticio. Commits: `75e1160d`, `433764a5`, `24cb5a42`.
 - Guía: [CENTERS_ROADMAP.md](CENTERS_ROADMAP.md). Instrucciones: [AGENTS.md](../../AGENTS.md).
-- Siguiente tarea: **C19 / F6**, recibos inmutables y generación manual idempotente por periodo.
-- Último hito cerrado: C18, previsualización exacta de dinero/calendario/impuestos con política explícita. No hay recibos ni cobros todavía.
+- Siguiente tarea: **C19 / F6 en progreso**, base/API de recibos añadidas; falta interfaz de generación/listado y verificación visual para cerrar la tarea.
+- Último hito cerrado: C18, previsualización exacta de dinero/calendario/impuestos con política explícita. C19 añade recibos ficticios por API en la base test; interfaz y pagos pendientes.
 - Pruebas C18: 47 unitarias API, 66 frontend/controles, 3 OpenAPI y 10 SQL+HTTP reales pasan. Comparativa general y comprobación visual registradas abajo.
 
 Este registro contiene el estado de ejecución; el roadmap define requisitos y dependencias. La autorización vigente siempre procede del usuario, no de una casilla de este archivo.
@@ -48,7 +48,7 @@ Estados permitidos: `todo`, `in_progress`, `done`, `blocked`. Una tarea done nec
 | C16 | F5 | Cuotas versionadas | done |
 | C17 | F5 | Suscripciones | done |
 | C18 | F5 | Cálculo económico | done |
-| C19 | F6 | Recibos idempotentes | todo |
+| C19 | F6 | Recibos idempotentes | in_progress |
 | C20 | F6 | Pagos y aplicaciones | todo |
 | C21 | F6 | Deuda y calendario | todo |
 | C22 | F6 | Área del socio | todo |
@@ -261,3 +261,23 @@ No guardar credenciales, bodies privados, volcados de socios, IBAN, tarjetas o r
 - Visual localhost, socio ficticio: cuota 34,99 EUR, inicio 13 octubre, periodo octubre 31 días, activo 19, descuento 10%; neto 15,95 + impuestos 3,35 = total 19,30 EUR. No se emitió recibo ni se cobró. Viewport 390px: contenido 375px sin desbordamiento, restaurado al terminar. Evidencia externa al repo: informes/centros-c18-previsualizacion-movil.jpg.
 - C18 done; siguiente C19. La orden de apagado se cumplirá al alcanzar 5% de presupuesto restante, tras guardar el estado verificado.
 - Resultado final C18 con cuatro workers: 413 archivos, 398 pasan/15 fallan; 5098 tests, 5044 pasan/54 fallan, exactamente los fallos previos del baseline. El timeout multimedia desaparece al limitar concurrencia; caso adicional de precarga pasa. Sin regresiones nuevas identificadas.
+
+### C19 / F6 en progreso: recibos, base y API
+
+- Migración 010: receipts con FK compuesta centro/socio/contrato, unicidad centro/contrato/periodo/concepto, suma neto+impuesto=total positivo, snapshot JSON, vencimiento explícito y FORCE RLS. Grants SELECT/INSERT, sin UPDATE/DELETE ni booleano paid. No factura electrónica o transmisión externa.
+- POST receipts/generate usa quote SQL de C18 y requestId; nunca acepta importe del cliente. Periodo no futuro y vencimiento desde inicio. Un recibo por clave natural aun con dos actores/requestId; reintento devuelve snapshot original, sin recalcular después de baja/pausa/cambio de cuota. Vencimiento distinto produce conflicto. Importe cero devuelve skipped/no-charge sin recibo.
+- Preview devuelve quoteHash. Generación admite expectedQuoteHash opcional, lo compara con cálculo nuevo del servidor y rechaza quote-changed si ya no coincide; no autoriza importes del cliente. La futura UI debe enviarlo al confirmar. Un recibo ya existente conserva su snapshot y devuelve alreadyExists, aunque ahora el preview sea distinto. Rectificaciones/ajustes de importes emitidos necesitan ledger posterior, no edición destructiva.
+- GET receipts por socio/centro usa cursor compartido y límite 30-100; solo billing.read. Snapshot conserva cálculo/condiciones y nombre/número de socio en SQL, nunca DNI/IBAN ni S/exportación personal. Auditoría de creación usa solo IDs/periodo.
+- Verificación: centers-receipts-sql.log 11/11 reales, con concurrencia, reintentos, cambio de vencimiento, snapshot inmutable, política de cero, digest obsoleto, RLS directa, unicidad SQL y FK socio/contrato; centers-receipts-unit.log 48/48 y OpenAPI 3/3. Suite API completa 648 tests, 621 pasan/27 fallan, pendiente comparación final a continuación. Frontend no cambia desde C18 y su suite final mantiene 54 fallos previos. 107 rutas documentadas; imagen de pruebas reconstruida. MCP no modificado.
+- C19 NO está done: falta componente de generación/listado, traducciones, validación visual y pruebas UI. C20 pagos/aplicaciones/devoluciones y C21 deuda siguen pendientes. Recibos creados únicamente por tests en base marcada test; no generación sobre datos reales ni cobros.
+
+#### Continuación concreta de C19
+
+1. Añadir wrappers en lib/centers-api.js y componente Receipts en ficha de socio con billing.read/billing.manage; reutilizar Section/Row/SearchField/confirmSheet/useAutoMore. Lista con cursor real, reseteo por cuenta/centro/socio y sin persistir snapshot en S.
+2. Antes de generar, leer preview del contrato/periodo y mostrar neto/impuesto/total y vencimiento al responsable. Confirmación comparte quoteHash del servidor. Mantener requestId/cuerpo idénticos si falla la red; quote-changed exige volver a mostrar el nuevo cálculo. No mostrar éxito inventado ante timeout.
+3. Mostrar alreadyExists con snapshot emitido, skipped sin crear saldo, y nunca permitir editar total/paid. Separar recibos pendientes de futuras aplicaciones C20: todavía no afirmar que se cobró.
+4. Verificar listado y generación con cuentas ficticias; probar duplicado/reintento, pérdida de capacidad y respuesta tardía de otro centro. Ejecutar suites/build/locales; frontend completo con cuatro workers evita timeout de archivo multimedia bajo carga.
+5. Cerrar C19 solo cuando la UI y su recorrido visual estén verificados; después C20. Para volver a levantar, construir imagen test con SCHEMA_VERSION 010 y ejecutar preview.mjs contra compose.centers.test.yml, API loopback3011 y Vite5178. Migraciones 001-010 ya aplicadas en test: no editarlas, checksums fijados.
+- Cierre de esta ejecución: umbral 95% usado/5% restante medido con get_usage_limits. No iniciar más funcionalidades. C19 queda in_progress. Comparativa final API: 648/621 pasan/27 fallan, sin nuevos casos respecto al baseline. La prueba FK final necesitó una fixture con periodo distinto para no disparar antes la unicidad; ningún cambio de permisos o restricciones, y suite SQL final 11/11.
+- Commits completos de esta ejecución: C14 4e2f5ae7; C15 4f1db6c9; C16 d83bb995; C17 156c4158; C18 ff118da0. C19 parcial se guarda aparte con evidencia y continuación. Rama local conservada, sin push/merge/despliegue ni datos reales. Cambios previos de demo no se han incluido ni revertido.
+- La orden explícita de apagar el ordenador pertenece solo a esta ejecución. Tras guardar se detendrán contenedores de prueba propios conservando volumen y se solicitará shutdown sin forzar cierre de otras aplicaciones. No repetir apagado automáticamente en otra sesión. El registro operativo del intento estará fuera del repo, en informes del workspace.

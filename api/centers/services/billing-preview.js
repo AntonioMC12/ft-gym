@@ -4,6 +4,7 @@ import {membershipDate} from '../domain/membership-transitions.js';
 import {billingPeriodStartFor,billingPeriod} from '../domain/billing-calendar.js';
 import {previewCharge} from '../domain/charge-preview.js';
 import {businessTransaction} from './context.js';
+import {commandHash} from './commands.js';
 
 // Also reusable inside the receipt transaction in C19: no nested connection, no HTTP fields trusted.
 export async function previewForContract(client,centerId,memberId,id,requestedStart) {
@@ -28,5 +29,5 @@ export async function previewForContract(client,centerId,memberId,id,requestedSt
 }
 export function previewBilling({database,user,checkSession},raw,{platform=false}={}) {
   objectBody(raw,['centerId','memberId','id','periodStart']);const centerId=idField(raw.centerId),memberId=idField(raw.memberId),id=idField(raw.id),periodStart=raw.periodStart==null?undefined:membershipDate(raw.periodStart);
-  return businessTransaction(database,user.id,centerId,'billing.read',async client=>{const quote=await previewForContract(client,centerId,memberId,id,periodStart);checkSession();return {quote};},{platform,allowInactive:platform});
+  return businessTransaction(database,user.id,centerId,'billing.read',async client=>{const quote=await previewForContract(client,centerId,memberId,id,periodStart);checkSession();return {quote,quoteHash:commandHash(quote)};},{platform,allowInactive:platform});
 }

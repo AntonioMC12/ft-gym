@@ -1,0 +1,40 @@
+import {test} from 'node:test';
+import assert from 'node:assert/strict';
+import {randomBytes} from 'node:crypto';
+import {isolatedDatabase,startHttp} from './helpers.mjs';
+import {createCentersDatabase} from '../../centers/db.js';
+test('receipt generation snapshots exact amounts once under concurrent natural-key and request-id retries',async t=>{
+  const {app,migrator}=await isolatedDatabase(),db=createCentersDatabase({enabled:true,databaseUrl:app});t.after(async()=>{await db.close();await migrator.end()});
+  const p='rc_'+randomBytes(5).toString('hex'),root=p+'_root',manager=p+'_manager',trainer=p+'_trainer',other=p+'_other';
+  const h=await startHttp(t,{app,superadminUids:[root],users:[root,manager,trainer,other].map(id=>({id,name:id}))});
+  const req=async(path,uid,body)=>{const r=await fetch(h.base+path,{headers:h.headers(uid),...(body?{method:'POST',body:JSON.stringify(body)}:{})});return {status:r.status,body:await r.json()}};
+  const center=(await req('/api/platform/centers/create',root,{name:p,managerUid:manager,requestId:p+'_center'})).body.center.id;
+  const member=(await req('/api/centers/members/create',manager,{centerId:center,name:'Synthetic receipt',requestId:p+'_member'})).body.member;
+  const plan=(await req('/api/centers/plans/create',manager,{centerId:center,name:'Synthetic fee',priceMinor:'3100',currency:'EUR',intervalMonths:1,priceIncludesTax:true,taxBasisPoints:2100,proration:'actual-days',requestId:p+'_plan'})).body.plan;
+  const today=(await req(`/api/centers/member?centerId=${center}&id=${member.id}`,manager)).body.today;
+  const contract=(await req('/api/centers/subscriptions/create',manager,{centerId:center,memberId:member.id,memberVersion:1,priceVersionId:plan.priceVersionId,effectiveOn:today,requestId:p+'_contract'})).body.subscriptions[0];
+  const preview=(await req('/api/centers/billing/preview',manager,{centerId:center,memberId:member.id,id:contract.id,periodStart:contract.anchorOn})).body;
+  const input={centerId:center,memberId:member.id,subscriptionId:contract.id,periodStart:contract.anchorOn,dueOn:today,requestId:p+'_generate',expectedQuoteHash:preview.quoteHash};
+  const outcomes=await Promise.all([req('/api/centers/receipts/generate',manager,input),req('/api/centers/receipts/generate',root,{...input,requestId:p+'_parallel'})]);assert.ok(outcomes.every(row=>row.status===200));assert.equal(outcomes[0].body.receipt.id,outcomes[1].body.receipt.id);
+  const receipt=outcomes[0].body.receipt;assert.equal((await req('/api/centers/receipts/generate',manager,input)).body.receipt.id,receipt.id);
+  assert.equal((await req('/api/centers/receipts/generate',manager,{...input,dueOn:'2099-01-01'})).status,409);
+  assert.equal((await req('/api/centers/receipts/generate',manager,{...input,dueOn:'2099-01-01',requestId:p+'_differentdue'})).body.code,'receipt-exists');
+  assert.equal((await req('/api/centers/receipts/generate',manager,{...input,priceMinor:'1'})).status,400);
+  await req('/api/centers/staff/assign',root,{centerId:center,version:1,accountUid:trainer});
+  const query=`/api/centers/receipts?centerId=${center}&memberId=${member.id}`;assert.equal((await req(query,manager)).body.receipts.length,1);assert.equal((await req(query,trainer)).status,403);assert.equal((await req(query,other)).status,404);
+  const trainerRows=await db.transaction({uid:trainer,centerId:center},client=>client.query('SELECT id FROM centers.receipts WHERE center_id=$1',[center]));assert.equal(trainerRows.rows.length,0);
+  await assert.rejects(db.platformTransaction(root,client=>client.query(`INSERT INTO centers.receipts(id,center_id,member_id,subscription_id,period_start,period_end,due_on,currency,net_minor,tax_minor,total_minor,snapshot,actor_uid)
+    SELECT $2,center_id,member_id,subscription_id,period_start,period_end,due_on,currency,net_minor,tax_minor,total_minor,snapshot,$3 FROM centers.receipts WHERE id=$1`,[receipt.id,p+'_directduplicate',root]),center),{code:'23505'});
+  await req('/api/centers/members/transition',manager,{centerId:center,id:member.id,version:2,action:'freeze',effectiveOn:today,reason:'Synthetic pause after issue',requestId:p+'_freeze'});
+  const original=(await req('/api/centers/receipts/generate',manager,{...input,requestId:p+'_naturalretry'})).body.receipt;assert.equal(original.totalMinor,receipt.totalMinor);assert.deepEqual(original.snapshot,receipt.snapshot);
+  await assert.rejects(db.platformTransaction(root,client=>client.query('UPDATE centers.receipts SET total_minor=1 WHERE id=$1',[receipt.id]),center),{code:'42501'});
+  await assert.rejects(db.platformTransaction(root,client=>client.query('DELETE FROM centers.receipts WHERE id=$1',[receipt.id]),center),{code:'42501'});
+  const empty=(await req('/api/centers/members/create',manager,{centerId:center,name:'No charge',requestId:p+'_empty'})).body.member;
+  await assert.rejects(db.platformTransaction(root,client=>client.query(`INSERT INTO centers.receipts(id,center_id,member_id,subscription_id,period_start,period_end,due_on,currency,net_minor,tax_minor,total_minor,snapshot,actor_uid)
+    SELECT $2,center_id,$3,subscription_id,period_start+1,period_end,due_on+1,currency,net_minor,tax_minor,total_minor,snapshot,$4 FROM centers.receipts WHERE id=$1`,[receipt.id,p+'_wrongmember',empty.id,root]),center),{code:'23503'});
+  const emptyContract=(await req('/api/centers/subscriptions/create',manager,{centerId:center,memberId:empty.id,memberVersion:1,priceVersionId:plan.priceVersionId,effectiveOn:today,requestId:p+'_emptycontract'})).body.subscriptions[0];
+  await req('/api/centers/members/transition',manager,{centerId:center,id:empty.id,version:2,action:'freeze',effectiveOn:today,reason:'Fully paused',requestId:p+'_emptypause'});
+  assert.equal((await req('/api/centers/receipts/generate',manager,{...input,memberId:empty.id,subscriptionId:emptyContract.id,requestId:p+'_stalepreview'})).body.code,'quote-changed');
+  assert.equal((await req('/api/centers/receipts/generate',manager,{...input,memberId:empty.id,subscriptionId:emptyContract.id,requestId:p+'_skip',expectedQuoteHash:null})).body.skipped,true);
+  assert.equal((await req(`/api/centers/receipts?centerId=${center}&memberId=${empty.id}`,manager)).body.receipts.length,0);
+});

@@ -165,6 +165,63 @@ security:
   - bearerAuth: []
 
 paths:
+  /api/centers/receipts/generate:
+    post:
+      tags: [centers]
+      operationId: generateCenterReceipt
+      summary: Generate one immutable membership receipt for a contract period
+      description: >-
+        Requires billing.manage or configured platform. No client money fields accepted. Selected
+        center/member/contract and original calendar boundary validated; future period starts refused.
+        Exact quote, member name/number and calculationVersion are snapshotted in SQL. Unique
+        center/subscription/period/concept plus center lock prevents duplicates under concurrency.
+        Identical requestId returns committed result; another requestId for the same receipt returns
+        alreadyExists with the original snapshot. Different due date conflicts. No recalculation of
+        issued history after a pause/plan change; adjustments belong to later ledger work.
+        Zero charges return skipped/no-charge without creating a receipt. No payment is recorded,
+        no paid flag and no electronic invoice or external transmission. C19 frontend remains pending.
+      security: [{ session: [] }, { bearer: [] }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties: false
+              required: [centerId, memberId, subscriptionId, periodStart, dueOn, requestId]
+              properties:
+                centerId: { type: string }
+                memberId: { type: string }
+                subscriptionId: { type: string }
+                periodStart: { type: string, format: date }
+                dueOn: { type: string, format: date, description: Explicit date at or after period start. }
+                requestId: { type: string, pattern: '^[a-zA-Z0-9_-]{8,128}$' }
+                expectedQuoteHash: { type: [string, 'null'], pattern: '^[a-f0-9]{64}$', description: Optional server preview digest; mismatch refuses new issuance with quote-changed. Existing receipts always keep their snapshot. }
+      responses:
+        '200': { description: receipt and optional alreadyExists, or skipped true with reason no-charge. }
+        '400': { description: Invalid date, future period or unexpected client money fields. }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { description: Financial management capability unavailable. }
+        '404': { description: Contract inaccessible in selected member/center. }
+        '409': { description: Policy incomplete, canceled contract, idempotency or existing due-date conflict. }
+  /api/centers/receipts:
+    get:
+      tags: [centers]
+      operationId: listCenterReceipts
+      summary: Read immutable receipt snapshots for a selected member
+      description: Requires billing.read or platform; no trainer/other-center financial access. Cursor bound to caller, member and center. Payment state is reserved for the ledger phase.
+      security: [{ session: [] }, { bearer: [] }]
+      parameters:
+        - { name: centerId, in: query, required: true, schema: { type: string } }
+        - { name: memberId, in: query, required: true, schema: { type: string } }
+        - { name: limit, in: query, schema: { type: integer, minimum: 1, maximum: 100, default: 30 } }
+        - { name: cursor, in: query, schema: { type: string, maxLength: 1024 } }
+      responses:
+        '200': { description: receipts and nextCursor; all monetary fields decimal text in minor units. }
+        '400': { description: Invalid pagination or cursor from another context. }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { description: Financial read capability unavailable. }
+        '404': { description: Member inaccessible in selected center. }
   /api/centers/billing/preview:
     post:
       tags: [centers]
@@ -203,6 +260,7 @@ paths:
                 type: object
                 properties:
                   quote: { $ref: '#/components/schemas/ChargePreview' }
+                  quoteHash: { type: string, pattern: '^[a-f0-9]{64}$', description: Server digest for optional receipt confirmation guard. }
         '400': { description: Invalid calendar boundary or injected price/conditions. }
         '401': { $ref: '#/components/responses/Unauthorized' }
         '403': { description: Financial read capability unavailable. }

@@ -23,6 +23,11 @@ it('sends the selected immutable price, current member version and exact discoun
 it('successful activation passes the authoritative member and history to its parent',async()=>{
   const result={member:{...member,state:'active',version:2},today,changes:[],subscriptions:[]};centerCommand.mockResolvedValue(result);await render();await click('Save');expect(changed).toHaveBeenCalledWith(result)
 })
+it('prefills the existing plan and discount when changing a contract instead of silently removing them',async()=>{
+  const row={id:'active',planId:'existingPlan',priceMinor:'2999',currency:'EUR',startsOn:today,status:'active',discountBasisPoints:1250,discountReason:'Existing reason'}
+  centerSubscriptions.mockResolvedValue({member:{...member,state:'active'},today,changes:[],subscriptions:[row]});centerPlans.mockResolvedValue({plans:[{...plan,id:'different',priceVersionId:'otherPrice'},{...plan,id:'existingPlan'}],nextCursor:null});centerCommand.mockRejectedValue(new Error('temporary'));await render('a',{...member,state:'active'});await click('Save')
+  expect(centerCommand).toHaveBeenCalledWith('/api/centers/subscriptions/change',expect.objectContaining({id:'active',priceVersionId:'price1',discountBasisPoints:1250,discountReason:'Existing reason'}))
+})
 it('scheduled contracts offer cancellation, keep the retry id and hide another assignment',async()=>{
   const row={id:'future',name:'Future fee',priceMinor:'2999',currency:'EUR',discountBasisPoints:0,startsOn:'2026-10-20',status:'scheduled',canCancel:true};centerSubscriptions.mockResolvedValue({member,today,changes:[],subscriptions:[row]});centerCommand.mockRejectedValue(new Error('temporary'));await render()
   expect(host.querySelector('form')).toBeNull();await click('Cancel scheduled change');await click('Cancel scheduled change');expect(centerCommand.mock.calls[0][1].requestId).toBe(centerCommand.mock.calls[1][1].requestId)

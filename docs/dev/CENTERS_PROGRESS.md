@@ -7,9 +7,9 @@
 - Trabajo actual autorizado: continuar implementación hasta que reste el 5% del presupuesto consumible; después guardar el punto de continuación y apagar el ordenador, por orden explícita del usuario en esta sesión. Esta orden de apagado se aplica al cierre de esta ejecución, no a sesiones futuras.
 - Rama: `codex/centers-module`, creada desde `53ef0baf`. F0-F3 verificadas en entorno ficticio. Commits: `75e1160d`, `433764a5`, `24cb5a42`.
 - Guía: [CENTERS_ROADMAP.md](CENTERS_ROADMAP.md). Instrucciones: [AGENTS.md](../../AGENTS.md).
-- Siguiente tarea: **C18 / F5**, cálculo exacto de dinero, calendario, impuestos y previsualización por periodo.
-- Último hito cerrado: C17, contratos fechados con precio fijado, descuentos, activación y cambios futuros recuperables. No hay recibos ni cobros todavía.
-- Pruebas C17: 40 unitarias API, 62 frontend/controles, 3 OpenAPI y 9 SQL+HTTP reales pasan. Comparativa general y comprobación visual registradas abajo.
+- Siguiente tarea: **C19 / F6**, recibos inmutables y generación manual idempotente por periodo.
+- Último hito cerrado: C18, previsualización exacta de dinero/calendario/impuestos con política explícita. No hay recibos ni cobros todavía.
+- Pruebas C18: 47 unitarias API, 66 frontend/controles, 3 OpenAPI y 10 SQL+HTTP reales pasan. Comparativa general y comprobación visual registradas abajo.
 
 Este registro contiene el estado de ejecución; el roadmap define requisitos y dependencias. La autorización vigente siempre procede del usuario, no de una casilla de este archivo.
 
@@ -47,7 +47,7 @@ Estados permitidos: `todo`, `in_progress`, `done`, `blocked`. Una tarea done nec
 | C15 | F4 | Invitaciones y vinculación | done |
 | C16 | F5 | Cuotas versionadas | done |
 | C17 | F5 | Suscripciones | done |
-| C18 | F5 | Cálculo económico | todo |
+| C18 | F5 | Cálculo económico | done |
 | C19 | F6 | Recibos idempotentes | todo |
 | C20 | F6 | Pagos y aplicaciones | todo |
 | C21 | F6 | Deuda y calendario | todo |
@@ -249,3 +249,15 @@ No guardar credenciales, bodies privados, volcados de socios, IBAN, tarjetas o r
 - Visual localhost: Responsable Pruebas asignó cuota de 34,99 EUR y descuento ficticio 10% a Socio prueba enlace: estado activo con evento de activación. Programó descuento 20% para 1 noviembre y lo canceló: contrato anterior recuperado sin fecha final, cancelación conservada. Evidencia externa al repo: informes/centros-c17-contrato-recuperado.jpg.
 - Fuentes técnicas consultadas: [btree_gist confiable](https://www.postgresql.org/docs/18/btree-gist.html) y [exclusión de rangos](https://www.postgresql.org/docs/18/rangetypes.html#RANGETYPES-CONSTRAINT), documentación primaria de PostgreSQL 18. No se ha cambiado privilegio del runtime ni migrado datos reales.
 - C17 done. C18 siguiente; el 5% restante y apagado se comprobarán antes del cierre de esta ejecución.
+
+### C18 / F5: calendario y previsualización exacta
+
+- Dominio puro money.js, billing-calendar.js y charge-preview.js: céntimos BigInt/texto, redondeo half-up explícito y calculationVersion 1. Periodos mensual/trimestral/semestral/anual mantienen ancla original de día 31 o 29 tras meses cortos. Fechas civiles UTC para diferencia de días, sin deriva por DST; fase de periodicidad validada.
+- Política actual: actual-days prorratea por días activos dentro del contrato; none cobra periodo completo si hay algún día activo, cero si todo está pausado/terminado. Se redondean prorrateo, descuento y luego impuestos. Precio incluido separa neto/impuesto del bruto descontado; excluido añade impuesto al neto descontado. Neto+impuesto=total exacto. Políticas son reglas de desarrollo explícitas/versionadas, sujetas a validación comercial antes de producción; no se presume tipo impositivo legal.
+- API POST billing/preview recibe solo centro/socio/contrato/periodo, nunca precio ni condiciones del cliente. Lee versión fijada en SQL y estado efectivo por historial (último evento por día y último previo, <=367 eventos por periodo anual); omite cancelados. Requiere billing.read; entrenador/otro centro no acceden. Rechaza contrato cancelado o política sin configurar. No crea recibo/pago ni toca entrenamiento.
+- UI en contrato con fecha de periodo, días cobrables, descuento, neto, impuesto y total. Cotización privada en memoria, limpia al cambiar socio/centro/versión. Cambio de cuota precarga plan y descuento actuales, incluyendo motivo; no elimina el descuento al guardar sin editarlo.
+- Verificación: api/centers-billing-preview-unit.log 47/47, centers-billing-preview-sql.log 10/10 reales, frontend/centers-billing-preview-ui.log 66/66 en 13 archivos, OpenAPI 3/3. Build pasa; 18 locales/2378 claves y 1874 cadenas sincronizadas. 105 rutas documentadas.
+- Suite completa API 647 tests, 620 pasan/27 fallan; sin nuevos casos respecto al baseline. Primer frontend completo 413 archivos, 398 pasan/15 fallan, 5097 tests, 5042 pasan/55 fallan (timeout multimedia ya aislado en C15). Tras el ajuste de precarga se repitió la suite con cuatro workers; registrar resultado final a continuación. MCP no modificado.
+- Visual localhost, socio ficticio: cuota 34,99 EUR, inicio 13 octubre, periodo octubre 31 días, activo 19, descuento 10%; neto 15,95 + impuestos 3,35 = total 19,30 EUR. No se emitió recibo ni se cobró. Viewport 390px: contenido 375px sin desbordamiento, restaurado al terminar. Evidencia externa al repo: informes/centros-c18-previsualizacion-movil.jpg.
+- C18 done; siguiente C19. La orden de apagado se cumplirá al alcanzar 5% de presupuesto restante, tras guardar el estado verificado.
+- Resultado final C18 con cuatro workers: 413 archivos, 398 pasan/15 fallan; 5098 tests, 5044 pasan/54 fallan, exactamente los fallos previos del baseline. El timeout multimedia desaparece al limitar concurrencia; caso adicional de precarga pasa. Sin regresiones nuevas identificadas.

@@ -246,7 +246,7 @@ main.api-main .lead { color: var(--fg-2); max-width: 58ch; margin: 14px 0 0; fon
   <p class="api-facts">
     <span>OpenAPI 3.1.0</span>
     <span>openGym v1.4.1</span>
-    <span>104 endpoints</span>
+    <span>105 endpoints</span>
     <span>AGPL-3.0-or-later</span>
   </p>
 
@@ -296,6 +296,69 @@ main.api-main .lead { color: var(--fg-2); max-width: 58ch; margin: 14px 0 0; fon
   <h2>Centers</h2>
   <p class="sub">Opt-in centers module. Tenant-scoped center administration with separate platform authorization.</p>
   <div class="eps">
+
+<details class="ep" id="op-previewCenterCharge">
+  <summary>
+    <span class="m post">POST</span>
+    <span class="ep-path"><code>/api/centers/billing/preview</code></span>
+    <span class="ep-chev" aria-hidden="true"></span>
+    <span class="ep-sum">Preview exact period charges from pinned SQL terms and membership dates</span>
+  </summary>
+  <div class="ep-body">
+<p>Requires billing.read or platform. Client provides only selected center/member/contract and optional period boundary. Default period follows the contract calendar/timezone. Original billing-day anchor survives short months; monthly/quarterly/half-yearly/yearly phases are checked. UTC arithmetic counts civil dates independent of DST. Active days exclude freeze and ended dates, resolve latest same-day event and ignore canceled events. actual-days prorates by days; none charges a full period when at least one day is active, zero when none. Round nonnegative values half-up at proration, discount and tax steps. Included tax is split from discounted gross; excluded tax is added to discounted net. All minor-unit amounts are decimal strings. Tax and proration must be explicitly configured. Returns calculationVersion 1, no receipt/payment.</p>
+    <p class="ep-auth"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="4" y="11" width="16" height="10" rx="2.5"/><path d="M8 11V7a4 4 0 0 1 8 0v4"/></svg><span>Requires a session: the cookie set at sign-in, or <code>Authorization: Bearer &lt;token&gt;</code> from mobile-app pairing.</span></p>
+
+<p class="ep-h">Request body <span class="p-hint">(JSON)</span></p><div class="ptab">
+  <div class="prow">
+    <span class="p-name">centerId<em class="p-req" title="required">required</em></span>
+    <span class="p-type">string</span>
+    <span class="p-desc"></span>
+  </div>
+  <div class="prow">
+    <span class="p-name">memberId<em class="p-req" title="required">required</em></span>
+    <span class="p-type">string</span>
+    <span class="p-desc"></span>
+  </div>
+  <div class="prow">
+    <span class="p-name">id<em class="p-req" title="required">required</em></span>
+    <span class="p-type">string</span>
+    <span class="p-desc"></span>
+  </div>
+  <div class="prow">
+    <span class="p-name">periodStart</span>
+    <span class="p-type">string <span class="p-hint">(date)</span></span>
+    <span class="p-desc">Boundary matching original interval and billing-day anchor.</span>
+  </div>
+</div>
+    <p class="ep-h">Responses</p>
+    <div class="ptab">
+  <div class="prow rrow">
+    <span class="r-code s2">200</span>
+    <span class="p-desc">Balanced read-only charge preview.<span class="r-sig">{ quote: <a href="#schema-ChargePreview">ChargePreview</a> }</span></span>
+  </div>
+  <div class="prow rrow">
+    <span class="r-code s4">400</span>
+    <span class="p-desc">Invalid calendar boundary or injected price/conditions.</span>
+  </div>
+  <div class="prow rrow">
+    <span class="r-code s4">401</span>
+    <span class="p-desc">No session, expired/revoked session, or a disabled account.<span class="r-sig"><code>{&quot;error&quot;:&quot;not signed in&quot;}</code></span></span>
+  </div>
+  <div class="prow rrow">
+    <span class="r-code s4">403</span>
+    <span class="p-desc">Financial read capability unavailable.</span>
+  </div>
+  <div class="prow rrow">
+    <span class="r-code s4">404</span>
+    <span class="p-desc">Contract inaccessible in selected member/center.</span>
+  </div>
+  <div class="prow rrow">
+    <span class="r-code s4">409</span>
+    <span class="p-desc">Canceled contract or billing-policy-required.</span>
+  </div>
+    </div>
+  </div>
+</details>
 
 <details class="ep" id="op-listCenterSubscriptions">
   <summary>
@@ -4869,6 +4932,119 @@ main.api-main .lead { color: var(--fg-2); max-width: 58ch; margin: 14px 0 0; fon
        is <b>representative, not enforced</b>: the server stores it opaquely and the app
        grows it over time.</p>
     <div class="eps">
+
+<details class="ep sch" id="schema-ChargePreview">
+  <summary>
+    <span class="sch-name"><code>ChargePreview</code></span>
+    <span class="ep-chev" aria-hidden="true"></span>
+    <span class="ep-sum"></span>
+  </summary>
+  <div class="ep-body">
+
+<div class="ptab">
+  <div class="prow">
+    <span class="p-name">calculationVersion</span>
+    <span class="p-type">always 1</span>
+    <span class="p-desc"></span>
+  </div>
+  <div class="prow">
+    <span class="p-name">rounding</span>
+    <span class="p-type">always &quot;half-up&quot;</span>
+    <span class="p-desc"></span>
+  </div>
+  <div class="prow">
+    <span class="p-name">subscriptionId</span>
+    <span class="p-type">string</span>
+    <span class="p-desc"></span>
+  </div>
+  <div class="prow">
+    <span class="p-name">priceVersionId</span>
+    <span class="p-type">string</span>
+    <span class="p-desc"></span>
+  </div>
+  <div class="prow">
+    <span class="p-name">currency</span>
+    <span class="p-type">always &quot;EUR&quot;</span>
+    <span class="p-desc"></span>
+  </div>
+  <div class="prow">
+    <span class="p-name">periodStart</span>
+    <span class="p-type">string <span class="p-hint">(date)</span></span>
+    <span class="p-desc"></span>
+  </div>
+  <div class="prow">
+    <span class="p-name">periodEnd</span>
+    <span class="p-type">string <span class="p-hint">(date)</span></span>
+    <span class="p-desc"></span>
+  </div>
+  <div class="prow">
+    <span class="p-name">periodDays</span>
+    <span class="p-type">integer</span>
+    <span class="p-desc"></span>
+  </div>
+  <div class="prow">
+    <span class="p-name">activeDays</span>
+    <span class="p-type">integer</span>
+    <span class="p-desc"></span>
+  </div>
+  <div class="prow">
+    <span class="p-name">chargeDays</span>
+    <span class="p-type">integer</span>
+    <span class="p-desc"></span>
+  </div>
+  <div class="prow">
+    <span class="p-name">priceMinor</span>
+    <span class="p-type">string</span>
+    <span class="p-desc"></span>
+  </div>
+  <div class="prow">
+    <span class="p-name">periodPriceMinor</span>
+    <span class="p-type">string</span>
+    <span class="p-desc"></span>
+  </div>
+  <div class="prow">
+    <span class="p-name">discountMinor</span>
+    <span class="p-type">string</span>
+    <span class="p-desc"></span>
+  </div>
+  <div class="prow">
+    <span class="p-name">netMinor</span>
+    <span class="p-type">string</span>
+    <span class="p-desc"></span>
+  </div>
+  <div class="prow">
+    <span class="p-name">taxMinor</span>
+    <span class="p-type">string</span>
+    <span class="p-desc"></span>
+  </div>
+  <div class="prow">
+    <span class="p-name">totalMinor</span>
+    <span class="p-type">string</span>
+    <span class="p-desc"></span>
+  </div>
+  <div class="prow">
+    <span class="p-name">proration</span>
+    <span class="p-type">&quot;none&quot; | &quot;actual-days&quot;</span>
+    <span class="p-desc"></span>
+  </div>
+  <div class="prow">
+    <span class="p-name">priceIncludesTax</span>
+    <span class="p-type">boolean</span>
+    <span class="p-desc"></span>
+  </div>
+  <div class="prow">
+    <span class="p-name">taxBasisPoints</span>
+    <span class="p-type">integer</span>
+    <span class="p-desc"></span>
+  </div>
+  <div class="prow">
+    <span class="p-name">discountBasisPoints</span>
+    <span class="p-type">integer</span>
+    <span class="p-desc"></span>
+  </div>
+</div>
+  </div>
+</details>
 
 <details class="ep sch" id="schema-SubscriptionInput">
   <summary>

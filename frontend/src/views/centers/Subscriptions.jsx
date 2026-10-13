@@ -7,13 +7,14 @@ import {useAutoMore} from '../../lib/use-auto-more.js'
 import {useStore} from '../../store/useStore.js'
 import {useCenters} from '../../store/useCenters.js'
 import {t} from '../../lib/i18n.js'
+import BillingPreview from './BillingPreview.jsx'
 
 const statusText=row=>row.canceled?t('Canceled'):row.status==='scheduled'?t('Scheduled'):row.status==='ended'?t('Ended member'):row.status==='frozen'?t('Frozen member'):t('Active member')
 export default function Subscriptions({centerId,member,ownerUid,changed}) {
   const [info,setInfo]=useState(null),[plans,setPlans]=useState([]),[cursor,setCursor]=useState(null),[query,setQuery]=useState(''),[search,setSearch]=useState('')
   const [priceVersionId,setPriceVersionId]=useState(''),[effectiveOn,setEffectiveOn]=useState(''),[discount,setDiscount]=useState('0'),[reason,setReason]=useState('')
   const [busy,setBusy]=useState(false),[error,setError]=useState(null),[requestId,setRequestId]=useState(()=>crypto.randomUUID())
-  const life=useRef(0),planEpoch=useRef(0),pendingPlans=useRef(false),cancelIds=useRef(new Map())
+  const life=useRef(0),planEpoch=useRef(0),pendingPlans=useRef(false),cancelIds=useRef(new Map()),prepared=useRef('')
   const current=epoch=>life.current===epoch&&useStore.getState().user?.id===ownerUid
   const fail=e=>{setError(e);useCenters.getState().revokeOn(e)}
   useEffect(()=>{
@@ -35,6 +36,13 @@ export default function Subscriptions({centerId,member,ownerUid,changed}) {
   const update=(setter,value)=>{if(!busy){setter(value);setRequestId(crypto.randomUUID())}}
   const active=info?.subscriptions.find(row=>!row.canceled&&row.startsOn<=info.today&&(!row.effectiveEndsOn||row.effectiveEndsOn>info.today))
   const scheduled=info?.subscriptions.some(row=>!row.canceled&&row.startsOn>info.today)
+  useEffect(()=>{
+    if(!info||!plans.length)return
+    const future=info.subscriptions.find(row=>!row.canceled&&row.startsOn>info.today),key=[centerId,member.id,active?.id||'new',future?.id||''].join('|')
+    if(prepared.current===key)return;prepared.current=key
+    setDiscount(minorToPrice(String(active?.discountBasisPoints||0)));setReason(active?.discountReason||'');setEffectiveOn(info.today)
+    setPriceVersionId(plans.find(row=>row.id===active?.planId)?.priceVersionId||plans[0].priceVersionId);setRequestId(crypto.randomUUID())
+  },[info,plans,centerId,member.id])
   const submit=async e=>{
     e.preventDefault();if(busy)return;const epoch=life.current;setBusy(true);setError(null)
     try{
@@ -52,7 +60,7 @@ export default function Subscriptions({centerId,member,ownerUid,changed}) {
   }
   return <Section title={t('Subscriptions')}><div className="centers-form">
     {!info&&!error&&<p role="status">{t('Loading…')}</p>}
-    {info?.subscriptions.map(row=><Row key={row.id} className="centers-change-row" title={row.name} subtitle={minorToPrice(row.priceMinor)+' '+row.currency+' · '+row.startsOn+(row.effectiveEndsOn?' → '+row.effectiveEndsOn:'')+' · '+t('Discount (%)')+': '+minorToPrice(String(row.discountBasisPoints))} value={statusText(row)}>{row.canCancel&&<Button disabled={busy} onClick={()=>cancel(row)}>{t('Cancel scheduled change')}</Button>}</Row>)}
+    {info?.subscriptions.map(row=><div key={row.id}><Row className="centers-change-row" title={row.name} subtitle={minorToPrice(row.priceMinor)+' '+row.currency+' · '+row.startsOn+(row.effectiveEndsOn?' → '+row.effectiveEndsOn:'')+' · '+t('Discount (%)')+': '+minorToPrice(String(row.discountBasisPoints))} value={statusText(row)}>{row.canCancel&&<Button disabled={busy} onClick={()=>cancel(row)}>{t('Cancel scheduled change')}</Button>}</Row>{!row.canceled&&<BillingPreview key={member.version} centerId={centerId} memberId={member.id} contractId={row.id} ownerUid={ownerUid}/>}</div>)}
     {info&&!scheduled&&member.state!=='ended'&&<form onSubmit={submit}>
       <h3>{active?t('Change membership plan'):t('Assign membership plan')}</h3>
       <SearchField aria-label={t('Search membership plans')} placeholder={t('Search membership plans')} value={query} onChange={e=>setQuery(e.target.value)} onClear={()=>setQuery('')}/>

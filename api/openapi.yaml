@@ -165,6 +165,49 @@ security:
   - bearerAuth: []
 
 paths:
+  /api/centers/billing/preview:
+    post:
+      tags: [centers]
+      operationId: previewCenterCharge
+      summary: Preview exact period charges from pinned SQL terms and membership dates
+      description: >-
+        Requires billing.read or platform. Client provides only selected center/member/contract and
+        optional period boundary. Default period follows the contract calendar/timezone. Original
+        billing-day anchor survives short months; monthly/quarterly/half-yearly/yearly phases are checked.
+        UTC arithmetic counts civil dates independent of DST. Active days exclude freeze and ended
+        dates, resolve latest same-day event and ignore canceled events. actual-days prorates by days;
+        none charges a full period when at least one day is active, zero when none. Round nonnegative
+        values half-up at proration, discount and tax steps. Included tax is split from discounted gross;
+        excluded tax is added to discounted net. All minor-unit amounts are decimal strings.
+        Tax and proration must be explicitly configured. Returns calculationVersion 1, no receipt/payment.
+      security: [{ session: [] }, { bearer: [] }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties: false
+              required: [centerId, memberId, id]
+              properties:
+                centerId: { type: string }
+                memberId: { type: string }
+                id: { type: string }
+                periodStart: { type: string, format: date, description: Boundary matching original interval and billing-day anchor. }
+      responses:
+        '200':
+          description: Balanced read-only charge preview.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  quote: { $ref: '#/components/schemas/ChargePreview' }
+        '400': { description: Invalid calendar boundary or injected price/conditions. }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { description: Financial read capability unavailable. }
+        '404': { description: Contract inaccessible in selected member/center. }
+        '409': { description: Canceled contract or billing-policy-required. }
   /api/centers/subscriptions:
     get:
       tags: [centers]
@@ -3954,6 +3997,29 @@ components:
           example: { error: "that code is wrong, used or expired", code: "link-invalid" }
 
   schemas:
+    ChargePreview:
+      type: object
+      properties:
+        calculationVersion: { type: integer, const: 1 }
+        rounding: { type: string, const: half-up }
+        subscriptionId: { type: string }
+        priceVersionId: { type: string }
+        currency: { type: string, const: EUR }
+        periodStart: { type: string, format: date }
+        periodEnd: { type: string, format: date }
+        periodDays: { type: integer }
+        activeDays: { type: integer }
+        chargeDays: { type: integer }
+        priceMinor: { type: string }
+        periodPriceMinor: { type: string }
+        discountMinor: { type: string }
+        netMinor: { type: string }
+        taxMinor: { type: string }
+        totalMinor: { type: string }
+        proration: { type: string, enum: [none, actual-days] }
+        priceIncludesTax: { type: boolean }
+        taxBasisPoints: { type: integer }
+        discountBasisPoints: { type: integer }
     SubscriptionInput:
       type: object
       required: [centerId, memberId, memberVersion, priceVersionId, effectiveOn, requestId]

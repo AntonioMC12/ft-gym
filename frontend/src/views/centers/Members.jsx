@@ -36,12 +36,12 @@ export default function Members({centerId,ownerUid,capabilities}) {
   const permissionKey=capabilities.join('|')
   const [query,setQuery]=useState(''),[search,setSearch]=useState(''),[rows,setRows]=useState([]),[cursor,setCursor]=useState(null)
   const [busy,setBusy]=useState(false),[error,setError]=useState(null),[editing,setEditing]=useState(null),[revision,setRevision]=useState(0)
-  const epoch=useRef(0),pending=useRef(false)
+  const epoch=useRef(0),detailEpoch=useRef(0),pending=useRef(false)
   const current=id=>epoch.current===id&&useStore.getState().user?.id===ownerUid
   const failure=e=>{setError(e);if(useStore.getState().user?.id===ownerUid)useCenters.getState().revokeOn(e)}
   useEffect(()=>{const timer=setTimeout(()=>setSearch(query.trim()),250);return()=>clearTimeout(timer)},[query])
   useEffect(()=>{
-    const id=++epoch.current;pending.current=true;setBusy(true);setRows([]);setCursor(null);setError(null);setEditing(null)
+    const id=++epoch.current;detailEpoch.current++;pending.current=true;setBusy(true);setRows([]);setCursor(null);setError(null);setEditing(null)
     centerMembers(centerId,{query:search}).then(result=>{if(current(id)){setRows(result.members);setCursor(result.nextCursor)}}).catch(e=>{if(current(id))failure(e)}).finally(()=>{if(current(id)){pending.current=false;setBusy(false)}})
     return()=>{epoch.current++;pending.current=false}
   },[centerId,ownerUid,permissionKey,search,revision])
@@ -52,8 +52,8 @@ export default function Members({centerId,ownerUid,capabilities}) {
   }
   const moreRef=useAutoMore(more)
   const open=async member=>{
-    const id=epoch.current;setError(null)
-    try{const result=await centerMember(centerId,member.id);if(current(id))setEditing(result.member)}catch(e){if(current(id))failure(e)}
+    const id=epoch.current,detail=++detailEpoch.current;setError(null)
+    try{const result=await centerMember(centerId,member.id);if(current(id)&&detailEpoch.current===detail)setEditing(result.member)}catch(e){if(current(id)&&detailEpoch.current===detail)failure(e)}
   }
   if(editing)return manage?<MemberForm key={editing.id||'new'} centerId={centerId} member={editing.id?editing:null} ownerUid={ownerUid} close={()=>setEditing(null)} saved={()=>{setEditing(null);setRevision(r=>r+1)}}/>:
     <Section title={t('Member details')}><Row title={editing.name} subtitle={stateText(editing.state)} value={editing.number}/><Button onClick={()=>setEditing(null)}>{t('Back')}</Button></Section>

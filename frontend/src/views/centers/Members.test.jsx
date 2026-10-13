@@ -39,3 +39,13 @@ it('trainers can open operational profiles without editing or contact fields',as
   expect(host.textContent).toContain('Member details');expect(host.textContent).not.toContain(sample.email)
   expect(host.querySelector('input')).toBeNull();expect(host.textContent).not.toContain('New member')
 })
+it('the last selected profile wins when detail responses arrive out of order',async()=>{
+  const second={...sample,id:'two',name:'Second member'}
+  centerMembers.mockResolvedValue({members:[sample,second],nextCursor:null})
+  let firstReply,secondReply
+  centerMember.mockReturnValueOnce(new Promise(resolve=>{firstReply=resolve})).mockReturnValueOnce(new Promise(resolve=>{secondReply=resolve}))
+  await render();await act(async()=>{const buttons=host.querySelectorAll('button.lrow');buttons[0].click();buttons[1].click()})
+  await act(async()=>{secondReply({member:second});await Promise.resolve()})
+  await act(async()=>{firstReply({member:sample});await Promise.resolve()})
+  expect(host.querySelector('input').value).toBe('Second member')
+})

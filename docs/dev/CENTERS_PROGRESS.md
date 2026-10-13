@@ -9,7 +9,7 @@
 - Guía: [CENTERS_ROADMAP.md](CENTERS_ROADMAP.md). Instrucciones: [AGENTS.md](../../AGENTS.md).
 - Siguiente tarea: **continuar C14 / F4**. Dominio puro implementado; faltan persistencia temporal, endpoints y UI de baja/pausa; después C15.
 - Último hito cerrado: C13, alta/ficha/edición/listado paginado de socios sin cuenta. No hay cobros ni enlace de cuentas de socios.
-- Pruebas C13: 11 unitarias/contratos, 17 frontend y 5 SQL+HTTP reales pasan. Suites completas sin fallos nuevos frente al baseline; detalle en el historial.
+- Pruebas C13: 11 unitarias/contratos, 18 frontend y 5 SQL+HTTP reales pasan. Dominio inicial C14 también probado. Suites completas sin fallos nuevos frente al baseline; detalle en el historial.
 
 Este registro contiene el estado de ejecución; el roadmap define requisitos y dependencias. La autorización vigente siempre procede del usuario, no de una casilla de este archivo.
 
@@ -178,6 +178,7 @@ Formato para nuevas entradas: tarea, motivo, evidencia, trabajo independiente po
 - centers-f4-transitions-unit.log: 6/6 (incluye 2 de validación C13), límites de calendario/bisiesto, transición inválida, ausencia de mutación, fechas futuras/retroactividad y campos de privilegio rechazados. Sin rutas ni cambios SQL para estas transiciones todavía.
 - C14 in_progress: falta diseño/persistencia de historial y planificación, coordinación/versionado, aplicación efectiva, API/DTO/UI y pruebas SQL. Al continuar, comprobar conflictos entre eventos futuros bajo lock; no guardar frozen/ended inmediatamente si su fecha aún no ha llegado. Estados leídos y filtros deben concordar con fecha local. Efectos económicos se completan en C17 y jobs en C25.
 - C13 guardada en 5d3c9bfc; mantener su resultado y los cambios previos de demo. Vista local deja disponible la pestaña Socios para Responsable Pruebas (password ficticio del preview); Plataforma Centros conserva gestión global de centros, sin acceso automático a fichas de socios.
+- C14 dominio guardado en 4dbaab9a. Último ajuste C13 descarta fichas antiguas cuando dos respuestas llegan desordenadas; frontend/centers-f4-ui.log ahora 18/18 y build final pasa. Continúa pendiente integrar C14 en SQL/API/UI y después C15.
 
 ### Plantilla de entrada futura
 

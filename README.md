@@ -1,3 +1,13 @@
+# Fernando Tienda Training — ft-gym
+
+Adaptación de openGym para Fernando Tienda Training. Personalización inicial realizada el 13 de octubre de 2026: identidad visual, iconos de la PWA, textos y exportaciones. Conserva la tipografía y los formatos de datos originales. Las descargas y actualizaciones de la aplicación móvil oficial están deshabilitadas en esta adaptación.
+
+Repositorio de esta versión: [AntonioMC12/ft-gym](https://github.com/AntonioMC12/ft-gym).
+
+El código conserva la licencia AGPL v3. Los recursos multimedia de ejercicios tienen condiciones independientes: consultar [NOTICE.md](NOTICE.md) antes de un uso comercial. Los datos, secretos y dependencias locales no se incluyen en Git.
+
+La documentación original del proyecto se conserva a continuación como referencia técnica.
+
 <div align="center">
 
 <img src="assets/banner.png" alt="openGym" width="720">

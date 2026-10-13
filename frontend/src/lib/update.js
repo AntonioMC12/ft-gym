@@ -10,6 +10,7 @@
 // against its SHA-256 by the native Install plugin and handed to the system installer.
 
 import { MOBILE } from './mobile.js'
+import { OFFICIAL_APP_UPDATES } from './brand.js'
 
 const REPO = 'DuarteSantos8/openGym'
 const LATEST_URL = `https://api.github.com/repos/${REPO}/releases/latest`
@@ -51,6 +52,8 @@ function compareSemver(a, b) {
 let cached = null
 export function resetUpdateCheck() { cached = null }
 export async function checkForUpdate() {
+  // This adaptation must never offer the original application's APK as its own update.
+  if (!OFFICIAL_APP_UPDATES) return { hasUpdate: false, latestVersion: __APP_VERSION__, apkUrl: null, hashUrl: null }
   if (!cached) cached = fetchLatest().catch(e => { cached = null; throw e })
   return cached
 }

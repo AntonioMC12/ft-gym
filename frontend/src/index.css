@@ -114,6 +114,11 @@
 :root[data-theme="light"][data-accent="red"]   { --on-acc:#fff }
 
 /* ---------------------------------------------------------------- reset -- */
+.ft-brand-strip{display:flex;align-items:center;gap:10px;margin:0 0 12px;color:var(--label-2);font-size:12px;font-weight:600;letter-spacing:.02em;text-align:start}
+.ft-brand-strip img{flex:none;border-radius:9px}
+.ft-brand-header{margin-bottom:6px}
+.ft-brand-hero{display:block;width:120px;height:120px;object-fit:cover;border-radius:var(--r-lg);margin:0 auto 18px}
+.ft-brand-header h1{max-width:360px;margin:0 auto;font-size:clamp(24px,5vw,30px);font-weight:700;letter-spacing:-.028em;line-height:1.15;text-wrap:balance}
 *{margin:0;padding:0;box-sizing:border-box;-webkit-tap-highlight-color:transparent}
 html{
   font-size:16px;background:var(--bg);overscroll-behavior:none;overflow-x:clip;

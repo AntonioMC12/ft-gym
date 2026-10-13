@@ -88,7 +88,7 @@ export const SearchField = forwardRef(function SearchField({ value, onChange, on
       <Icon name="magnifier" className="lead" />
       <input ref={ref} className="field" value={value} onChange={onChange} {...rest} />
       {!!value && (
-        <button className="clear" onClick={onClear} aria-label={t('Clear')}>
+        <button type="button" className="clear" onClick={onClear} aria-label={t('Clear')}>
           <Icon name="xmark" />
         </button>
       )}
@@ -101,6 +101,7 @@ export const SearchField = forwardRef(function SearchField({ value, onChange, on
 export function Switch({ checked, onChange, disabled, ...accessibility }) {
   return (
     <button
+      type="button"
       {...accessibility}
       role="switch"
       aria-checked={!!checked}
@@ -123,6 +124,7 @@ export function Segmented({ options, value, onChange, className = '' }) {
       <span className="seg-sel" aria-hidden="true" />
       {options.map(o => (
         <button
+          type="button"
           key={o.value}
           className={o.value === value ? 'on' : ''}
           aria-pressed={o.value === value}
@@ -286,6 +288,7 @@ export function Slider({ value, min = 0, max = 100, step = 1, onChange, classNam
 export function Check({ checked, onChange, className = '', size, label }) {
   return (
     <button
+      type="button"
       role="checkbox"
       aria-checked={!!checked}
       aria-label={label}
@@ -316,7 +319,7 @@ export function Section({ title, footer, children, className = '' }) {
 export function Row({ icon, iconTint, title, subtitle, value, accessory = 'none', onClick, danger, children, className = '' }) {
   const Tag = onClick ? 'button' : 'div'
   return (
-    <Tag className={'lrow' + (onClick ? ' tap' : '') + (danger ? ' danger' : '') + ' ' + className} onClick={onClick}>
+    <Tag type={onClick ? 'button' : undefined} className={'lrow' + (onClick ? ' tap' : '') + (danger ? ' danger' : '') + ' ' + className} onClick={onClick}>
       {icon && <span className="lrow-i" style={iconTint ? { '--tint': iconTint } : null}><Icon name={icon} /></span>}
       <span className="lrow-m">
         <span className="lrow-t">{title}</span>

@@ -7,8 +7,8 @@ import {createCentersDatabase} from '../../centers/db.js';
 test('member CRUD is idempotent, paginated, locally unique and role-filtered',async t=>{
   const {app,migrator}=await isolatedDatabase();t.after(()=>migrator.end());
   const db=createCentersDatabase({enabled:true,databaseUrl:app});t.after(()=>db.close());
-  const p='s_'+randomBytes(6).toString('hex'),platform=p+'_platform',a=p+'_a',b=p+'_b',trainer=p+'_trainer';
-  const h=await startHttp(t,{app,superadminUids:[platform],users:[platform,a,b,trainer].map(id=>({id,name:id}))});
+  const p='s_'+randomBytes(6).toString('hex'),platform=p+'_platform',a=p+'_a',b=p+'_b',trainer=p+'_trainer',technical=p+'_technical';
+  const h=await startHttp(t,{app,superadminUids:[platform],users:[platform,a,b,trainer].map(id=>({id,name:id})).concat([{id:technical,name:technical,admin:true}])});
   const request=async(path,uid,body)=>{const r=await fetch(h.base+path,{headers:h.headers(uid),...(body?{method:'POST',body:JSON.stringify(body)}:{})});return{status:r.status,body:await r.json()};};
   const center=async uid=>(await request('/api/platform/centers/create',platform,{name:uid,managerUid:uid,requestId:uid+'_center'})).body.center.id;
   const ca=await center(a),cb=await center(b);
@@ -43,4 +43,17 @@ test('member CRUD is idempotent, paginated, locally unique and role-filtered',as
   assert.equal((await request(`/api/centers/members?centerId=${ca}&query=%25`,a)).body.members.length,1);
   const audit=await db.transaction({uid:a,centerId:ca},client=>client.query('SELECT details FROM centers.business_audit WHERE center_id=$1 AND action LIKE $2',[ca,'member.%']));
   assert.ok(audit.rows.length>=5);assert.ok(audit.rows.every(r=>Object.keys(r.details).length===0));
+  // The explicit superadmin administers business without being assigned as a local manager.
+  const global=await request('/api/centers/members/create',platform,{centerId:cb,name:'Global synthetic',requestId:p+'_global'});
+  assert.equal(global.status,200);
+  const globalRead=await request(`/api/centers/member?centerId=${ca}&id=${member.id}`,platform);
+  assert.equal(globalRead.status,200);assert.equal(globalRead.body.member.nationalDocument,'TEST-001');
+  assert.equal((await request(`/api/centers/members?centerId=${ca}`,platform)).status,200);
+  assert.equal((await request('/api/centers/members/update',platform,{...fields,version:2,name:'Global update'})).status,200);
+  assert.equal((await request(`/api/centers/members?centerId=${ca}&platform=true`,technical)).status,404);
+  assert.equal((await request('/api/centers/members/create',a,{...command,platform:true})).status,400);
+  const globalAudit=await db.platformTransaction(platform,client=>client.query("SELECT action FROM centers.business_audit WHERE actor_uid=$1 AND action LIKE 'platform.members.%'",[platform]));
+  assert.ok(globalAudit.rows.some(r=>r.action==='platform.members.read'));
+  assert.ok(globalAudit.rows.some(r=>r.action==='platform.members.manage'));
+  assert.equal((await db.platformTransaction(platform,client=>client.query('SELECT id FROM centers.role_assignments WHERE account_uid=$1',[platform]))).rows.length,0);
 });

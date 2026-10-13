@@ -10,7 +10,7 @@ vi.mock('../../store/useStore.js', () => {
   useStore.getState = () => state
   return { useStore }
 })
-vi.mock('../../lib/centers-api.js', () => ({ platformCenters: vi.fn(), centerDetail: vi.fn(), centerStaff: vi.fn(), centerCommand: vi.fn(), centersMe: vi.fn(), centerAccounts: vi.fn(), centersErrorKey: () => 'error' }))
+vi.mock('../../lib/centers-api.js', () => ({ platformCenters: vi.fn(), centerDetail: vi.fn(), centerStaff: vi.fn(), centerCommand: vi.fn(), centersMe: vi.fn(), centerAccounts: vi.fn(), centerMembers: vi.fn().mockResolvedValue({members:[],nextCursor:null}), centerMember:vi.fn(), membersErrorKey:()=> 'error', centersErrorKey: () => 'error' }))
 import { useStore } from '../../store/useStore.js'
 import { useCenters } from '../../store/useCenters.js'
 import { platformCenters, centerDetail, centerStaff, centerCommand, centersMe } from '../../lib/centers-api.js'
@@ -73,4 +73,10 @@ it('a trainer sees operational details without platform controls or account look
   expect(button('New center')).toBeUndefined(); expect(button('Save')).toBeUndefined()
   expect(button('Assign manager')).toBeUndefined(); expect(platformCenters).not.toHaveBeenCalled()
   expect(centerStaff).not.toHaveBeenCalled()
+})
+it('an explicit platform administrator manages members without local assignments',async()=>{
+  useCenters.setState({platformCapabilities:['centers.manage','members.read','members.manage'],centers:[]})
+  await render();await click('Center details');await click('Members')
+  expect(button('New member')).toBeDefined()
+  await click('New member');expect(host.textContent).toContain('Member name')
 })

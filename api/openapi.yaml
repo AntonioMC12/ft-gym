@@ -165,6 +165,72 @@ security:
   - bearerAuth: []
 
 paths:
+  /api/centers/members/transition:
+    post:
+      tags: [centers]
+      operationId: transitionCenterMember
+      summary: Schedule or apply termination, freeze or resumption
+      description: |
+        Requires members.manage, including explicit superadmin access. Uses center-local
+        dates, optimistic member version and persisted requestId idempotency. Termination
+        accepts preactive/active/frozen; freeze requires active; resumption requires frozen.
+        Future effects remain scheduled until their date, even without a running job.
+        A freeze may include automatic resumption. Manual early resumption or termination
+        can replace an outstanding automatic resumption; conflicting pending changes return 409.
+        Personal account, training and billing are not changed by this workflow.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/MembershipTransitionInput' }
+      responses:
+        '200':
+          description: Committed change or exact idempotent replay.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/MembershipChangeResult' }
+        '400': { description: Invalid input, impossible dates, retroactivity or unexpected field. }
+        '401': { description: No current session. }
+        '403': { description: Insufficient capability. }
+        '404': { description: Module off or member outside selected center. }
+        '409': { description: 'Conflict; version-conflict, idempotency-conflict, invalid-transition, pending-transition or center-inactive.' }
+        '503': { description: Centers unavailable. }
+  /api/centers/members/transition/cancel:
+    post:
+      tags: [centers]
+      operationId: cancelCenterMemberTransition
+      summary: Cancel an unapplied scheduled membership change
+      description: |
+        Requires members.manage or explicit superadmin. Only a future root change can be
+        canceled; applied changes and automatic child events cannot be canceled directly.
+        Cancels the root and its future children atomically. Restores a future automatic
+        resumption that the canceled change had superseded, preserving immutable history.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties: false
+              required: [centerId, id, version, changeId, requestId]
+              properties:
+                centerId: { type: string }
+                id: { type: string }
+                version: { type: integer, minimum: 1 }
+                changeId: { type: string }
+                requestId: { type: string, minLength: 8, maxLength: 128 }
+      responses:
+        '200':
+          description: Committed cancellation or original idempotent response.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/MembershipChangeResult' }
+        '400': { description: Invalid input or unexpected field. }
+        '401': { description: No current session. }
+        '403': { description: Insufficient capability. }
+        '404': { description: Module off or change outside selected member/center. }
+        '409': { description: Change applied, canceled, automatic, stale version or conflicting requestId. }
+        '503': { description: Centers unavailable. }
   /api/centers/members:
     get:
       tags: [centers]
@@ -174,7 +240,8 @@ paths:
         Requires members.read or members.operational.read. Trainers receive only operational
         fields; managers also receive contact and document fields. Literal name/number search,
         stable created_at/id keyset order. Cursor is bound to account, center and filters.
-        Platform allowlist alone does not grant member access.
+        Explicit superadmin accounts can administer members in every selected center;
+        this global access is audited. Technical admin alone does not grant member access.
       parameters:
         - { name: centerId, in: query, required: true, schema: { type: string } }
         - { name: query, in: query, schema: { type: string, maxLength: 120 } }
@@ -500,9 +567,12 @@ paths:
       operationId: getCenterMember
       summary: Role-filtered member profile within one center
       description: |
-        Staff only: manager receives contact fields; trainer receives only id, centerId,
+        Manager or explicit superadmin receives contact fields; trainer receives only id, centerId,
         number, name, state and version. A member id from another center returns a generic
         404. No IBAN, payments or arbitrary source fields are included in either projection.
+        Managers and superadmins additionally receive today in the center zone and up to
+        100 lifecycle changes; trainers receive neither reasons nor history. State and
+        endsOn use the effective temporal projection, not a background-job cache.
       parameters:
         - name: centerId
           in: query
@@ -574,7 +644,7 @@ paths:
                   enabled: { type: boolean, const: true }
                   stage: { type: string, const: centers }
                   available: { type: boolean, const: true }
-                  schemaVersion: { type: string, const: '004' }
+                  schemaVersion: { type: string, const: '006' }
         '401':
           description: No valid session, or the session was revoked during the check.
         '404':
@@ -3546,6 +3616,41 @@ components:
           example: { error: "that code is wrong, used or expired", code: "link-invalid" }
 
   schemas:
+    MembershipTransitionInput:
+      type: object
+      additionalProperties: false
+      required: [centerId, id, version, action, effectiveOn, requestId]
+      properties:
+        centerId: { type: string }
+        id: { type: string }
+        version: { type: integer, minimum: 1 }
+        action: { type: string, enum: [end, freeze, resume] }
+        effectiveOn: { type: string, format: date, description: Today or later in the center time zone. }
+        resumeOn: { type: [string, 'null'], format: date, description: Optional freeze resumption; strictly after effectiveOn. }
+        reason: { type: [string, 'null'], maxLength: 250, description: Required and nonempty for end/freeze. }
+        requestId: { type: string, pattern: '^[a-zA-Z0-9_-]{8,128}$' }
+    MembershipChangeResult:
+      type: object
+      required: [member, today, changes]
+      properties:
+        member: { type: object, description: Current effective member projection with updated version. }
+        today: { type: string, format: date }
+        changes:
+          type: array
+          maxItems: 100
+          items:
+            type: object
+            properties:
+              id: { type: string }
+              action: { type: string, enum: [end, freeze, resume, activate] }
+              fromState: { type: string }
+              toState: { type: string }
+              effectiveOn: { type: string, format: date }
+              resumeOn: { type: [string, 'null'], format: date }
+              reason: { type: [string, 'null'] }
+              automatic: { type: boolean }
+              canceled: { type: boolean }
+              canCancel: { type: boolean }
     MemberContactFields:
       type: object
       required: [name]

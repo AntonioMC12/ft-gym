@@ -2,7 +2,7 @@
 import React, { act, useState } from 'react'
 import { createRoot } from 'react-dom/client'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import { Slider, Stepper, NumberField, numWidthCh, SLIDER_GRAB_PX } from './ui.jsx'
+import { Slider, Stepper, NumberField, numWidthCh, SLIDER_GRAB_PX, Switch, Check, Segmented, Row, SearchField } from './ui.jsx'
 
 globalThis.IS_REACT_ACT_ENVIRONMENT = true
 
@@ -27,6 +27,17 @@ function pointer(target, type, { x = 0, y = 0, button = 0 } = {}) {
   act(() => target.dispatchEvent(event))
   return event
 }
+
+it('selection, navigation and search controls do not submit their containing form',()=>{
+  const submit=vi.fn(e=>e.preventDefault()),action=vi.fn()
+  act(()=>root.render(<form onSubmit={submit}>
+    <Switch checked={false} onChange={action}/><Check checked={false} onChange={action}/>
+    <Segmented options={[{value:'a',label:'A'},{value:'b',label:'B'}]} value="a" onChange={action}/>
+    <Row title="Navigate" onClick={action}/><SearchField value="query" onChange={action} onClear={action}/>
+  </form>))
+  act(()=>host.querySelectorAll('button').forEach(button=>button.click()))
+  expect(action).toHaveBeenCalledTimes(6);expect(submit).not.toHaveBeenCalled()
+})
 
 describe('Slider', () => {
   // 300px track from x=100 to x=400 over 0..300 so 1px == 1 unit

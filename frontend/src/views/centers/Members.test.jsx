@@ -5,6 +5,7 @@ import {beforeEach,afterEach,it,expect,vi} from 'vitest'
 vi.mock('../../lib/i18n.js',()=>({t:key=>key}))
 vi.mock('../../store/useStore.js',()=>{const state={user:{id:'manager'}};return{useStore:Object.assign(selector=>selector(state),{getState:()=>state})}})
 vi.mock('../../lib/centers-api.js',()=>({centerMembers:vi.fn(),centerMember:vi.fn(),centerCommand:vi.fn(),membersErrorKey:()=> 'error',centersMe:vi.fn()}))
+vi.mock('../../sheets.jsx',()=>({confirmSheet:vi.fn(options=>options.onConfirm())}))
 import {centerMembers,centerMember,centerCommand} from '../../lib/centers-api.js'
 import Members from './Members.jsx'
 globalThis.IS_REACT_ACT_ENVIRONMENT=true
@@ -14,7 +15,7 @@ beforeEach(()=>{vi.clearAllMocks();centerMembers.mockResolvedValue({members:[sam
 afterEach(()=>{act(()=>root.unmount());host.remove()})
 const render=(centerId='a',capabilities=['members.read','members.manage'])=>act(async()=>{root.render(<Members key={centerId} centerId={centerId} ownerUid="manager" capabilities={capabilities}/>);await Promise.resolve()})
 const click=text=>act(async()=>{[...host.querySelectorAll('button')].find(button=>button.textContent===text).click();await Promise.resolve()})
-const fill=(input,value)=>act(()=>{Object.getOwnPropertyDescriptor(HTMLInputElement.prototype,'value').set.call(input,value);input.dispatchEvent(new Event('input',{bubbles:true}))})
+const fill=(input,value)=>act(()=>{Object.getOwnPropertyDescriptor(input.tagName==='TEXTAREA'?HTMLTextAreaElement.prototype:HTMLInputElement.prototype,'value').set.call(input,value);input.dispatchEvent(new Event('input',{bubbles:true}))})
 it('loads the next server page without replacing the first page',async()=>{
   centerMembers.mockResolvedValueOnce({members:[sample],nextCursor:'next'}).mockResolvedValueOnce({members:[{...sample,id:'two',name:'Second member'}],nextCursor:null})
   await render();await click('Show more')
@@ -48,4 +49,13 @@ it('the last selected profile wins when detail responses arrive out of order',as
   await act(async()=>{secondReply({member:second});await Promise.resolve()})
   await act(async()=>{firstReply({member:sample});await Promise.resolve()})
   expect(host.querySelector('input').value).toBe('Second member')
+})
+it('a lifecycle change preserves the contact draft and updates the version used to save it',async()=>{
+  const active={...sample,state:'active'},history={today:'2026-10-13',changes:[]}
+  centerMembers.mockResolvedValue({members:[active],nextCursor:null});centerMember.mockResolvedValue({member:active,...history})
+  centerCommand.mockResolvedValueOnce({member:{...active,state:'frozen',version:2},...history}).mockResolvedValueOnce({member:{...active,name:'Draft contact',version:3}})
+  await render();await act(async()=>{host.querySelector('button.lrow').click();await Promise.resolve()})
+  fill(host.querySelector('input'),'Draft contact');fill(host.querySelector('textarea'),'Synthetic pause')
+  await click('Freeze membership');expect(host.querySelector('input').value).toBe('Draft contact')
+  await click('Save');expect(centerCommand.mock.calls[1][1]).toMatchObject({name:'Draft contact',version:2})
 })

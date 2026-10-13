@@ -11,6 +11,9 @@ export const centerMember = (centerId, id) => api('/api/centers/member?' + new U
 
 export function membersErrorKey(error) {
   const code=error?.data?.code||error?.code
+  if(code==='invalid-transition')return 'Membership change is not allowed.'
+  if(code==='pending-transition')return 'Cancel the pending change before adding another.'
+  if(code==='version-conflict'||code==='idempotency-conflict')return 'Member changed. Reload and try again.'
   if(code==='duplicate')return 'Duplicate member in this center.'
   if(code==='invalid-input')return 'Check the member details.'
   return centersErrorKey(error)

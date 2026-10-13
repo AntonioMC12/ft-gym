@@ -6,6 +6,11 @@ import { centersStrings } from './modules/centers.js'
 
 export const PT_BR_OVERRIDES = {
   ...centersStrings('pt'),
+  'Resumption date': 'Data de retomada',
+  'Automatic resumption': 'Retomada automática',
+  'Resume membership': 'Retomar inscrição',
+  'Cancel the pending change before adding another.': 'Cancele a alteração pendente antes de adicionar outra.',
+  'Member changed. Reload and try again.': 'O sócio mudou. Recarregue e tente novamente.',
   'Check the member details.': 'Confira os dados do sócio.',
   'Duplicate member in this center.': 'Já existe um sócio com estes dados neste centro.',
   'Manage centers': 'Gerenciar centros',

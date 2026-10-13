@@ -1,6 +1,6 @@
 # Desarrollo del módulo de centros
 
-Entrega actual: infraestructura, aislamiento SQL, centros, responsables, staff y alta/ficha/listado paginado de socios sin cuenta. Rama: `codex/centers-module`. Apagado por defecto; cuentas y entrenamiento siguen en JSON. Transiciones, invitaciones y cobros pendientes. Consultar CENTERS_PROGRESS para evidencia y siguiente tarea.
+Entrega actual: infraestructura, aislamiento SQL, centros, responsables, staff, socios sin cuenta y baja/pausa/reanudación por fecha. Superadmin gestiona también socios globalmente. Rama: `codex/centers-module`. Apagado por defecto; cuentas y entrenamiento siguen en JSON. Invitaciones y cobros pendientes. Consultar CENTERS_PROGRESS para evidencia y siguiente tarea.
 
 Con `CENTERS_ENABLED=1`, las cuentas enumeradas en `CENTERS_SUPERADMIN_UIDS` pueden crear centros desde Ajustes → Gestionar centros. Deben existir y estar habilitadas; `user.admin` no concede este permiso. El asistente permite draft sin responsable; asignar una cuenta existente habilitada lo activa. Responsables gestionan configuración y trainers de sus centros, sin administración técnica global. El estado y permisos administrativos nunca se exportan con entrenamiento.
 
@@ -24,7 +24,7 @@ El volumen se monta en `/var/lib/postgresql`, adecuado para PostgreSQL 18. No re
 
 - `centers_bootstrap`: inicializa PostgreSQL; nunca es una conexión runtime.
 - `centers_migrator`: propietario del esquema y sus objetos; sin superuser ni BYPASSRLS.
-- `centers_app`: sin CREATE, superuser, BYPASSRLS, CREATEDB o CREATEROLE; lectura de metadatos en esta fase.
+- `centers_app`: sin CREATE, superuser, BYPASSRLS, CREATEDB o CREATEROLE; acceso de negocio por RLS y grants limitados.
 
 Las migraciones posteriores conceden permisos/RLS por entidad, sin grants generales por defecto. La API comprueba el rol real al adquirir conexiones; usar el migrador como runtime devuelve 503.
 

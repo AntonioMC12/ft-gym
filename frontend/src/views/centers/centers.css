@@ -1,4 +1,7 @@
 .centers-page { padding-bottom: 32px; }
+.centers-lifecycle-fields { border: 0; padding: 0; margin: 0; min-width: 0; }
+.centers-change-row { flex-wrap: wrap; }
+.centers-change-row > .btn { flex-basis: 100%; order: 2; margin-top: 8px; }
 .centers-page .hdr h1 { font-size: 28px; }
 .centers-actions { display: flex; gap: 10px; align-items: center; justify-content: space-between; flex-wrap: wrap; margin: 16px 0; }
 .centers-form { padding: 18px; }

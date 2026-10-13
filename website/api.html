@@ -246,7 +246,7 @@ main.api-main .lead { color: var(--fg-2); max-width: 58ch; margin: 14px 0 0; fon
   <p class="api-facts">
     <span>OpenAPI 3.1.0</span>
     <span>openGym v1.4.1</span>
-    <span>87 endpoints</span>
+    <span>89 endpoints</span>
     <span>AGPL-3.0-or-later</span>
   </p>
 
@@ -297,6 +297,124 @@ main.api-main .lead { color: var(--fg-2); max-width: 58ch; margin: 14px 0 0; fon
   <p class="sub">Opt-in centers module. Tenant-scoped center administration with separate platform authorization.</p>
   <div class="eps">
 
+<details class="ep" id="op-transitionCenterMember">
+  <summary>
+    <span class="m post">POST</span>
+    <span class="ep-path"><code>/api/centers/members/transition</code></span>
+    <span class="ep-chev" aria-hidden="true"></span>
+    <span class="ep-sum">Schedule or apply termination, freeze or resumption</span>
+  </summary>
+  <div class="ep-body">
+<p>Requires members.manage, including explicit superadmin access. Uses center-local dates, optimistic member version and persisted requestId idempotency. Termination accepts preactive/active/frozen; freeze requires active; resumption requires frozen. Future effects remain scheduled until their date, even without a running job. A freeze may include automatic resumption. Manual early resumption or termination can replace an outstanding automatic resumption; conflicting pending changes return 409. Personal account, training and billing are not changed by this workflow.</p>
+    <p class="ep-auth"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="4" y="11" width="16" height="10" rx="2.5"/><path d="M8 11V7a4 4 0 0 1 8 0v4"/></svg><span>Requires a session: the cookie set at sign-in, or <code>Authorization: Bearer &lt;token&gt;</code> from mobile-app pairing.</span></p>
+
+<p class="ep-h">Request body</p><p class="p-desc"><a href="#schema-MembershipTransitionInput">MembershipTransitionInput</a></p>
+    <p class="ep-h">Responses</p>
+    <div class="ptab">
+  <div class="prow rrow">
+    <span class="r-code s2">200</span>
+    <span class="p-desc">Committed change or exact idempotent replay.<span class="r-sig"><a href="#schema-MembershipChangeResult">MembershipChangeResult</a></span></span>
+  </div>
+  <div class="prow rrow">
+    <span class="r-code s4">400</span>
+    <span class="p-desc">Invalid input</span>
+  </div>
+  <div class="prow rrow">
+    <span class="r-code s4">401</span>
+    <span class="p-desc">No current session.</span>
+  </div>
+  <div class="prow rrow">
+    <span class="r-code s4">403</span>
+    <span class="p-desc">Insufficient capability.</span>
+  </div>
+  <div class="prow rrow">
+    <span class="r-code s4">404</span>
+    <span class="p-desc">Module off or member outside selected center.</span>
+  </div>
+  <div class="prow rrow">
+    <span class="r-code s4">409</span>
+    <span class="p-desc">Conflict; version-conflict, idempotency-conflict, invalid-transition, pending-transition or center-inactive.</span>
+  </div>
+  <div class="prow rrow">
+    <span class="r-code s5">503</span>
+    <span class="p-desc">Centers unavailable.</span>
+  </div>
+    </div>
+  </div>
+</details>
+
+<details class="ep" id="op-cancelCenterMemberTransition">
+  <summary>
+    <span class="m post">POST</span>
+    <span class="ep-path"><code>/api/centers/members/transition/cancel</code></span>
+    <span class="ep-chev" aria-hidden="true"></span>
+    <span class="ep-sum">Cancel an unapplied scheduled membership change</span>
+  </summary>
+  <div class="ep-body">
+<p>Requires members.manage or explicit superadmin. Only a future root change can be canceled; applied changes and automatic child events cannot be canceled directly. Cancels the root and its future children atomically. Restores a future automatic resumption that the canceled change had superseded, preserving immutable history.</p>
+    <p class="ep-auth"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="4" y="11" width="16" height="10" rx="2.5"/><path d="M8 11V7a4 4 0 0 1 8 0v4"/></svg><span>Requires a session: the cookie set at sign-in, or <code>Authorization: Bearer &lt;token&gt;</code> from mobile-app pairing.</span></p>
+
+<p class="ep-h">Request body <span class="p-hint">(JSON)</span></p><div class="ptab">
+  <div class="prow">
+    <span class="p-name">centerId<em class="p-req" title="required">required</em></span>
+    <span class="p-type">string</span>
+    <span class="p-desc"></span>
+  </div>
+  <div class="prow">
+    <span class="p-name">id<em class="p-req" title="required">required</em></span>
+    <span class="p-type">string</span>
+    <span class="p-desc"></span>
+  </div>
+  <div class="prow">
+    <span class="p-name">version<em class="p-req" title="required">required</em></span>
+    <span class="p-type">integer <span class="p-hint">(1&ndash;)</span></span>
+    <span class="p-desc"></span>
+  </div>
+  <div class="prow">
+    <span class="p-name">changeId<em class="p-req" title="required">required</em></span>
+    <span class="p-type">string</span>
+    <span class="p-desc"></span>
+  </div>
+  <div class="prow">
+    <span class="p-name">requestId<em class="p-req" title="required">required</em></span>
+    <span class="p-type">string <span class="p-hint">(&le; 128 chars)</span></span>
+    <span class="p-desc"></span>
+  </div>
+</div>
+    <p class="ep-h">Responses</p>
+    <div class="ptab">
+  <div class="prow rrow">
+    <span class="r-code s2">200</span>
+    <span class="p-desc">Committed cancellation or original idempotent response.<span class="r-sig"><a href="#schema-MembershipChangeResult">MembershipChangeResult</a></span></span>
+  </div>
+  <div class="prow rrow">
+    <span class="r-code s4">400</span>
+    <span class="p-desc">Invalid input or unexpected field.</span>
+  </div>
+  <div class="prow rrow">
+    <span class="r-code s4">401</span>
+    <span class="p-desc">No current session.</span>
+  </div>
+  <div class="prow rrow">
+    <span class="r-code s4">403</span>
+    <span class="p-desc">Insufficient capability.</span>
+  </div>
+  <div class="prow rrow">
+    <span class="r-code s4">404</span>
+    <span class="p-desc">Module off or change outside selected member/center.</span>
+  </div>
+  <div class="prow rrow">
+    <span class="r-code s4">409</span>
+    <span class="p-desc">Change applied</span>
+  </div>
+  <div class="prow rrow">
+    <span class="r-code s5">503</span>
+    <span class="p-desc">Centers unavailable.</span>
+  </div>
+    </div>
+  </div>
+</details>
+
 <details class="ep" id="op-listCenterMembers">
   <summary>
     <span class="m get">GET</span>
@@ -305,7 +423,7 @@ main.api-main .lead { color: var(--fg-2); max-width: 58ch; margin: 14px 0 0; fon
     <span class="ep-sum">Paginated member list within the selected center</span>
   </summary>
   <div class="ep-body">
-<p>Requires members.read or members.operational.read. Trainers receive only operational fields; managers also receive contact and document fields. Literal name/number search, stable created_at/id keyset order. Cursor is bound to account, center and filters. Platform allowlist alone does not grant member access.</p>
+<p>Requires members.read or members.operational.read. Trainers receive only operational fields; managers also receive contact and document fields. Literal name/number search, stable created_at/id keyset order. Cursor is bound to account, center and filters. Explicit superadmin accounts can administer members in every selected center; this global access is audited. Technical admin alone does not grant member access.</p>
     <p class="ep-auth"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="4" y="11" width="16" height="10" rx="2.5"/><path d="M8 11V7a4 4 0 0 1 8 0v4"/></svg><span>Requires a session: the cookie set at sign-in, or <code>Authorization: Bearer &lt;token&gt;</code> from mobile-app pairing.</span></p>
 <p class="ep-h">Query parameters</p><div class="ptab">
   <div class="prow">
@@ -1027,7 +1145,7 @@ main.api-main .lead { color: var(--fg-2); max-width: 58ch; margin: 14px 0 0; fon
     <span class="ep-sum">Role-filtered member profile within one center</span>
   </summary>
   <div class="ep-body">
-<p>Staff only: manager receives contact fields; trainer receives only id, centerId, number, name, state and version. A member id from another center returns a generic 404. No IBAN, payments or arbitrary source fields are included in either projection.</p>
+<p>Manager or explicit superadmin receives contact fields; trainer receives only id, centerId, number, name, state and version. A member id from another center returns a generic 404. No IBAN, payments or arbitrary source fields are included in either projection. Managers and superadmins additionally receive today in the center zone and up to 100 lifecycle changes; trainers receive neither reasons nor history. State and endsOn use the effective temporal projection, not a background-job cache.</p>
     <p class="ep-auth"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="4" y="11" width="16" height="10" rx="2.5"/><path d="M8 11V7a4 4 0 0 1 8 0v4"/></svg><span>Requires a session: the cookie set at sign-in, or <code>Authorization: Bearer &lt;token&gt;</code> from mobile-app pairing.</span></p>
 <p class="ep-h">Query parameters</p><div class="ptab">
   <div class="prow">
@@ -1126,7 +1244,7 @@ main.api-main .lead { color: var(--fg-2); max-width: 58ch; margin: 14px 0 0; fon
     <div class="ptab">
   <div class="prow rrow">
     <span class="r-code s2">200</span>
-    <span class="p-desc">The centers database is available and migrated.<span class="r-sig">{ enabled: always true, stage: always &quot;centers&quot;, available: always true, schemaVersion: always &quot;004&quot; }</span></span>
+    <span class="p-desc">The centers database is available and migrated.<span class="r-sig">{ enabled: always true, stage: always &quot;centers&quot;, available: always true, schemaVersion: always &quot;006&quot; }</span></span>
   </div>
   <div class="prow rrow">
     <span class="r-code s4">401</span>
@@ -4037,6 +4155,137 @@ main.api-main .lead { color: var(--fg-2); max-width: 58ch; margin: 14px 0 0; fon
        is <b>representative, not enforced</b>: the server stores it opaquely and the app
        grows it over time.</p>
     <div class="eps">
+
+<details class="ep sch" id="schema-MembershipTransitionInput">
+  <summary>
+    <span class="sch-name"><code>MembershipTransitionInput</code></span>
+    <span class="ep-chev" aria-hidden="true"></span>
+    <span class="ep-sum"></span>
+  </summary>
+  <div class="ep-body">
+
+<div class="ptab">
+  <div class="prow">
+    <span class="p-name">centerId<em class="p-req" title="required">required</em></span>
+    <span class="p-type">string</span>
+    <span class="p-desc"></span>
+  </div>
+  <div class="prow">
+    <span class="p-name">id<em class="p-req" title="required">required</em></span>
+    <span class="p-type">string</span>
+    <span class="p-desc"></span>
+  </div>
+  <div class="prow">
+    <span class="p-name">version<em class="p-req" title="required">required</em></span>
+    <span class="p-type">integer <span class="p-hint">(1&ndash;)</span></span>
+    <span class="p-desc"></span>
+  </div>
+  <div class="prow">
+    <span class="p-name">action<em class="p-req" title="required">required</em></span>
+    <span class="p-type">&quot;end&quot; | &quot;freeze&quot; | &quot;resume&quot;</span>
+    <span class="p-desc"></span>
+  </div>
+  <div class="prow">
+    <span class="p-name">effectiveOn<em class="p-req" title="required">required</em></span>
+    <span class="p-type">string <span class="p-hint">(date)</span></span>
+    <span class="p-desc">Today or later in the center time zone.</span>
+  </div>
+  <div class="prow">
+    <span class="p-name">resumeOn</span>
+    <span class="p-type">string | null <span class="p-hint">(date)</span></span>
+    <span class="p-desc">Optional freeze resumption; strictly after effectiveOn.</span>
+  </div>
+  <div class="prow">
+    <span class="p-name">reason</span>
+    <span class="p-type">string | null <span class="p-hint">(&le; 250 chars)</span></span>
+    <span class="p-desc">Required and nonempty for end/freeze.</span>
+  </div>
+  <div class="prow">
+    <span class="p-name">requestId<em class="p-req" title="required">required</em></span>
+    <span class="p-type">string</span>
+    <span class="p-desc"></span>
+  </div>
+</div>
+  </div>
+</details>
+
+<details class="ep sch" id="schema-MembershipChangeResult">
+  <summary>
+    <span class="sch-name"><code>MembershipChangeResult</code></span>
+    <span class="ep-chev" aria-hidden="true"></span>
+    <span class="ep-sum"></span>
+  </summary>
+  <div class="ep-body">
+
+<div class="ptab">
+  <div class="prow">
+    <span class="p-name">member<em class="p-req" title="required">required</em></span>
+    <span class="p-type">object</span>
+    <span class="p-desc">Current effective member projection with updated version.</span>
+  </div>
+  <div class="prow">
+    <span class="p-name">today<em class="p-req" title="required">required</em></span>
+    <span class="p-type">string <span class="p-hint">(date)</span></span>
+    <span class="p-desc"></span>
+  </div>
+  <div class="prow">
+    <span class="p-name">changes<em class="p-req" title="required">required</em></span>
+    <span class="p-type">object[]</span>
+    <span class="p-desc"></span>
+  </div>
+  <div class="prow">
+    <span class="p-name">changes[].id</span>
+    <span class="p-type">string</span>
+    <span class="p-desc"></span>
+  </div>
+  <div class="prow">
+    <span class="p-name">changes[].action</span>
+    <span class="p-type">&quot;end&quot; | &quot;freeze&quot; | &quot;resume&quot; | &quot;activate&quot;</span>
+    <span class="p-desc"></span>
+  </div>
+  <div class="prow">
+    <span class="p-name">changes[].fromState</span>
+    <span class="p-type">string</span>
+    <span class="p-desc"></span>
+  </div>
+  <div class="prow">
+    <span class="p-name">changes[].toState</span>
+    <span class="p-type">string</span>
+    <span class="p-desc"></span>
+  </div>
+  <div class="prow">
+    <span class="p-name">changes[].effectiveOn</span>
+    <span class="p-type">string <span class="p-hint">(date)</span></span>
+    <span class="p-desc"></span>
+  </div>
+  <div class="prow">
+    <span class="p-name">changes[].resumeOn</span>
+    <span class="p-type">string | null <span class="p-hint">(date)</span></span>
+    <span class="p-desc"></span>
+  </div>
+  <div class="prow">
+    <span class="p-name">changes[].reason</span>
+    <span class="p-type">string | null</span>
+    <span class="p-desc"></span>
+  </div>
+  <div class="prow">
+    <span class="p-name">changes[].automatic</span>
+    <span class="p-type">boolean</span>
+    <span class="p-desc"></span>
+  </div>
+  <div class="prow">
+    <span class="p-name">changes[].canceled</span>
+    <span class="p-type">boolean</span>
+    <span class="p-desc"></span>
+  </div>
+  <div class="prow">
+    <span class="p-name">changes[].canCancel</span>
+    <span class="p-type">boolean</span>
+    <span class="p-desc"></span>
+  </div>
+</div>
+  </div>
+</details>
 
 <details class="ep sch" id="schema-MemberContactFields">
   <summary>

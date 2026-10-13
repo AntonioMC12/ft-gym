@@ -1,9 +1,10 @@
 import { CentersError } from './errors.js';
-import { requireCenter, memberDto, recordId, isPlatformUser } from './authz.js';
+import { requireCenter, recordId, isPlatformUser } from './authz.js';
 import { affiliations } from './services/identity.js';
 import { listPlatformCenters, createCenter, updateCenter, assignRole, revokeRole, listStaff, centerDto } from './services/centers.js';
-import { createMember, updateMember, listMembers } from './services/members.js';
+import { createMember, updateMember, listMembers, getMember } from './services/members.js';
 import { memberListOptions } from './domain/member-validation.js';
+import { transitionMember,cancelMemberTransition } from './services/membership-lifecycle.js';
 
 // Inject the same session and response helpers used by the rest of node:http.
 export function centersRoutes({ config, database, json, readSession, readBody, accountLocks, lookupAccount,
@@ -33,13 +34,15 @@ export function centersRoutes({ config, database, json, readSession, readBody, a
     }catch(error){return failure(res,error);}
   };
   return {
-    'POST /api/centers/members/create': mutate(false,createMember),
-    'POST /api/centers/members/update': mutate(false,updateMember),
+    'POST /api/centers/members/transition': mutate(false,(context,body)=>transitionMember(context,body,{platform:isPlatformUser(config,context.user)})),
+    'POST /api/centers/members/transition/cancel': mutate(false,(context,body)=>cancelMemberTransition(context,body,{platform:isPlatformUser(config,context.user)})),
+    'POST /api/centers/members/create': mutate(false,(context,body)=>createMember(context,body,{platform:isPlatformUser(config,context.user)})),
+    'POST /api/centers/members/update': mutate(false,(context,body)=>updateMember(context,body,{platform:isPlatformUser(config,context.user)})),
     'GET /api/centers/members': async (req,res) => {
       const user=guard(req,res);if(!user)return;const sv=user.sv||0;
       const params=new URL(req.url,'http://x').searchParams,centerId=params.get('centerId');
       if(!recordId(centerId))return json(res,404,{error:'not found',code:'not-found'});
-      try{const result=await listMembers(database,user.id,centerId,memberListOptions(params));if(!current(req,user,sv))return json(res,401,{error:'not signed in'});return json(res,200,result);}
+      try{const result=await listMembers(database,user.id,centerId,memberListOptions(params),{platform:isPlatformUser(config,user)});if(!current(req,user,sv))return json(res,401,{error:'not signed in'});return json(res,200,result);}
       catch(error){return failure(res,error);}
     },
     'GET /api/centers/detail': async (req,res) => {
@@ -108,16 +111,7 @@ export function centersRoutes({ config, database, json, readSession, readBody, a
       const centerId = params.get('centerId'), id = params.get('id');
       if (!recordId(centerId) || !recordId(id)) return json(res, 404, { error: 'not found', code: 'not-found' });
       try {
-        const result = await database.transaction({ uid: user.id, centerId }, async client => {
-          const context = await requireCenter(client, user.id, centerId, 'members.operational.read', { lock: true }).catch(async error => {
-            if (error.status !== 403) throw error;
-            return requireCenter(client, user.id, centerId, 'members.read', { lock: true });
-          });
-          const { rows } = await client.query(`SELECT id, center_id, member_number, name, state, version,
-            email, phone, national_document, joined_on::text AS joined_on, ends_on::text AS ends_on FROM centers.members WHERE center_id = $1 AND id = $2`, [centerId, id]);
-          if (!rows.length) throw new CentersError(404, 'not-found', 'not found');
-          return { member: memberDto(rows[0], context.capabilities) };
-        });
+        const result = await getMember(database,user.id,centerId,id,{platform:isPlatformUser(config,user)});
         if (!current(req, user, sv)) return json(res, 401, { error: 'not signed in' });
         return json(res, 200, result);
       } catch (error) { return failure(res, error); }

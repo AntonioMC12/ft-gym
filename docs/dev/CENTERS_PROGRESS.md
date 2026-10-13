@@ -4,12 +4,12 @@
 
 ## Punto de reanudación
 
-- Trabajo actual autorizado: implementación en rama separada, avanzando por el roadmap. El usuario amplió el trabajo para continuar hasta agotar el presupuesto disponible, sustituyendo la reserva anterior del 20%. Guardar hitos verificables y el estado pendiente antes de terminar.
+- Trabajo actual autorizado: continuar implementación hasta que reste el 5% del presupuesto consumible; después guardar el punto de continuación y apagar el ordenador, por orden explícita del usuario en esta sesión. Esta orden de apagado se aplica al cierre de esta ejecución, no a sesiones futuras.
 - Rama: `codex/centers-module`, creada desde `53ef0baf`. F0-F3 verificadas en entorno ficticio. Commits: `75e1160d`, `433764a5`, `24cb5a42`.
 - Guía: [CENTERS_ROADMAP.md](CENTERS_ROADMAP.md). Instrucciones: [AGENTS.md](../../AGENTS.md).
-- Siguiente tarea: **continuar C14 / F4**. Dominio puro implementado; faltan persistencia temporal, endpoints y UI de baja/pausa; después C15.
-- Último hito cerrado: C13, alta/ficha/edición/listado paginado de socios sin cuenta. No hay cobros ni enlace de cuentas de socios.
-- Pruebas C13: 11 unitarias/contratos, 18 frontend y 5 SQL+HTTP reales pasan. Dominio inicial C14 también probado. Suites completas sin fallos nuevos frente al baseline; detalle en el historial.
+- Siguiente tarea: **C15 / F4**, invitaciones con destinatario comprobado y vínculo de cuentas recuperable.
+- Último hito cerrado: C14, baja/pausa/reanudación por fecha y cancelación recuperable; superadmin puede gestionar socios globalmente. No hay cobros ni enlace de cuentas de socios todavía.
+- Pruebas C14: 34 unitarias, 42 frontend/controles y 6 SQL+HTTP reales pasan; suites completas conservan los mismos fallos previos.
 
 Este registro contiene el estado de ejecución; el roadmap define requisitos y dependencias. La autorización vigente siempre procede del usuario, no de una casilla de este archivo.
 
@@ -43,7 +43,7 @@ Estados permitidos: `todo`, `in_progress`, `done`, `blocked`. Una tarea done nec
 | C11 | F3 | Roles y responsables | done |
 | C12 | F3 | UI de plataforma | done |
 | C13 | F4 | Alta y ficha de socio | done |
-| C14 | F4 | Baja/pausa contractual | in_progress |
+| C14 | F4 | Baja/pausa contractual | done |
 | C15 | F4 | Invitaciones y vinculación | todo |
 | C16 | F5 | Cuotas versionadas | todo |
 | C17 | F5 | Suscripciones | todo |
@@ -179,6 +179,18 @@ Formato para nuevas entradas: tarea, motivo, evidencia, trabajo independiente po
 - C14 in_progress: falta diseño/persistencia de historial y planificación, coordinación/versionado, aplicación efectiva, API/DTO/UI y pruebas SQL. Al continuar, comprobar conflictos entre eventos futuros bajo lock; no guardar frozen/ended inmediatamente si su fecha aún no ha llegado. Estados leídos y filtros deben concordar con fecha local. Efectos económicos se completan en C17 y jobs en C25.
 - C13 guardada en 5d3c9bfc; mantener su resultado y los cambios previos de demo. Vista local deja disponible la pestaña Socios para Responsable Pruebas (password ficticio del preview); Plataforma Centros conserva gestión global de centros, sin acceso automático a fichas de socios.
 - C14 dominio guardado en 4dbaab9a. Último ajuste C13 descarta fichas antiguas cuando dos respuestas llegan desordenadas; frontend/centers-f4-ui.log ahora 18/18 y build final pasa. Continúa pendiente integrar C14 en SQL/API/UI y después C15.
+
+### 2026-10-13 · C14 completa y alcance superadmin
+
+- Usuario aclaró que superadmin debe administrar centros, responsables, configuración y socios. Capacidades members.read/manage explícitas; transacciones globales solo tras validar allowlist, acotadas a centro y auditadas como platform.members.*. Admin técnico/local manager no recibe privilegio global; cuerpo/query no puede activarlo.
+- Migraciones 005/006: historial de cambios con claves compuestas, RLS, restricciones y cancelación limitada por columnas; app no borra ni reescribe motivos/historia. Procedencia de reanudaciones sustituidas permite recuperarlas al cancelar un cambio futuro. Archivos ya aplicados a base test: no editar.
+- member_profiles usa security_invoker/security_barrier: respeta RLS del invocador y calcula estado/fecha de baja según eventos efectivos y zona del centro, incluso sin jobs. Fuente verificada: [CREATE VIEW PostgreSQL 18](https://www.postgresql.org/docs/18/sql-createview.html). No se materializa un estado futuro prematuramente.
+- End para preactive/active/frozen, freeze para active, resume para frozen; motivo y fechas reales, control de versión, requestId idempotente y auditoría sin motivos privados. Cancelación solo de raíz futura; activaciones contractuales reservadas a C17. Reanudación automática sustituida por baja/reanudación temprana se restaura al cancelar el cambio pendiente. Efectos financieros pendientes de C17.
+- UI reutiliza Section/Row, campos, SelectRow, confirmSheet y toast; historial y acciones por estado. Cambiar afiliación conserva contacto aún no guardado y actualiza versión. Controles de selección/navegación/búsqueda compartidos declaran type=button para evitar envíos accidentales dentro de formularios, con prueba conductual.
+- Evidencia: centers-lifecycle-unit.log 34/34; frontend/centers-lifecycle-ui.log 42/42; centers-lifecycle-sql.log 6/6 reales. Incluye carreras, zonas Kiritimati/Pago Pago, reanudación efectiva sin job, recuperación de fecha original, rol trainer sin motivos, superadmin sin asignación local, RLS en vista y sesión personal intacta.
+- API general api/centers-lifecycle-full-api.log 634/607 pass/27 fail previos; frontend/centers-lifecycle-full-frontend.log 406 archivos/391 pass/15 fail, 5074 tests/5020 pass/54 fail previos. Comparación por nombre: ningún fallo nuevo. Últimos ajustes de presentación/guardas se verifican con pruebas específicas.
+- Contrato generado: 89 endpoints/37 schemas, versión SQL 006. Build/locales/source strings pasan: 18 locales/2328 claves, 1828 cadenas. Navegador: superadmin crea socio, programa baja futura y la cancela conservando historial; 390 px sin overflow. Captura ficticia en informes/centros-c14-local.jpg del workspace exterior. Preview reutiliza centro existente al reiniciar.
+- C14 done; siguiente C15. Sin cambios en datos reales ni despliegue productivo; cambios previos de demo preservados.
 
 ### Plantilla de entrada futura
 

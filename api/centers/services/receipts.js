@@ -6,6 +6,7 @@ import {businessTransaction} from './context.js';
 import {memberRecord} from './member-records.js';
 import {previewForContract} from './billing-preview.js';
 import {commandHash,commandReplay,rememberCommand,businessAudit} from './commands.js';
+import {receiptBalance} from './payments.js';
 
 const projection='id,center_id,member_id,subscription_id,concept,period_start::text,period_end::text,due_on::text,currency,net_minor,tax_minor,total_minor,snapshot,created_at::text AS cursor_at';
 const dto=row=>({id:row.id,centerId:row.center_id,memberId:row.member_id,subscriptionId:row.subscription_id,concept:row.concept,
@@ -49,6 +50,8 @@ export function listReceipts(database,uid,centerId,memberId,{limit,cursor},{plat
   return businessTransaction(database,uid,centerId,'billing.read',async client=>{
     await memberRecord(client,centerId,memberId);
     const {rows}=await client.query(`SELECT ${projection} FROM centers.receipts WHERE center_id=$1 AND member_id=$2 AND ($3::timestamptz IS NULL OR (created_at,id)<($3::timestamptz,$4::text)) ORDER BY created_at DESC,id DESC LIMIT $5`,[centerId,memberId,after?.at||null,after?.id||null,limit+1]);
-    const page=rows.slice(0,limit);return {receipts:page.map(dto),nextCursor:rows.length>limit?nextCursor(scope,page.at(-1)):null};
+    const page=rows.slice(0,limit),receipts=[];
+    for(const row of page)receipts.push({...dto(row),settlement:await receiptBalance(client,centerId,memberId,row.id)});
+    return {receipts,nextCursor:rows.length>limit?nextCursor(scope,page.at(-1)):null};
   },{platform,allowInactive:platform});
 }

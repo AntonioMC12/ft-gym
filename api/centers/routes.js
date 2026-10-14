@@ -10,6 +10,7 @@ import {createMembershipPlan,reviseMembershipPlan,duplicateMembershipPlan,archiv
 import {createSubscription,changeSubscription,cancelSubscription,listSubscriptions} from './services/subscriptions.js';
 import {previewBilling} from './services/billing-preview.js';
 import {generateReceipt,listReceipts,receiptListOptions} from './services/receipts.js';
+import {recordPayment,recordRefund,listPayments,updateRefundCapability} from './services/payments.js';
 
 // Inject the same session and response helpers used by the rest of node:http.
 export function centersRoutes({ config, database, json, readSession, readBody, accountLocks, lookupAccount,
@@ -40,6 +41,15 @@ export function centersRoutes({ config, database, json, readSession, readBody, a
     }catch(error){return failure(res,error);}
   };
   return {
+    'POST /api/centers/payments/record': mutate(false,(context,body)=>recordPayment(context,body,{platform:isPlatformUser(config,context.user)})),
+    'POST /api/centers/payments/refund': mutate(false,(context,body)=>recordRefund(context,body,{platform:isPlatformUser(config,context.user)})),
+    'POST /api/platform/centers/role-capabilities': mutate(true,updateRefundCapability),
+    'GET /api/centers/payments': async(req,res)=>{
+      const user=guard(req,res);if(!user)return;const sv=user.sv||0;
+      const params=new URL(req.url,'http://x').searchParams,centerId=params.get('centerId'),memberId=params.get('memberId');
+      if(!recordId(centerId)||!recordId(memberId))return json(res,404,{error:'not found',code:'not-found'});
+      try{const result=await listPayments(database,user.id,centerId,memberId,receiptListOptions(params),{platform:isPlatformUser(config,user)});if(!current(req,user,sv))return json(res,401,{error:'not signed in'});return json(res,200,result);}catch(error){return failure(res,error);}
+    },
     'POST /api/centers/receipts/generate': mutate(false,(context,body)=>generateReceipt(context,body,{platform:isPlatformUser(config,context.user)})),
     'GET /api/centers/receipts': async(req,res)=>{
       const user=guard(req,res);if(!user)return;const sv=user.sv||0;

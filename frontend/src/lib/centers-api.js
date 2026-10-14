@@ -20,6 +20,14 @@ export function receiptsErrorKey(error) {
   if(code==='invalid-input')return 'Check the billing period and due date.'
   return centersErrorKey(error)
 }
+export const centerPayments=(centerId,memberId,options={})=>api('/api/centers/payments?'+new URLSearchParams({centerId,memberId,...options}))
+export function paymentsErrorKey(error) {
+  const code=error?.data?.code||error?.code
+  if(code==='payment-exceeds-balance')return 'The payment exceeds the outstanding balance. Reload the receipts.'
+  if(code==='refund-exceeds-payment')return 'The refund exceeds the available payment. Reload the payments.'
+  if(code==='invalid-input'||error?.message==='invalid price')return 'Check the amount, date and payment details.'
+  return centersErrorKey(error)
+}
 export function subscriptionsErrorKey(error) {
   const code=error?.data?.code||error?.code
   if(['subscription-overlap','pending-subscription','pending-transition'].includes(code))return 'Cancel the pending change before adding another.'

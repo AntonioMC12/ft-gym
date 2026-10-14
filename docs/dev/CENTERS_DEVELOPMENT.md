@@ -84,3 +84,13 @@ Las migraciones 008/009 añaden catálogo de cuotas, versiones de precio inmutab
 C17 instala btree_gist en el esquema centers para exclusión concurrente de periodos. Es una extensión confiable instalable con CREATE en la base ([documentación oficial](https://www.postgresql.org/docs/18/btree-gist.html)); el runtime no recibe CREATE ni bypass. Una instalación previa en otro esquema requiere adaptar el entorno explícitamente; no aplicar migraciones manualmente sin el registro/checksum.
 
 Crear/cambiar/cancelar contrato requiere billing.manage y versión actual del socio. Activación, baja y pausa se resuelven en fechas locales; cancelaciones futuras mantienen filas y recuperan el contrato anterior. Ninguna acción emite un recibo, realiza un cobro o modifica la cuenta personal. Pruebas actuales solo sobre PostgreSQL marcado test y cuentas ficticias.
+
+## Registro manual de pagos (C19-C20)
+
+Schema 010/011 incorpora recibos inmutables y un ledger de pagos, aplicaciones y devoluciones. Runtime solo SELECT/INSERT en el ledger; RLS, claves compuestas y restricciones diferidas rechazan pagos sin aplicación completa, sobrepagos y devoluciones superiores a la aplicación. API comparte lock de centro, idempotencia y auditoría atómica. Importes son céntimos exactos, nunca floats ni booleano paid editable.
+
+El MVP no mantiene crédito sin aplicar: cada pago se reparte íntegramente entre 1-50 recibos del mismo socio. Un recibo admite pagos parciales y una devolución vuelve a aumentar su saldo. UI registra un recibo cada vez; API admite varios. Fechas civiles no futuras, métodos cash/bank-transfer/card/other y referencia opcional. Son registros de movimientos ya realizados; no ejecutan transferencias ni pasarelas.
+
+Responsable puede registrar pagos; payments.refund requiere concesión expresa de la plataforma. Endpoint role-capabilities y control de personal permiten conceder/retirar únicamente ese extra en una asignación manager vigente, con versión, requestId y auditoría. Trainer y admin técnico no adquieren permisos económicos.
+
+Lecturas paginadas privadas permanecen en memoria. Detalle de pago muestra aplicaciones con periodo y totales de todas las devoluciones; a lo sumo 100 motivos recientes, con refundsTruncated explícito. Datos de contacto y motivos no pasan a auditoría personal ni S. La política productiva y conciliación externa se validarán en sus fases.

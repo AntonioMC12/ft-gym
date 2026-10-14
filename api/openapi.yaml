@@ -165,6 +165,139 @@ security:
   - bearerAuth: []
 
 paths:
+  /api/centers/payments/record:
+    post:
+      tags: [centers]
+      operationId: recordCenterPayment
+      summary: Record a manually received payment and its receipt allocations atomically
+      description: >-
+        Requires payments.record in an active center or explicit platform allowlist. This records
+        a historical movement; it does not transfer funds or call a payment provider. Positive
+        canonical integer cents, EUR and a non-future civil date are required. Each of 1-50 unique
+        receipts belongs to the same center/member; allocations must exactly sum to the payment
+        and cannot exceed outstanding balances. Receipt order is canonical for idempotency.
+        Payment, allocations, business audit and actor/operation/requestId result commit together.
+        Concurrent overpayment is rejected; retries respect currently valid permissions.
+      security: [{ session: [] }, { bearer: [] }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/ManualPaymentInput' }
+      responses:
+        '200':
+          description: Committed immutable payment or original idempotent result.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  payment: { $ref: '#/components/schemas/CenterPayment' }
+        '400': { description: Invalid amount/date/method or incomplete/duplicate allocations. }
+        '401': { description: No current session. }
+        '403': { description: Insufficient capability. }
+        '404': { description: Module off or member/receipt outside selected center. }
+        '409': { description: payment-exceeds-balance, conflicting requestId or inactive center. }
+        '503': { description: Centers unavailable. }
+  /api/centers/payments/refund:
+    post:
+      tags: [centers]
+      operationId: recordCenterRefund
+      summary: Append a manual refund against one payment allocation
+      description: >-
+        Requires payments.refund explicitly granted by platform to the manager, or the configured
+        platform allowlist. Never implied by manager or technical user.admin. Positive exact cents,
+        date between payment date and center-local today, and a private reason are required.
+        Total refunds cannot exceed the original allocation. Appends an immutable refund and audit
+        transactionally with idempotency; the receipt's derived balance increases. No bank transfer,
+        destructive payment edits, or change to personal training/authentication. Audit excludes reason.
+      security: [{ session: [] }, { bearer: [] }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/ManualRefundInput' }
+      responses:
+        '200':
+          description: Payment with refunds and restored receipt balance, or original idempotent result.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  payment: { $ref: '#/components/schemas/CenterPayment' }
+                  balance: { $ref: '#/components/schemas/ReceiptSettlement' }
+        '400': { description: Invalid amount, date or missing reason. }
+        '401': { description: No current session. }
+        '403': { description: No current explicit refund capability. }
+        '404': { description: Module off or payment/allocation outside selected member/center. }
+        '409': { description: refund-exceeds-payment, conflicting requestId or inactive center. }
+        '503': { description: Centers unavailable. }
+  /api/centers/payments:
+    get:
+      tags: [centers]
+      operationId: listCenterPayments
+      summary: Paginated manual payment ledger for one center member
+      description: >-
+        Requires billing.read or configured platform. Stable created_at/id keyset cursor bound to
+        account, center and member. Exact allocation/refund totals derive from all immutable entries.
+        At most the latest 100 refund details per payment are returned; refundsTruncated signals
+        additional history. No payment data enters personal S, cache or backup exports.
+      security: [{ session: [] }, { bearer: [] }]
+      parameters:
+        - { name: centerId, in: query, required: true, schema: { type: string } }
+        - { name: memberId, in: query, required: true, schema: { type: string } }
+        - { name: limit, in: query, schema: { type: integer, minimum: 1, maximum: 100, default: 30 } }
+        - { name: cursor, in: query, schema: { type: string, maxLength: 1024 } }
+      responses:
+        '200':
+          description: Authorized center-scoped page.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  payments: { type: array, items: { $ref: '#/components/schemas/CenterPayment' } }
+                  nextCursor: { type: [string, 'null'] }
+        '400': { description: Invalid or cross-scope cursor. }
+        '401': { description: No current session. }
+        '403': { description: Insufficient capability. }
+        '404': { description: Module off or inaccessible center/member. }
+        '409': { description: Inactive center for local staff. }
+        '503': { description: Centers unavailable. }
+  /api/platform/centers/role-capabilities:
+    post:
+      tags: [centers]
+      operationId: updateCenterRefundCapability
+      summary: Explicitly grant or revoke manual refund permission for a manager
+      description: >-
+        Only CENTERS_SUPERADMIN_UIDS allowlist, independently of user.admin. Requires current
+        assignment version and requestId; never permits trainer grants or self escalation by staff.
+        Preserves other extra capabilities. Shared center lock coordinates revocation with mutations;
+        assignment/center versions and business audit update atomically. Same requestId/content replays.
+      security: [{ session: [] }, { bearer: [] }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties: false
+              required: [centerId, assignmentId, version, allowRefund, requestId]
+              properties:
+                centerId: { type: string }
+                assignmentId: { type: string }
+                version: { type: integer, minimum: 1 }
+                allowRefund: { type: boolean }
+                requestId: { type: string, minLength: 8, maxLength: 128 }
+      responses:
+        '200': { description: Committed permission update or original result with new assignment version. }
+        '400': { description: Invalid input. }
+        '401': { description: No current session. }
+        '403': { description: Not an explicitly configured platform account. }
+        '404': { description: No current manager assignment in selected center. }
+        '409': { description: Stale version or conflicting requestId. }
+        '503': { description: Centers unavailable. }
   /api/centers/receipts/generate:
     post:
       tags: [centers]
@@ -210,7 +343,7 @@ paths:
       tags: [centers]
       operationId: listCenterReceipts
       summary: Read immutable receipt snapshots for a selected member
-      description: Requires billing.read or platform; no trainer/other-center financial access. Cursor bound to caller, member and center. Payment state is reserved for the ledger phase.
+      description: Requires billing.read or platform; no trainer/other-center financial access. Cursor bound to caller, member and center. Each immutable receipt includes settlement derived from all allocations and refunds; its paid/partial/unpaid state is never editable.
       security: [{ session: [] }, { bearer: [] }]
       parameters:
         - { name: centerId, in: query, required: true, schema: { type: string } }
@@ -218,7 +351,22 @@ paths:
         - { name: limit, in: query, schema: { type: integer, minimum: 1, maximum: 100, default: 30 } }
         - { name: cursor, in: query, schema: { type: string, maxLength: 1024 } }
       responses:
-        '200': { description: receipts and nextCursor; all monetary fields decimal text in minor units. }
+        '200':
+          description: receipts and nextCursor; all monetary fields decimal text in minor units.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  receipts:
+                    type: array
+                    items:
+                      type: object
+                      properties:
+                        id: { type: string }
+                        snapshot: { type: object, description: Original ChargePreview plus memberName/memberNumber at issuance. }
+                        settlement: { $ref: '#/components/schemas/ReceiptSettlement' }
+                  nextCursor: { type: [string, 'null'] }
         '400': { description: Invalid pagination or cursor from another context. }
         '401': { $ref: '#/components/responses/Unauthorized' }
         '403': { description: Financial read capability unavailable. }
@@ -4056,6 +4204,95 @@ components:
           example: { error: "that code is wrong, used or expired", code: "link-invalid" }
 
   schemas:
+    ExactMinorAmount:
+      type: string
+      pattern: '^(0|[1-9][0-9]{0,14})$'
+      description: Canonical integer minor units. Client/server use exact integer arithmetic.
+    ReceiptSettlement:
+      type: object
+      properties:
+        receiptId: { type: string }
+        currency: { type: string, const: EUR }
+        totalMinor: { $ref: '#/components/schemas/ExactMinorAmount' }
+        paidMinor: { $ref: '#/components/schemas/ExactMinorAmount' }
+        refundedMinor:
+          type: string
+          pattern: '^[0-9]+$'
+          description: Cumulative historical refunds; may exceed total after repeated refunds and repayments.
+        balanceMinor: { $ref: '#/components/schemas/ExactMinorAmount' }
+        status: { type: string, enum: [unpaid, partial, paid] }
+    ManualPaymentInput:
+      type: object
+      additionalProperties: false
+      required: [centerId, memberId, amountMinor, currency, paidOn, method, allocations, requestId]
+      properties:
+        centerId: { type: string }
+        memberId: { type: string }
+        amountMinor: { $ref: '#/components/schemas/ExactMinorAmount' }
+        currency: { type: string, const: EUR }
+        paidOn: { type: string, format: date }
+        method: { type: string, enum: [cash, bank-transfer, card, other] }
+        reference: { type: [string, 'null'], maxLength: 120 }
+        requestId: { type: string, minLength: 8, maxLength: 128 }
+        allocations:
+          type: array
+          minItems: 1
+          maxItems: 50
+          items:
+            type: object
+            additionalProperties: false
+            required: [receiptId, amountMinor]
+            properties:
+              receiptId: { type: string }
+              amountMinor: { $ref: '#/components/schemas/ExactMinorAmount' }
+    ManualRefundInput:
+      type: object
+      additionalProperties: false
+      required: [centerId, memberId, paymentId, receiptId, amountMinor, refundedOn, reason, requestId]
+      properties:
+        centerId: { type: string }
+        memberId: { type: string }
+        paymentId: { type: string }
+        receiptId: { type: string }
+        amountMinor: { $ref: '#/components/schemas/ExactMinorAmount' }
+        refundedOn: { type: string, format: date }
+        reason: { type: string, minLength: 1, maxLength: 500 }
+        requestId: { type: string, minLength: 8, maxLength: 128 }
+    CenterPayment:
+      type: object
+      properties:
+        id: { type: string }
+        centerId: { type: string }
+        memberId: { type: string }
+        amountMinor: { $ref: '#/components/schemas/ExactMinorAmount' }
+        currency: { type: string, const: EUR }
+        paidOn: { type: string, format: date }
+        method: { type: string, enum: [cash, bank-transfer, card, other] }
+        reference: { type: [string, 'null'] }
+        refundsTruncated: { type: boolean }
+        allocations:
+          type: array
+          items:
+            type: object
+            properties:
+              receiptId: { type: string }
+              amountMinor: { $ref: '#/components/schemas/ExactMinorAmount' }
+              refundedMinor: { $ref: '#/components/schemas/ExactMinorAmount' }
+              refundableMinor: { $ref: '#/components/schemas/ExactMinorAmount' }
+              periodStart: { type: string, format: date }
+              periodEnd: { type: string, format: date }
+        refunds:
+          type: array
+          maxItems: 100
+          items:
+            type: object
+            properties:
+              id: { type: string }
+              paymentId: { type: string }
+              receiptId: { type: string }
+              amountMinor: { $ref: '#/components/schemas/ExactMinorAmount' }
+              refundedOn: { type: string, format: date }
+              reason: { type: string }
     ChargePreview:
       type: object
       properties:

@@ -13,6 +13,7 @@ import './centers.css'
 import Members from './Members.jsx'
 import Invitations from './Invitations.jsx'
 import MembershipPlans from './MembershipPlans.jsx'
+import RefundGrant from './RefundGrant.jsx'
 
 const stateLabel = state => state === 'active' ? t('Active center') : state === 'inactive' ? t('Inactive center') : t('Draft center')
 const fieldsOf = center => ({ name: center?.name || '', taxId: center?.taxId || '', address: center?.address || '',
@@ -108,6 +109,7 @@ function CenterPanel({ center, platform, capabilities, close, refresh, ownerUid 
     {(platform || capabilities.includes('center.update')) && <form onSubmit={e => { e.preventDefault(); perform(updatePath, { ...fields, centerId: center.id, version: center.version }) }}><Fields value={fields} change={setFields} /><Button type="submit" variant="primary" disabled={busy}>{t('Save')}</Button></form>}
     {staff.length > 0 && <div><h3>{t('Center staff')}</h3>{staff.map(role => <div key={role.id} className="centers-staff-row"><div><strong>{role.role === 'manager' ? t('Center manager') : t('Trainer')}</strong><div className="small muted">{role.accountUid}</div></div>
       {role.revoked ? <span className="muted small">{t('Revoked role')}</span> : (platform || role.role === 'trainer') && <div className="centers-actions">{platform && role.role==='manager' && <Button onClick={() => setReplaceId(role.id)}>{t('Replace')}</Button>}<Button disabled={busy} onClick={() => perform(platform ? '/api/platform/centers/revoke-role' : '/api/centers/staff/revoke', { centerId: center.id, version: center.version, assignmentId: role.id })}>{t('Revoke role')}</Button></div>}
+      {platform&&!role.revoked&&role.role==='manager'&&<RefundGrant centerId={center.id} role={role} ownerUid={ownerUid} saved={refresh}/>}
     </div>)}</div>}
     {capabilities.includes('staff.manage') && <div><h3>{t('Trainer')}</h3><label className="centers-field"><span>{t('Account ID')}</span><TextField value={trainerUid} onChange={e => setTrainerUid(e.target.value)} /></label><Button disabled={busy || !trainerUid.trim()} onClick={() => perform('/api/centers/staff/assign', { centerId: center.id, version: center.version, accountUid: trainerUid.trim() })}>{t('Save')}</Button></div>}
     {platform && <div><h3>{replaceId ? t('Replace') : t('Assign manager')}</h3>{replaceId && <Button onClick={() => setReplaceId(null)}>{t('Cancel')}</Button>}<AccountPicker selected={manager} choose={setManager} /><Button disabled={busy || !manager} onClick={() => perform('/api/platform/centers/assign-manager', { centerId: center.id, version: center.version, accountUid: manager.id, ...(replaceId ? { replaceAssignmentId: replaceId } : {}) })}>{t('Assign manager')}</Button>

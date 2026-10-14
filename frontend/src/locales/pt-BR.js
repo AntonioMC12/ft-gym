@@ -6,6 +6,11 @@ import { centersStrings } from './modules/centers.js'
 
 export const PT_BR_OVERRIDES = {
   ...centersStrings('pt'),
+  'Record payment': 'Registrar pagamento',
+  'Record refund': 'Registrar reembolso',
+  'Manual record only. No money is transferred.': 'Apenas registro manual. Não há transferência de dinheiro.',
+  'Payment recorded.': 'Pagamento registrado.',
+  'Refund recorded.': 'Reembolso registrado.',
   'Invitation accepted': 'Convite aceito',
   'Invitation already accepted': 'Convite já aceito',
   'Invitation link': 'Link do convite',

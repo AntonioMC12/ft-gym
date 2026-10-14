@@ -7,8 +7,8 @@
 - Trabajo actual autorizado (14 octubre): continuar roadmap hasta que reste el 20% del límite disponible; corregir Atrás de Centros y conservar esa pauta para navegación/breadcrumbs futuros. La orden de apagado del 13 octubre terminó en aquella ejecución; no se aplica a esta sesión.
 - Rama: `codex/centers-module`, creada desde `53ef0baf`. F0-F3 verificadas en entorno ficticio. Commits: `75e1160d`, `433764a5`, `24cb5a42`.
 - Guía: [CENTERS_ROADMAP.md](CENTERS_ROADMAP.md). Instrucciones: [AGENTS.md](../../AGENTS.md).
-- Siguiente tarea: **C20 / F6**, ledger inmutable de pagos parciales, aplicaciones y devoluciones manuales; permisos extraordinarios explícitos.
-- Último hito cerrado: C19, recibos por API e interfaz con confirmación del cálculo, paginación y snapshot inmutable. Atrás de Centros sigue el historial; preferencia guardada en AGENTS.md.
+- Siguiente tarea: **C21 / F6**, deuda derivada, gracia y calendario; listados/exportación por centro con permiso explícito.
+- Último hito cerrado: C20, ledger de pagos parciales/aplicaciones/devoluciones inmutable, permisos extraordinarios y UI. Atrás de Centros sigue el historial; preferencia guardada en AGENTS.md.
 - Pruebas C18: 47 unitarias API, 66 frontend/controles, 3 OpenAPI y 10 SQL+HTTP reales pasan. Comparativa general y comprobación visual registradas abajo.
 
 Este registro contiene el estado de ejecución; el roadmap define requisitos y dependencias. La autorización vigente siempre procede del usuario, no de una casilla de este archivo.
@@ -49,8 +49,8 @@ Estados permitidos: `todo`, `in_progress`, `done`, `blocked`. Una tarea done nec
 | C17 | F5 | Suscripciones | done |
 | C18 | F5 | Cálculo económico | done |
 | C19 | F6 | Recibos idempotentes | done |
-| C20 | F6 | Pagos y aplicaciones | in_progress |
-| C21 | F6 | Deuda y calendario | todo |
+| C20 | F6 | Pagos y aplicaciones | done |
+| C21 | F6 | Deuda y calendario | in_progress |
 | C22 | F6 | Área del socio | todo |
 | C23 | F7 | Navegación/contexto | todo |
 | C24 | F7 | Piloto MVP y restauración | todo |
@@ -290,3 +290,14 @@ No guardar credenciales, bodies privados, volcados de socios, IBAN, tarjetas o r
 - Verificación: frontend/centers-receipts-ui.log 86/86; centros-c19-sql.log 11/11 reales; build y locales pasan (18 locales/2391 claves, 1881 cadenas fuente). Frontend completo con cuatro workers: 415 archivos, 400 pasan/15 fallan; 5112 tests, 5058 pasan/54 fallan. Mismos fallos previos del baseline; backend C19 mantiene 648/621 pasan/27 fallan y sin cambios en esta continuación UI.
 - Visual local: Account → Centros → Atrás vuelve a Account. Centro ensayo 14 octubre y Socio ensayo recibos son ficticios en SQL test: cuota 31 EUR, 18/31 días de octubre, recibo 18 EUR, vencimiento 14 octubre. Confirmación y snapshot verificados; ninguna transmisión de cobro. Evidencias fuera del repo en informes/centros-c19-atras-cuenta.jpg y centros-c19-recibo-creado.jpg.
 - C19 done. Continúa C20. El umbral vigente es 80% usado/20% restante del límite más restrictivo medido con get_usage_limits. No se aplica apagado, push, merge ni despliegue en esta sesión.
+
+### C20 / F6: pagos parciales, aplicaciones y devoluciones manuales
+
+- Migración 011 añade payments/payment_allocations/refunds, claves compuestas de centro/socio/recibo, FORCE RLS y solo SELECT/INSERT. Triggers toman lock del centro y restricciones diferidas garantizan reparto íntegro del pago, no sobrepago y no sobrerreembolso, incluso mediante SQL directo. Ninguna edición paid/destructiva.
+- Dominio exacto: céntimos positivos BigInt/texto, EUR, 1-50 aplicaciones distintas ordenadas canónicamente y suma exacta. API acepta varios recibos del mismo socio; UI registra uno cada vez. No crédito sin aplicar en este MVP. Pago + aplicaciones + auditoría + idempotencia atómicos; devolución contra aplicación original restaura saldo. Fechas no futuras y devolución desde fecha del pago; motivo privado obligatorio, omitido en auditoría.
+- Manager tiene payments.record, no payments.refund por defecto. Plataforma explícita puede conceder/retirar ese extra en un manager vigente con versión/idempotencia/auditoría; trainer y admin técnico no obtienen acceso financiero. Reintentos también respetan revocación actual. Control de personal, formularios y listados reutilizan Switch/Section/Row/SelectRow/campos/confirmSheet/useAutoMore; estado solo en memoria y guardas de cuenta/centro/confirmación anterior.
+- Recibos incluyen settlement calculado desde todo el ledger: paidMinor, refundedMinor, balanceMinor y unpaid/partial/paid. Payments muestra periodos aplicados y hasta 100 motivos recientes, refundsTruncated explícito; sus totales incluyen todas las devoluciones. No banco, pasarela, cobro real o cambios de cuenta/entrenamiento.
+- Verificación: centers-c20-sql.log 12/12 SQL+HTTP reales, incluyendo carreras de pago/devolución, reintento, exceso, privilegios, RLS directa, snapshot, rollback por sesión revocada y restricciones SQL. api/centers-c20-unit.log 53/53 incluidos 3 OpenAPI. frontend/centers-c20-ui.log 99/99 en 19 archivos; build/locales pasan (18 locales/2418 claves, 1901 cadenas fuente). pt-BR tiene overrides revisados para vocabulario nuevo.
+- Suites generales: API 650/623 pasan/27 fallan, frontend 418 archivos/403 pasan/15 fallan; 5125 tests/5071 pasan/54 fallan. Comparación de identidades contra baseline sin fallos nuevos; el fallo OpenAPI corregido en F1 permanece resuelto. MCP no modificado.
+- Visual: recibo ficticio 18 EUR, pagos manuales 6 + 12 EUR, devolución 2 EUR con motivo: neto pagado 16, devuelto 2, saldo pendiente 2; recibo original conserva 18. Evidencia informes/centros-c20-saldo-devolucion.jpg fuera del repo. API de preview reconstruida con schema 011, solo loopback3011 y Vite5178. Reiniciar preview renueva sesiones ficticias; SQL test se conserva.
+- C20 done. Sigue C21. Última medición primaria 41% usado, semanal 49%; límite vigente hasta 20% restante. Sin push/merge/despliegue/datos reales ni apagado en esta sesión.

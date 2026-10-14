@@ -11,6 +11,26 @@ import {receiptBalance} from './payments.js';
 const projection='id,center_id,member_id,subscription_id,concept,period_start::text,period_end::text,due_on::text,currency,net_minor,tax_minor,total_minor,snapshot,created_at::text AS cursor_at';
 const dto=row=>({id:row.id,centerId:row.center_id,memberId:row.member_id,subscriptionId:row.subscription_id,concept:row.concept,
   periodStart:row.period_start,periodEnd:row.period_end,dueOn:row.due_on,currency:row.currency,netMinor:row.net_minor,taxMinor:row.tax_minor,totalMinor:row.total_minor,snapshot:row.snapshot});
+// Runs inside the caller's center lock/transaction. The scheduler shares the exact
+// calendar, historical membership and natural receipt key with manual issuance.
+export async function issueReceipt(client,{centerId,memberId,subscriptionId,periodStart,dueOn,uid,expectedQuoteHash=null,automatic=false}) {
+  const member=await memberRecord(client,centerId,memberId);
+  if(periodStart>member.local_today)throw new CentersError(400,'invalid-input','future receipt period');
+  const {rows:existing}=await client.query(`SELECT ${projection} FROM centers.receipts WHERE center_id=$1 AND member_id=$2 AND subscription_id=$3 AND period_start=$4 AND concept='membership'`,[centerId,memberId,subscriptionId,periodStart]);
+  if(existing.length){
+    if(!automatic&&existing[0].due_on!==dueOn)throw new CentersError(409,'receipt-exists','existing receipt due date differs');
+    return {receipt:dto(existing[0]),alreadyExists:true};
+  }
+  const quote=await previewForContract(client,centerId,memberId,subscriptionId,periodStart);
+  if(expectedQuoteHash!==null&&expectedQuoteHash!==commandHash(quote))throw new CentersError(409,'quote-changed','reload the charge preview');
+  if(quote.totalMinor==='0')return {skipped:true,reason:'no-charge',subscriptionId,periodStart};
+  const id='rc_'+commandHash([centerId,subscriptionId,periodStart,'membership']).slice(0,32),snapshot={...quote,memberNumber:member.member_number,memberName:member.name};
+  const {rows}=await client.query(`INSERT INTO centers.receipts(id,center_id,member_id,subscription_id,period_start,period_end,due_on,currency,net_minor,tax_minor,total_minor,snapshot,actor_uid)
+    VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13) RETURNING ${projection}`,[id,centerId,memberId,subscriptionId,periodStart,quote.periodEnd,dueOn,quote.currency,quote.netMinor,quote.taxMinor,quote.totalMinor,JSON.stringify(snapshot),uid]);
+  await businessAudit(client,centerId,uid,'receipt.created',id,{memberId,subscriptionId,periodStart,automatic});
+  await client.query(`INSERT INTO centers.outbox(id,center_id,receipt_id,kind,payload) VALUES($1,$2,$3,'receipt.created',$4) ON CONFLICT DO NOTHING`,['ob_'+commandHash([centerId,id,'receipt.created']).slice(0,32),centerId,id,JSON.stringify({receiptId:id})]);
+  return {receipt:dto(rows[0])};
+}
 export function generateReceipt({database,user,checkSession},raw,{platform=false}={}) {
   objectBody(raw,['centerId','memberId','subscriptionId','periodStart','dueOn','requestId','expectedQuoteHash']);
   const centerId=idField(raw.centerId),memberId=idField(raw.memberId),subscriptionId=idField(raw.subscriptionId),periodStart=membershipDate(raw.periodStart),dueOn=membershipDate(raw.dueOn),requestId=requestField(raw.requestId);
@@ -20,24 +40,7 @@ export function generateReceipt({database,user,checkSession},raw,{platform=false
   const operation='receipt.generate',hash=commandHash({memberId,subscriptionId,periodStart,dueOn,expectedQuoteHash});
   return businessTransaction(database,user.id,centerId,'billing.manage',async(client,scope)=>{
     const replay=await commandReplay(client,centerId,user.id,operation,requestId,hash);if(replay)return replay;
-    const member=await memberRecord(client,centerId,memberId);
-    if(periodStart>member.local_today)throw new CentersError(400,'invalid-input','future receipt period');
-    const {rows:existing}=await client.query(`SELECT ${projection} FROM centers.receipts WHERE center_id=$1 AND member_id=$2 AND subscription_id=$3 AND period_start=$4 AND concept='membership'`,[centerId,memberId,subscriptionId,periodStart]);
-    let response;
-    if(existing.length){
-      if(existing[0].due_on!==dueOn)throw new CentersError(409,'receipt-exists','existing receipt due date differs');
-      response={receipt:dto(existing[0]),alreadyExists:true};
-    }else{
-      const quote=await previewForContract(client,centerId,memberId,subscriptionId,periodStart);checkSession();
-      if(expectedQuoteHash!==null&&expectedQuoteHash!==commandHash(quote))throw new CentersError(409,'quote-changed','reload the charge preview');
-      if(quote.totalMinor==='0')response={skipped:true,reason:'no-charge',subscriptionId,periodStart};
-      else{
-        const id='rc_'+commandHash([centerId,subscriptionId,periodStart,'membership']).slice(0,32),snapshot={...quote,memberNumber:member.member_number,memberName:member.name};
-        const {rows}=await client.query(`INSERT INTO centers.receipts(id,center_id,member_id,subscription_id,period_start,period_end,due_on,currency,net_minor,tax_minor,total_minor,snapshot,actor_uid)
-          VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13) RETURNING ${projection}`,[id,centerId,memberId,subscriptionId,periodStart,quote.periodEnd,dueOn,quote.currency,quote.netMinor,quote.taxMinor,quote.totalMinor,JSON.stringify(snapshot),user.id]);
-        response={receipt:dto(rows[0])};await businessAudit(client,centerId,user.id,'receipt.created',id,{memberId,subscriptionId,periodStart});
-      }
-    }
+    const response=await issueReceipt(client,{centerId,memberId,subscriptionId,periodStart,dueOn,uid:user.id,expectedQuoteHash});
     await rememberCommand(client,centerId,user.id,operation,requestId,hash,response);checkSession();return response;
   },{platform});
 }

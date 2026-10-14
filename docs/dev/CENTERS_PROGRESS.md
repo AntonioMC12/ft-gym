@@ -7,8 +7,8 @@
 - Trabajo actual autorizado (14 octubre, continuación): seguir trabajando hasta agotar el presupuesto disponible, guardando avances y continuación antes del límite; sustituye el umbral anterior del20%. La orden de apagado del13octubre no se aplica a esta sesión.
 - Rama: `codex/centers-module`, creada desde `53ef0baf`. F0-F3 verificadas en entorno ficticio. Commits: `75e1160d`, `433764a5`, `24cb5a42`.
 - Guía: [CENTERS_ROADMAP.md](CENTERS_ROADMAP.md). Instrucciones: [AGENTS.md](../../AGENTS.md).
-- Siguiente tarea: **C25 / F8**, trabajos SQL recuperables, generación acotada y outbox transaccional.
-- Último hito cerrado: C24, piloto de dos centros y restauración conjunta JSON/PostgreSQL con rechazo de inconsistencias.
+- Siguiente tarea: **C26 / F8**, consumidor de outbox y avisos con transporte de pruebas sin envíos externos.
+- Último hito cerrado: C25, jobs SQL recuperables, emisión acotada, outbox transaccional y controles de plataforma.
 - Pruebas C18: 47 unitarias API, 66 frontend/controles, 3 OpenAPI y 10 SQL+HTTP reales pasan. Comparativa general y comprobación visual registradas abajo.
 
 Este registro contiene el estado de ejecución; el roadmap define requisitos y dependencias. La autorización vigente siempre procede del usuario, no de una casilla de este archivo.
@@ -54,8 +54,8 @@ Estados permitidos: `todo`, `in_progress`, `done`, `blocked`. Una tarea done nec
 | C22 | F6 | Área del socio | done |
 | C23 | F7 | Navegación/contexto | done |
 | C24 | F7 | Piloto MVP y restauración | done |
-| C25 | F8 | Jobs y outbox | in_progress |
-| C26 | F8 | Email y avisos | todo |
+| C25 | F8 | Jobs y outbox | done |
+| C26 | F8 | Email y avisos | in_progress |
 | C27 | F9 | Stripe | todo |
 | C28 | F9 | SEPA | todo |
 | C29 | F10 | Propuestas de rutinas | todo |
@@ -348,3 +348,14 @@ No guardar credenciales, bodies privados, volcados de socios, IBAN, tarjetas o r
 - Comparación lógica exacta de todas las tablas y entrenamiento byte a byte. Rechaza copia alterada, checksums de otra migración, cuentas huérfanas, marcador duradero ausente y destino poblado. Tras restore, área propia/entrenamiento conservan respuestas; centro ajeno404; pago repetido no duplica; borrado de cuenta vinculada409; RLS conserva aislamiento y runtime no puede alterar recibos.
 - centers-c24-recovery.log1/1 recorrido completo; centers-c24-sql.log14/14 SQL+HTTP reales con helper de parada/reutilización de directorio ficticio. api/centers-c24-unit.log62/62; general API656/629 pasan/27 fallan, mismas identidades del baseline salvo OpenAPI ya corregido. Frontend sin cambio en C24: build y general C23 vigentes (5145/5091 pasan/54 fallos previos). MCP intacto.
 - Gate MVP local de ensayo verificado. No equivale a activación real, backup operativo ni cobro automático. C40 concretará cifrado/custodia/retención/RPO/RTO y recuperación de infraestructura; C41 requiere autorización propia. C25 continúa con automatización apagada por defecto y sin emails/cobros externos. Cambios previos de demo preservados; sin push/merge/apagado.
+
+### C25 / F8: jobs persistentes y outbox
+
+- Migración013 nueva, inmutable tras aplicarla en test. billing_automation opt-in por centro con fecha de primer periodo fijada, versión y cursor persistente; job_runs único centro/contrato/periodo; outbox único centro/tipo/recibo. RLS separa lectura de responsables y mutación de plataforma/ejecutor. Runtime sigue sin DDL, deletes ni actualización de recibos. SCHEMA_VERSION013.
+- Ejecutor en el proceso node:http, opt-in adicional CENTERS_JOBS_ENABLED=0 por defecto. Arranque y despiertes60s, sin Redis: hasta4centros,10contratos por escaneo,3periodos por contrato y10emisiones por centro/despertar. Cursores/orden de escaneo SQL recuperan la cola tras reiniciar. Bloqueo de centro y fila SKIP LOCKED; commit conjunto de recibo/auditoría/evento/job, yield entre trabajos. Error de emisión revierte savepoint, reintenta5min hasta8fallos y bloquea; dominio bloquea para revisión. Fecha inicial no permite perder o backfacturar cola por cambios silenciosos.
+- Generador manual/automático comparte issueReceipt y dominio existente: precio/condiciones fijadas, céntimos exactos, estado histórico y clave natural. No-charge queda skipped; un recibo previo conserva snapshot/vencimiento aunque llegue un job posterior. Cada recibo nuevo crea evento mínimo receiptId, sin rellenar históricos ni enviar mensajes. Desactivación pausa, no borra historial; no pagos externos ni suspensión global de cuentas.
+- API GET billing/automation y POST plataforma billing/automation, billing/jobs/retry: versión, idempotencia, sesión vigente, auditoría. UI dentro de Deuda y calendario reutiliza Section/Row/TextField/Switch/Button/confirmSheet; plataforma confirma fecha/activación y reintenta blocked, responsables solo leen. Guardas de cuenta/centro/permisos y requestId estable ante red. 12 claves nuevas en18locales, overrides pt-BR revisados. CENTERS_JOBS.md explica activación, periodos, límites y revisión.
+- Verificación: centers-c25-sql.log15/15 reales; centers-c25-jobs-sql.log ampliado pasa tras añadir rollback antes del commit, arranque de ejecutor en otro proceso, dos workers, RLS, freeze skipped, SQL fallido/savepoint/reintento, opt-out y15contratos recorriendo páginas sin duplicados. api/centers-c25-unit.log64/64; frontend/centers-c25-ui.log85/85 en17archivos (selección); build y18locales/2453claves pasan.
+- General API658/631 pasan/27fallan; frontend422archivos/407pasan/15fallan,5150tests/5096pasan/54fallan. Comparación de identidades contra baseline sin nueva regresión; OpenAPI baseline ya corregido. Ensayo de restore actualizado a schema013 en centers-c25-recovery.log1/1 pasa. MCP intacto.
+- Visual localhost centro ficticio jobs_4bb5c8b744:2trabajos completos/1omitido,2eventos pendientes, ejecutor explícitamente desactivado. Móvil390: contenido375 sin overflow, override restaurado, pestaña temporal cerrada. Evidencia informes/centros-c25-trabajos.jpg fuera del repo. Preview reconstruida schema013 loopback3011 y Vite5178, sesión Plataforma Centros. SQL de pruebas conservado; demo8088 previa intacta.
+- C25 done; C26 continúa solo con transporte de pruebas y política explícita, sin usar credenciales ni destinatarios reales. Sin push/merge/producción/apagado. Última medición22% primaria/59% semanal; autorización vigente hasta límite disponible, sin resets.

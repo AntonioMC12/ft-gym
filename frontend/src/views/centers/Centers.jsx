@@ -15,6 +15,7 @@ import Invitations from './Invitations.jsx'
 import MembershipPlans from './MembershipPlans.jsx'
 import RefundGrant from './RoleCapabilityGrant.jsx'
 import DebtCalendar from './DebtCalendar.jsx'
+import BillingAutomation from './BillingAutomation.jsx'
 
 const stateLabel = state => state === 'active' ? t('Active center') : state === 'inactive' ? t('Inactive center') : t('Draft center')
 const fieldsOf = center => ({ name: center?.name || '', taxId: center?.taxId || '', address: center?.address || '',
@@ -132,7 +133,7 @@ function CenterPanel({ center, platform, capabilities, close, refresh, ownerUid,
     </div>}
     {error && <p role="alert">{t(centersErrorKey(error))}</p>}
     </>}
-  </div></Section>{billingPane?<DebtCalendar key={center.id} centerId={center.id} ownerUid={ownerUid} canExport={capabilities.includes('data.export')}/>:planPane?<MembershipPlans key={center.id} centerId={center.id} ownerUid={ownerUid}/>:memberPane?<Members key={center.id} centerId={center.id} ownerUid={ownerUid} capabilities={capabilities}/>:
+  </div></Section>{billingPane?<><DebtCalendar key={center.id} centerId={center.id} ownerUid={ownerUid} canExport={capabilities.includes('data.export')}/><BillingAutomation key={'automation:'+center.id} centerId={center.id} ownerUid={ownerUid} platform={platform} active={center.state==='active'}/></>:planPane?<MembershipPlans key={center.id} centerId={center.id} ownerUid={ownerUid}/>:memberPane?<Members key={center.id} centerId={center.id} ownerUid={ownerUid} capabilities={capabilities}/>:
     (platform||capabilities.includes('staff.manage'))&&<Invitations key={center.id} centerId={center.id} ownerUid={ownerUid} allowedKinds={platform?['manager','trainer']:['trainer']}/>}</>
 }
 

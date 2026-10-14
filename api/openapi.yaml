@@ -165,6 +165,78 @@ security:
   - bearerAuth: []
 
 paths:
+  /api/centers/billing/automation:
+    get:
+      tags: [centers]
+      operationId: getCenterBillingAutomation
+      summary: Read automation settings and bounded recent job outcomes
+      description: Manager billing.read or explicit platform allowlist; selected center required. Counts are exact decimal strings. No personal state persistence. Outbox events are queued only; C26 delivery is separate.
+      parameters:
+        - { name: centerId, in: query, required: true, schema: { type: string } }
+      responses:
+        '200':
+          description: Settings, worker opt-in, counts, last30 jobs and pending events.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/CenterAutomationStatus' }
+        '401': { description: No current session. }
+        '403': { description: Insufficient capability. }
+        '404': { description: No accessible center or module off. }
+        '503': { description: Centers unavailable. }
+  /api/platform/centers/billing/automation:
+    post:
+      tags: [centers]
+      operationId: configureCenterBillingAutomation
+      summary: Explicitly enable or disable automatic receipt issuance for one center
+      description: Platform allowlist only. Version0 creates settings; initial date is immutable and must fall within the last366 local civil days. Only periods beginning on or after fromOn qualify. Requires separate CENTERS_JOBS_ENABLED server opt-in. Does not collect payments or suspend accounts. Idempotency, current session, center lock and audit apply.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties: false
+              required: [centerId, enabled, fromOn, version, requestId]
+              properties:
+                centerId: { type: string }
+                enabled: { type: boolean }
+                fromOn: { type: string, format: date }
+                version: { type: integer, minimum: 0 }
+                requestId: { type: string, minLength: 8, maxLength: 128 }
+      responses:
+        '200': { description: Saved settings. }
+        '400': { description: Invalid settings or initial date. }
+        '401': { description: No current session. }
+        '403': { description: Explicit platform identity required. }
+        '404': { description: Center not found or module off. }
+        '409': { description: Version conflict, immutable date or inactive center. }
+        '503': { description: Centers unavailable. }
+  /api/platform/centers/billing/jobs/retry:
+    post:
+      tags: [centers]
+      operationId: retryBlockedCenterBillingJob
+      summary: Requeue a blocked receipt job after correcting its cause
+      description: Platform allowlist only; does not run a job inline or reactivate disabled automation. Idempotent and audited. Completed or skipped jobs cannot be rewritten.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties: false
+              required: [centerId, id, requestId]
+              properties:
+                centerId: { type: string }
+                id: { type: string }
+                requestId: { type: string, minLength: 8, maxLength: 128 }
+      responses:
+        '200': { description: Pending job recorded. }
+        '400': { description: Invalid identifiers. }
+        '401': { description: No current session. }
+        '403': { description: Explicit platform identity required. }
+        '404': { description: Center not found or module off. }
+        '409': { description: Job is not blocked or center inactive. }
+        '503': { description: Centers unavailable. }
   /api/centers/own/membership:
     get:
       tags: [centers]
@@ -4384,6 +4456,36 @@ components:
           example: { error: "that code is wrong, used or expired", code: "link-invalid" }
 
   schemas:
+    CenterAutomationStatus:
+      type: object
+      required: [settings, today, workerEnabled, counts, jobs, pendingEvents]
+      properties:
+        settings:
+          type: object
+          required: [enabled, fromOn, version]
+          properties:
+            enabled: { type: boolean }
+            fromOn: { type: [string, 'null'], format: date }
+            version: { type: integer, minimum: 0 }
+        workerEnabled: { type: boolean }
+        today: { type: string, format: date }
+        counts:
+          type: object
+          additionalProperties: { type: string, pattern: '^[0-9]+$' }
+        pendingEvents: { type: string, pattern: '^[0-9]+$' }
+        jobs:
+          type: array
+          maxItems: 30
+          items:
+            type: object
+            properties:
+              id: { type: string }
+              subscriptionId: { type: string }
+              periodStart: { type: string, format: date }
+              state: { type: string, enum: [pending, done, skipped, blocked] }
+              attempts: { type: integer, minimum: 0 }
+              errorCode: { type: [string, 'null'] }
+              receiptId: { type: [string, 'null'] }
     OwnCenterMembership:
       type: object
       properties:

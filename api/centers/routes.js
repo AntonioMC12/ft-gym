@@ -1,4 +1,5 @@
 import { CentersError } from './errors.js';
+import {automationStatus,configureAutomation,retryBillingJob} from './services/jobs.js';
 import { requireCenter, recordId, isPlatformUser } from './authz.js';
 import { affiliations } from './services/identity.js';
 import { listPlatformCenters, createCenter, updateCenter, assignRole, revokeRole, listStaff, centerDto } from './services/centers.js';
@@ -43,6 +44,13 @@ export function centersRoutes({ config, database, json, readSession, readBody, a
     }catch(error){return failure(res,error);}
   };
   return {
+    'GET /api/centers/billing/automation': async(req,res)=>{
+      const user=guard(req,res);if(!user)return;const sv=user.sv||0,centerId=new URL(req.url,'http://x').searchParams.get('centerId');
+      if(!recordId(centerId))return json(res,404,{error:'not found',code:'not-found'});
+      try{const result=await automationStatus(database,user.id,centerId,{platform:isPlatformUser(config,user),workerEnabled:!!config.jobsEnabled});if(!current(req,user,sv))return json(res,401,{error:'not signed in'});return json(res,200,result);}catch(error){return failure(res,error);}
+    },
+    'POST /api/platform/centers/billing/automation': mutate(true,configureAutomation),
+    'POST /api/platform/centers/billing/jobs/retry': mutate(true,retryBillingJob),
     'GET /api/centers/own/membership': async(req,res)=>{
       const user=guard(req,res);if(!user)return;const sv=user.sv||0,params=new URL(req.url,'http://x').searchParams,centerId=params.get('centerId');
       if(!recordId(centerId))return json(res,404,{error:'not found',code:'not-found'});

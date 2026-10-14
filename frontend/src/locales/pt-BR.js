@@ -6,6 +6,8 @@ import { centersStrings } from './modules/centers.js'
 
 export const PT_BR_OVERRIDES = {
   ...centersStrings('pt'),
+  'Issue receipt records automatically; no payments are collected.': 'Gerar registros de recibos automaticamente; nenhum pagamento é cobrado.',
+  'The initial date is locked after saving.': 'A data inicial fica fixa após salvar.',
   'Record payment': 'Registrar pagamento',
   'Record refund': 'Registrar reembolso',
   'Manual record only. No money is transferred.': 'Apenas registro manual. Não há transferência de dinheiro.',

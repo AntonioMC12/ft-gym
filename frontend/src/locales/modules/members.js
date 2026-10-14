@@ -8,6 +8,7 @@ import { receiptStrings } from './receipts.js'
 import { paymentStrings } from './payments.js'
 import { debtStrings } from './debt.js'
 import { memberPortalStrings } from './member-portal.js'
+import {jobStrings} from './jobs.js'
 const words={
  es:['Socios','Nuevo socio','Nombre del socio','Número de socio','Documento de identidad','Buscar socios','No hay socios disponibles','Ficha del socio','Pendiente de activación','Socio activo','Socio en pausa','Socio de baja','Revisa los datos del socio.','Ya existe un socio con estos datos en este centro.'],
  de:['Mitglieder','Neues Mitglied','Mitgliedsname','Mitgliedsnummer','Ausweisdokument','Mitglieder suchen','Keine Mitglieder verfügbar','Mitgliedsprofil','Aktivierung ausstehend','Aktives Mitglied','Pausiertes Mitglied','Beendete Mitgliedschaft','Prüfe die Mitgliedsdaten.','Ein Mitglied mit diesen Daten existiert bereits in diesem Zentrum.'],
@@ -27,4 +28,4 @@ const words={
  hu:['Tagok','Új tag','Tag neve','Tagsági szám','Személyazonosító okmány','Tagok keresése','Nincsenek tagok','Tag adatlapja','Aktiválásra vár','Aktív tag','Szüneteltetett tagság','Lezárt tagság','Ellenőrizd a tag adatait.','Ebben a központban már létezik tag ezekkel az adatokkal.'],
  ar:['الأعضاء','عضو جديد','اسم العضو','رقم العضو','وثيقة الهوية','البحث عن أعضاء','لا يوجد أعضاء','بيانات العضو','بانتظار التفعيل','عضو نشط','عضوية معلّقة','عضوية منتهية','تحقق من بيانات العضو.','يوجد بالفعل عضو بهذه البيانات في هذا المركز.'],
 }
-export function memberStrings(lang){const values=words[lang];if(!values||values.length!==keys.length)throw new Error('incomplete member translations: '+lang);return {...Object.fromEntries(keys.map((key,i)=>[key,values[i]])),...lifecycleStrings(lang),...invitationStrings(lang),...membershipPlanStrings(lang),...subscriptionStrings(lang),...billingStrings(lang),...receiptStrings(lang),...paymentStrings(lang),...debtStrings(lang),...memberPortalStrings(lang)}}
+export function memberStrings(lang){const values=words[lang];if(!values||values.length!==keys.length)throw new Error('incomplete member translations: '+lang);return {...Object.fromEntries(keys.map((key,i)=>[key,values[i]])),...lifecycleStrings(lang),...invitationStrings(lang),...membershipPlanStrings(lang),...subscriptionStrings(lang),...billingStrings(lang),...receiptStrings(lang),...paymentStrings(lang),...debtStrings(lang),...memberPortalStrings(lang),...jobStrings(lang)}}

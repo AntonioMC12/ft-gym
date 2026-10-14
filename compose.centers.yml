@@ -4,6 +4,7 @@ services:
     image: ft-gym-centers-api:local
     environment:
       CENTERS_ENABLED: "1"
+      CENTERS_JOBS_ENABLED: ${CENTERS_JOBS_ENABLED:-0}
       CENTERS_SUPERADMIN_UIDS: ${CENTERS_SUPERADMIN_UIDS:-}
       CENTERS_DATABASE_HOST: centers-db
       CENTERS_DATABASE_NAME: ${CENTERS_DB_NAME:-ft_gym_centers}

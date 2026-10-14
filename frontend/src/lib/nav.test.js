@@ -4,7 +4,7 @@
 // to do nothing.
 // @vitest-environment happy-dom
 import { beforeEach, describe, expect, it, vi } from 'vitest'
-import { closeThenNav, nav, navToWorkout, setNav } from './nav.js'
+import { closeThenNav, nav, navToWorkout, setNav,navBack } from './nav.js'
 
 let calls
 beforeEach(() => {
@@ -14,6 +14,16 @@ beforeEach(() => {
 })
 
 describe('nav', () => {
+  it('Back follows app history instead of a fixed Home destination',()=>{
+    history.replaceState({idx:2},'', '#/centers')
+    navBack('/home')
+    expect(calls).toEqual([[-1]])
+  })
+  it('a direct entry uses its parent with replace instead of another browser site',()=>{
+    history.replaceState({idx:0},'', '#/centers')
+    navBack('/settings/account')
+    expect(calls).toEqual([['/settings/account',{replace:true}]])
+  })
   it('passes the router its options', () => {
     nav('/plan', { replace: true })
     nav('/stats')

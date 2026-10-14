@@ -37,6 +37,8 @@ En las siguientes iteraciones y sesiones, revisar los componentes existentes ant
 
 Mantener useCenters en memoria y separado de S. Los helpers de presentación de fechas son reutilizables; dinero, vencimientos, permisos y acceso QR necesitan dominio propio. Esta preferencia fue indicada expresamente por el usuario el 13 de octubre de 2026; no autoriza despliegues ni operaciones productivas.
 
+Navegación y breadcrumbs: la flecha Atrás debe volver a la última pantalla visitada del historial de la app, sin enviarla siempre a Home. Reutilizar navBack de lib/nav.js; solo una entrada directa sin historial usa la ruta padre como fallback con replace. Diferenciar breadcrumb de jerarquía de vuelta cronológica; conservar consulta/estado y los flujos de sheets. Preferencia expresa del usuario del 14 de octubre de 2026, aplicable a futuras pantallas.
+
 No ejecutar tests contra datos reales ni copiar secretos a informes. No usar `compose.demo.yml` como producción. Antes de cobros reales, despliegues o migraciones sobre datos reales, comprobar que están autorizados y que se cumplen los criterios operativos del roadmap. La guía no añade confirmaciones para desarrollo local reversible ya autorizado.
 
 ## Referencias

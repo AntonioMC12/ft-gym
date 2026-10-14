@@ -1,7 +1,7 @@
 // @vitest-environment happy-dom
 import React, { act } from 'react'
 import { createRoot } from 'react-dom/client'
-import { MemoryRouter } from 'react-router-dom'
+import { MemoryRouter,Routes,Route,useLocation } from 'react-router-dom'
 import { beforeEach, afterEach, expect, it, vi } from 'vitest'
 vi.mock('../../lib/i18n.js', () => ({ t: value => value }))
 vi.mock('../../store/useStore.js', () => {
@@ -79,4 +79,19 @@ it('an explicit platform administrator manages members without local assignments
   await render();await click('Center details');await click('Members')
   expect(button('New member')).toBeDefined()
   await click('New member');expect(host.textContent).toContain('Member name')
+})
+it('the header Back returns to the previous route with its query and state',async()=>{
+  const prior=history.state
+  history.replaceState({idx:1},'',location.href)
+  function Previous(){const location=useLocation();return <div>{'Previous account screen '+location.search+' '+location.state.marker}</div>}
+  await act(async()=>{root.render(<MemoryRouter initialEntries={[{pathname:'/settings/account',search:'?from=account',state:{marker:'preserved'}},'/centers']} initialIndex={1}><Routes><Route path="/centers" element={<Centers/>}/><Route path="/settings/account" element={<Previous/>}/></Routes></MemoryRouter>);await Promise.resolve()})
+  await act(async()=>{host.querySelector('button[aria-label="Back"]').click()})
+  expect(host.textContent).toContain('Previous account screen ?from=account preserved')
+  history.replaceState(prior,'',location.href)
+})
+it('a direct Centers entry uses Home as a fallback without leaving the app',async()=>{
+  const prior=history.state;history.replaceState({idx:0},'',location.href)
+  await act(async()=>{root.render(<MemoryRouter initialEntries={['/centers']}><Routes><Route path="/centers" element={<Centers/>}/><Route path="/home" element={<div>Home fallback</div>}/></Routes></MemoryRouter>);await Promise.resolve()})
+  await act(async()=>{host.querySelector('button[aria-label="Back"]').click()});expect(host.textContent).toContain('Home fallback')
+  history.replaceState(prior,'',location.href)
 })

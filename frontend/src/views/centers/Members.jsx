@@ -9,6 +9,7 @@ import { useUI } from '../../store/useUI.js'
 import MembershipActions from './MembershipActions.jsx'
 import Invitations from './Invitations.jsx'
 import Subscriptions from './Subscriptions.jsx'
+import Receipts from './Receipts.jsx'
 
 const stateText=state=>state==='active'?t('Active member'):state==='frozen'?t('Frozen member'):state==='ended'?t('Ended member'):t('Pending activation')
 const fieldsOf=member=>({name:member?.name||'',email:member?.email||'',phone:member?.phone||'',nationalDocument:member?.nationalDocument||''})
@@ -17,6 +18,7 @@ function MemberForm({centerId,member,lifecycle,ownerUid,close,saved,canBilling})
   const [fields,setFields]=useState(()=>fieldsOf(member)),[busy,setBusy]=useState(false),[error,setError]=useState(null)
   const [currentMember,setCurrentMember]=useState(member),[info,setInfo]=useState(lifecycle)
   const [requestId]=useState(()=>crypto.randomUUID())
+  const [receiptsRevision,setReceiptsRevision]=useState(0)
   const input=(key,label,type='text')=><label className="centers-field"><span>{label}</span><TextField type={type} value={fields[key]} required={key==='name'} onChange={e=>setFields({...fields,[key]:e.target.value})}/></label>
   const submit=async e=>{
     e.preventDefault();if(busy)return;setBusy(true);setError(null)
@@ -34,7 +36,7 @@ function MemberForm({centerId,member,lifecycle,ownerUid,close,saved,canBilling})
     <div className="centers-actions"><Button type="button" disabled={busy} onClick={close}>{t('Back')}</Button><Button type="submit" variant="primary" disabled={busy||!fields.name.trim()}>{t('Save')}</Button></div>
   </form></Section>{currentMember&&info?.today&&<MembershipActions key={currentMember.version} centerId={centerId} member={currentMember} info={info} ownerUid={ownerUid} changed={result=>{setCurrentMember(result.member);setInfo({today:result.today,changes:result.changes})}}/>}
     {currentMember&&<Invitations centerId={centerId} ownerUid={ownerUid} memberId={currentMember.id} linked={currentMember.accountLinked}/>}
-    {currentMember&&canBilling&&<Subscriptions key={currentMember.id} centerId={centerId} member={currentMember} ownerUid={ownerUid} changed={result=>{setCurrentMember(result.member);setInfo({today:result.today,changes:result.changes})}}/>}</>
+    {currentMember&&canBilling&&<><Subscriptions key={currentMember.id} centerId={centerId} member={currentMember} ownerUid={ownerUid} changed={result=>{setCurrentMember(result.member);setInfo({today:result.today,changes:result.changes})}} receiptCreated={()=>setReceiptsRevision(value=>value+1)}/><Receipts key={currentMember.id} centerId={centerId} memberId={currentMember.id} ownerUid={ownerUid} revision={receiptsRevision}/></>}</>
 }
 
 export default function Members({centerId,ownerUid,capabilities}) {

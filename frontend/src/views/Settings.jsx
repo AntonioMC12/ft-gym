@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState, forwardRef, useSyncExternalStore } from 'react'
 import { useNavigate, useParams, useLocation, Navigate } from 'react-router-dom'
 import { useStore, DEF, hasData } from '../store/useStore.js'
+import {navBack} from '../lib/nav.js'
 import { healthStatus, loadHealth, enableHealth, disableHealth, openHealthConnect, onHealthChange } from '../lib/health-sync.js'
 import { workoutControls } from '../lib/workout-controls.js'
 import { speedUnitOf } from '../lib/speed.js'
@@ -426,8 +427,7 @@ export default function Settings({ page = null, find = null, via = null }) {
   // all do the same); a page opened from a link with nothing behind it goes up to its parent.
   const back = () => {
     const up = PAGES[page]?.parent ? '/settings/' + PAGES[page].parent : '/settings'
-    if ((window.history.state?.idx || 0) > 0) nav(-1)
-    else nav(up, { replace: true })
+    navBack(up,nav)
   }
 
   /* ---------------- the pages ---------------- */

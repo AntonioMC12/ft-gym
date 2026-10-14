@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react'
 import { Navigate, useNavigate } from 'react-router-dom'
+import {navBack} from '../../lib/nav.js'
 import { useStore } from '../../store/useStore.js'
 import { useCenters } from '../../store/useCenters.js'
 import { t } from '../../lib/i18n.js'
@@ -140,7 +141,7 @@ function Content({ user }) {
     return () => { current = false }
   }, [state.selectedId, state.ownerUid, state.centers, user.id, refreshKey])
   const selected = state.centers.find(c => c.id === state.selectedId)
-  return <div className="narrow centers-page"><div className="hdr"><button className="iconbtn" onClick={() => nav('/home')} aria-label={t('Home')}><Icon name="chevronLeft" /></button><h1>{t('Manage centers')}</h1></div>
+  return <div className="narrow centers-page"><div className="hdr"><button className="iconbtn" onClick={() => navBack('/home',nav)} aria-label={t('Back')}><Icon name="chevronLeft" /></button><h1>{t('Manage centers')}</h1></div>
     <div className="centers-actions"><Button onClick={refresh}>{t('Reload centers')}</Button>{platform && <Button variant="primary" onClick={() => { state.select(null); setCreating(true) }}>{t('New center')}</Button>}</div>
     {(state.status === 'loading' || state.ownerUid !== user.id) && <p className="muted" role="status">{t('Loading centers')}</p>}
     {(error || state.error) && <p role="alert">{t(centersErrorKey(error || state.error))}</p>}

@@ -179,7 +179,8 @@ paths:
         alreadyExists with the original snapshot. Different due date conflicts. No recalculation of
         issued history after a pause/plan change; adjustments belong to later ledger work.
         Zero charges return skipped/no-charge without creating a receipt. No payment is recorded,
-        no paid flag and no electronic invoice or external transmission. C19 frontend remains pending.
+        no paid flag and no electronic invoice or external transmission. The center interface
+        previews the authoritative quote, confirms its digest and due date, and lists immutable snapshots.
       security: [{ session: [] }, { bearer: [] }]
       requestBody:
         required: true

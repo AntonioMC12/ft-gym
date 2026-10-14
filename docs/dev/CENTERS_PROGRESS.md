@@ -1,14 +1,14 @@
 # Registro de ejecución: módulo de centros
 
-Última actualización: 13 de octubre de 2026.
+Última actualización: 14 de octubre de 2026.
 
 ## Punto de reanudación
 
-- Trabajo actual autorizado: continuar implementación hasta que reste el 5% del presupuesto consumible; después guardar el punto de continuación y apagar el ordenador, por orden explícita del usuario en esta sesión. Esta orden de apagado se aplica al cierre de esta ejecución, no a sesiones futuras.
+- Trabajo actual autorizado (14 octubre): continuar roadmap hasta que reste el 20% del límite disponible; corregir Atrás de Centros y conservar esa pauta para navegación/breadcrumbs futuros. La orden de apagado del 13 octubre terminó en aquella ejecución; no se aplica a esta sesión.
 - Rama: `codex/centers-module`, creada desde `53ef0baf`. F0-F3 verificadas en entorno ficticio. Commits: `75e1160d`, `433764a5`, `24cb5a42`.
 - Guía: [CENTERS_ROADMAP.md](CENTERS_ROADMAP.md). Instrucciones: [AGENTS.md](../../AGENTS.md).
-- Siguiente tarea: **C19 / F6 en progreso**, base/API de recibos añadidas; falta interfaz de generación/listado y verificación visual para cerrar la tarea.
-- Último hito cerrado: C18, previsualización exacta de dinero/calendario/impuestos con política explícita. C19 añade recibos ficticios por API en la base test; interfaz y pagos pendientes.
+- Siguiente tarea: **C20 / F6**, ledger inmutable de pagos parciales, aplicaciones y devoluciones manuales; permisos extraordinarios explícitos.
+- Último hito cerrado: C19, recibos por API e interfaz con confirmación del cálculo, paginación y snapshot inmutable. Atrás de Centros sigue el historial; preferencia guardada en AGENTS.md.
 - Pruebas C18: 47 unitarias API, 66 frontend/controles, 3 OpenAPI y 10 SQL+HTTP reales pasan. Comparativa general y comprobación visual registradas abajo.
 
 Este registro contiene el estado de ejecución; el roadmap define requisitos y dependencias. La autorización vigente siempre procede del usuario, no de una casilla de este archivo.
@@ -48,8 +48,8 @@ Estados permitidos: `todo`, `in_progress`, `done`, `blocked`. Una tarea done nec
 | C16 | F5 | Cuotas versionadas | done |
 | C17 | F5 | Suscripciones | done |
 | C18 | F5 | Cálculo económico | done |
-| C19 | F6 | Recibos idempotentes | in_progress |
-| C20 | F6 | Pagos y aplicaciones | todo |
+| C19 | F6 | Recibos idempotentes | done |
+| C20 | F6 | Pagos y aplicaciones | in_progress |
 | C21 | F6 | Deuda y calendario | todo |
 | C22 | F6 | Área del socio | todo |
 | C23 | F7 | Navegación/contexto | todo |
@@ -281,3 +281,12 @@ No guardar credenciales, bodies privados, volcados de socios, IBAN, tarjetas o r
 - Cierre de esta ejecución: umbral 95% usado/5% restante medido con get_usage_limits. No iniciar más funcionalidades. C19 queda in_progress. Comparativa final API: 648/621 pasan/27 fallan, sin nuevos casos respecto al baseline. La prueba FK final necesitó una fixture con periodo distinto para no disparar antes la unicidad; ningún cambio de permisos o restricciones, y suite SQL final 11/11.
 - Commits completos de esta ejecución: C14 4e2f5ae7; C15 4f1db6c9; C16 d83bb995; C17 156c4158; C18 ff118da0. C19 parcial se guarda aparte con evidencia y continuación. Rama local conservada, sin push/merge/despliegue ni datos reales. Cambios previos de demo no se han incluido ni revertido.
 - La orden explícita de apagar el ordenador pertenece solo a esta ejecución. Tras guardar se detendrán contenedores de prueba propios conservando volumen y se solicitará shutdown sin forzar cierre de otras aplicaciones. No repetir apagado automáticamente en otra sesión. El registro operativo del intento estará fuera del repo, en informes del workspace.
+
+### 14 octubre: navegación y cierre de C19
+
+- Atrás de Centros vuelve a la última ruta de la app, conservando consulta/estado. navBack centraliza la vuelta por índice de HashRouter; acceso directo usa padre con replace. Settings reutiliza el helper. Dos pruebas de router verifican vuelta a Account y fallback; pauta futura documentada en AGENTS.md.
+- BillingPreview confirma total/periodo/vencimiento y envía IDs + quoteHash, sin importes. Reintentos conservan requestId/cuerpo; conflicto de cálculo exige nuevo preview. Confirmación de centro anterior no ejecuta nada. alreadyExists muestra snapshot emitido; cero no inventa recibo ni saldo; futuro no se emite.
+- Receipts en ficha usa Section/Row/useAutoMore, cursor real y memoria privada. ChargeBreakdown extraído para el segundo uso concreto del snapshot. No campos paid ni edición de cantidades. Generación refresca recibos conservando el borrador de contacto.
+- Verificación: frontend/centers-receipts-ui.log 86/86; centros-c19-sql.log 11/11 reales; build y locales pasan (18 locales/2391 claves, 1881 cadenas fuente). Frontend completo con cuatro workers: 415 archivos, 400 pasan/15 fallan; 5112 tests, 5058 pasan/54 fallan. Mismos fallos previos del baseline; backend C19 mantiene 648/621 pasan/27 fallan y sin cambios en esta continuación UI.
+- Visual local: Account → Centros → Atrás vuelve a Account. Centro ensayo 14 octubre y Socio ensayo recibos son ficticios en SQL test: cuota 31 EUR, 18/31 días de octubre, recibo 18 EUR, vencimiento 14 octubre. Confirmación y snapshot verificados; ninguna transmisión de cobro. Evidencias fuera del repo en informes/centros-c19-atras-cuenta.jpg y centros-c19-recibo-creado.jpg.
+- C19 done. Continúa C20. El umbral vigente es 80% usado/20% restante del límite más restrictivo medido con get_usage_limits. No se aplica apagado, push, merge ni despliegue en esta sesión.

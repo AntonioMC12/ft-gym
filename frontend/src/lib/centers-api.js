@@ -11,6 +11,15 @@ export const centerMember = (centerId, id) => api('/api/centers/member?' + new U
 export const centerPlans = (centerId, options={}) => api('/api/centers/plans?'+new URLSearchParams({centerId,...options}))
 export const centerPlan = (centerId,id) => api('/api/centers/plan?'+new URLSearchParams({centerId,id}))
 export const centerSubscriptions = (centerId,memberId) => api('/api/centers/subscriptions?'+new URLSearchParams({centerId,memberId}))
+export const centerReceipts = (centerId,memberId,options={}) => api('/api/centers/receipts?'+new URLSearchParams({centerId,memberId,...options}))
+export function receiptsErrorKey(error) {
+  const code=error?.data?.code||error?.code
+  if(code==='quote-changed')return 'The amount changed. Preview it again before creating the receipt.'
+  if(code==='receipt-exists')return 'A receipt already exists for this period with a different due date.'
+  if(code==='billing-policy-required')return 'Tax and proration must be configured before calculating charges.'
+  if(code==='invalid-input')return 'Check the billing period and due date.'
+  return centersErrorKey(error)
+}
 export function subscriptionsErrorKey(error) {
   const code=error?.data?.code||error?.code
   if(['subscription-overlap','pending-subscription','pending-transition'].includes(code))return 'Cancel the pending change before adding another.'

@@ -4,6 +4,15 @@ export const setNav = fn => { _nav = fn }
 // `opts` goes to the router as is ({ replace: true }).
 export const nav = (to, opts) => (opts ? _nav(to, opts) : _nav(to))
 
+// Follow this router's history; a direct entry has no app page behind it.
+// Do not use history.length, which also counts other sites and browser pages.
+export function navBack(parent='/home',navigate=nav) {
+  let index=0
+  try { index=globalThis.history?.state?.idx||0 } catch {}
+  if(index>0)navigate(-1)
+  else navigate(parent,{replace:true})
+}
+
 // Every open sheet sits on a history entry of its own (Modals.jsx), and closing it walks back
 // only while the page is still where the sheet opened. A sheet that closes and moves to another
 // page at once left that entry behind: back from the new page landed on it, the same page with

@@ -3,6 +3,7 @@ import { CentersError } from '../errors.js';
 import { requireCenter } from '../authz.js';
 import { objectBody, centerFields, idField, requestField, versionField } from '../domain/validation.js';
 import { DEVELOPMENT_POLICY } from '../domain/policies.js';
+import {cursorScope,readCursor,nextCursor} from '../domain/pagination.js';
 
 const error = (code,message='conflict') => new CentersError(409,code,message);
 const audit = (client,centerId,uid,action,target,details={}) => client.query(`INSERT INTO centers.business_audit
@@ -29,10 +30,18 @@ function requireAccount(lookup,uid) {
   if (account.disabled) throw error('account-inactive','account is disabled');
 }
 
-export async function listPlatformCenters(database,uid) {
+export function platformCenterListOptions(params) {
+  const query=(params.get('query')||'').trim(),limit=Number(params.get('limit')||30),cursor=params.get('cursor')||null;
+  if([...params.keys()].some(key=>!['query','limit','cursor'].includes(key))||query.length>120||/[\u0000-\u001f\u007f]/.test(query)||!Number.isSafeInteger(limit)||limit<1||limit>100||cursor?.length>1024)throw new CentersError(400,'invalid-input','invalid center list options');
+  return {query,limit,cursor};
+}
+export async function listPlatformCenters(database,uid,{query='',limit=30,cursor=null}={}) {
+  const scope=cursorScope(['platform-centers',uid,query]),after=readCursor(cursor,scope);
   return database.platformTransaction(uid,async client=>{
-    const {rows}=await client.query('SELECT * FROM centers.centers ORDER BY created_at DESC,id LIMIT 100');
-    return { centers:rows.map(centerDto) };
+    const pattern='%'+query.replace(/[\\%_]/g,'\\$&')+'%';
+    const {rows}=await client.query(`SELECT *,created_at::text AS cursor_at FROM centers.centers WHERE ($1='' OR name ILIKE $2 ESCAPE '\\' OR id ILIKE $2 ESCAPE '\\')
+      AND ($3::timestamptz IS NULL OR (created_at,id)<($3::timestamptz,$4::text)) ORDER BY created_at DESC,id DESC LIMIT $5`,[query,pattern,after?.at||null,after?.id||null,limit+1]);
+    const page=rows.slice(0,limit);return {centers:page.map(centerDto),nextCursor:rows.length>limit?nextCursor(scope,page.at(-1)):null};
   });
 }
 

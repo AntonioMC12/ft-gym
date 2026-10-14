@@ -4,7 +4,7 @@ import {notificationStatus,configureNotificationPolicy,ownNotificationContact,re
 import {automationStatus,configureAutomation,retryBillingJob} from './services/jobs.js';
 import { requireCenter, recordId, isPlatformUser } from './authz.js';
 import { affiliations } from './services/identity.js';
-import { listPlatformCenters, createCenter, updateCenter, assignRole, revokeRole, listStaff, centerDto } from './services/centers.js';
+import { listPlatformCenters, platformCenterListOptions, createCenter, updateCenter, assignRole, revokeRole, listStaff, centerDto } from './services/centers.js';
 import { createMember, updateMember, listMembers, getMember } from './services/members.js';
 import { memberListOptions } from './domain/member-validation.js';
 import { transitionMember,cancelMemberTransition } from './services/membership-lifecycle.js';
@@ -185,7 +185,7 @@ export function centersRoutes({ config, database, json, readSession, readBody, a
     'GET /api/platform/centers': async (req,res) => {
       const user=guard(req,res);if(!user)return;const sv=user.sv||0;
       if(!isPlatformUser(config,user))return json(res,403,{error:'forbidden',code:'forbidden'});
-      try{const result=await listPlatformCenters(database,user.id);if(!current(req,user,sv))return json(res,401,{error:'not signed in'});return json(res,200,result);}
+      try{const result=await listPlatformCenters(database,user.id,platformCenterListOptions(new URL(req.url,'http://x').searchParams));if(!current(req,user,sv))return json(res,401,{error:'not signed in'});return json(res,200,result);}
       catch(error){return failure(res,error);}
     },
     'GET /api/platform/centers/accounts': async (req,res) => {

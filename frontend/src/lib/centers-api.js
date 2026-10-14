@@ -1,7 +1,7 @@
 import { api } from './api.js'
 
 export const centersMe = () => api('/api/centers/me')
-export const platformCenters = () => api('/api/platform/centers')
+export const platformCenters = (options={}) => api('/api/platform/centers'+(Object.keys(options).length?'?'+new URLSearchParams(options):''))
 export const centerDetail = id => api('/api/centers/detail?centerId=' + encodeURIComponent(id))
 export const centerStaff = id => api('/api/centers/staff?centerId=' + encodeURIComponent(id))
 export const centerAutomation=id=>api('/api/centers/billing/automation?'+new URLSearchParams({centerId:id}))

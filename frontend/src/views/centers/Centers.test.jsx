@@ -143,3 +143,16 @@ it('a delayed deactivation confirmation is inert after changing the pane that op
   useCenters.setState({platformCapabilities:['centers.manage','members.read','members.manage']})
   await render();await click('Center details');await click('Deactivate center');const confirmation=confirmSheet.mock.calls[0][0];await click('Members');await act(async()=>confirmation.onConfirm());expect(centerCommand).not.toHaveBeenCalled()
 })
+it('appends server pages without truncating the platform list',async()=>{
+  platformCenters.mockResolvedValueOnce({centers:[center],nextCursor:'more'}).mockResolvedValueOnce({centers:[{...center,id:'two',name:'Second center'}],nextCursor:null});await render();await click('Show more');expect(host.textContent).toContain('Second center');expect(platformCenters).toHaveBeenLastCalledWith({query:'',cursor:'more'});expect(button('Show more')).toBeUndefined()
+})
+it('keeps the search query and loaded list through center navigation and Back',async()=>{
+  const previous=history.state;history.replaceState({idx:1},'',location.href)
+  function Location(){const here=useLocation();return <output>{here.pathname+here.search}</output>}
+  await act(async()=>{root.render(<MemoryRouter initialEntries={['/centers?q=Synthetic']}><Centers/><Location/></MemoryRouter>);await Promise.resolve()});await click('Center details');expect(host.querySelector('output').textContent).toContain('q=Synthetic');await act(async()=>host.querySelector('button[aria-label="Back"]').click());expect(host.querySelector('output').textContent).toBe('/centers?q=Synthetic');expect(host.querySelector('input').value).toBe('Synthetic');expect(platformCenters).toHaveBeenCalledTimes(1);history.replaceState(previous,'',location.href)
+})
+it('discards a delayed page when the filter changes',async()=>{
+  let release;platformCenters.mockResolvedValueOnce({centers:[center],nextCursor:'more'}).mockReturnValueOnce(new Promise(resolve=>release=resolve)).mockResolvedValueOnce({centers:[{...center,id:'two',name:'Second center'}],nextCursor:null})
+  function Filter(){const navigate=useNavigate();return <button onClick={()=>navigate('/centers?q=Second')}>Change filter</button>}
+  await act(async()=>{root.render(<MemoryRouter><Centers/><Filter/></MemoryRouter>);await Promise.resolve()});await click('Show more');await click('Change filter');await act(async()=>release({centers:[{...center,id:'old',name:'Old filter result'}],nextCursor:null}));expect(host.textContent).toContain('Second center');expect(host.textContent).not.toContain('Old filter result');expect(platformCenters).toHaveBeenLastCalledWith({query:'Second'})
+})

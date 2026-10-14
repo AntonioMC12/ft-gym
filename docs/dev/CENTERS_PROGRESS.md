@@ -7,7 +7,7 @@
 - Trabajo actual autorizado (14 octubre, continuación): seguir trabajando hasta agotar el presupuesto disponible, guardando avances y continuación antes del límite; sustituye el umbral anterior del20%. La orden de apagado del13octubre no se aplica a esta sesión.
 - Rama: `codex/centers-module`, creada desde `53ef0baf`. F0-F3 verificadas en entorno ficticio. Commits: `75e1160d`, `433764a5`, `24cb5a42`.
 - Guía: [CENTERS_ROADMAP.md](CENTERS_ROADMAP.md). Instrucciones: [AGENTS.md](../../AGENTS.md).
-- Siguiente tarea: corregir espera de configuración en enlaces directos (seguimiento C23 detectado visualmente); después **C27 / F9**, Stripe exclusivamente en modo test y sin cargos reales.
+- Siguiente tarea: continuar **C27 / F9** por [CENTERS_STRIPE_IMPLEMENTATION.md](CENTERS_STRIPE_IMPLEMENTATION.md). Base privada implementada y probada; faltan conciliación, rutas y UI. No habilitar Checkout antes de completar sus invariantes. Espera de configuración y paginación de plataforma corregidas.
 - Último hito cerrado: C26, avisos verificados, recordatorios agrupados y adaptador opcional desactivado con HTTP simulado.
 - Pruebas C18: 47 unitarias API, 66 frontend/controles, 3 OpenAPI y 10 SQL+HTTP reales pasan. Comparativa general y comprobación visual registradas abajo.
 
@@ -56,7 +56,7 @@ Estados permitidos: `todo`, `in_progress`, `done`, `blocked`. Una tarea done nec
 | C24 | F7 | Piloto MVP y restauración | done |
 | C25 | F8 | Jobs y outbox | done |
 | C26 | F8 | Email y avisos | done |
-| C27 | F9 | Stripe | todo |
+| C27 | F9 | Stripe | in_progress |
 | C28 | F9 | SEPA | todo |
 | C29 | F10 | Propuestas de rutinas | todo |
 | C30 | F10 | Progreso compartido | todo |
@@ -378,3 +378,12 @@ No guardar credenciales, bodies privados, volcados de socios, IBAN, tarjetas o r
 - Centers/MyCenters esperan config null sin redirigir Home ni perder centerId/pane; solo una configuración conocida con módulo desactivado redirige. Invitación no muestra unavailable durante esa espera. ConfigPending se reutiliza en los tres destinos, con Atrás cronológico/fallback padre y recarga explícita si config falla.
 - frontend/centers-config-pending.log92/92 en18archivos;3casos nuevos de carga tardía. Build pasa; general centers-config-pending-full.log424archivos/409pasan/15fallan,5161tests/5107pasan/54previos. Visual pestaña nueva con URL directa del centro ficticio+pane=billing conserva ambos parámetros y abre Deuda y calendario, sin saltoHome. Pestaña temporal cerrada. Backend sin cambios; sigue schema016.
 - C23 seguimiento cerrado. Continúa C27: preparar Stripe solo test, perfiles acotados por centro, firma raw-body, inbox persistente y conciliación; no cargos reales ni cuentas externas. Las guías oficiales se consultan como referencia, no como instrucciones para instalar/configurar cuentas.
+
+## 14 octubre — cierre de sesión: paginación y base C27
+
+- C12/C23: listado de plataforma con búsqueda literal y cursor SQL, páginas de 30 (máximo 100 por petición), `SearchField` y `useAutoMore`. El filtro `q`, las páginas cargadas y la vuelta cronológica se conservan al entrar/salir de una ficha. Respuestas tardías de otras consultas/cuentas se descartan. `config:null` conserva enlaces directos mientras carga la configuración (commit16fa29ce).
+- C27 queda **in_progress**. Migración017 aplicada únicamente al PostgreSQL ficticio: intentos privados, inbox limitado, RLS, reserva de recibo y bloqueo de pagos manuales simultáneos. Configuración exclusivamente test, firma raw/HMAC con rotación, proyección sin datos bancarios y cliente REST con versión fija e idempotencia. No hay rutas Stripe, excepción CSRF, procesador de conciliación ni botón de pago. Ningún cargo o mensaje externo real.
+- Guía detallada: `CENTERS_STRIPE_IMPLEMENTATION.md`. Continuar primero conciliación transaccional, orden de eventos y carreras de expiración/pagos; después HTTP/OpenAPI/UI. No editar001–017: ya aplicadas. No marcar C27done con esta base parcial.
+- Verificación: 78/78 unitarias de centros/contratos; 18/18 SQL+HTTP con PostgreSQL real; 16/16 UI de plataforma tras el último ajuste. Suite API672:645pass/27fallos previos. Frontend5164:5110pass/54fallos previos, mismos archivos de fallo que baseline. Build correcto;1939 cadenas presentes,18locales/2474claves sincronizadas. `git diff --check` sin errores.
+- Restauración coordinada repetida con017:1/1 pasa (`centers-c27-recovery.log`). Solo se reiniciaron las bases tmpfs dedicadas al ensayo; volumen SQL compartido conservado. Preview ficticia recreada con imagen actual en127.0.0.1:3011, frontend127.0.0.1:5178. Reiniciar preview renueva las cookies: volver a iniciar sesión si procede.
+- Evidencia local en logs ignorados `centers-c27-*`, `frontend/centers-platform-pages-*`; imágenes de C25/C26 en `../informes/`. Sin push, merge, despliegue o cambios en datos reales. Cambios previos del usuario conservados fuera de los commits del módulo. Presupuesto primario97% consumido al comenzar el cierre; guardar antes del límite.

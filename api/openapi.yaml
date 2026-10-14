@@ -1371,7 +1371,11 @@ paths:
       tags: [centers]
       operationId: getPlatformCenters
       summary: List centers
-      description: Explicit platform allowlist only; at most 100 records ordered by creation descending.
+      description: Explicit platform allowlist only; cursor pages ordered by creation/id descending. Literal name or center-ID search. Cursor is bound to account and query; no fixed total100 cap. Current session is checked again before returning.
+      parameters:
+        - { name: query, in: query, schema: { type: string, maxLength: 120 } }
+        - { name: limit, in: query, schema: { type: integer, minimum: 1, maximum: 100, default: 30 } }
+        - { name: cursor, in: query, schema: { type: string, maxLength: 1024 } }
       responses:
         '200': { description: Authorized projection or committed audited change. }
         '400': { description: Invalid input or unexpected field. }

@@ -18,6 +18,7 @@ import DebtCalendar from './DebtCalendar.jsx'
 import BillingAutomation from './BillingAutomation.jsx'
 import NotificationSettings from './NotificationSettings.jsx'
 import ConfigPending from './ConfigPending.jsx'
+import {useAutoMore} from '../../lib/use-auto-more.js'
 
 const stateLabel = state => state === 'active' ? t('Active center') : state === 'inactive' ? t('Inactive center') : t('Draft center')
 const fieldsOf = center => ({ name: center?.name || '', taxId: center?.taxId || '', address: center?.address || '',
@@ -144,17 +145,25 @@ function Content({ user }) {
   const centerId=params.get('centerId'),pane=params.get('pane')||'details'
   const platform = state.platformCapabilities.includes('centers.manage')
   const [listed, setListed] = useState([]), [creating, setCreating] = useState(false), [detail, setDetail] = useState(null), [error, setError] = useState(null), [refreshKey, setRefreshKey] = useState(0)
+  const query=params.get('q')||'',[draft,setDraft]=useState(query),[cursor,setCursor]=useState(null),[listLoading,setListLoading]=useState(false),listLife=useRef(0),listPending=useRef(false)
+  useEffect(()=>setDraft(query),[query])
+  useEffect(()=>{if(centerId||creating||draft===query)return;const timer=setTimeout(()=>setParams(draft.trim()?{q:draft.trim()}:{},{replace:true}),250);return()=>clearTimeout(timer)},[draft,query,centerId,creating,setParams])
   const refresh = () => { if (useStore.getState().user?.id !== user.id) return; setDetail(null); setRefreshKey(k => k + 1); useCenters.getState().load(user.id) }
-  const selectCenter=id=>{state.select(id||null);setCreating(false);setParams(id?{centerId:id}:{})}
+  const selectCenter=id=>{state.select(id||null);setCreating(false);setParams({...(id?{centerId:id}:{}),...(query?{q:query}:{})})}
   useEffect(()=>{if(state.ownerUid===user.id&&state.status==='ready'&&state.selectedId!==centerId)state.select(centerId)},[centerId,state.ownerUid,state.status,state.selectedId,user.id])
   useEffect(() => {
-    let current = true
-    setListed([]); setDetail(null); setError(null)
+    const epoch=++listLife.current;let current = true
+    setListed([]);setCursor(null);setListLoading(false);listPending.current=false;setError(null)
     if (state.status !== 'ready' || state.ownerUid !== user.id) return
-    if (platform) platformCenters().then(r => { if (current) setListed(r.centers) }).catch(e => { if (current) { setError(e); useCenters.getState().revokeOn(e) } })
+    if (platform) {listPending.current=true;setListLoading(true);platformCenters({query}).then(r => { if (current&&useStore.getState().user?.id===user.id){setListed(r.centers);setCursor(r.nextCursor||null)} }).catch(e => { if (current&&useStore.getState().user?.id===user.id) { setError(e); useCenters.getState().revokeOn(e) } }).finally(()=>{if(current&&listLife.current===epoch){listPending.current=false;setListLoading(false)}})}
     else setListed(state.centers)
-    return () => { current = false }
-  }, [platform, state.centers, state.status, state.ownerUid, user.id, refreshKey])
+    return () => { current = false;listLife.current++;listPending.current=false }
+  }, [platform, state.centers, state.status, state.ownerUid, user.id, refreshKey,query])
+  const more=async()=>{
+    if(!platform||!cursor||listPending.current)return;const epoch=listLife.current;listPending.current=true;setListLoading(true)
+    try{const result=await platformCenters({query,cursor});if(epoch===listLife.current&&useStore.getState().user?.id===user.id){setListed(rows=>[...rows,...result.centers]);setCursor(result.nextCursor||null)}}catch(e){if(epoch===listLife.current&&useStore.getState().user?.id===user.id){setError(e);useCenters.getState().revokeOn(e)}}finally{if(epoch===listLife.current){listPending.current=false;setListLoading(false)}}
+  }
+  const moreRef=useAutoMore(more)
   useEffect(() => {
     let current = true
     setDetail(null);setError(null)
@@ -167,13 +176,14 @@ function Content({ user }) {
   if(detail?.id===centerId&&!choices.some(c=>c.id===centerId))choices.push(detail)
   return <div className="narrow centers-page"><div className="hdr"><button className="iconbtn" onClick={() => navBack(centerId?'/centers':'/home',nav)} aria-label={t('Back')}><Icon name="chevronLeft" /></button><h1>{t('Manage centers')}</h1></div>
     <div className="centers-actions"><Button onClick={refresh}>{t('Reload centers')}</Button>{platform && <Button variant="primary" onClick={() => { state.select(null); setCreating(true) }}>{t('New center')}</Button>}</div>
-    {(state.status === 'loading' || state.ownerUid !== user.id) && <p className="muted" role="status">{t('Loading centers')}</p>}
+    {platform&&!centerId&&!creating&&<SearchField value={draft} onChange={e=>setDraft(e.target.value)} placeholder={t('Search…')} aria-label={t('Search…')}/>}
+    {(state.status === 'loading' || state.ownerUid !== user.id||listLoading) && <p className="muted" role="status">{t('Loading centers')}</p>}
     {(error || state.error) && <p role="alert">{t(centersErrorKey(error || state.error))}</p>}
     {state.status==='ready'&&state.ownerUid===user.id&&choices.length>0&&!creating&&<SelectRow title={t('Center details')} value={centerId||''} options={[{value:'',label:t('Manage centers')},...choices.map(c=>({value:c.id,label:c.name}))]} onChange={selectCenter}/>}
-    {state.status === 'ready' && state.ownerUid === user.id && (creating && platform ? <NewCenter ownerUid={user.id} close={() => setCreating(false)} created={center => { if (useStore.getState().user?.id !== user.id) return; selectCenter(center.id); refresh() }} /> : detail?.id===centerId&&detail ? <CenterPanel key={user.id+':'+centerId} ownerUid={user.id} center={detail} platform={platform} capabilities={platform ? state.platformCapabilities : selected?.capabilities || []} close={() => navBack('/centers',nav)} refresh={refresh} pane={pane} setPane={value=>setParams({centerId,pane:value})}/> : centerId ? <p role="status">{t('Loading centers')}</p> : <div className="centers-list">{!listed.length && <p className="muted">{t('No centers available')}</p>}{listed.map(center => {
+    {state.status === 'ready' && state.ownerUid === user.id && (creating && platform ? <NewCenter ownerUid={user.id} close={() => setCreating(false)} created={center => { if (useStore.getState().user?.id !== user.id) return; selectCenter(center.id); refresh() }} /> : detail?.id===centerId&&detail ? <CenterPanel key={user.id+':'+centerId} ownerUid={user.id} center={detail} platform={platform} capabilities={platform ? state.platformCapabilities : selected?.capabilities || []} close={() => navBack('/centers',nav)} refresh={refresh} pane={pane} setPane={value=>setParams({centerId,pane:value,...(query?{q:query}:{})})}/> : centerId ? <p role="status">{t('Loading centers')}</p> : <div className="centers-list">{!listed.length&&!listLoading && <p className="muted">{t('No centers available')}</p>}{listed.map(center => {
       const canOpen = platform || center.capabilities?.includes('center.read')
       return <Section key={center.id}><Row title={center.name} subtitle={stateLabel(center.state)} value={canOpen ? t('Center details') : null} accessory={canOpen ? 'chevron' : 'none'} onClick={canOpen ? () => selectCenter(center.id) : undefined} /></Section>
-    })}</div>)}
+    })}{cursor&&<div ref={moreRef}><Button disabled={listLoading} onClick={more}>{t('Show more')}</Button></div>}</div>)}
   </div>
 }
 

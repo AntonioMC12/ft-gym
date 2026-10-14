@@ -41,6 +41,8 @@ Navegación y breadcrumbs: la flecha Atrás debe volver a la última pantalla vi
 
 No ejecutar tests contra datos reales ni copiar secretos a informes. No usar `compose.demo.yml` como producción. Antes de cobros reales, despliegues o migraciones sobre datos reales, comprobar que están autorizados y que se cumplen los criterios operativos del roadmap. La guía no añade confirmaciones para desarrollo local reversible ya autorizado.
 
+Configuración inicial: `config: null` significa pendiente, no módulo desactivado. Conservar enlaces directos y sus consultas mientras llega `/api/config`; ofrecer Atrás y recarga si falla. Solo una configuración conocida desactiva la vista. El listado global de centros usa búsqueda/cursor del servidor y `useAutoMore`; no volver a un límite total fijo de 100 ni guardar sus datos en S.
+
 ## Referencias
 
 Consultar `CONTRIBUTING.md` para estilo y contribución; `CLAUDE.md` como contexto contrastado con código. Guía oficial del mecanismo AGENTS.md: https://learn.chatgpt.com/docs/agent-configuration/agents-md.

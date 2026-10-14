@@ -36,7 +36,7 @@ export async function startHttp(t, { app, users, enabled = true, attached = fals
   if (attached) fs.writeFileSync(path.join(dir, 'centers-attached'), '1\n');
   const child = spawn(process.execPath, ['server.js'], { cwd: fileURLToPath(new URL('../../', import.meta.url)), stdio: ['ignore','pipe','pipe'],
     env: { ...process.env, PORT: '0', DATA_DIR: dir, CENTERS_ENABLED: enabled ? '1' : '0', CENTERS_DATABASE_URL: app,
-      CENTERS_JOBS_ENABLED:'0',CENTERS_NOTIFICATIONS_TEST_CAPTURE:notificationCapture?'1':'0',CENTERS_MAIL_PROFILES_JSON:'',
+      CENTERS_JOBS_ENABLED:'0',CENTERS_NOTIFICATIONS_TEST_CAPTURE:notificationCapture?'1':'0',CENTERS_MAIL_PROFILES_JSON:'',CENTERS_STRIPE_PROFILES_JSON:'',
       CENTERS_SUPERADMIN_UIDS: superadminUids.join(','), COACH_DISABLED: '1', MEDIA_UPLOADS: '0' } });
   const stop=async()=>{
     if (child.exitCode == null && child.signalCode == null) await new Promise(resolve => { child.once('exit', resolve); child.kill(); });

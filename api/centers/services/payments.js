@@ -31,6 +31,8 @@ export function recordPayment({database,user,checkSession},raw,{platform=false}=
   return businessTransaction(database,user.id,centerId,'payments.record',async client=>{
     const replay=await commandReplay(client,centerId,user.id,operation,requestId,hash);if(replay)return replay;
     const member=await memberRecord(client,centerId,memberId);if(input.paidOn>member.local_today)throw new CentersError(400,'invalid-input','future payment');
+    const {rows:reserved}=await client.query("SELECT id FROM centers.stripe_attempts WHERE center_id=$1 AND receipt_id=ANY($2::text[]) AND state IN ('creating','open','review') LIMIT 1",[centerId,input.allocations.map(value=>value.receiptId)]);
+    if(reserved.length)throw new CentersError(409,'checkout-pending','receipt has an active checkout');
     for(const allocation of input.allocations){const balance=await receiptBalance(client,centerId,memberId,allocation.receiptId);if(balance.currency!==input.currency||BigInt(allocation.amountMinor)>BigInt(balance.balanceMinor))conflict('payment-exceeds-balance');}
     const id='pay_'+commandHash([centerId,user.id,requestId]).slice(0,32);checkSession();
     await client.query('INSERT INTO centers.payments(id,center_id,member_id,amount_minor,currency,paid_on,method,reference,actor_uid) VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9)',[id,centerId,memberId,input.amountMinor,input.currency,input.paidOn,input.method,input.reference,user.id]);

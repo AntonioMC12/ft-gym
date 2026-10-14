@@ -7,8 +7,8 @@
 - Trabajo actual autorizado (14 octubre, continuación): seguir trabajando hasta agotar el presupuesto disponible, guardando avances y continuación antes del límite; sustituye el umbral anterior del20%. La orden de apagado del13octubre no se aplica a esta sesión.
 - Rama: `codex/centers-module`, creada desde `53ef0baf`. F0-F3 verificadas en entorno ficticio. Commits: `75e1160d`, `433764a5`, `24cb5a42`.
 - Guía: [CENTERS_ROADMAP.md](CENTERS_ROADMAP.md). Instrucciones: [AGENTS.md](../../AGENTS.md).
-- Siguiente tarea: **C24 / F7**, ensayo ficticio de dos centros y restauración conjunta JSON/PostgreSQL en contenedores desechables separados.
-- Último hito cerrado: C23, historial/selector y guardas de acciones pendientes al cambiar de pantalla, cuenta o permisos.
+- Siguiente tarea: **C25 / F8**, trabajos SQL recuperables, generación acotada y outbox transaccional.
+- Último hito cerrado: C24, piloto de dos centros y restauración conjunta JSON/PostgreSQL con rechazo de inconsistencias.
 - Pruebas C18: 47 unitarias API, 66 frontend/controles, 3 OpenAPI y 10 SQL+HTTP reales pasan. Comparativa general y comprobación visual registradas abajo.
 
 Este registro contiene el estado de ejecución; el roadmap define requisitos y dependencias. La autorización vigente siempre procede del usuario, no de una casilla de este archivo.
@@ -53,8 +53,8 @@ Estados permitidos: `todo`, `in_progress`, `done`, `blocked`. Una tarea done nec
 | C21 | F6 | Deuda y calendario | done |
 | C22 | F6 | Área del socio | done |
 | C23 | F7 | Navegación/contexto | done |
-| C24 | F7 | Piloto MVP y restauración | in_progress |
-| C25 | F8 | Jobs y outbox | todo |
+| C24 | F7 | Piloto MVP y restauración | done |
+| C25 | F8 | Jobs y outbox | in_progress |
 | C26 | F8 | Email y avisos | todo |
 | C27 | F9 | Stripe | todo |
 | C28 | F9 | SEPA | todo |
@@ -79,7 +79,7 @@ Estados permitidos: `todo`, `in_progress`, `done`, `blocked`. Una tarea done nec
 |---|---|---|
 | Infraestructura | C03-C05 + módulo apagado/activo/SQL caído + empaquetado | verificado, target default |
 | Aislamiento | C06-C09 + RLS real, revocación y protección de identidad | verificado |
-| MVP de ensayo | C00-C24 + recorrido completo, suites/build y restore | pendiente |
+| MVP de ensayo | C00-C24 + recorrido completo, suites/build y restore | verificado, solo entorno ficticio |
 | Cobros automáticos | C25-C28 según pasarela + sandbox y conciliación | pendiente |
 | Entrenador | C29-C30 + convergencia y privacidad | pendiente |
 | Acceso/retención | C31-C33 + validación física y métricas | pendiente |
@@ -340,3 +340,11 @@ No guardar credenciales, bodies privados, volcados de socios, IBAN, tarjetas o r
 - Nuevas guardas en NewCenter y CenterPanel: vida del componente/contexto y cuenta antes/después de await; operación duplicada bloqueada por ref; respuestas de un guardado antiguo no refrescan otra pestaña. Cambiar centro, versión, pestaña o capacidades invalida la confirmación capturada de desactivación. Una creación terminada tras salir no modifica la navegación.
 - frontend/centers-c23-guards.log119/119 en22 archivos. Pruebas nuevas cubren creación pendiente tras salida, guardado terminado en otra pestaña y confirmación antigua. Build pasa. Suite completa421 archivos/406 pasan/15 fallan;5145 tests/5091 pasan/54 fallan previos, sin nueva identidad de fallo. Backend sin cambios de negocio en C23.
 - C23 done; C24 inicia ensayo dedicado sin datos/volúmenes de aplicación. Nueva autorización del usuario elimina el umbral20% de la ejecución previa; continuar hasta límite, sin apagado ni consumo de créditos de reset.
+
+### C24 / F7: piloto y restauración conjunta
+
+- Compose de recuperación independiente, dos PostgreSQL18 en tmpfs y red interna, sin puertos/volúmenes de aplicación. URLs, roles y marcadores SQL de origen/destino obligatorios; ninguna URL real como fallback. Cliente PostgreSQL18 solo en imagen de pruebas. Procedimiento reproducible en CENTERS_RECOVERY_DRILL.md.
+- Piloto crea dos centros/responsables/socios, contratos, recibos y ledger manual. Detiene el único escritor API antes de copiar JSON completo y SQL; manifiesto SHA256/checksums de build detecta alteraciones. Restaura transaccionalmente como migrador en destino vacío, sin clean/CASCADE; conserva extensión btree_gist y su restricción de solapamiento. Un dump limitado solo al esquema omitía la extensión: detectado y corregido mediante copia de base dedicada excluyendo public (marcador de ensayo).
+- Comparación lógica exacta de todas las tablas y entrenamiento byte a byte. Rechaza copia alterada, checksums de otra migración, cuentas huérfanas, marcador duradero ausente y destino poblado. Tras restore, área propia/entrenamiento conservan respuestas; centro ajeno404; pago repetido no duplica; borrado de cuenta vinculada409; RLS conserva aislamiento y runtime no puede alterar recibos.
+- centers-c24-recovery.log1/1 recorrido completo; centers-c24-sql.log14/14 SQL+HTTP reales con helper de parada/reutilización de directorio ficticio. api/centers-c24-unit.log62/62; general API656/629 pasan/27 fallan, mismas identidades del baseline salvo OpenAPI ya corregido. Frontend sin cambio en C24: build y general C23 vigentes (5145/5091 pasan/54 fallos previos). MCP intacto.
+- Gate MVP local de ensayo verificado. No equivale a activación real, backup operativo ni cobro automático. C40 concretará cifrado/custodia/retención/RPO/RTO y recuperación de infraestructura; C41 requiere autorización propia. C25 continúa con automatización apagada por defecto y sin emails/cobros externos. Cambios previos de demo preservados; sin push/merge/apagado.

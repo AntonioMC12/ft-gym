@@ -28,17 +28,21 @@ export function testUrls(env = process.env) {
   return { app, migration };
 }
 
-export async function startHttp(t, { app, users, enabled = true, attached = false, superadminUids = [] }) {
-  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'gym-centers-business-'));
-  const secret = randomBytes(32).toString('hex');
-  fs.writeFileSync(path.join(dir, 'secret'), secret);
-  fs.writeFileSync(path.join(dir, 'db.json'), JSON.stringify({ users, creds: [], subs: [], invites: [] }));
+export async function startHttp(t, { app, users, enabled = true, attached = false, superadminUids = [], savedData = null }) {
+  if(savedData&&(!fs.realpathSync(savedData).startsWith(path.join(fs.realpathSync(os.tmpdir()),'gym-centers-recovery-'))||fs.readFileSync(path.join(savedData,'recovery-fixture'),'utf8')!=='fictional-disposable-only'))throw new Error('only recovery fixture data may be reused');
+  const dir = savedData || fs.mkdtempSync(path.join(os.tmpdir(), 'gym-centers-business-'));
+  const secret = savedData?fs.readFileSync(path.join(dir,'secret'),'utf8'):randomBytes(32).toString('hex');
+  if(!savedData){fs.writeFileSync(path.join(dir, 'secret'), secret);fs.writeFileSync(path.join(dir, 'db.json'), JSON.stringify({ users, creds: [], subs: [], invites: [] }));}
   if (attached) fs.writeFileSync(path.join(dir, 'centers-attached'), '1\n');
   const child = spawn(process.execPath, ['server.js'], { cwd: fileURLToPath(new URL('../../', import.meta.url)), stdio: ['ignore','pipe','pipe'],
     env: { ...process.env, PORT: '0', DATA_DIR: dir, CENTERS_ENABLED: enabled ? '1' : '0', CENTERS_DATABASE_URL: app,
       CENTERS_SUPERADMIN_UIDS: superadminUids.join(','), COACH_DISABLED: '1', MEDIA_UPLOADS: '0' } });
+  const stop=async()=>{
+    if (child.exitCode == null && child.signalCode == null) await new Promise(resolve => { child.once('exit', resolve); child.kill(); });
+  };
   t.after(async () => {
-    if (child.exitCode == null) await new Promise(resolve => { child.once('exit', resolve); child.kill(); });
+    await stop();
+    if(savedData)return;
     fs.rmSync(dir, { recursive: true, force: true });
   });
   const port = await new Promise((resolve,reject) => {
@@ -49,6 +53,7 @@ export async function startHttp(t, { app, users, enabled = true, attached = fals
   });
   return {
     base: `http://127.0.0.1:${port}`, dir,
+    stop,
     headers(uid) {
       const payload = `${uid}:${Date.now() + 60000}:0`;
       return { Authorization: `Bearer ${payload}.${createHmac('sha256', secret).update(payload).digest('base64url')}`, 'Content-Type': 'application/json' };

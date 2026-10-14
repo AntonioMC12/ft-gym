@@ -1,7 +1,7 @@
 import {CentersError} from '../errors.js';
 import {objectBody,idField,requestField} from '../domain/validation.js';
 import {verifyStripeEvent,checkoutEventProjection,stripeBodyHash} from '../domain/stripe-webhook.js';
-import {stripeProfileFor} from '../stripe-config.js';
+import {stripeProfileFor,STRIPE_API_VERSION} from '../stripe-config.js';
 import {businessTransaction} from './context.js';
 import {receiptBalance} from './payments.js';
 import {commandHash,commandReplay,rememberCommand,businessAudit} from './commands.js';
@@ -21,7 +21,7 @@ export function prepareStripeAttempt({database,user,config,checkSession},raw,{pl
     const {rows:totals}=await client.query("SELECT coalesce(sum(amount_minor),0)::text AS total FROM centers.stripe_attempts WHERE center_id=$1 AND state IN ('creating','open','paid','review') AND created_at>=date_trunc('day',now() AT TIME ZONE 'UTC') AT TIME ZONE 'UTC'",[centerId]);
     if(BigInt(totals[0].total)+amount>BigInt(profile.dailyLimitMinor))throw new CentersError(409,'stripe-limit','test gateway daily center limit exceeded');
     const id='sa_'+commandHash([centerId,user.id,requestId]).slice(0,32),reserved='pgw_'+commandHash([id,'payment']).slice(0,32);checkSession();
-    await client.query("INSERT INTO centers.stripe_attempts(id,center_id,member_id,receipt_id,profile_id,actor_uid,amount_minor,currency,reserved_payment_id,expires_at) VALUES($1,$2,$3,$4,$5,$6,$7,'EUR',$8,now()+interval '1 hour')",[id,centerId,memberId,receiptId,profile.id,user.id,amount.toString(),reserved]);
+    await client.query("INSERT INTO centers.stripe_attempts(id,center_id,member_id,receipt_id,profile_id,actor_uid,amount_minor,currency,reserved_payment_id,expires_at,provider_account_id,return_origin,api_version) VALUES($1,$2,$3,$4,$5,$6,$7,'EUR',$8,date_trunc('second',now())+interval '1 hour',$9,$10,$11)",[id,centerId,memberId,receiptId,profile.id,user.id,amount.toString(),reserved,profile.accountId,profile.returnOrigin,STRIPE_API_VERSION]);
     await businessAudit(client,centerId,user.id,'stripe.attempt.prepared',id,{receiptId,mode:'test'});const result={attemptId:id};await rememberCommand(client,centerId,user.id,operation,requestId,hash,result);checkSession();return result;
   },{platform});
 }

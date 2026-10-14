@@ -26,19 +26,26 @@ async function paymentDetail(client,centerId,memberId,id) {
   const {rows:refunds}=await client.query('SELECT *,refunded_on::text FROM centers.refunds WHERE center_id=$1 AND payment_id=$2 ORDER BY created_at DESC,id DESC LIMIT 101',[centerId,id]);
   return {...paymentDto(rows[0]),allocations:allocations.map(a=>({receiptId:a.receipt_id,periodStart:a.period_start,periodEnd:a.period_end,amountMinor:a.amount_minor,refundedMinor:a.refunded,refundableMinor:(BigInt(a.amount_minor)-BigInt(a.refunded)).toString()})),refunds:refunds.slice(0,100).map(refundDto),refundsTruncated:refunds.length>100};
 }
+// Shared atomic append for already-authorized services. Gateway callers must use
+// the SQL-reserved payment ID; no browser payload can opt out of reservations.
+export async function appendPayment(client,{id,centerId,memberId,uid,...body},{reservedAttemptId=null}={}) {
+  const input=paymentInput({centerId,memberId,...body,requestId:id});
+  const member=await memberRecord(client,centerId,memberId);if(input.paidOn>member.local_today)throw new CentersError(400,'invalid-input','future payment');
+  const {rows:reserved}=await client.query("SELECT id,reserved_payment_id FROM centers.stripe_attempts WHERE center_id=$1 AND receipt_id=ANY($2::text[]) AND state IN ('creating','open','review')",[centerId,input.allocations.map(value=>value.receiptId)]);
+  if(reserved.some(row=>row.id!==reservedAttemptId||row.reserved_payment_id!==id))throw new CentersError(409,'checkout-pending','receipt has an active checkout');
+  if(reservedAttemptId&&!reserved.some(row=>row.id===reservedAttemptId&&row.reserved_payment_id===id))throw new CentersError(409,'stripe-reservation-missing','gateway reservation requires review');
+  for(const allocation of input.allocations){const balance=await receiptBalance(client,centerId,memberId,allocation.receiptId);if(balance.currency!==input.currency||BigInt(allocation.amountMinor)>BigInt(balance.balanceMinor))conflict('payment-exceeds-balance');}
+  await client.query('INSERT INTO centers.payments(id,center_id,member_id,amount_minor,currency,paid_on,method,reference,actor_uid) VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9)',[id,centerId,memberId,input.amountMinor,input.currency,input.paidOn,input.method,input.reference,uid]);
+  for(const a of input.allocations)await client.query('INSERT INTO centers.payment_allocations(center_id,member_id,payment_id,receipt_id,amount_minor,actor_uid) VALUES($1,$2,$3,$4,$5,$6)',[centerId,memberId,id,a.receiptId,a.amountMinor,uid]);
+  await businessAudit(client,centerId,uid,'payment.recorded',id,{memberId,receiptIds:input.allocations.map(a=>a.receiptId)});
+  return paymentDetail(client,centerId,memberId,id);
+}
 export function recordPayment({database,user,checkSession},raw,{platform=false}={}) {
   const input=paymentInput(raw),{centerId,memberId,requestId,...body}=input,hash=commandHash({memberId,...body}),operation='payment.record';
   return businessTransaction(database,user.id,centerId,'payments.record',async client=>{
     const replay=await commandReplay(client,centerId,user.id,operation,requestId,hash);if(replay)return replay;
-    const member=await memberRecord(client,centerId,memberId);if(input.paidOn>member.local_today)throw new CentersError(400,'invalid-input','future payment');
-    const {rows:reserved}=await client.query("SELECT id FROM centers.stripe_attempts WHERE center_id=$1 AND receipt_id=ANY($2::text[]) AND state IN ('creating','open','review') LIMIT 1",[centerId,input.allocations.map(value=>value.receiptId)]);
-    if(reserved.length)throw new CentersError(409,'checkout-pending','receipt has an active checkout');
-    for(const allocation of input.allocations){const balance=await receiptBalance(client,centerId,memberId,allocation.receiptId);if(balance.currency!==input.currency||BigInt(allocation.amountMinor)>BigInt(balance.balanceMinor))conflict('payment-exceeds-balance');}
     const id='pay_'+commandHash([centerId,user.id,requestId]).slice(0,32);checkSession();
-    await client.query('INSERT INTO centers.payments(id,center_id,member_id,amount_minor,currency,paid_on,method,reference,actor_uid) VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9)',[id,centerId,memberId,input.amountMinor,input.currency,input.paidOn,input.method,input.reference,user.id]);
-    for(const a of input.allocations)await client.query('INSERT INTO centers.payment_allocations(center_id,member_id,payment_id,receipt_id,amount_minor,actor_uid) VALUES($1,$2,$3,$4,$5,$6)',[centerId,memberId,id,a.receiptId,a.amountMinor,user.id]);
-    await businessAudit(client,centerId,user.id,'payment.recorded',id,{memberId,receiptIds:input.allocations.map(a=>a.receiptId)});
-    const response={payment:await paymentDetail(client,centerId,memberId,id)};await rememberCommand(client,centerId,user.id,operation,requestId,hash,response);checkSession();return response;
+    const response={payment:await appendPayment(client,{id,centerId,memberId,uid:user.id,...body})};await rememberCommand(client,centerId,user.id,operation,requestId,hash,response);checkSession();return response;
   },{platform});
 }
 export function recordRefund({database,user,checkSession},raw,{platform=false}={}) {

@@ -4,7 +4,7 @@
 
 ## Punto de reanudación
 
-- Trabajo actual autorizado (14 octubre, continuación): seguir trabajando hasta agotar el presupuesto disponible, guardando avances y continuación antes del límite; sustituye el umbral anterior del20%. La orden de apagado del13octubre no se aplica a esta sesión.
+- Trabajo actual autorizado (14 octubre, nueva continuación): seguir hasta el5% restante del uso primario; guardar el punto de continuación y apagar el ordenador al llegar. El usuario ha autorizado expresamente el apagado en su mensaje vigente. Sustituye los límites anteriores; no usar créditos para reiniciar el uso.
 - Rama: `codex/centers-module`, creada desde `53ef0baf`. F0-F3 verificadas en entorno ficticio. Commits: `75e1160d`, `433764a5`, `24cb5a42`.
 - Guía: [CENTERS_ROADMAP.md](CENTERS_ROADMAP.md). Instrucciones: [AGENTS.md](../../AGENTS.md).
 - Siguiente tarea: continuar **C27 / F9** por [CENTERS_STRIPE_IMPLEMENTATION.md](CENTERS_STRIPE_IMPLEMENTATION.md). Base privada implementada y probada; faltan conciliación, rutas y UI. No habilitar Checkout antes de completar sus invariantes. Espera de configuración y paginación de plataforma corregidas.
@@ -389,3 +389,11 @@ No guardar credenciales, bodies privados, volcados de socios, IBAN, tarjetas o r
 - Evidencia local en logs ignorados `centers-c27-*`, `frontend/centers-platform-pages-*`; imágenes de C25/C26 en `../informes/`. Sin push, merge, despliegue o cambios en datos reales. Cambios previos del usuario conservados fuera de los commits del módulo. Presupuesto primario97% consumido al comenzar el cierre; guardar antes del límite.
 
 - Comprobación visual final tras recrear preview: acceso con cuenta ficticia de plataforma mantiene el enlace directo y q=Centro ensayo, muestra el centro antiguo que quedaba fuera del límite anterior. Búsqueda traducida y componentes existentes correctos. Evidencia: ../informes/centros-listado-filtrado.jpg. Pestaña temporal cerrada; pestañas del usuario conservadas.
+
+## 14 octubre — C27 conciliación privada (continuación)
+
+- Migración018 aplicada solo a PostgreSQL ficticio e inmutable desde esta prueba. Claims con lease/fencing, escaneo persistente, configuración de solicitud fijada y evidencia financiera privada. La unicidad activa permite conservar una confirmación tardía para revisión junto a otro intento abierto; nuevas reservas siguen bloqueadas si existe review. Paid e identidades vinculadas son inmutables por trigger.
+- `stripe-worker.js` confirma claims antes de llamar fuera de SQL, verifica la cuenta, recupera creación con key estable y prohíbe recrear tras23h. Consulta sesión/PaymentIntent/Charge/BalanceTransaction autoritativos; no acepta la vuelta del navegador o una notificación firmada como prueba suficiente de captura. Fecha contable desde balance_transaction.created convertida al huso del centro. Tax/adaptive pricing/descuentos y moneda distintos requieren revisión.
+- Append compartido con el ledger manual, saldo/reserva y auditoría en la misma transacción. Duplicados y eventos antiguos no regresan paid. Dinero capturado con reserva competidora/saldo ocupado se conserva en review sin sobrepago. Errores transitorios acotados a8intentos; sin evidencia de fecha no se inventa una.
+- Pruebas:5/5 SQL de conciliación más foundation/pagos manuales (7escenarios en total en ejecuciones focalizadas) y9/9 unitarias de Stripe/dominio/pagos. Perdida de respuesta, dos workers, lease caducado, confirmación tardía, pago manual intermedio, dato autoritativo impagado, captura parcial, perfil cambiado y límite temporal comprobados sin red externa.
+- Continúa faltando el recorrido HTTP/UI y el flujo propio; C27 siguein_progress. El procesador todavía no se registra en el servidor. No hay claves externas configuradas ni cargos reales. Referencias primarias contrastadas: docs.stripe.com/api/checkout/sessions/retrieve, /api/payment_intents/object, /api/charges/object y /api/balance_transactions/object.

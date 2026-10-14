@@ -1,11 +1,11 @@
 import { useEffect, useState } from 'react'
-import { Navigate, useNavigate } from 'react-router-dom'
+import { Navigate, useNavigate, useSearchParams } from 'react-router-dom'
 import {navBack} from '../../lib/nav.js'
 import { useStore } from '../../store/useStore.js'
 import { useCenters } from '../../store/useCenters.js'
 import { t } from '../../lib/i18n.js'
 import { platformCenters, centerAccounts, centerCommand, centerDetail, centerStaff, centersErrorKey } from '../../lib/centers-api.js'
-import { Button, TextField, NumberField, Section, Row, SearchField, Switch, Segmented } from '../../components/ui.jsx'
+import { Button, TextField, NumberField, Section, Row, SearchField, Switch, Segmented, SelectRow } from '../../components/ui.jsx'
 import { confirmSheet } from '../../sheets.jsx'
 import { useUI } from '../../store/useUI.js'
 import Icon from '../../components/Icon.jsx'
@@ -86,9 +86,8 @@ function NewCenter({ close, created, ownerUid }) {
   </form></Section>
 }
 
-function CenterPanel({ center, platform, capabilities, close, refresh, ownerUid }) {
+function CenterPanel({ center, platform, capabilities, close, refresh, ownerUid, pane='details',setPane }) {
   const canMembers=capabilities.some(c=>['members.read','members.operational.read'].includes(c))
-  const [pane,setPane]=useState('details')
   const memberPane=canMembers&&pane==='members'
   const canPlans=capabilities.includes('plans.manage'),planPane=canPlans&&pane==='plans'
   const canBilling=capabilities.includes('billing.read'),billingPane=canBilling&&pane==='billing'
@@ -125,10 +124,13 @@ function CenterPanel({ center, platform, capabilities, close, refresh, ownerUid 
 }
 
 function Content({ user }) {
-  const nav = useNavigate(), state = useCenters()
+  const nav = useNavigate(), state = useCenters(),[params,setParams]=useSearchParams()
+  const centerId=params.get('centerId'),pane=params.get('pane')||'details'
   const platform = state.platformCapabilities.includes('centers.manage')
   const [listed, setListed] = useState([]), [creating, setCreating] = useState(false), [detail, setDetail] = useState(null), [error, setError] = useState(null), [refreshKey, setRefreshKey] = useState(0)
   const refresh = () => { if (useStore.getState().user?.id !== user.id) return; setDetail(null); setRefreshKey(k => k + 1); useCenters.getState().load(user.id) }
+  const selectCenter=id=>{state.select(id||null);setCreating(false);setParams(id?{centerId:id}:{})}
+  useEffect(()=>{if(state.ownerUid===user.id&&state.status==='ready'&&state.selectedId!==centerId)state.select(centerId)},[centerId,state.ownerUid,state.status,state.selectedId,user.id])
   useEffect(() => {
     let current = true
     setListed([]); setDetail(null); setError(null)
@@ -139,19 +141,22 @@ function Content({ user }) {
   }, [platform, state.centers, state.status, state.ownerUid, user.id, refreshKey])
   useEffect(() => {
     let current = true
-    setDetail(null)
-    if (!state.selectedId || state.ownerUid !== user.id) return
-    centerDetail(state.selectedId).then(r => { if (current) setDetail(r.center) }).catch(e => { if (current) { setError(e); useCenters.getState().revokeOn(e) } })
+    setDetail(null);setError(null)
+    if (!centerId || state.ownerUid !== user.id||state.status!=='ready') return
+    centerDetail(centerId).then(r => { if (current) setDetail(r.center) }).catch(e => { if (current) { setError(e); useCenters.getState().revokeOn(e) } })
     return () => { current = false }
-  }, [state.selectedId, state.ownerUid, state.centers, user.id, refreshKey])
-  const selected = state.centers.find(c => c.id === state.selectedId)
-  return <div className="narrow centers-page"><div className="hdr"><button className="iconbtn" onClick={() => navBack('/home',nav)} aria-label={t('Back')}><Icon name="chevronLeft" /></button><h1>{t('Manage centers')}</h1></div>
+  }, [centerId, state.ownerUid,state.status, state.centers, user.id, refreshKey])
+  const selected = state.centers.find(c => c.id === centerId)
+  const choices=listed.filter(c=>platform||c.capabilities?.includes('center.read'))
+  if(detail?.id===centerId&&!choices.some(c=>c.id===centerId))choices.push(detail)
+  return <div className="narrow centers-page"><div className="hdr"><button className="iconbtn" onClick={() => navBack(centerId?'/centers':'/home',nav)} aria-label={t('Back')}><Icon name="chevronLeft" /></button><h1>{t('Manage centers')}</h1></div>
     <div className="centers-actions"><Button onClick={refresh}>{t('Reload centers')}</Button>{platform && <Button variant="primary" onClick={() => { state.select(null); setCreating(true) }}>{t('New center')}</Button>}</div>
     {(state.status === 'loading' || state.ownerUid !== user.id) && <p className="muted" role="status">{t('Loading centers')}</p>}
     {(error || state.error) && <p role="alert">{t(centersErrorKey(error || state.error))}</p>}
-    {state.status === 'ready' && state.ownerUid === user.id && (creating && platform ? <NewCenter ownerUid={user.id} close={() => setCreating(false)} created={center => { if (useStore.getState().user?.id !== user.id) return; setCreating(false); state.select(center.id); refresh() }} /> : detail ? <CenterPanel ownerUid={user.id} center={detail} platform={platform} capabilities={platform ? state.platformCapabilities : selected?.capabilities || []} close={() => state.select(null)} refresh={refresh} /> : <div className="centers-list">{!listed.length && <p className="muted">{t('No centers available')}</p>}{listed.map(center => {
+    {state.status==='ready'&&state.ownerUid===user.id&&choices.length>0&&!creating&&<SelectRow title={t('Center details')} value={centerId||''} options={[{value:'',label:t('Manage centers')},...choices.map(c=>({value:c.id,label:c.name}))]} onChange={selectCenter}/>}
+    {state.status === 'ready' && state.ownerUid === user.id && (creating && platform ? <NewCenter ownerUid={user.id} close={() => setCreating(false)} created={center => { if (useStore.getState().user?.id !== user.id) return; selectCenter(center.id); refresh() }} /> : detail?.id===centerId&&detail ? <CenterPanel key={user.id+':'+centerId} ownerUid={user.id} center={detail} platform={platform} capabilities={platform ? state.platformCapabilities : selected?.capabilities || []} close={() => navBack('/centers',nav)} refresh={refresh} pane={pane} setPane={value=>setParams({centerId,pane:value})}/> : centerId ? <p role="status">{t('Loading centers')}</p> : <div className="centers-list">{!listed.length && <p className="muted">{t('No centers available')}</p>}{listed.map(center => {
       const canOpen = platform || center.capabilities?.includes('center.read')
-      return <Section key={center.id}><Row title={center.name} subtitle={stateLabel(center.state)} value={canOpen ? t('Center details') : null} accessory={canOpen ? 'chevron' : 'none'} onClick={canOpen ? () => state.select(center.id) : undefined} /></Section>
+      return <Section key={center.id}><Row title={center.name} subtitle={stateLabel(center.state)} value={canOpen ? t('Center details') : null} accessory={canOpen ? 'chevron' : 'none'} onClick={canOpen ? () => selectCenter(center.id) : undefined} /></Section>
     })}</div>)}
   </div>
 }

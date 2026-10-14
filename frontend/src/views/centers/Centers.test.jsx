@@ -1,7 +1,7 @@
 // @vitest-environment happy-dom
 import React, { act } from 'react'
 import { createRoot } from 'react-dom/client'
-import { MemoryRouter,Routes,Route,useLocation } from 'react-router-dom'
+import { MemoryRouter,Routes,Route,useLocation,useNavigate } from 'react-router-dom'
 import { beforeEach, afterEach, expect, it, vi } from 'vitest'
 vi.mock('../../lib/i18n.js', () => ({ t: value => value }))
 vi.mock('../../store/useStore.js', () => {
@@ -94,4 +94,21 @@ it('a direct Centers entry uses Home as a fallback without leaving the app',asyn
   await act(async()=>{root.render(<MemoryRouter initialEntries={['/centers']}><Routes><Route path="/centers" element={<Centers/>}/><Route path="/home" element={<div>Home fallback</div>}/></Routes></MemoryRouter>);await Promise.resolve()})
   await act(async()=>{host.querySelector('button[aria-label="Back"]').click()});expect(host.textContent).toContain('Home fallback')
   history.replaceState(prior,'',location.href)
+})
+it('center selection and panes enter router history, so Back restores the previously visited pane',async()=>{
+  const previous=history.state;history.replaceState({idx:2},'',location.href)
+  useCenters.setState({platformCapabilities:['centers.manage','members.read','members.manage']})
+  function Location(){const here=useLocation();return <output>{here.pathname+here.search}</output>}
+  await act(async()=>{root.render(<MemoryRouter initialEntries={['/centers']}><Centers/><Location/></MemoryRouter>);await Promise.resolve()})
+  await click('Center details');expect(host.querySelector('output').textContent).toBe('/centers?centerId=one')
+  await click('Members');expect(host.querySelector('output').textContent).toBe('/centers?centerId=one&pane=members')
+  await act(async()=>host.querySelector('button[aria-label="Back"]').click());expect(host.querySelector('output').textContent).toBe('/centers?centerId=one');expect(host.querySelector('input').value).toBe(center.name)
+  expect(useStore.getState().S).toEqual({});history.replaceState(previous,'',location.href)
+})
+it('switching the URL center discards the previous center response and clears private form state',async()=>{
+  let release;centerDetail.mockImplementation(id=>id==='one'?new Promise(resolve=>release=resolve):Promise.resolve({center:{...center,id:'two',name:'Second synthetic center'}}))
+  function SwitchCenter(){const navigate=useNavigate();return <button onClick={()=>navigate('/centers?centerId=two')}>Select second</button>}
+  await act(async()=>{root.render(<MemoryRouter initialEntries={['/centers?centerId=one']}><Centers/><SwitchCenter/></MemoryRouter>);await Promise.resolve()})
+  await click('Select second');expect(host.querySelector('input').value).toBe('Second synthetic center')
+  await act(async()=>release({center:{...center,name:'Old private center'}}));expect(host.textContent).not.toContain('Old private center');expect(host.querySelector('input').value).toBe('Second synthetic center')
 })

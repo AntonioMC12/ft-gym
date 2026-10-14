@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { Navigate, useNavigate, useSearchParams } from 'react-router-dom'
 import {navBack} from '../../lib/nav.js'
 import { useStore } from '../../store/useStore.js'
@@ -67,13 +67,18 @@ function NewCenter({ close, created, ownerUid }) {
   const [step, setStep] = useState(1), [fields, setFields] = useState(() => fieldsOf()), [manager, setManager] = useState(null)
   const [busy, setBusy] = useState(false), [error, setError] = useState(null)
   const [requestId] = useState(() => crypto.randomUUID())
+  const life=useRef(0),pending=useRef(false)
+  const current=epoch=>life.current===epoch&&useStore.getState().user?.id===ownerUid
+  useEffect(()=>{life.current++;return()=>{life.current++;pending.current=false}},[ownerUid])
   const submit = async e => {
     e.preventDefault()
+    if(pending.current)return
     if (step < 3) { setStep(step + 1); return }
+    const epoch=life.current;pending.current=true
     setBusy(true); setError(null)
-    try { const result = await centerCommand('/api/platform/centers/create', { ...fields, managerUid: manager?.id, requestId }); created(result.center) }
-    catch (e) { setError(e); if (useStore.getState().user?.id === ownerUid) useCenters.getState().revokeOn(e) }
-    finally { setBusy(false) }
+    try { const result = await centerCommand('/api/platform/centers/create', { ...fields, managerUid: manager?.id, requestId }); if(current(epoch))created(result.center) }
+    catch (e) { if(current(epoch)){setError(e);useCenters.getState().revokeOn(e)} }
+    finally { if(current(epoch)){pending.current=false;setBusy(false)} }
   }
   return <Section title={t('New center')}><form onSubmit={submit} className="centers-form">
     <div className="small muted">{step} / 3</div>
@@ -94,13 +99,21 @@ function CenterPanel({ center, platform, capabilities, close, refresh, ownerUid,
   const [fields, setFields] = useState(() => fieldsOf(center)), [staff, setStaff] = useState([]), [manager, setManager] = useState(null)
   const [trainerUid, setTrainerUid] = useState(''), [replaceId, setReplaceId] = useState(null)
   const [busy, setBusy] = useState(false), [error, setError] = useState(null)
+  const life=useRef(0),pending=useRef(false),permissionKey=capabilities.join('|')
+  const current=epoch=>life.current===epoch&&useStore.getState().user?.id===ownerUid
+  useEffect(()=>{life.current++;pending.current=false;setBusy(false);setError(null);return()=>{life.current++;pending.current=false}},[center.id,center.version,ownerUid,pane,permissionKey])
   useEffect(() => { setFields(fieldsOf(center)) }, [center])
   useEffect(() => { let current = true; setStaff([]); if (platform || capabilities.includes('staff.manage')) centerStaff(center.id).then(r => { if (current) setStaff(r.staff) }).catch(e => { if (current) setError(e) }); return () => { current = false } }, [center, platform, capabilities])
-  const perform = async (path, body) => {
+  const perform = async (path, body, epoch=life.current) => {
+    if(!current(epoch)||pending.current)return;pending.current=true
     setBusy(true); setError(null)
-    try { await centerCommand(path, body); if (useStore.getState().user?.id !== ownerUid) return; useUI.getState().toast(t('Saved')); refresh(); setManager(null); setReplaceId(null) }
-    catch (e) { setError(e); if (useStore.getState().user?.id === ownerUid) useCenters.getState().revokeOn(e) }
-    finally { setBusy(false) }
+    try { await centerCommand(path, body); if (!current(epoch)) return; useUI.getState().toast(t('Saved')); refresh(); setManager(null); setReplaceId(null) }
+    catch (e) { if(current(epoch)){setError(e);useCenters.getState().revokeOn(e)} }
+    finally { if(current(epoch)){pending.current=false;setBusy(false)} }
+  }
+  const deactivate=()=>{
+    const epoch=life.current
+    confirmSheet({title:t('Confirm deactivation'),message:center.name,confirmText:t('Deactivate center'),danger:true,onConfirm:()=>perform(updatePath,{...fields,centerId:center.id,version:center.version,state:'inactive'},epoch)})
   }
   const updatePath = platform ? '/api/platform/centers/update' : '/api/centers/update'
   return <><Section title={center.name}><div className="centers-form">
@@ -114,7 +127,7 @@ function CenterPanel({ center, platform, capabilities, close, refresh, ownerUid,
     </div>)}</div>}
     {capabilities.includes('staff.manage') && <div><h3>{t('Trainer')}</h3><label className="centers-field"><span>{t('Account ID')}</span><TextField value={trainerUid} onChange={e => setTrainerUid(e.target.value)} /></label><Button disabled={busy || !trainerUid.trim()} onClick={() => perform('/api/centers/staff/assign', { centerId: center.id, version: center.version, accountUid: trainerUid.trim() })}>{t('Save')}</Button></div>}
     {platform && <div><h3>{replaceId ? t('Replace') : t('Assign manager')}</h3>{replaceId && <Button onClick={() => setReplaceId(null)}>{t('Cancel')}</Button>}<AccountPicker selected={manager} choose={setManager} /><Button disabled={busy || !manager} onClick={() => perform('/api/platform/centers/assign-manager', { centerId: center.id, version: center.version, accountUid: manager.id, ...(replaceId ? { replaceAssignmentId: replaceId } : {}) })}>{t('Assign manager')}</Button>
-      {center.state !== 'inactive' && <div className="centers-actions"><Button variant="danger" disabled={busy} onClick={() => confirmSheet({title:t('Confirm deactivation'),message:center.name,confirmText:t('Deactivate center'),danger:true,onConfirm:() => { if (useStore.getState().user?.id === ownerUid) perform(updatePath, { ...fields, centerId: center.id, version: center.version, state: 'inactive' }) }})}>{t('Deactivate center')}</Button></div>}
+      {center.state !== 'inactive' && <div className="centers-actions"><Button variant="danger" disabled={busy} onClick={deactivate}>{t('Deactivate center')}</Button></div>}
       {center.state === 'inactive' && <Button disabled={busy} onClick={() => perform(updatePath, { ...fields, centerId: center.id, version: center.version, state: 'active' })}>{t('Activate center')}</Button>}
     </div>}
     {error && <p role="alert">{t(centersErrorKey(error))}</p>}

@@ -4,11 +4,11 @@
 
 ## Punto de reanudación
 
-- Trabajo actual autorizado (14 octubre): continuar roadmap hasta que reste el 20% del límite disponible; corregir Atrás de Centros y conservar esa pauta para navegación/breadcrumbs futuros. La orden de apagado del 13 octubre terminó en aquella ejecución; no se aplica a esta sesión.
+- Trabajo actual autorizado (14 octubre, continuación): seguir trabajando hasta agotar el presupuesto disponible, guardando avances y continuación antes del límite; sustituye el umbral anterior del20%. La orden de apagado del13octubre no se aplica a esta sesión.
 - Rama: `codex/centers-module`, creada desde `53ef0baf`. F0-F3 verificadas en entorno ficticio. Commits: `75e1160d`, `433764a5`, `24cb5a42`.
 - Guía: [CENTERS_ROADMAP.md](CENTERS_ROADMAP.md). Instrucciones: [AGENTS.md](../../AGENTS.md).
-- Siguiente tarea: **C23 / F7**, navegación por rol/contexto de centro, conservando historial y navegación personal.
-- Último hito cerrado: C22, área privada del socio con contratos, recibos y pagos propios; RLS y DTO separados de administración. Atrás de Centros sigue el historial; preferencia guardada en AGENTS.md.
+- Siguiente tarea: **C24 / F7**, ensayo ficticio de dos centros y restauración conjunta JSON/PostgreSQL en contenedores desechables separados.
+- Último hito cerrado: C23, historial/selector y guardas de acciones pendientes al cambiar de pantalla, cuenta o permisos.
 - Pruebas C18: 47 unitarias API, 66 frontend/controles, 3 OpenAPI y 10 SQL+HTTP reales pasan. Comparativa general y comprobación visual registradas abajo.
 
 Este registro contiene el estado de ejecución; el roadmap define requisitos y dependencias. La autorización vigente siempre procede del usuario, no de una casilla de este archivo.
@@ -52,8 +52,8 @@ Estados permitidos: `todo`, `in_progress`, `done`, `blocked`. Una tarea done nec
 | C20 | F6 | Pagos y aplicaciones | done |
 | C21 | F6 | Deuda y calendario | done |
 | C22 | F6 | Área del socio | done |
-| C23 | F7 | Navegación/contexto | in_progress |
-| C24 | F7 | Piloto MVP y restauración | todo |
+| C23 | F7 | Navegación/contexto | done |
+| C24 | F7 | Piloto MVP y restauración | in_progress |
 | C25 | F8 | Jobs y outbox | todo |
 | C26 | F8 | Email y avisos | todo |
 | C27 | F9 | Stripe | todo |
@@ -334,3 +334,9 @@ No guardar credenciales, bodies privados, volcados de socios, IBAN, tarjetas o r
 - Próxima sesión: cerrar esas guardas con life/mounted refs antes/después de await y antes de confirmación; conservar idempotencia. Después verificar navegación/roles/descargas y cerrar C23; continuar C24 en entorno SQL/JSON aislado con marcador test. Migraciones001-012 ya aplicadas, no editar checksums históricos.
 - Cierre por umbral del usuario: última medición81% usado primario/19% restante y55% semanal. Se detiene avance de funcionalidades y se guarda checkpoint local, sin C24 iniciado. Commits de esta sesión: C19 4e103bed, C20 f481f96a, C21 5500b992, C22 479cf986; C23 parcial guardado a continuación. No push, merge, producción, cobro real o apagado.
 - Entorno local sigue levantado: Vite127.0.0.1:5178, APIpreview127.0.0.1:3011, PostgreSQL privado en compose.centers.test.yml, schema012. Sesión actual ficticia Plataforma Centros; contraseña Centros-Pruebas-2026!. Entrenador Pruebas está vinculado a Socio ensayo recibos en Centro ensayo14octubre para probar Mis centros. Cambios anteriores de demo preservados fuera de los commits de centros.
+
+### Continuación14octubre: cierre de C23
+
+- Nuevas guardas en NewCenter y CenterPanel: vida del componente/contexto y cuenta antes/después de await; operación duplicada bloqueada por ref; respuestas de un guardado antiguo no refrescan otra pestaña. Cambiar centro, versión, pestaña o capacidades invalida la confirmación capturada de desactivación. Una creación terminada tras salir no modifica la navegación.
+- frontend/centers-c23-guards.log119/119 en22 archivos. Pruebas nuevas cubren creación pendiente tras salida, guardado terminado en otra pestaña y confirmación antigua. Build pasa. Suite completa421 archivos/406 pasan/15 fallan;5145 tests/5091 pasan/54 fallan previos, sin nueva identidad de fallo. Backend sin cambios de negocio en C23.
+- C23 done; C24 inicia ensayo dedicado sin datos/volúmenes de aplicación. Nueva autorización del usuario elimina el umbral20% de la ejecución previa; continuar hasta límite, sin apagado ni consumo de créditos de reset.

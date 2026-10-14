@@ -4,6 +4,7 @@ import { createRoot } from 'react-dom/client'
 import { MemoryRouter,Routes,Route,useLocation,useNavigate } from 'react-router-dom'
 import { beforeEach, afterEach, expect, it, vi } from 'vitest'
 vi.mock('../../lib/i18n.js', () => ({ t: value => value }))
+vi.mock('../../sheets.jsx',()=>({confirmSheet:vi.fn()}))
 vi.mock('../../store/useStore.js', () => {
   const state = { user: { id: 'platform' }, config: { centers: { enabled: true } }, S: {} }
   const useStore = selector => selector ? selector(state) : state
@@ -15,6 +16,8 @@ import { useStore } from '../../store/useStore.js'
 import { useCenters } from '../../store/useCenters.js'
 import { platformCenters, centerDetail, centerStaff, centerCommand, centersMe } from '../../lib/centers-api.js'
 import Centers from './Centers.jsx'
+import {confirmSheet} from '../../sheets.jsx'
+import {useUI} from '../../store/useUI.js'
 
 globalThis.IS_REACT_ACT_ENVIRONMENT = true
 let host, root
@@ -27,7 +30,7 @@ beforeEach(() => {
   centersMe.mockResolvedValue({ centers: [], platformCapabilities: ['centers.manage'] })
   host = document.createElement('div'); document.body.append(host); root = createRoot(host)
 })
-afterEach(() => { act(() => root.unmount()); host.remove(); useCenters.getState().reset() })
+afterEach(() => { act(() => root.unmount()); host.remove(); useCenters.getState().reset();vi.restoreAllMocks() })
 const render = () => act(async () => { root.render(<MemoryRouter><Centers /></MemoryRouter>); await Promise.resolve() })
 const button = text => [...host.querySelectorAll('button')].find(b => b.textContent === text || b.textContent.endsWith(text))
 const click = text => act(async () => { button(text).click(); await Promise.resolve() })
@@ -111,4 +114,22 @@ it('switching the URL center discards the previous center response and clears pr
   await act(async()=>{root.render(<MemoryRouter initialEntries={['/centers?centerId=one']}><Centers/><SwitchCenter/></MemoryRouter>);await Promise.resolve()})
   await click('Select second');expect(host.querySelector('input').value).toBe('Second synthetic center')
   await act(async()=>release({center:{...center,name:'Old private center'}}));expect(host.textContent).not.toContain('Old private center');expect(host.querySelector('input').value).toBe('Second synthetic center')
+})
+it('a creation completed after leaving the wizard cannot navigate back into the old workflow',async()=>{
+  let release;centerCommand.mockReturnValue(new Promise(resolve=>release=resolve))
+  function Leave(){const nav=useNavigate();return <button onClick={()=>nav('/home')}>Leave workflow</button>}
+  function Location(){return <output>{useLocation().pathname}</output>}
+  await act(async()=>{root.render(<MemoryRouter initialEntries={['/centers']}><Leave/><Location/><Routes><Route path="/centers" element={<Centers/>}/><Route path="/home" element={<div>Personal Home</div>}/></Routes></MemoryRouter>);await Promise.resolve()})
+  await click('New center');input(host.querySelector('input'),'Synthetic pending');await click('Next');await click('Next');await click('Create draft');await click('Leave workflow')
+  await act(async()=>release({center:{...center,id:'new'}}));expect(host.querySelector('output').textContent).toBe('/home');expect(host.textContent).toContain('Personal Home');expect(centerDetail).not.toHaveBeenCalled()
+})
+it('a save completed after switching panes cannot refresh the current view or show an old toast',async()=>{
+  let release;centerCommand.mockReturnValue(new Promise(resolve=>release=resolve));const toast=vi.spyOn(useUI.getState(),'toast').mockImplementation(()=>{})
+  useCenters.setState({platformCapabilities:['centers.manage','members.read','members.manage']})
+  await render();await click('Center details');await click('Save');await click('Members');const reads=centerDetail.mock.calls.length
+  await act(async()=>release({center}));expect(toast).not.toHaveBeenCalled();expect(centerDetail).toHaveBeenCalledTimes(reads);expect(button('New member')).toBeDefined()
+})
+it('a delayed deactivation confirmation is inert after changing the pane that opened it',async()=>{
+  useCenters.setState({platformCapabilities:['centers.manage','members.read','members.manage']})
+  await render();await click('Center details');await click('Deactivate center');const confirmation=confirmSheet.mock.calls[0][0];await click('Members');await act(async()=>confirmation.onConfirm());expect(centerCommand).not.toHaveBeenCalled()
 })

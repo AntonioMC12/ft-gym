@@ -5,6 +5,16 @@ export const platformCenters = () => api('/api/platform/centers')
 export const centerDetail = id => api('/api/centers/detail?centerId=' + encodeURIComponent(id))
 export const centerStaff = id => api('/api/centers/staff?centerId=' + encodeURIComponent(id))
 export const centerAutomation=id=>api('/api/centers/billing/automation?'+new URLSearchParams({centerId:id}))
+export const centerNotifications=id=>api('/api/centers/notifications?'+new URLSearchParams({centerId:id}))
+export const ownCenterNotifications=id=>api('/api/centers/own/notifications?'+new URLSearchParams({centerId:id}))
+export function notificationErrorKey(error){
+  const code=error?.data?.code||error?.code
+  if(code==='notification-code-invalid')return 'Check the verification code or request a new one.'
+  if(code==='notification-rate-limited')return 'Wait before requesting another verification code.'
+  if(code==='notification-not-configured')return 'Email notices are not configured.'
+  if(code==='price-notice-required')return 'Respect the configured price notice period.'
+  return centersErrorKey(error)
+}
 export const centerAccounts = query => api('/api/platform/centers/accounts?query=' + encodeURIComponent(query))
 export const centerCommand = (path, body) => api(path, { method: 'POST', body: JSON.stringify(body) })
 export const centerMembers = (centerId, options = {}) => api('/api/centers/members?' + new URLSearchParams({centerId,...options}))
@@ -43,6 +53,7 @@ export function paymentsErrorKey(error) {
 }
 export function subscriptionsErrorKey(error) {
   const code=error?.data?.code||error?.code
+  if(code==='price-notice-required')return notificationErrorKey(error)
   if(['subscription-overlap','pending-subscription','pending-transition'].includes(code))return 'Cancel the pending change before adding another.'
   if(code==='price-version-changed')return 'Center changed. Reload and try again.'
   if(code==='invalid-transition'||code==='subscription-ended')return 'Membership change is not allowed.'

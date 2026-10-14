@@ -19,6 +19,8 @@ import { coachRoutes } from './coach/routes.js';
 import { centersConfig, publicCentersConfig } from './centers/config.js';
 import { createCentersDatabase } from './centers/db.js';
 import {startBillingWorker} from './centers/services/jobs.js';
+import {notificationTick,createNotificationCapture} from './centers/services/notification-worker.js';
+import {createCloudflareEmailTransport} from './centers/services/notification-cloudflare.js';
 import { centersRoutes } from './centers/routes.js';
 import { createAccountLocks } from './centers/account-links.js';
 import { CentersError } from './centers/errors.js';
@@ -2758,7 +2760,9 @@ const server = http.createServer(async (req, res) => {
     if (!res.headersSent) json(res, 500, { error: 'server error' });
   }
 });
+const CENTERS_MAIL=CENTERS_CONFIG.notificationTestCapture?createNotificationCapture(CENTERS_DATABASE):CENTERS_CONFIG.mailProfiles.length?createCloudflareEmailTransport(CENTERS_CONFIG.mailProfiles):null;
 const CENTERS_WORKER=startBillingWorker(CENTERS_DATABASE,{enabled:CENTERS_CONFIG.enabled&&CENTERS_CONFIG.jobsEnabled,
+  afterTick:CENTERS_MAIL?()=>notificationTick(CENTERS_DATABASE,{transport:CENTERS_MAIL}):undefined,
   onError:()=>console.warn('centers jobs temporarily unavailable')});
 server.on('close', () => { CENTERS_WORKER.stop().then(()=>CENTERS_DATABASE.close()).catch(() => {}); });
 // Node's default of 300 s for a whole request would answer 408 to a 40 MB video on a ~1 Mbit/s

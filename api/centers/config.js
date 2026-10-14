@@ -1,8 +1,11 @@
+import {notificationProfiles} from './notification-config.js';
 // Read configuration without resolving a database or starting any background work.
 export function centersConfig(env = process.env) {
   return Object.freeze({
     enabled: /^(1|true|yes|on)$/i.test(env.CENTERS_ENABLED || ''),
     jobsEnabled: /^(1|true|yes|on)$/i.test(env.CENTERS_JOBS_ENABLED || ''),
+    notificationTestCapture: /^(1|true|yes|on)$/i.test(env.CENTERS_NOTIFICATIONS_TEST_CAPTURE || ''),
+    mailProfiles: notificationProfiles(env),
     databaseUrl: databaseUrlFrom(env),
     superadminUids: Object.freeze(String(env.CENTERS_SUPERADMIN_UIDS || '').split(',').map(s => s.trim()).filter(Boolean)),
   });

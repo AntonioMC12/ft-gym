@@ -117,9 +117,9 @@ export async function billingTick(database) {
   }
   return {centers:centers.length,processed};
 }
-export function startBillingWorker(database,{enabled=false,intervalMs=60000,onError=()=>{}}={}) {
+export function startBillingWorker(database,{enabled=false,intervalMs=60000,onError=()=>{},afterTick=async()=>{}}={}) {
   let stopped=false,timer=null,running=null;
-  const wake=()=>{if(stopped||running)return;running=billingTick(database).catch(()=>{onError('centers-jobs-unavailable')}).finally(()=>{running=null;if(!stopped){timer=setTimeout(wake,intervalMs);timer.unref()}})};
+  const wake=()=>{if(stopped||running)return;running=billingTick(database).then(afterTick).catch(()=>{onError('centers-jobs-unavailable')}).finally(()=>{running=null;if(!stopped){timer=setTimeout(wake,intervalMs);timer.unref()}})};
   if(enabled){timer=setTimeout(wake,100);timer.unref()}
   return {async stop(){stopped=true;clearTimeout(timer);await running}};
 }

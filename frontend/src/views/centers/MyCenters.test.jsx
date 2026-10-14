@@ -4,6 +4,7 @@ import {createRoot} from 'react-dom/client'
 import {MemoryRouter} from 'react-router-dom'
 import {beforeEach,afterEach,it,expect,vi} from 'vitest'
 vi.mock('../../lib/i18n.js',()=>({t:key=>key}))
+vi.mock('./OwnNotifications.jsx',()=>({default:()=>null}))
 vi.mock('../../store/useStore.js',()=>{const state={user:{id:'alice'},config:{centers:{enabled:true}}};return{useStore:Object.assign(selector=>selector(state),{getState:()=>state})}})
 vi.mock('../../store/useCenters.js',()=>{const state={ownerUid:'alice',status:'ready',centers:[],revokeOn:vi.fn()};return {useCenters:Object.assign(()=>state,{getState:()=>state})}})
 vi.mock('../../lib/centers-api.js',()=>({ownCenterMembership:vi.fn(),ownCenterReceipts:vi.fn(),ownCenterPayments:vi.fn(),centersErrorKey:()=> 'error'}))

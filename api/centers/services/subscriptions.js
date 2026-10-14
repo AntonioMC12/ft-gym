@@ -51,11 +51,14 @@ async function write(context,raw,change,{platform=false}={}) {
     if(effectiveOn<member.local_today||effectiveOn<member.joined_on)throw new CentersError(400,'invalid-input','retroactive subscription');
     if(member.ends_on&&effectiveOn>=member.ends_on)throw conflict('subscription-ended');
     const price=await terms(client,centerId,priceVersionId),existing=await subscriptionRows(client,centerId,memberId),id='su_'+commandHash([centerId,context.user.id,requestId]).slice(0,32);
-    let previous=null,activationId=null;
+    let previous=null,activationId=null,noticeDays=null;
     if(change){
       previous=existing.find(row=>row.id===values.id&&!row.canceled_at);
       if(!previous)throw new CentersError(404,'not-found','not found');
       if(previous.starts_on>effectiveOn||previous.ends_on&&previous.ends_on<=effectiveOn||existing.some(row=>!row.canceled_at&&row.starts_on>member.local_today))throw conflict('pending-subscription');
+      const {rows:notices}=await client.query('SELECT price_notice_days,($2::date+price_notice_days)::text AS earliest FROM centers.notification_policies WHERE center_id=$1 AND enabled',[centerId,member.local_today]);
+      if(notices.length&&effectiveOn<notices[0].earliest)throw conflict('price-notice-required');
+      noticeDays=notices[0]?.price_notice_days??null;
       await client.query('UPDATE centers.subscriptions SET ends_on=$3,version=version+1 WHERE center_id=$1 AND id=$2',[centerId,previous.id,effectiveOn]);
     }else{
       if(existing.some(row=>!row.canceled_at&&(!row.ends_on||row.ends_on>effectiveOn)))throw conflict('subscription-overlap');
@@ -69,8 +72,8 @@ async function write(context,raw,change,{platform=false}={}) {
     }
     const {rows:centers}=await client.query('SELECT billing_day,timezone FROM centers.centers WHERE id=$1',[centerId]);
     const calendar=centers[0];context.checkSession();
-    await client.query(`INSERT INTO centers.subscriptions(id,center_id,member_id,plan_id,price_version_id,starts_on,ends_on,billing_day,anchor_on,timezone,discount_basis_points,discount_reason,replaces_id,previous_ends_on,activation_id,actor_uid)
-      VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16)`,[id,centerId,memberId,price.plan_id,priceVersionId,effectiveOn,previous?.ends_on||null,calendar.billing_day,billingAnchor(effectiveOn,calendar.billing_day),calendar.timezone,discountBasisPoints,discountReason,previous?.id||null,previous?.ends_on||null,activationId,context.user.id]);
+    await client.query(`INSERT INTO centers.subscriptions(id,center_id,member_id,plan_id,price_version_id,starts_on,ends_on,billing_day,anchor_on,timezone,discount_basis_points,discount_reason,replaces_id,previous_ends_on,activation_id,actor_uid,notice_days)
+      VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17)`,[id,centerId,memberId,price.plan_id,priceVersionId,effectiveOn,previous?.ends_on||null,calendar.billing_day,billingAnchor(effectiveOn,calendar.billing_day),calendar.timezone,discountBasisPoints,discountReason,previous?.id||null,previous?.ends_on||null,activationId,context.user.id,noticeDays]);
     await businessAudit(client,centerId,context.user.id,operation,id,{memberId,priceVersionId,effectiveOn,replacesId:previous?.id||null});
     const response=await result(client,scope,memberId,{bump:true});await rememberCommand(client,centerId,context.user.id,operation,requestId,hash,response);context.checkSession();return response;
   },{platform});

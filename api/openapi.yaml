@@ -165,6 +165,169 @@ security:
   - bearerAuth: []
 
 paths:
+  /api/centers/notifications:
+    get:
+      tags: [centers]
+      operationId: getCenterNotificationStatus
+      summary: Read notification policy and aggregate delivery outcomes
+      description: Selected-center billing.read or explicit platform identity. No recipient emails, tokens or message bodies. Transport off by default. Test-capture requires isolated test SQL; optional Cloudflare REST requires production SQL and a server profile bound to the selected center. No credentials in this response.
+      parameters:
+        - { name: centerId, in: query, required: true, schema: { type: string } }
+      responses:
+        '200': { description: Policy or null, delivery state counts and transport mode. }
+        '401': { description: No current session. }
+        '403': { description: Insufficient capability. }
+        '404': { description: No accessible center or module off. }
+        '503': { description: Centers unavailable. }
+  /api/platform/centers/notifications/policy:
+    post:
+      tags: [centers]
+      operationId: configureCenterNotificationPolicy
+      summary: Save an explicit center notice policy with optimistic version and idempotency
+      description: Platform allowlist only. Does not configure credentials, change a contracted price or suspend training. Requires configured transport and matching SQL environment to enable. No external email provider is active by default. Due reminders group by member/deadline; debt notices group by member/repeat window. Contract changes pin the configured advance notice floor. An ambiguous provider outcome requires reconciliation and is never blindly retried.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties: false
+              required: [centerId, enabled, receipts, dueLeadDays, debtRepeatDays, priceNoticeDays, version, requestId]
+              properties:
+                centerId: { type: string }
+                enabled: { type: boolean }
+                receipts: { type: boolean }
+                dueLeadDays: { type: integer, minimum: 0, maximum: 30 }
+                debtRepeatDays: { type: integer, minimum: 1, maximum: 90 }
+                priceNoticeDays: { type: integer, minimum: 1, maximum: 90 }
+                version: { type: integer, minimum: 0 }
+                requestId: { type: string, minLength: 8, maxLength: 128 }
+      responses:
+        '200': { description: Saved versioned policy. }
+        '400': { description: Explicit valid policy required. }
+        '401': { description: No current session. }
+        '403': { description: Explicit platform identity required. }
+        '404': { description: Center not found or module off. }
+        '409': { description: Version conflict or inactive center. }
+        '503': { description: Centers unavailable. }
+  /api/platform/centers/notifications/retry:
+    post:
+      tags: [centers]
+      operationId: retryBlockedCenterNotifications
+      summary: Requeue at most25 blocked notices after their cause is corrected
+      description: Platform allowlist, current session, center lock, idempotency and audit. Does not requeue sent, skipped or uncertain deliveries. Contact ownership, verification and version are checked again before dispatch.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties: false
+              required: [centerId, requestId]
+              properties:
+                centerId: { type: string }
+                requestId: { type: string, minLength: 8, maxLength: 128 }
+      responses:
+        '200': { description: Bounded requeue count. }
+        '400': { description: Invalid input. }
+        '401': { description: No current session. }
+        '403': { description: Explicit platform identity required. }
+        '404': { description: Center not found or module off. }
+        '409': { description: Inactive center or idempotency conflict. }
+        '503': { description: Centers unavailable. }
+  /api/centers/own/notifications:
+    get:
+      tags: [centers]
+      operationId: getOwnCenterNotificationContact
+      summary: Read the session account's own notification preference
+      description: Own linked membership required, including inactive-center read access. Does not reuse or alter JSON sign-in email. Does not expose challenges or accept account/member selectors.
+      parameters:
+        - { name: centerId, in: query, required: true, schema: { type: string } }
+      responses:
+        '200': { description: Own email, enabled/verified flags, version and transport mode. }
+        '400': { description: Unexpected account/member identifiers. }
+        '401': { description: No current session. }
+        '403': { description: Own membership required. }
+        '404': { description: No accessible linked affiliation or module off. }
+        '503': { description: Centers unavailable. }
+  /api/centers/own/notifications/request:
+    post:
+      tags: [centers]
+      operationId: requestOwnCenterNotificationVerification
+      summary: Queue a verification code for an explicitly supplied own notice address
+      description: Own session/member only; changes invalidate prior verification. At most3requests per15minutes. No raw code in HTTP response, idempotency result or audit. Off transport or mismatched SQL environment returns503. Test capture never transmits email; optional external transport requires a server-only center-bound profile and production SQL.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties: false
+              required: [centerId, email, requestId]
+              properties:
+                centerId: { type: string }
+                email: { type: string, format: email, maxLength: 254 }
+                requestId: { type: string, minLength: 8, maxLength: 128 }
+      responses:
+        '200': { description: Verification queued, no code returned. }
+        '400': { description: Invalid address or input. }
+        '401': { description: No current session. }
+        '403': { description: Own membership required. }
+        '404': { description: No accessible linked affiliation. }
+        '409': { description: Inactive center or idempotency conflict. }
+        '429': { description: Verification request limit reached. }
+        '503': { description: Centers or notification transport unavailable. }
+  /api/centers/own/notifications/verify:
+    post:
+      tags: [centers]
+      operationId: verifyOwnCenterNotificationContact
+      summary: Consume a one-time own notice verification code within15minutes
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties: false
+              required: [centerId, token, requestId]
+              properties:
+                centerId: { type: string }
+                token: { type: string, pattern: '^[a-f0-9]{64}$' }
+                requestId: { type: string, minLength: 8, maxLength: 128 }
+      responses:
+        '200': { description: Own contact verified and enabled. }
+        '400': { description: Invalid code format or input. }
+        '401': { description: No current session. }
+        '403': { description: Own membership required. }
+        '404': { description: No accessible linked affiliation. }
+        '409': { description: Code invalid/expired, inactive center or idempotency conflict. }
+        '503': { description: Centers unavailable. }
+  /api/centers/own/notifications/disable:
+    post:
+      tags: [centers]
+      operationId: disableOwnCenterNotifications
+      summary: Disable own notices with the current contact version
+      description: Also works in an inactive center; does not disable sign-in, training or another center's preference. Invalidates pending challenges and delivery contact versions.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties: false
+              required: [centerId, version, requestId]
+              properties:
+                centerId: { type: string }
+                version: { type: integer, minimum: 1 }
+                requestId: { type: string, minLength: 8, maxLength: 128 }
+      responses:
+        '200': { description: Own notices disabled. }
+        '400': { description: Invalid version or input. }
+        '401': { description: No current session. }
+        '403': { description: Own membership required. }
+        '404': { description: No accessible linked affiliation. }
+        '409': { description: Stale version or idempotency conflict. }
+        '503': { description: Centers unavailable. }
   /api/centers/billing/automation:
     get:
       tags: [centers]

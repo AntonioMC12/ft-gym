@@ -6,6 +6,7 @@ import { beforeEach, afterEach, expect, it, vi } from 'vitest'
 vi.mock('../../lib/i18n.js', () => ({ t: value => value }))
 vi.mock('../../sheets.jsx',()=>({confirmSheet:vi.fn()}))
 vi.mock('./BillingAutomation.jsx',()=>({default:()=>null}))
+vi.mock('./NotificationSettings.jsx',()=>({default:()=>null}))
 vi.mock('../../store/useStore.js', () => {
   const state = { user: { id: 'platform' }, config: { centers: { enabled: true } }, S: {} }
   const useStore = selector => selector ? selector(state) : state

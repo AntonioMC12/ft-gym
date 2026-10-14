@@ -6,6 +6,9 @@ import { centersStrings } from './modules/centers.js'
 
 export const PT_BR_OVERRIDES = {
   ...centersStrings('pt'),
+  'Request verification code': 'Solicitar código de verificação',
+  'Check the verification code or request a new one.': 'Confira o código ou solicite outro.',
+  'Sending notice': 'Enviando aviso',
   'Issue receipt records automatically; no payments are collected.': 'Gerar registros de recibos automaticamente; nenhum pagamento é cobrado.',
   'The initial date is locked after saving.': 'A data inicial fica fixa após salvar.',
   'Record payment': 'Registrar pagamento',

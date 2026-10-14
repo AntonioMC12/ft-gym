@@ -1,4 +1,6 @@
 import { CentersError } from './errors.js';
+import {notificationMode} from './notification-config.js';
+import {notificationStatus,configureNotificationPolicy,ownNotificationContact,requestNotificationContact,verifyNotificationContact,disableNotificationContact,retryBlockedNotifications} from './services/notification-contacts.js';
 import {automationStatus,configureAutomation,retryBillingJob} from './services/jobs.js';
 import { requireCenter, recordId, isPlatformUser } from './authz.js';
 import { affiliations } from './services/identity.js';
@@ -44,6 +46,23 @@ export function centersRoutes({ config, database, json, readSession, readBody, a
     }catch(error){return failure(res,error);}
   };
   return {
+    'GET /api/centers/notifications': async(req,res)=>{
+      const user=guard(req,res);if(!user)return;const sv=user.sv||0,centerId=new URL(req.url,'http://x').searchParams.get('centerId');
+      if(!recordId(centerId))return json(res,404,{error:'not found',code:'not-found'});
+      try{const result=await notificationStatus(database,user.id,centerId,{platform:isPlatformUser(config,user),config});if(!current(req,user,sv))return json(res,401,{error:'not signed in'});return json(res,200,result);}catch(error){return failure(res,error);}
+    },
+    'POST /api/platform/centers/notifications/policy': mutate(true,configureNotificationPolicy),
+    'POST /api/platform/centers/notifications/retry': mutate(true,retryBlockedNotifications),
+    'GET /api/centers/own/notifications': async(req,res)=>{
+      const user=guard(req,res);if(!user)return;const sv=user.sv||0,params=new URL(req.url,'http://x').searchParams,centerId=params.get('centerId');
+      if(!recordId(centerId))return json(res,404,{error:'not found',code:'not-found'});
+      try{ownPortalOptions(params);const result=await ownNotificationContact(database,user.id,centerId,{config});if(!current(req,user,sv))return json(res,401,{error:'not signed in'});return json(res,200,result);}catch(error){return failure(res,error);}
+    },
+    'POST /api/centers/own/notifications/request': mutate(false,(context,body)=>{
+      if(notificationMode(config,body?.centerId)==='off')throw new CentersError(503,'notification-not-configured','notification transport is not configured');return requestNotificationContact(context,body);
+    }),
+    'POST /api/centers/own/notifications/verify': mutate(false,verifyNotificationContact),
+    'POST /api/centers/own/notifications/disable': mutate(false,disableNotificationContact),
     'GET /api/centers/billing/automation': async(req,res)=>{
       const user=guard(req,res);if(!user)return;const sv=user.sv||0,centerId=new URL(req.url,'http://x').searchParams.get('centerId');
       if(!recordId(centerId))return json(res,404,{error:'not found',code:'not-found'});

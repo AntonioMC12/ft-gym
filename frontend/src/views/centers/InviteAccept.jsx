@@ -6,9 +6,10 @@ import {useStore} from '../../store/useStore.js'
 import {useCenters} from '../../store/useCenters.js'
 import {t} from '../../lib/i18n.js'
 import Login from '../Login.jsx'
+import ConfigPending from './ConfigPending.jsx'
 
 export default function InviteAccept() {
-  const user=useStore(s=>s.user),enabled=useStore(s=>s.config?.centers?.enabled),[params]=useSearchParams(),navigate=useNavigate()
+  const user=useStore(s=>s.user),config=useStore(s=>s.config),enabled=config?.centers?.enabled,[params]=useSearchParams(),navigate=useNavigate()
   const token=params.get('token')||'',[invite,setInvite]=useState(null),[error,setError]=useState(null),[busy,setBusy]=useState(false),[accepted,setAccepted]=useState(false)
   const generation=useRef(0)
   useEffect(()=>{
@@ -18,6 +19,7 @@ export default function InviteAccept() {
     return()=>{current=false;if(generation.current===epoch)generation.current++}
   },[user?.id,enabled,token])
   if(!user)return <Login/>
+  if(config==null)return <ConfigPending title="Accept invitation"/>
   const accept=async()=>{
     const epoch=generation.current;setBusy(true);setError(null)
     try{await acceptCenterInvitation(token);if(generation.current!==epoch||useStore.getState().user?.id!==user.id)return;setAccepted(true);await useCenters.getState().load(user.id)}catch(e){if(generation.current===epoch)setError(e)}finally{if(generation.current===epoch)setBusy(false)}

@@ -5,7 +5,7 @@ import {beforeEach,afterEach,it,expect,vi} from 'vitest'
 const state=vi.hoisted(()=>({token:'one',user:{id:'recipient',name:'Recipient'},enabled:true,load:vi.fn().mockResolvedValue(undefined),navigate:vi.fn()}))
 vi.mock('../../lib/i18n.js',()=>({t:key=>key}))
 vi.mock('react-router-dom',()=>({useNavigate:()=>state.navigate,useSearchParams:()=>[new URLSearchParams({token:state.token})]}))
-vi.mock('../../store/useStore.js',()=>({useStore:Object.assign(selector=>selector({user:state.user,config:{centers:{enabled:state.enabled}}}),{getState:()=>({user:state.user})})}))
+vi.mock('../../store/useStore.js',()=>({useStore:Object.assign(selector=>selector({user:state.user,config:state.configPending?null:{centers:{enabled:state.enabled}}}),{getState:()=>({user:state.user})})}))
 vi.mock('../../store/useCenters.js',()=>({useCenters:{getState:()=>({load:state.load})}}))
 vi.mock('../../lib/centers-api.js',()=>({inspectCenterInvitation:vi.fn(),acceptCenterInvitation:vi.fn(),invitationErrorKey:()=> 'Invitation unavailable'}))
 vi.mock('../Login.jsx',()=>({default:()=> <div>Existing login</div>}))
@@ -14,7 +14,7 @@ import InviteAccept from './InviteAccept.jsx'
 globalThis.IS_REACT_ACT_ENVIRONMENT=true
 let host,root
 const render=()=>act(async()=>{root.render(<InviteAccept/>);await Promise.resolve()})
-beforeEach(()=>{vi.clearAllMocks();state.token='one';state.user={id:'recipient',name:'Recipient'};state.enabled=true;inspectCenterInvitation.mockResolvedValue({invite:{centerId:'center1',centerName:'Synthetic center',kind:'member',status:'pending'}});acceptCenterInvitation.mockResolvedValue({accepted:true});host=document.createElement('div');document.body.append(host);root=createRoot(host)})
+beforeEach(()=>{vi.clearAllMocks();state.token='one';state.user={id:'recipient',name:'Recipient'};state.enabled=true;state.configPending=false;inspectCenterInvitation.mockResolvedValue({invite:{centerId:'center1',centerName:'Synthetic center',kind:'member',status:'pending'}});acceptCenterInvitation.mockResolvedValue({accepted:true});host=document.createElement('div');document.body.append(host);root=createRoot(host)})
 afterEach(()=>{act(()=>root.unmount());host.remove()})
 it('requires explicit acceptance and reloads affiliations only after success',async()=>{
   await render();expect(acceptCenterInvitation).not.toHaveBeenCalled()
@@ -33,4 +33,7 @@ it('does not display the success of an old token after navigation to another lin
 })
 it('uses the existing login and does not inspect an invitation anonymously',async()=>{
   state.user=null;await render();expect(host.textContent).toContain('Existing login');expect(inspectCenterInvitation).not.toHaveBeenCalled()
+})
+it('does not label a pending configuration as an unavailable invitation',async()=>{
+  state.configPending=true;await render();expect(host.textContent).toContain('Loading centers');expect(host.textContent).not.toContain('Invitation unavailable');expect(inspectCenterInvitation).not.toHaveBeenCalled();state.configPending=false;await render();expect(inspectCenterInvitation).toHaveBeenCalledWith('one')
 })

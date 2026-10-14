@@ -27,6 +27,7 @@ const center = { id: 'one', name: 'Synthetic center', state: 'active', version: 
 beforeEach(() => {
   vi.clearAllMocks(); useCenters.getState().reset()
   useStore.getState().user = { id: 'platform' }
+  useStore.getState().config={centers:{enabled:true}}
   useCenters.setState({ ownerUid: 'platform', status: 'ready', centers: [], platformCapabilities: ['centers.manage'] })
   platformCenters.mockResolvedValue({ centers: [center] }); centerDetail.mockResolvedValue({ center }); centerStaff.mockResolvedValue({ staff: [] })
   centersMe.mockResolvedValue({ centers: [], platformCapabilities: ['centers.manage'] })
@@ -99,6 +100,13 @@ it('a direct Centers entry uses Home as a fallback without leaving the app',asyn
   await act(async()=>{root.render(<MemoryRouter initialEntries={['/centers']}><Routes><Route path="/centers" element={<Centers/>}/><Route path="/home" element={<div>Home fallback</div>}/></Routes></MemoryRouter>);await Promise.resolve()})
   await act(async()=>{host.querySelector('button[aria-label="Back"]').click()});expect(host.textContent).toContain('Home fallback')
   history.replaceState(prior,'',location.href)
+})
+it('preserves a direct center/pane URL while configuration is pending and opens it when config arrives',async()=>{
+  useStore.getState().config=null;const refreshConfig=vi.fn().mockResolvedValue(null);useStore.getState().refreshConfig=refreshConfig
+  function Location(){const here=useLocation();return <output>{here.pathname+here.search}</output>}
+  const view=()=> <MemoryRouter initialEntries={['/centers?centerId=one&pane=members']}><Centers/><Location/></MemoryRouter>
+  await act(async()=>root.render(view()));expect(host.querySelector('output').textContent).toBe('/centers?centerId=one&pane=members');expect(host.textContent).toContain('Loading centers');expect(centerDetail).not.toHaveBeenCalled();await click('Reload centers');expect(refreshConfig).toHaveBeenCalledOnce()
+  useStore.getState().config={centers:{enabled:true}};await act(async()=>{root.render(view());await Promise.resolve()});expect(centerDetail).toHaveBeenCalledWith('one');expect(host.querySelector('output').textContent).toBe('/centers?centerId=one&pane=members')
 })
 it('center selection and panes enter router history, so Back restores the previously visited pane',async()=>{
   const previous=history.state;history.replaceState({idx:2},'',location.href)

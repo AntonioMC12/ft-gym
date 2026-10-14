@@ -10,11 +10,12 @@ vi.mock('../../store/useCenters.js',()=>{const state={ownerUid:'alice',status:'r
 vi.mock('../../lib/centers-api.js',()=>({ownCenterMembership:vi.fn(),ownCenterReceipts:vi.fn(),ownCenterPayments:vi.fn(),centersErrorKey:()=> 'error'}))
 import {ownCenterMembership,ownCenterReceipts,ownCenterPayments} from '../../lib/centers-api.js'
 import {useCenters} from '../../store/useCenters.js'
+import {useStore} from '../../store/useStore.js'
 import MyCenters from './MyCenters.jsx'
 globalThis.IS_REACT_ACT_ENVIRONMENT=true
 let host,root
 const affiliation={id:'a',name:'My synthetic center',capabilities:['membership.own.read']},info={center:{id:'a',name:affiliation.name,state:'active'},member:{id:'own',name:'Alice',number:'M-1',state:'active'},summary:{outstandingMinor:'200',overdueMinor:'0',currency:'EUR'},subscriptions:[{id:'s',name:'Fee',priceMinor:'3100',currency:'EUR',startsOn:'2026-10-14',discountBasisPoints:0,status:'active',intervalMonths:1,billingDay:1}]}
-beforeEach(()=>{vi.clearAllMocks();useCenters.getState().centers=[affiliation];ownCenterMembership.mockResolvedValue(info);ownCenterReceipts.mockResolvedValue({receipts:[],nextCursor:null});ownCenterPayments.mockResolvedValue({payments:[],nextCursor:null});host=document.createElement('div');document.body.append(host);root=createRoot(host)})
+beforeEach(()=>{vi.clearAllMocks();useStore.getState().config={centers:{enabled:true}};useCenters.getState().centers=[affiliation];ownCenterMembership.mockResolvedValue(info);ownCenterReceipts.mockResolvedValue({receipts:[],nextCursor:null});ownCenterPayments.mockResolvedValue({payments:[],nextCursor:null});host=document.createElement('div');document.body.append(host);root=createRoot(host)})
 afterEach(()=>{act(()=>root.unmount());host.remove()})
 const render=(path='/centers/membership')=>act(async()=>{root.render(<MemoryRouter initialEntries={[path]}><MyCenters/></MemoryRouter>);await Promise.resolve()})
 it('opens only a linked membership and uses read-only terms/receipt/payment components',async()=>{
@@ -25,4 +26,7 @@ it('does not query a selected center absent from own affiliations',async()=>{
 })
 it('dropping the view while a request is pending prevents old private data from rendering',async()=>{
   let release;ownCenterMembership.mockReturnValue(new Promise(resolve=>release=resolve));await render();await act(async()=>host.querySelector('button.lrow').click());await act(async()=>root.render(<div>Other page</div>));await act(async()=>release(info));expect(host.textContent).toBe('Other page')
+})
+it('waits for config before resolving a direct own-membership URL',async()=>{
+  useStore.getState().config=null;await render('/centers/membership?centerId=a');expect(ownCenterMembership).not.toHaveBeenCalled();expect(host.textContent).toContain('Loading centers');useStore.getState().config={centers:{enabled:true}};await render('/centers/membership?centerId=a');expect(ownCenterMembership).toHaveBeenCalledWith('a');expect(host.textContent).toContain('Alice')
 })

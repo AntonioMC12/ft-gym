@@ -17,6 +17,7 @@ import RefundGrant from './RoleCapabilityGrant.jsx'
 import DebtCalendar from './DebtCalendar.jsx'
 import BillingAutomation from './BillingAutomation.jsx'
 import NotificationSettings from './NotificationSettings.jsx'
+import ConfigPending from './ConfigPending.jsx'
 
 const stateLabel = state => state === 'active' ? t('Active center') : state === 'inactive' ? t('Inactive center') : t('Draft center')
 const fieldsOf = center => ({ name: center?.name || '', taxId: center?.taxId || '', address: center?.address || '',
@@ -177,7 +178,9 @@ function Content({ user }) {
 }
 
 export default function Centers() {
-  const user = useStore(s => s.user), enabled = useStore(s => s.config?.centers?.enabled)
-  if (!user || !enabled) return <Navigate to="/home" replace />
+  const user = useStore(s => s.user), config = useStore(s => s.config),[params]=useSearchParams()
+  if (!user) return <Navigate to="/home" replace />
+  if(config==null)return <ConfigPending fallback={params.get('centerId')?'/centers':'/home'}/>
+  if(!config.centers?.enabled)return <Navigate to="/home" replace />
   return <Content key={user.id} user={user} />
 }

@@ -12,6 +12,7 @@ import ContractSummary from './ContractSummary.jsx'
 import Receipts from './Receipts.jsx'
 import Payments from './Payments.jsx'
 import OwnNotifications from './OwnNotifications.jsx'
+import ConfigPending from './ConfigPending.jsx'
 import './centers.css'
 
 const memberState=state=>state==='active'?t('Active member'):state==='frozen'?t('Frozen member'):state==='ended'?t('Ended member'):t('Pending activation')
@@ -30,8 +31,10 @@ function Membership({centerId,ownerUid}) {
   </>
 }
 export default function MyCenters() {
-  const user=useStore(s=>s.user),enabled=useStore(s=>s.config?.centers?.enabled),state=useCenters(),navigate=useNavigate(),[params,setParams]=useSearchParams()
-  if(!user||!enabled)return <Navigate to="/home" replace/>
+  const user=useStore(s=>s.user),config=useStore(s=>s.config),state=useCenters(),navigate=useNavigate(),[params,setParams]=useSearchParams()
+  if(!user)return <Navigate to="/home" replace/>
+  if(config==null)return <ConfigPending title="My centers" fallback={params.get('centerId')?'/centers/membership':'/settings/account'}/>
+  if(!config.centers?.enabled)return <Navigate to="/home" replace/>
   const selected=params.get('centerId'),centers=state.ownerUid===user.id?state.centers.filter(c=>c.capabilities.includes('membership.own.read')):[],ready=state.ownerUid===user.id&&state.status==='ready'
   return <div className="narrow centers-page"><div className="hdr"><button className="iconbtn" aria-label={t('Back')} onClick={()=>navBack(selected?'/centers/membership':'/settings/account',navigate)}><Icon name="chevronLeft"/></button><h1>{t('My centers')}</h1></div>
     {!ready&&<p role="status">{t('Loading centers')}</p>}{state.error&&<p role="alert">{t(centersErrorKey(state.error))}</p>}

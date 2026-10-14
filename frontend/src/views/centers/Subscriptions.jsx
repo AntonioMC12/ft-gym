@@ -8,8 +8,8 @@ import {useStore} from '../../store/useStore.js'
 import {useCenters} from '../../store/useCenters.js'
 import {t} from '../../lib/i18n.js'
 import BillingPreview from './BillingPreview.jsx'
+import ContractSummary from './ContractSummary.jsx'
 
-const statusText=row=>row.canceled?t('Canceled'):row.status==='scheduled'?t('Scheduled'):row.status==='ended'?t('Ended member'):row.status==='frozen'?t('Frozen member'):t('Active member')
 export default function Subscriptions({centerId,member,ownerUid,changed,receiptCreated}) {
   const [info,setInfo]=useState(null),[plans,setPlans]=useState([]),[cursor,setCursor]=useState(null),[query,setQuery]=useState(''),[search,setSearch]=useState('')
   const [priceVersionId,setPriceVersionId]=useState(''),[effectiveOn,setEffectiveOn]=useState(''),[discount,setDiscount]=useState('0'),[reason,setReason]=useState('')
@@ -60,7 +60,7 @@ export default function Subscriptions({centerId,member,ownerUid,changed,receiptC
   }
   return <Section title={t('Subscriptions')}><div className="centers-form">
     {!info&&!error&&<p role="status">{t('Loading…')}</p>}
-    {info?.subscriptions.map(row=><div key={row.id}><Row className="centers-change-row" title={row.name} subtitle={minorToPrice(row.priceMinor)+' '+row.currency+' · '+row.startsOn+(row.effectiveEndsOn?' → '+row.effectiveEndsOn:'')+' · '+t('Discount (%)')+': '+minorToPrice(String(row.discountBasisPoints))} value={statusText(row)}>{row.canCancel&&<Button disabled={busy} onClick={()=>cancel(row)}>{t('Cancel scheduled change')}</Button>}</Row>{!row.canceled&&<BillingPreview key={member.version} centerId={centerId} memberId={member.id} contractId={row.id} ownerUid={ownerUid} today={info.today} canGenerate onGenerated={receiptCreated}/>}</div>)}
+    {info?.subscriptions.map(row=><div key={row.id}><ContractSummary contract={row}>{row.canCancel&&<Button disabled={busy} onClick={()=>cancel(row)}>{t('Cancel scheduled change')}</Button>}</ContractSummary>{!row.canceled&&<BillingPreview key={member.version} centerId={centerId} memberId={member.id} contractId={row.id} ownerUid={ownerUid} today={info.today} canGenerate onGenerated={receiptCreated}/>}</div>)}
     {info&&!scheduled&&member.state!=='ended'&&<form onSubmit={submit}>
       <h3>{active?t('Change membership plan'):t('Assign membership plan')}</h3>
       <SearchField aria-label={t('Search membership plans')} placeholder={t('Search membership plans')} value={query} onChange={e=>setQuery(e.target.value)} onClear={()=>setQuery('')}/>

@@ -54,13 +54,14 @@ export function recordRefund({database,user,checkSession},raw,{platform=false}={
   },{platform});
 }
 export function listPayments(database,uid,centerId,memberId,{limit,cursor},{platform=false}={}) {
-  const scope=cursorScope(['payments',uid,centerId,memberId]),after=readCursor(cursor,scope);
-  return businessTransaction(database,uid,centerId,'billing.read',async client=>{
+  return businessTransaction(database,uid,centerId,'billing.read',client=>paymentPage(client,uid,centerId,memberId,{limit,cursor}),{platform,allowInactive:platform});
+}
+export async function paymentPage(client,uid,centerId,memberId,{limit,cursor},kind='payments') {
+  const scope=cursorScope([kind,uid,centerId,memberId]),after=readCursor(cursor,scope);
     await memberRecord(client,centerId,memberId);
     const {rows}=await client.query('SELECT id,created_at::text AS cursor_at FROM centers.payments WHERE center_id=$1 AND member_id=$2 AND ($3::timestamptz IS NULL OR (created_at,id)<($3::timestamptz,$4::text)) ORDER BY created_at DESC,id DESC LIMIT $5',[centerId,memberId,after?.at||null,after?.id||null,limit+1]);
     const page=rows.slice(0,limit),payments=[];for(const row of page)payments.push(await paymentDetail(client,centerId,memberId,row.id));
     return {payments,nextCursor:rows.length>limit?nextCursor(scope,page.at(-1)):null};
-  },{platform,allowInactive:platform});
 }
 export function updateRefundCapability({database,user,checkSession},raw) {
   objectBody(raw,['centerId','assignmentId','version','allowRefund','allowExport','requestId']);

@@ -4,9 +4,9 @@ import {createRoot} from 'react-dom/client'
 import {beforeEach,afterEach,it,expect,vi} from 'vitest'
 vi.mock('../../lib/i18n.js',()=>({t:key=>key}))
 vi.mock('../../store/useStore.js',()=>({useStore:{getState:()=>({user:{id:'manager'}})}}))
-vi.mock('../../lib/centers-api.js',()=>({centerPayments:vi.fn(),paymentsErrorKey:()=> 'error'}))
+vi.mock('../../lib/centers-api.js',()=>({centerPayments:vi.fn(),ownCenterPayments:vi.fn(),paymentsErrorKey:()=> 'error'}))
 vi.mock('../../store/useCenters.js',()=>({useCenters:{getState:()=>({revokeOn:vi.fn()})}}))
-import {centerPayments} from '../../lib/centers-api.js'
+import {centerPayments,ownCenterPayments} from '../../lib/centers-api.js'
 import Payments from './Payments.jsx'
 globalThis.IS_REACT_ACT_ENVIRONMENT=true
 let host,root
@@ -17,6 +17,9 @@ const render=(props={})=>act(async()=>{root.render(<Payments centerId="a" member
 const open=()=>act(async()=>host.querySelector('button.lrow').click())
 it('shows allocation/refund history but no refund action without explicit capability',async()=>{
   await render();await open();expect(host.textContent).toContain('6.00 EUR');expect(host.textContent).toContain('2.00 EUR');expect(host.textContent).toContain('Synthetic correction');expect(host.textContent).not.toContain('Record refund');expect(host.querySelector('input')).toBeNull()
+})
+it('own mode reads through the own endpoint and never exposes refund actions',async()=>{
+  ownCenterPayments.mockResolvedValue({payments:[payment],nextCursor:null});await render({own:true,canRefund:true});expect(ownCenterPayments).toHaveBeenCalledWith('a');expect(centerPayments).not.toHaveBeenCalled();await open();expect(host.textContent).not.toContain('Record refund')
 })
 it('an explicitly authorized manager can open a refund form limited to the remaining allocation',async()=>{
   await render({canRefund:true});await open();await act(async()=>[...host.querySelectorAll('button')].find(b=>b.textContent==='Record refund').click());expect(host.querySelector('input').value).toBe('4.00');expect(host.querySelector('input[type=date]').min).toBe('2026-10-14')

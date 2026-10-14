@@ -21,6 +21,9 @@ export function receiptsErrorKey(error) {
   return centersErrorKey(error)
 }
 export const centerPayments=(centerId,memberId,options={})=>api('/api/centers/payments?'+new URLSearchParams({centerId,memberId,...options}))
+export const ownCenterMembership=centerId=>api('/api/centers/own/membership?'+new URLSearchParams({centerId}))
+export const ownCenterReceipts=(centerId,options={})=>api('/api/centers/own/receipts?'+new URLSearchParams({centerId,...options}))
+export const ownCenterPayments=(centerId,options={})=>api('/api/centers/own/payments?'+new URLSearchParams({centerId,...options}))
 export const centerDebt=(centerId,{calendar=false,...options}={})=>api('/api/centers/billing/'+(calendar?'calendar':'debts')+'?'+new URLSearchParams({centerId,...options}))
 export const centerDebtExport=(centerId,options={})=>api('/api/centers/billing/debts/export?'+new URLSearchParams({centerId,...options}))
 export function debtErrorKey(error) {

@@ -12,6 +12,7 @@ import {previewBilling} from './services/billing-preview.js';
 import {generateReceipt,listReceipts,receiptListOptions} from './services/receipts.js';
 import {recordPayment,recordRefund,listPayments,updateRefundCapability} from './services/payments.js';
 import {listDebt,exportDebt,debtListOptions} from './services/debt.js';
+import {ownMembership,ownReceipts,ownPayments,ownPortalOptions} from './services/member-portal.js';
 
 // Inject the same session and response helpers used by the rest of node:http.
 export function centersRoutes({ config, database, json, readSession, readBody, accountLocks, lookupAccount,
@@ -42,6 +43,21 @@ export function centersRoutes({ config, database, json, readSession, readBody, a
     }catch(error){return failure(res,error);}
   };
   return {
+    'GET /api/centers/own/membership': async(req,res)=>{
+      const user=guard(req,res);if(!user)return;const sv=user.sv||0,params=new URL(req.url,'http://x').searchParams,centerId=params.get('centerId');
+      if(!recordId(centerId))return json(res,404,{error:'not found',code:'not-found'});
+      try{ownPortalOptions(params);const result=await ownMembership(database,user.id,centerId);if(!current(req,user,sv))return json(res,401,{error:'not signed in'});return json(res,200,result);}catch(error){return failure(res,error);}
+    },
+    'GET /api/centers/own/receipts': async(req,res)=>{
+      const user=guard(req,res);if(!user)return;const sv=user.sv||0,params=new URL(req.url,'http://x').searchParams,centerId=params.get('centerId');
+      if(!recordId(centerId))return json(res,404,{error:'not found',code:'not-found'});
+      try{ownPortalOptions(params);const result=await ownReceipts(database,user.id,centerId,receiptListOptions(params));if(!current(req,user,sv))return json(res,401,{error:'not signed in'});return json(res,200,result);}catch(error){return failure(res,error);}
+    },
+    'GET /api/centers/own/payments': async(req,res)=>{
+      const user=guard(req,res);if(!user)return;const sv=user.sv||0,params=new URL(req.url,'http://x').searchParams,centerId=params.get('centerId');
+      if(!recordId(centerId))return json(res,404,{error:'not found',code:'not-found'});
+      try{ownPortalOptions(params);const result=await ownPayments(database,user.id,centerId,receiptListOptions(params));if(!current(req,user,sv))return json(res,401,{error:'not signed in'});return json(res,200,result);}catch(error){return failure(res,error);}
+    },
     'GET /api/centers/billing/debts': async(req,res)=>{
       const user=guard(req,res);if(!user)return;const sv=user.sv||0,params=new URL(req.url,'http://x').searchParams,centerId=params.get('centerId');
       if(!recordId(centerId))return json(res,404,{error:'not found',code:'not-found'});

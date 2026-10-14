@@ -165,6 +165,86 @@ security:
   - bearerAuth: []
 
 paths:
+  /api/centers/own/membership:
+    get:
+      tags: [centers]
+      operationId: getOwnCenterMembership
+      summary: Read the authenticated account's own membership and contracted fee terms
+      description: >-
+        Resolves the member from session account_uid in the selected center. Never accepts memberId,
+        id, accountUid or a platform override; even staff/platform must have their own linked membership.
+        Ended memberships and inactive centers retain read-only history without disabling training.
+        Own DTO allowlists exclude contacts, national documents, private discount/end reasons,
+        actor IDs, administrative versions and mutation controls. Up to 100 contracts prioritize
+        uncanceled terms; subscriptionsTruncated explicitly signals further history. Summary uses all
+        own receipts/allocations/refunds and the center's explicit debt policy. No personal S/cache.
+      security: [{ session: [] }, { bearer: [] }]
+      parameters:
+        - { name: centerId, in: query, required: true, schema: { type: string } }
+      responses:
+        '200':
+          description: Own affiliation, fee terms and exact outstanding balance.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/OwnCenterMembership' }
+        '400': { description: Unexpected member/account identifiers or query options. }
+        '401': { description: No current session. }
+        '403': { description: Accessible staff center but no own membership capability. }
+        '404': { description: Module off or no linked own affiliation. }
+        '409': { description: Unsupported debt policy. }
+        '503': { description: Centers unavailable. }
+  /api/centers/own/receipts:
+    get:
+      tags: [centers]
+      operationId: listOwnCenterReceipts
+      summary: Read only the session-owned member's immutable receipt snapshots
+      description: >-
+        Member identity is resolved from the session and center, never a query memberId.
+        Dedicated own-receipts cursor bound to actor/center/member. Row policies additionally
+        restrict own financial records. Original snapshot and derived settlement are read-only;
+        no issue/payment/refund permission. Ended/inactive history remains readable.
+      security: [{ session: [] }, { bearer: [] }]
+      parameters:
+        - { name: centerId, in: query, required: true, schema: { type: string } }
+        - { name: limit, in: query, schema: { type: integer, minimum: 1, maximum: 100, default: 30 } }
+        - { name: cursor, in: query, schema: { type: string, maxLength: 1024 } }
+      responses:
+        '200': { description: Own receipts with original snapshots and settlement, plus nextCursor. }
+        '400': { description: Invalid/cross-account cursor or unexpected query identity. }
+        '401': { description: No current session. }
+        '403': { description: No own read capability. }
+        '404': { description: Module off or own member outside selected center. }
+        '503': { description: Centers unavailable. }
+  /api/centers/own/payments:
+    get:
+      tags: [centers]
+      operationId: listOwnCenterPayments
+      summary: Read the session-owned member's payment and refund amounts
+      description: >-
+        Own identity, RLS, inactive-history and cursor rules as own receipts, with distinct
+        own-payments cursor namespace. Allowlisted payment dates/methods, allocation periods/amounts
+        and refund dates/amounts only; no staff reference, refund reason, actor UID or refund controls.
+        Latest 100 refund details per payment with refundsTruncated, totals include all movements.
+      security: [{ session: [] }, { bearer: [] }]
+      parameters:
+        - { name: centerId, in: query, required: true, schema: { type: string } }
+        - { name: limit, in: query, schema: { type: integer, minimum: 1, maximum: 100, default: 30 } }
+        - { name: cursor, in: query, schema: { type: string, maxLength: 1024 } }
+      responses:
+        '200':
+          description: Own payment page without staff notes or mutation privileges.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  payments: { type: array, items: { $ref: '#/components/schemas/OwnCenterPayment' } }
+                  nextCursor: { type: [string, 'null'] }
+        '400': { description: Invalid/cross-account cursor or unexpected query identity. }
+        '401': { description: No current session. }
+        '403': { description: No own read capability. }
+        '404': { description: Module off or no own affiliation. }
+        '503': { description: Centers unavailable. }
   /api/centers/billing/debts:
     get:
       tags: [centers]
@@ -4304,6 +4384,87 @@ components:
           example: { error: "that code is wrong, used or expired", code: "link-invalid" }
 
   schemas:
+    OwnCenterMembership:
+      type: object
+      properties:
+        today: { type: string, format: date }
+        center:
+          type: object
+          properties:
+            id: { type: string }
+            name: { type: string }
+            state: { type: string, enum: [draft, active, inactive] }
+            timezone: { type: string }
+        member:
+          type: object
+          properties:
+            id: { type: string }
+            name: { type: string }
+            number: { type: string }
+            state: { type: string, enum: [preactive, active, frozen, ended] }
+            joinedOn: { type: string, format: date }
+            endsOn: { type: [string, 'null'], format: date }
+        subscriptionsTruncated: { type: boolean }
+        subscriptions:
+          type: array
+          maxItems: 100
+          items:
+            type: object
+            properties:
+              id: { type: string }
+              name: { type: string }
+              priceMinor: { $ref: '#/components/schemas/ExactMinorAmount' }
+              currency: { type: string, const: EUR }
+              intervalMonths: { type: integer, enum: [1, 3, 6, 12] }
+              startsOn: { type: string, format: date }
+              effectiveEndsOn: { type: [string, 'null'], format: date }
+              billingDay: { type: integer, minimum: 1, maximum: 31 }
+              discountBasisPoints: { type: integer, minimum: 0, maximum: 10000 }
+              status: { type: string, enum: [active, scheduled, frozen, ended, canceled] }
+              priceIncludesTax: { type: [boolean, 'null'] }
+              taxBasisPoints: { type: [integer, 'null'], minimum: 0, maximum: 10000 }
+              proration: { type: [string, 'null'], enum: [none, actual-days, null] }
+        summary:
+          type: object
+          properties:
+            outstandingMinor: { type: string, pattern: '^[0-9]+$' }
+            overdueMinor: { type: string, pattern: '^[0-9]+$' }
+            currency: { type: string, const: EUR }
+            policy:
+              type: object
+              properties:
+                version: { type: integer, const: 1 }
+                graceDays: { type: integer, minimum: 0, maximum: 365 }
+                automaticSuspension: { type: boolean, const: false }
+    OwnCenterPayment:
+      type: object
+      additionalProperties: false
+      properties:
+        id: { type: string }
+        amountMinor: { $ref: '#/components/schemas/ExactMinorAmount' }
+        currency: { type: string, const: EUR }
+        paidOn: { type: string, format: date }
+        method: { type: string, enum: [cash, bank-transfer, card, other] }
+        refundsTruncated: { type: boolean }
+        allocations:
+          type: array
+          items:
+            type: object
+            properties:
+              receiptId: { type: string }
+              periodStart: { type: string, format: date }
+              periodEnd: { type: string, format: date }
+              amountMinor: { $ref: '#/components/schemas/ExactMinorAmount' }
+              refundedMinor: { $ref: '#/components/schemas/ExactMinorAmount' }
+        refunds:
+          type: array
+          maxItems: 100
+          items:
+            type: object
+            properties:
+              id: { type: string }
+              amountMinor: { $ref: '#/components/schemas/ExactMinorAmount' }
+              refundedOn: { type: string, format: date }
     CenterDebtPage:
       type: object
       properties:

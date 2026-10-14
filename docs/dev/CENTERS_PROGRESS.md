@@ -7,8 +7,8 @@
 - Trabajo actual autorizado (14 octubre): continuar roadmap hasta que reste el 20% del límite disponible; corregir Atrás de Centros y conservar esa pauta para navegación/breadcrumbs futuros. La orden de apagado del 13 octubre terminó en aquella ejecución; no se aplica a esta sesión.
 - Rama: `codex/centers-module`, creada desde `53ef0baf`. F0-F3 verificadas en entorno ficticio. Commits: `75e1160d`, `433764a5`, `24cb5a42`.
 - Guía: [CENTERS_ROADMAP.md](CENTERS_ROADMAP.md). Instrucciones: [AGENTS.md](../../AGENTS.md).
-- Siguiente tarea: **C22 / F6**, área privada del socio con contratos, recibos y pagos propios; RLS y DTO de lectura separados de administración.
-- Último hito cerrado: C21, deuda derivada, calendario de vencimientos y CSV limitado/autorizado por centro. Atrás de Centros sigue el historial; preferencia guardada en AGENTS.md.
+- Siguiente tarea: **C23 / F7**, navegación por rol/contexto de centro, conservando historial y navegación personal.
+- Último hito cerrado: C22, área privada del socio con contratos, recibos y pagos propios; RLS y DTO separados de administración. Atrás de Centros sigue el historial; preferencia guardada en AGENTS.md.
 - Pruebas C18: 47 unitarias API, 66 frontend/controles, 3 OpenAPI y 10 SQL+HTTP reales pasan. Comparativa general y comprobación visual registradas abajo.
 
 Este registro contiene el estado de ejecución; el roadmap define requisitos y dependencias. La autorización vigente siempre procede del usuario, no de una casilla de este archivo.
@@ -51,8 +51,8 @@ Estados permitidos: `todo`, `in_progress`, `done`, `blocked`. Una tarea done nec
 | C19 | F6 | Recibos idempotentes | done |
 | C20 | F6 | Pagos y aplicaciones | done |
 | C21 | F6 | Deuda y calendario | done |
-| C22 | F6 | Área del socio | in_progress |
-| C23 | F7 | Navegación/contexto | todo |
+| C22 | F6 | Área del socio | done |
+| C23 | F7 | Navegación/contexto | in_progress |
 | C24 | F7 | Piloto MVP y restauración | todo |
 | C25 | F8 | Jobs y outbox | todo |
 | C26 | F8 | Email y avisos | todo |
@@ -313,3 +313,13 @@ No guardar credenciales, bodies privados, volcados de socios, IBAN, tarjetas o r
 - General API 654/627 pasan/27 fallan; frontend 419 archivos/404 pasan/15 fallan, 5132 tests/5078 pasan/54 fallan. Comparación de identidades sin nuevo fallo; solo OpenAPI del baseline ya corregido. MCP no modificado.
 - Visual centro ficticio: resumen 2 EUR pendiente/0 mora, estado Vence hoy, calendario 1-31 octubre; CSV descargado contiene total18/pagado16/devuelto2/saldo2. Viewport390: root/body375px sin desbordamiento y pestañas legibles; override restaurado. Evidencias informes/centros-c21-deuda.jpg y centros-c21-calendario-movil.jpg. Validación descarga demoró devolución de control del navegador; archivo real y contenido comprobados después.
 - C21 done. Sigue C22; lectura solo de afiliaciones vinculadas a la sesión propia, sin privilegios administrativos ni persistencia personal. Último límite medido primaria52% usado/semanal51%; continuar hasta 20% restante, sin apagado en esta ejecución.
+
+### C22 / F6: área privada del socio
+
+- Migración 012 añade lecturas RLS propias de contratos, recibos, pagos, aplicaciones, devoluciones y precios contratados, ligadas a selected_center + account_uid de sesión. No abre catálogo ni modifica políticas de escritura. GET own/membership, own/receipts y own/payments rechazan IDs de socio/cuenta en query; incluso un manager vinculado conserva alcance propio en esos endpoints.
+- DTO propios usan allowlists: sin DNI/contacto, motivo de descuento/baja/devolución, referencia interna de pago, actor_uid, versión administrativa o controles de mutación. Contratos hasta100 con truncación explícita, recibos/pagos con cursor propio por cuenta/centro. Saldo resume todos los movimientos; historial sigue legible tras baja y centro inactive, sin tocar entrenamiento/autenticación.
+- Mis centros accesible desde Cuenta para afiliaciones propias; staff/plataforma mantienen Gestionar centros como destino distinto. Invitación member aceptada conduce al portal de su centro. navBack respeta historial y fallback de la jerarquía. ContractSummary tiene segundo uso concreto; Receipts/Payments se reutilizan con transporte own y acciones administrativas forzosamente ocultas. Todo queda en memoria y API no-store.
+- Pruebas: centers-c22-sql.log 14/14 reales, con dos centros, dos socios, manager también socio, RLS directa, cursor de otra cuenta, DTO sin motivos privados, estado ended/inactive y APIs administrativas prohibidas. api/centers-c22-unit.log 59/59 con3 OpenAPI; frontend/centers-c22-ui.log 114/114 en22 archivos. Build/locales pasan (18 locales/2441 claves,1919 cadenas fuente), OpenAPI117 rutas/51schemas.
+- Suites completas: API656/629 pasan/27 fallan; frontend421 archivos/406 pasan/15 fallan,5140 tests/5086 pasan/54 fallan. Identidades contra baseline sin nuevo fallo; MCP intacto. Últimas leyendas ocultas en modo own son presentación reversible, verificadas visualmente.
+- Recorrido real localhost en base ficticia: plataforma invitó preview_trainer al Socio ensayo recibos; destinatario aceptó y llegó a Mis centros del Centro ensayo14octubre. Consulta cuota31EUR y recibo18EUR/pagado16/devuelto2/saldo2; ningún control para crear/cobrar/devolver. Móvil390px, contenido375px sin overflow, viewport restaurado. Evidencia informes/centros-c22-portal-socio.jpg; solo identidades/datos ficticios.
+- C22 done. C23 sigue con margen de presupuesto medido72% usado primario/54% semanal. No iniciar C24 sin cerrar y verificar navegación. La sesión de prueba queda en Entrenador Pruebas; contraseña ficticia habitual. Sin despliegue, cobro real, push/merge o apagado.

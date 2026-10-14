@@ -4,9 +4,9 @@ import {createRoot} from 'react-dom/client'
 import {beforeEach,afterEach,it,expect,vi} from 'vitest'
 vi.mock('../../lib/i18n.js',()=>({t:key=>key}))
 vi.mock('../../store/useStore.js',()=>({useStore:{getState:()=>({user:{id:'manager'}})}}))
-vi.mock('../../lib/centers-api.js',()=>({centerReceipts:vi.fn(),receiptsErrorKey:()=> 'error'}))
+vi.mock('../../lib/centers-api.js',()=>({centerReceipts:vi.fn(),ownCenterReceipts:vi.fn(),receiptsErrorKey:()=> 'error'}))
 vi.mock('../../store/useCenters.js',()=>({useCenters:{getState:()=>({revokeOn:vi.fn()})}}))
-import {centerReceipts} from '../../lib/centers-api.js'
+import {centerReceipts,ownCenterReceipts} from '../../lib/centers-api.js'
 import Receipts from './Receipts.jsx'
 globalThis.IS_REACT_ACT_ENVIRONMENT=true
 let host,root
@@ -17,6 +17,9 @@ afterEach(()=>{act(()=>root.unmount());host.remove()})
 const render=(centerId='a',revision=0)=>act(async()=>{root.render(<Receipts centerId={centerId} memberId="member1" ownerUid="manager" revision={revision}/>);await Promise.resolve()})
 it('opens the immutable snapshot and offers no amount editing or paid switch',async()=>{
   await render();await act(async()=>{host.querySelector('button.lrow').click()});expect(host.textContent).toContain('Name at issuance');expect(host.textContent).toContain('12.10 EUR');expect(host.querySelector('input')).toBeNull();expect(host.querySelector('[role=switch]')).toBeNull()
+})
+it('own mode uses the session-bound endpoint and cannot expose a payment action even with canRecord',async()=>{
+  ownCenterReceipts.mockResolvedValue({receipts:[{...receipt,settlement:{paidMinor:'0',refundedMinor:'0',balanceMinor:'1210'}}],nextCursor:null});await act(async()=>{root.render(<Receipts centerId="a" memberId="untrusted" ownerUid="manager" own canRecord/>);await Promise.resolve()});expect(ownCenterReceipts).toHaveBeenCalledWith('a');expect(centerReceipts).not.toHaveBeenCalled();await act(async()=>host.querySelector('button.lrow').click());expect(host.textContent).not.toContain('Record payment')
 })
 it('loads another server page without replacing already visible receipts',async()=>{
   centerReceipts.mockResolvedValueOnce({receipts:[receipt],nextCursor:'next'}).mockResolvedValueOnce({receipts:[{...receipt,id:'receipt2',totalMinor:'2400'}],nextCursor:null});await render();await act(async()=>{[...host.querySelectorAll('button')].find(button=>button.textContent==='Show more').click()});expect(centerReceipts).toHaveBeenLastCalledWith('a','member1',{cursor:'next'});expect(host.textContent).toContain('12.10 EUR');expect(host.textContent).toContain('24.00 EUR')

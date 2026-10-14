@@ -14,13 +14,13 @@ async function terms(client,centerId,id) {
   if(!rows.length)throw new CentersError(404,'not-found','not found');
   if(rows[0].archived_at)throw conflict('plan-archived');if(rows[0].revision!==rows[0].current_revision)throw conflict('price-version-changed');return rows[0];
 }
-async function rowsFor(client,centerId,memberId) {
+export async function subscriptionRows(client,centerId,memberId,limit=100) {
   const {rows}=await client.query(`SELECT s.*,s.starts_on::text AS starts_on,s.ends_on::text AS ends_on,s.anchor_on::text AS anchor_on,
     v.name,v.price_minor,v.currency,v.interval_months,v.price_includes_tax,v.tax_basis_points,v.proration
     FROM centers.subscriptions s JOIN centers.membership_plan_versions v ON (v.center_id,v.id)=(s.center_id,s.price_version_id)
-    WHERE s.center_id=$1 AND s.member_id=$2 ORDER BY (s.canceled_at IS NULL) DESC,s.starts_on DESC,s.created_at DESC LIMIT 100`,[centerId,memberId]);return rows;
+    WHERE s.center_id=$1 AND s.member_id=$2 ORDER BY (s.canceled_at IS NULL) DESC,s.starts_on DESC,s.created_at DESC LIMIT $3`,[centerId,memberId,limit]);return rows;
 }
-function dto(row,member) {
+export function subscriptionDto(row,member) {
   const end=member.ends_on&&(row.ends_on===null||member.ends_on<row.ends_on)?member.ends_on:row.ends_on;
   return {id:row.id,centerId:row.center_id,memberId:row.member_id,planId:row.plan_id,priceVersionId:row.price_version_id,name:row.name,
     startsOn:row.starts_on,endsOn:row.ends_on,effectiveEndsOn:end,billingDay:row.billing_day,anchorOn:row.anchor_on,timezone:row.timezone,
@@ -31,8 +31,8 @@ function dto(row,member) {
 }
 async function result(client,context,memberId,{bump=false}={}) {
   if(bump)await client.query('UPDATE centers.members SET version=version+1,updated_at=NOW() WHERE center_id=$1 AND id=$2',[context.centerId,memberId]);
-  const member=await memberRecord(client,context.centerId,memberId),rows=await rowsFor(client,context.centerId,memberId);
-  return {member:memberDto(member,context.capabilities),...await membershipHistory(client,context,member),subscriptions:rows.map(row=>dto(row,member))};
+  const member=await memberRecord(client,context.centerId,memberId),rows=await subscriptionRows(client,context.centerId,memberId);
+  return {member:memberDto(member,context.capabilities),...await membershipHistory(client,context,member),subscriptions:rows.map(row=>subscriptionDto(row,member))};
 }
 function input(raw,change) {
   objectBody(raw,['centerId','memberId','memberVersion','priceVersionId','effectiveOn','discountBasisPoints','discountReason','requestId',...(change?['id']:[])]);
@@ -50,7 +50,7 @@ async function write(context,raw,change,{platform=false}={}) {
     if(member.state==='ended')throw conflict('invalid-transition');
     if(effectiveOn<member.local_today||effectiveOn<member.joined_on)throw new CentersError(400,'invalid-input','retroactive subscription');
     if(member.ends_on&&effectiveOn>=member.ends_on)throw conflict('subscription-ended');
-    const price=await terms(client,centerId,priceVersionId),existing=await rowsFor(client,centerId,memberId),id='su_'+commandHash([centerId,context.user.id,requestId]).slice(0,32);
+    const price=await terms(client,centerId,priceVersionId),existing=await subscriptionRows(client,centerId,memberId),id='su_'+commandHash([centerId,context.user.id,requestId]).slice(0,32);
     let previous=null,activationId=null;
     if(change){
       previous=existing.find(row=>row.id===values.id&&!row.canceled_at);

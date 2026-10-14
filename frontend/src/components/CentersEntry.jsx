@@ -10,5 +10,7 @@ export default function CentersEntry() {
   const enabled = useStore(s => s.config?.centers?.enabled)
   const { ownerUid, centers, platformCapabilities } = useCenters()
   if (!enabled || !user || ownerUid !== user.id || (!centers.length && !platformCapabilities.length)) return null
-  return <Row icon="personCircle" title={t('Manage centers')} accessory="chevron" onClick={() => nav('/centers')} />
+  const manage=platformCapabilities.includes('centers.manage')||centers.some(c=>c.capabilities.includes('center.read'))
+  const own=centers.some(c=>c.capabilities.includes('membership.own.read'))
+  return <>{manage&&<Row icon="personCircle" title={t('Manage centers')} accessory="chevron" onClick={() => nav('/centers')} />}{own&&<Row icon="personCircle" title={t('My centers')} accessory="chevron" onClick={() => nav('/centers/membership')} />}</>
 }

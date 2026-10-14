@@ -46,12 +46,13 @@ export function receiptListOptions(params) {
   if(!Number.isSafeInteger(limit)||limit<1||limit>100||cursor?.length>1024)throw new CentersError(400,'invalid-input','invalid receipt pagination');return {limit,cursor};
 }
 export function listReceipts(database,uid,centerId,memberId,{limit,cursor},{platform=false}={}) {
-  const scope=cursorScope(['receipts',uid,centerId,memberId]),after=readCursor(cursor,scope);
-  return businessTransaction(database,uid,centerId,'billing.read',async client=>{
+  return businessTransaction(database,uid,centerId,'billing.read',client=>receiptPage(client,uid,centerId,memberId,{limit,cursor}),{platform,allowInactive:platform});
+}
+export async function receiptPage(client,uid,centerId,memberId,{limit,cursor},kind='receipts') {
+  const scope=cursorScope([kind,uid,centerId,memberId]),after=readCursor(cursor,scope);
     await memberRecord(client,centerId,memberId);
     const {rows}=await client.query(`SELECT ${projection} FROM centers.receipts WHERE center_id=$1 AND member_id=$2 AND ($3::timestamptz IS NULL OR (created_at,id)<($3::timestamptz,$4::text)) ORDER BY created_at DESC,id DESC LIMIT $5`,[centerId,memberId,after?.at||null,after?.id||null,limit+1]);
     const page=rows.slice(0,limit),receipts=[];
     for(const row of page)receipts.push({...dto(row),settlement:await receiptBalance(client,centerId,memberId,row.id)});
     return {receipts,nextCursor:rows.length>limit?nextCursor(scope,page.at(-1)):null};
-  },{platform,allowInactive:platform});
 }

@@ -100,3 +100,9 @@ Lecturas paginadas privadas permanecen en memoria. Detalle de pago muestra aplic
 Política SQL del centro version1, graceDays0-365 y automaticSuspensionfalse. Fecha local de lectura: due inclusive, grace desde día siguiente hasta graceDays inclusive, overdue después. Saldo procede del ledger actual, no de un paid flag o estado editable. Una devolución restaura deuda sin afectar cuenta personal. Calendario muestra recibos emitidos en rango civil; no es previsión ni emisión automática (C25).
 
 CSV de deuda requiere data.export concedido explícitamente, tiene máximo5000 filas y rechaza excesos completos. Puede acotarse por vencimientos. Exportación de revisión humana con marcador visible [text] para fórmulas/controles sospechosos, siguiendo riesgos descritos por [OWASP](https://github.com/OWASP/www-community/blob/master/pages/attacks/CSV_Injection.md); no reutilizar como importación literal. Conteo/filtros se auditan, sin nombres/documentos/contactos en auditoría.
+
+## Portal propio del socio (C22)
+
+Schema012 permite lectura únicamente de filas propias por sesión + centro; precios solo si están contratados. own/* no acepta memberId/accountUid ni override de plataforma. Cuenta con roles staff también obtiene un DTO propio restringido, sin motivos/referencias internas. No conceder capacidad de emitir/pagar/devolver por el hecho de estar afiliado.
+
+Mis centros y Gestionar centros son destinos distintos en Cuenta. Recibos/pagos usan componentes existentes con transporte own y controles de mutación ocultos. Historias ended/inactive permanecen legibles y toda consulta administrativa/financiera es efímera en memoria, con Cache-Control no-store, ajena a S y exportaciones personales.

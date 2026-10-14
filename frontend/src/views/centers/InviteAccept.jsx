@@ -26,7 +26,7 @@ export default function InviteAccept() {
     {!enabled&&<p className="centers-form">{t('Invitation unavailable')}</p>}
     {invite&&<Row title={invite.centerName} subtitle={invite.kind==='manager'?t('Center manager'):invite.kind==='trainer'?t('Trainer'):t('Members')} value={user.name}/>}
     {error&&<p className="centers-form" role="alert">{t(invitationErrorKey(error))}</p>}
-    {accepted?<div className="centers-form"><p>{t('Invitation accepted')}</p><Button onClick={()=>navigate('/centers',{replace:true})}>{t('Manage centers')}</Button></div>:
+    {accepted?<div className="centers-form"><p>{t('Invitation accepted')}</p><Button onClick={()=>navigate(invite?.kind==='member'?'/centers/membership?'+new URLSearchParams({centerId:invite.centerId}):'/centers',{replace:true})}>{t(invite?.kind==='member'?'My centers':'Manage centers')}</Button></div>:
       invite&&<div className="centers-form">{invite.status==='accepted'?<p>{t('Invitation already accepted')}</p>:<Button variant="primary" disabled={busy} onClick={accept}>{t('Accept invitation')}</Button>}</div>}
     <Button onClick={()=>navigate('/home',{replace:true})}>{t('Home')}</Button>
   </Section></div>

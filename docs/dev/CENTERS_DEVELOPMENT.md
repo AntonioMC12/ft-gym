@@ -94,3 +94,9 @@ El MVP no mantiene crédito sin aplicar: cada pago se reparte íntegramente entr
 Responsable puede registrar pagos; payments.refund requiere concesión expresa de la plataforma. Endpoint role-capabilities y control de personal permiten conceder/retirar únicamente ese extra en una asignación manager vigente, con versión, requestId y auditoría. Trainer y admin técnico no adquieren permisos económicos.
 
 Lecturas paginadas privadas permanecen en memoria. Detalle de pago muestra aplicaciones con periodo y totales de todas las devoluciones; a lo sumo 100 motivos recientes, con refundsTruncated explícito. Datos de contacto y motivos no pasan a auditoría personal ni S. La política productiva y conciliación externa se validarán en sus fases.
+
+## Deuda y vencimientos (C21)
+
+Política SQL del centro version1, graceDays0-365 y automaticSuspensionfalse. Fecha local de lectura: due inclusive, grace desde día siguiente hasta graceDays inclusive, overdue después. Saldo procede del ledger actual, no de un paid flag o estado editable. Una devolución restaura deuda sin afectar cuenta personal. Calendario muestra recibos emitidos en rango civil; no es previsión ni emisión automática (C25).
+
+CSV de deuda requiere data.export concedido explícitamente, tiene máximo5000 filas y rechaza excesos completos. Puede acotarse por vencimientos. Exportación de revisión humana con marcador visible [text] para fórmulas/controles sospechosos, siguiendo riesgos descritos por [OWASP](https://github.com/OWASP/www-community/blob/master/pages/attacks/CSV_Injection.md); no reutilizar como importación literal. Conteo/filtros se auditan, sin nombres/documentos/contactos en auditoría.

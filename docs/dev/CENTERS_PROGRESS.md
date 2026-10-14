@@ -7,8 +7,8 @@
 - Trabajo actual autorizado (14 octubre): continuar roadmap hasta que reste el 20% del límite disponible; corregir Atrás de Centros y conservar esa pauta para navegación/breadcrumbs futuros. La orden de apagado del 13 octubre terminó en aquella ejecución; no se aplica a esta sesión.
 - Rama: `codex/centers-module`, creada desde `53ef0baf`. F0-F3 verificadas en entorno ficticio. Commits: `75e1160d`, `433764a5`, `24cb5a42`.
 - Guía: [CENTERS_ROADMAP.md](CENTERS_ROADMAP.md). Instrucciones: [AGENTS.md](../../AGENTS.md).
-- Siguiente tarea: **C21 / F6**, deuda derivada, gracia y calendario; listados/exportación por centro con permiso explícito.
-- Último hito cerrado: C20, ledger de pagos parciales/aplicaciones/devoluciones inmutable, permisos extraordinarios y UI. Atrás de Centros sigue el historial; preferencia guardada en AGENTS.md.
+- Siguiente tarea: **C22 / F6**, área privada del socio con contratos, recibos y pagos propios; RLS y DTO de lectura separados de administración.
+- Último hito cerrado: C21, deuda derivada, calendario de vencimientos y CSV limitado/autorizado por centro. Atrás de Centros sigue el historial; preferencia guardada en AGENTS.md.
 - Pruebas C18: 47 unitarias API, 66 frontend/controles, 3 OpenAPI y 10 SQL+HTTP reales pasan. Comparativa general y comprobación visual registradas abajo.
 
 Este registro contiene el estado de ejecución; el roadmap define requisitos y dependencias. La autorización vigente siempre procede del usuario, no de una casilla de este archivo.
@@ -50,8 +50,8 @@ Estados permitidos: `todo`, `in_progress`, `done`, `blocked`. Una tarea done nec
 | C18 | F5 | Cálculo económico | done |
 | C19 | F6 | Recibos idempotentes | done |
 | C20 | F6 | Pagos y aplicaciones | done |
-| C21 | F6 | Deuda y calendario | in_progress |
-| C22 | F6 | Área del socio | todo |
+| C21 | F6 | Deuda y calendario | done |
+| C22 | F6 | Área del socio | in_progress |
 | C23 | F7 | Navegación/contexto | todo |
 | C24 | F7 | Piloto MVP y restauración | todo |
 | C25 | F8 | Jobs y outbox | todo |
@@ -301,3 +301,15 @@ No guardar credenciales, bodies privados, volcados de socios, IBAN, tarjetas o r
 - Suites generales: API 650/623 pasan/27 fallan, frontend 418 archivos/403 pasan/15 fallan; 5125 tests/5071 pasan/54 fallan. Comparación de identidades contra baseline sin fallos nuevos; el fallo OpenAPI corregido en F1 permanece resuelto. MCP no modificado.
 - Visual: recibo ficticio 18 EUR, pagos manuales 6 + 12 EUR, devolución 2 EUR con motivo: neto pagado 16, devuelto 2, saldo pendiente 2; recibo original conserva 18. Evidencia informes/centros-c20-saldo-devolucion.jpg fuera del repo. API de preview reconstruida con schema 011, solo loopback3011 y Vite5178. Reiniciar preview renueva sesiones ficticias; SQL test se conserva.
 - C20 done. Sigue C21. Última medición primaria 41% usado, semanal 49%; límite vigente hasta 20% restante. Sin push/merge/despliegue/datos reales ni apagado en esta sesión.
+
+### C21 / F6: deuda derivada, gracia, calendario y exportación
+
+- GET billing/debts y calendar calculan saldos con todo el ledger SQL. Due date inclusiva; al día siguiente gracia hasta graceDays inclusive y después overdue. Política versionada almacenada en centro, default ficticio 15 días; ausente/no soportada falla cerrada. AutomaticSuspension false y ninguna cuenta personal suspendida por deuda.
+- CTE agregadas por centro; filtros emparejados de vencimiento hasta 366 días; cursor ascendente due_on/id ligado a cuenta/centro/filtro/día/política. Totales del conjunto completo, independientes de página. Calendario por defecto mes civil local incluye pagados; solo recibos emitidos, sin fabricar cargos futuros o disparar jobs.
+- Exportación requiere data.export explícito de manager o plataforma allowlist. Máximo 5000 recibos, 5001 rechaza todo con export-too-large. Snapshot auditable incluye números/nombres, fechas y saldos, sin DNI/IBAN/notas. JSON autenticado usa api.js y UI genera archivo después de validar contexto; no descarga respuesta antigua de otro centro.
+- CSV UTF-8 BOM/CRLF/celdas entrecomilladas y comillas escapadas. Prefijos de fórmula, variantes full-width y controles peligrosos reciben marcador visible [text], destinado a revisión humana; no formato de importación sin pérdida. Referencia primaria revisada: https://github.com/OWASP/www-community/blob/master/pages/attacks/CSV_Injection.md. No se afirma seguridad universal tras transformaciones ajenas del archivo.
+- RoleCapabilityGrant reutiliza el control anterior para dos usos concretos, devolución/exportación. Endpoint conserva operación/hash compatible para allowRefund y añade allowExport; exactamente un extra por comando. Preserve capacidades previas y no autoconcesión por manager/trainer.
+- Verificación: centers-c21-sql.log 13/13 SQL+HTTP reales, incluye fronteras 5000/5001, gracia15/16, reembolso/saldo, cursor de otro centro, revocación y cuenta JSON intacta. api/centers-c21-unit.log 57/57 con 3 OpenAPI; frontend/centers-c21-ui.log 106/106 en 20 archivos; build/locales pasan (18 locales/2436 claves, 1914 cadenas fuente). OpenAPI 114 rutas/49 schemas.
+- General API 654/627 pasan/27 fallan; frontend 419 archivos/404 pasan/15 fallan, 5132 tests/5078 pasan/54 fallan. Comparación de identidades sin nuevo fallo; solo OpenAPI del baseline ya corregido. MCP no modificado.
+- Visual centro ficticio: resumen 2 EUR pendiente/0 mora, estado Vence hoy, calendario 1-31 octubre; CSV descargado contiene total18/pagado16/devuelto2/saldo2. Viewport390: root/body375px sin desbordamiento y pestañas legibles; override restaurado. Evidencias informes/centros-c21-deuda.jpg y centros-c21-calendario-movil.jpg. Validación descarga demoró devolución de control del navegador; archivo real y contenido comprobados después.
+- C21 done. Sigue C22; lectura solo de afiliaciones vinculadas a la sesión propia, sin privilegios administrativos ni persistencia personal. Último límite medido primaria52% usado/semanal51%; continuar hasta 20% restante, sin apagado en esta ejecución.

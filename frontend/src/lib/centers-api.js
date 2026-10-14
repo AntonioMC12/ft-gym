@@ -21,6 +21,15 @@ export function receiptsErrorKey(error) {
   return centersErrorKey(error)
 }
 export const centerPayments=(centerId,memberId,options={})=>api('/api/centers/payments?'+new URLSearchParams({centerId,memberId,...options}))
+export const centerDebt=(centerId,{calendar=false,...options}={})=>api('/api/centers/billing/'+(calendar?'calendar':'debts')+'?'+new URLSearchParams({centerId,...options}))
+export const centerDebtExport=(centerId,options={})=>api('/api/centers/billing/debts/export?'+new URLSearchParams({centerId,...options}))
+export function debtErrorKey(error) {
+  const code=error?.data?.code||error?.code
+  if(code==='debt-policy-required')return 'Debt policy is not configured.'
+  if(code==='export-too-large')return 'Narrow the date range before exporting.'
+  if(code==='invalid-input')return 'Check the due date range.'
+  return centersErrorKey(error)
+}
 export function paymentsErrorKey(error) {
   const code=error?.data?.code||error?.code
   if(code==='payment-exceeds-balance')return 'The payment exceeds the outstanding balance. Reload the receipts.'

@@ -11,6 +11,7 @@ import {createSubscription,changeSubscription,cancelSubscription,listSubscriptio
 import {previewBilling} from './services/billing-preview.js';
 import {generateReceipt,listReceipts,receiptListOptions} from './services/receipts.js';
 import {recordPayment,recordRefund,listPayments,updateRefundCapability} from './services/payments.js';
+import {listDebt,exportDebt,debtListOptions} from './services/debt.js';
 
 // Inject the same session and response helpers used by the rest of node:http.
 export function centersRoutes({ config, database, json, readSession, readBody, accountLocks, lookupAccount,
@@ -41,6 +42,21 @@ export function centersRoutes({ config, database, json, readSession, readBody, a
     }catch(error){return failure(res,error);}
   };
   return {
+    'GET /api/centers/billing/debts': async(req,res)=>{
+      const user=guard(req,res);if(!user)return;const sv=user.sv||0,params=new URL(req.url,'http://x').searchParams,centerId=params.get('centerId');
+      if(!recordId(centerId))return json(res,404,{error:'not found',code:'not-found'});
+      try{const result=await listDebt(database,user.id,centerId,debtListOptions(params),{platform:isPlatformUser(config,user)});if(!current(req,user,sv))return json(res,401,{error:'not signed in'});return json(res,200,result);}catch(error){return failure(res,error);}
+    },
+    'GET /api/centers/billing/calendar': async(req,res)=>{
+      const user=guard(req,res);if(!user)return;const sv=user.sv||0,params=new URL(req.url,'http://x').searchParams,centerId=params.get('centerId');
+      if(!recordId(centerId))return json(res,404,{error:'not found',code:'not-found'});
+      try{const result=await listDebt(database,user.id,centerId,debtListOptions(params,{calendar:true}),{platform:isPlatformUser(config,user)});if(!current(req,user,sv))return json(res,401,{error:'not signed in'});return json(res,200,result);}catch(error){return failure(res,error);}
+    },
+    'GET /api/centers/billing/debts/export': async(req,res)=>{
+      const user=guard(req,res);if(!user)return;const sv=user.sv||0,params=new URL(req.url,'http://x').searchParams,centerId=params.get('centerId');
+      if(!recordId(centerId))return json(res,404,{error:'not found',code:'not-found'});
+      try{const result=await exportDebt(database,user.id,centerId,debtListOptions(params,{exporting:true}),{platform:isPlatformUser(config,user)});if(!current(req,user,sv))return json(res,401,{error:'not signed in'});return json(res,200,result);}catch(error){return failure(res,error);}
+    },
     'POST /api/centers/payments/record': mutate(false,(context,body)=>recordPayment(context,body,{platform:isPlatformUser(config,context.user)})),
     'POST /api/centers/payments/refund': mutate(false,(context,body)=>recordRefund(context,body,{platform:isPlatformUser(config,context.user)})),
     'POST /api/platform/centers/role-capabilities': mutate(true,updateRefundCapability),

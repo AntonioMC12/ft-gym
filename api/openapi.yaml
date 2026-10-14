@@ -165,6 +165,102 @@ security:
   - bearerAuth: []
 
 paths:
+  /api/centers/billing/debts:
+    get:
+      tags: [centers]
+      operationId: listCenterDebts
+      summary: Read outstanding receipts with derived debt state and center totals
+      description: >-
+        Requires billing.read or configured platform. Balances use every immutable allocation/refund,
+        including refunds recorded after settlement. Center-local today and stored policy version 1
+        define not-due, due, grace and overdue; due date is inclusive, overdue starts after graceDays.
+        Unsupported/missing policy fails closed. Never writes delinquency or disables personal accounts.
+        Totals cover the full filtered set, independently of pagination. No DNI, IBAN or private notes.
+        Stable due-date/id ascending cursor is bound to actor, center, filters, today and policy.
+      security: [{ session: [] }, { bearer: [] }]
+      parameters:
+        - { name: centerId, in: query, required: true, schema: { type: string } }
+        - { name: dueFrom, in: query, schema: { type: string, format: date }, description: Inclusive due-date filter; requires dueTo. }
+        - { name: dueTo, in: query, schema: { type: string, format: date }, description: Inclusive range of at most 366 days; requires dueFrom. }
+        - { name: limit, in: query, schema: { type: integer, minimum: 1, maximum: 100, default: 30 } }
+        - { name: cursor, in: query, schema: { type: string, maxLength: 1024 } }
+      responses:
+        '200':
+          description: Outstanding-only page and totals for the whole filter.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/CenterDebtPage' }
+        '400': { description: Invalid dates or cursor from another scope/day/policy. }
+        '401': { description: No current session. }
+        '403': { description: No financial read permission. }
+        '404': { description: Module off or inaccessible center. }
+        '409': { description: Center inactive or debt-policy-required. }
+        '503': { description: Centers unavailable. }
+  /api/centers/billing/calendar:
+    get:
+      tags: [centers]
+      operationId: listCenterBillingCalendar
+      summary: Due-date calendar of issued receipts including settled ones
+      description: >-
+        Same authorization, exact balances and cursor rules as debts. Includes settled receipts.
+        Default range is the current civil month in the center time zone. Explicit date range is
+        inclusive and at most 366 days. Does not fabricate future receipts, issue charges or call jobs.
+      security: [{ session: [] }, { bearer: [] }]
+      parameters:
+        - { name: centerId, in: query, required: true, schema: { type: string } }
+        - { name: dueFrom, in: query, schema: { type: string, format: date } }
+        - { name: dueTo, in: query, schema: { type: string, format: date } }
+        - { name: limit, in: query, schema: { type: integer, minimum: 1, maximum: 100, default: 30 } }
+        - { name: cursor, in: query, schema: { type: string, maxLength: 1024 } }
+      responses:
+        '200':
+          description: Due-date page with all filtered totals, including settled rows.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/CenterDebtPage' }
+        '400': { description: Invalid date range or scoped cursor. }
+        '401': { description: No current session. }
+        '403': { description: No financial read permission. }
+        '404': { description: Module off or inaccessible center. }
+        '409': { description: Center inactive or unsupported debt policy. }
+        '503': { description: Centers unavailable. }
+  /api/centers/billing/debts/export:
+    get:
+      tags: [centers]
+      operationId: exportCenterDebtCsv
+      summary: Export an authorized center debt snapshot as human-facing CSV
+      description: >-
+        Requires explicitly granted data.export for the manager or configured platform allowlist.
+        Exports outstanding receipts only, at most 5000; export-too-large refuses the entire export,
+        never silently truncates. Optional paired due-date filters are inclusive and <=366 days.
+        UTF-8 BOM, CRLF, quoted/escaped fields and a visible [text] prefix for dangerous formula,
+        full-width and control prefixes. CSV is for human review, not a lossless administrative import.
+        JSON response uses the normal authenticated mobile/browser transport; UI downloads content
+        only after validating current center/account context. Audit contains count/filters, not names.
+      security: [{ session: [] }, { bearer: [] }]
+      parameters:
+        - { name: centerId, in: query, required: true, schema: { type: string } }
+        - { name: dueFrom, in: query, schema: { type: string, format: date } }
+        - { name: dueTo, in: query, schema: { type: string, format: date } }
+      responses:
+        '200':
+          description: Audited complete snapshot for the chosen filters.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  fileName: { type: string }
+                  content: { type: string }
+                  rowCount: { type: integer, maximum: 5000 }
+                  today: { type: string, format: date }
+                  currency: { type: string, const: EUR }
+        '400': { description: Invalid filters or supplied export cursor. }
+        '401': { description: No current session. }
+        '403': { description: No current explicit export permission. }
+        '404': { description: Module off or inaccessible center. }
+        '409': { description: export-too-large, inactive center or unsupported debt policy. }
+        '503': { description: Centers unavailable. }
   /api/centers/payments/record:
     post:
       tags: [centers]
@@ -268,8 +364,8 @@ paths:
   /api/platform/centers/role-capabilities:
     post:
       tags: [centers]
-      operationId: updateCenterRefundCapability
-      summary: Explicitly grant or revoke manual refund permission for a manager
+      operationId: updateCenterRoleCapability
+      summary: Explicitly grant or revoke refund or debt-export permission for a manager
       description: >-
         Only CENTERS_SUPERADMIN_UIDS allowlist, independently of user.admin. Requires current
         assignment version and requestId; never permits trainer grants or self escalation by staff.
@@ -283,12 +379,16 @@ paths:
             schema:
               type: object
               additionalProperties: false
-              required: [centerId, assignmentId, version, allowRefund, requestId]
+              required: [centerId, assignmentId, version, requestId]
+              oneOf:
+                - { required: [allowRefund] }
+                - { required: [allowExport] }
               properties:
                 centerId: { type: string }
                 assignmentId: { type: string }
                 version: { type: integer, minimum: 1 }
                 allowRefund: { type: boolean }
+                allowExport: { type: boolean, description: Update data.export only; exactly one grant per command. }
                 requestId: { type: string, minLength: 8, maxLength: 128 }
       responses:
         '200': { description: Committed permission update or original result with new assignment version. }
@@ -4204,6 +4304,49 @@ components:
           example: { error: "that code is wrong, used or expired", code: "link-invalid" }
 
   schemas:
+    CenterDebtPage:
+      type: object
+      properties:
+        today: { type: string, format: date }
+        dueFrom: { type: [string, 'null'], format: date }
+        dueTo: { type: [string, 'null'], format: date }
+        policy:
+          type: object
+          properties:
+            version: { type: integer, const: 1 }
+            graceDays: { type: integer, minimum: 0, maximum: 365 }
+            automaticSuspension: { type: boolean, const: false }
+        summary:
+          type: object
+          properties:
+            receiptCount: { type: integer }
+            outstandingMinor: { type: string, pattern: '^[0-9]+$' }
+            overdueMinor: { type: string, pattern: '^[0-9]+$' }
+            currency: { type: string, const: EUR }
+        receipts:
+          type: array
+          items:
+            type: object
+            properties:
+              id: { type: string }
+              centerId: { type: string }
+              memberId: { type: string }
+              memberName: { type: string }
+              memberNumber: { type: string }
+              periodStart: { type: string, format: date }
+              periodEnd: { type: string, format: date }
+              dueOn: { type: string, format: date }
+              currency: { type: string, const: EUR }
+              totalMinor: { $ref: '#/components/schemas/ExactMinorAmount' }
+              paidMinor: { $ref: '#/components/schemas/ExactMinorAmount' }
+              refundedMinor: { type: string, pattern: '^[0-9]+$' }
+              balanceMinor: { $ref: '#/components/schemas/ExactMinorAmount' }
+              debt:
+                type: object
+                properties:
+                  status: { type: string, enum: [not-due, due, grace, overdue, settled] }
+                  lateDays: { type: integer, minimum: 0 }
+        nextCursor: { type: [string, 'null'] }
     ExactMinorAmount:
       type: string
       pattern: '^(0|[1-9][0-9]{0,14})$'

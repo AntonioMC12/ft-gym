@@ -246,7 +246,7 @@ main.api-main .lead { color: var(--fg-2); max-width: 58ch; margin: 14px 0 0; fon
   <p class="api-facts">
     <span>OpenAPI 3.1.0</span>
     <span>openGym v1.4.1</span>
-    <span>111 endpoints</span>
+    <span>114 endpoints</span>
     <span>AGPL-3.0-or-later</span>
   </p>
 
@@ -296,6 +296,212 @@ main.api-main .lead { color: var(--fg-2); max-width: 58ch; margin: 14px 0 0; fon
   <h2>Centers</h2>
   <p class="sub">Opt-in centers module. Tenant-scoped center administration with separate platform authorization.</p>
   <div class="eps">
+
+<details class="ep" id="op-listCenterDebts">
+  <summary>
+    <span class="m get">GET</span>
+    <span class="ep-path"><code>/api/centers/billing/debts</code></span>
+    <span class="ep-chev" aria-hidden="true"></span>
+    <span class="ep-sum">Read outstanding receipts with derived debt state and center totals</span>
+  </summary>
+  <div class="ep-body">
+<p>Requires billing.read or configured platform. Balances use every immutable allocation/refund, including refunds recorded after settlement. Center-local today and stored policy version 1 define not-due, due, grace and overdue; due date is inclusive, overdue starts after graceDays. Unsupported/missing policy fails closed. Never writes delinquency or disables personal accounts. Totals cover the full filtered set, independently of pagination. No DNI, IBAN or private notes. Stable due-date/id ascending cursor is bound to actor, center, filters, today and policy.</p>
+    <p class="ep-auth"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="4" y="11" width="16" height="10" rx="2.5"/><path d="M8 11V7a4 4 0 0 1 8 0v4"/></svg><span>Requires a session: the cookie set at sign-in, or <code>Authorization: Bearer &lt;token&gt;</code> from mobile-app pairing.</span></p>
+<p class="ep-h">Query parameters</p><div class="ptab">
+  <div class="prow">
+    <span class="p-name">centerId<em class="p-req" title="required">required</em></span>
+    <span class="p-type">string</span>
+    <span class="p-desc"></span>
+  </div>
+  <div class="prow">
+    <span class="p-name">dueFrom</span>
+    <span class="p-type">string <span class="p-hint">(date)</span></span>
+    <span class="p-desc">Inclusive due-date filter; requires dueTo.</span>
+  </div>
+  <div class="prow">
+    <span class="p-name">dueTo</span>
+    <span class="p-type">string <span class="p-hint">(date)</span></span>
+    <span class="p-desc">Inclusive range of at most 366 days; requires dueFrom.</span>
+  </div>
+  <div class="prow">
+    <span class="p-name">limit</span>
+    <span class="p-type">integer <span class="p-hint">(1&ndash;100, default 30)</span></span>
+    <span class="p-desc"></span>
+  </div>
+  <div class="prow">
+    <span class="p-name">cursor</span>
+    <span class="p-type">string <span class="p-hint">(&le; 1024 chars)</span></span>
+    <span class="p-desc"></span>
+  </div>
+</div>
+
+    <p class="ep-h">Responses</p>
+    <div class="ptab">
+  <div class="prow rrow">
+    <span class="r-code s2">200</span>
+    <span class="p-desc">Outstanding-only page and totals for the whole filter.<span class="r-sig"><a href="#schema-CenterDebtPage">CenterDebtPage</a></span></span>
+  </div>
+  <div class="prow rrow">
+    <span class="r-code s4">400</span>
+    <span class="p-desc">Invalid dates or cursor from another scope/day/policy.</span>
+  </div>
+  <div class="prow rrow">
+    <span class="r-code s4">401</span>
+    <span class="p-desc">No current session.</span>
+  </div>
+  <div class="prow rrow">
+    <span class="r-code s4">403</span>
+    <span class="p-desc">No financial read permission.</span>
+  </div>
+  <div class="prow rrow">
+    <span class="r-code s4">404</span>
+    <span class="p-desc">Module off or inaccessible center.</span>
+  </div>
+  <div class="prow rrow">
+    <span class="r-code s4">409</span>
+    <span class="p-desc">Center inactive or debt-policy-required.</span>
+  </div>
+  <div class="prow rrow">
+    <span class="r-code s5">503</span>
+    <span class="p-desc">Centers unavailable.</span>
+  </div>
+    </div>
+  </div>
+</details>
+
+<details class="ep" id="op-listCenterBillingCalendar">
+  <summary>
+    <span class="m get">GET</span>
+    <span class="ep-path"><code>/api/centers/billing/calendar</code></span>
+    <span class="ep-chev" aria-hidden="true"></span>
+    <span class="ep-sum">Due-date calendar of issued receipts including settled ones</span>
+  </summary>
+  <div class="ep-body">
+<p>Same authorization, exact balances and cursor rules as debts. Includes settled receipts. Default range is the current civil month in the center time zone. Explicit date range is inclusive and at most 366 days. Does not fabricate future receipts, issue charges or call jobs.</p>
+    <p class="ep-auth"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="4" y="11" width="16" height="10" rx="2.5"/><path d="M8 11V7a4 4 0 0 1 8 0v4"/></svg><span>Requires a session: the cookie set at sign-in, or <code>Authorization: Bearer &lt;token&gt;</code> from mobile-app pairing.</span></p>
+<p class="ep-h">Query parameters</p><div class="ptab">
+  <div class="prow">
+    <span class="p-name">centerId<em class="p-req" title="required">required</em></span>
+    <span class="p-type">string</span>
+    <span class="p-desc"></span>
+  </div>
+  <div class="prow">
+    <span class="p-name">dueFrom</span>
+    <span class="p-type">string <span class="p-hint">(date)</span></span>
+    <span class="p-desc"></span>
+  </div>
+  <div class="prow">
+    <span class="p-name">dueTo</span>
+    <span class="p-type">string <span class="p-hint">(date)</span></span>
+    <span class="p-desc"></span>
+  </div>
+  <div class="prow">
+    <span class="p-name">limit</span>
+    <span class="p-type">integer <span class="p-hint">(1&ndash;100, default 30)</span></span>
+    <span class="p-desc"></span>
+  </div>
+  <div class="prow">
+    <span class="p-name">cursor</span>
+    <span class="p-type">string <span class="p-hint">(&le; 1024 chars)</span></span>
+    <span class="p-desc"></span>
+  </div>
+</div>
+
+    <p class="ep-h">Responses</p>
+    <div class="ptab">
+  <div class="prow rrow">
+    <span class="r-code s2">200</span>
+    <span class="p-desc">Due-date page with all filtered totals, including settled rows.<span class="r-sig"><a href="#schema-CenterDebtPage">CenterDebtPage</a></span></span>
+  </div>
+  <div class="prow rrow">
+    <span class="r-code s4">400</span>
+    <span class="p-desc">Invalid date range or scoped cursor.</span>
+  </div>
+  <div class="prow rrow">
+    <span class="r-code s4">401</span>
+    <span class="p-desc">No current session.</span>
+  </div>
+  <div class="prow rrow">
+    <span class="r-code s4">403</span>
+    <span class="p-desc">No financial read permission.</span>
+  </div>
+  <div class="prow rrow">
+    <span class="r-code s4">404</span>
+    <span class="p-desc">Module off or inaccessible center.</span>
+  </div>
+  <div class="prow rrow">
+    <span class="r-code s4">409</span>
+    <span class="p-desc">Center inactive or unsupported debt policy.</span>
+  </div>
+  <div class="prow rrow">
+    <span class="r-code s5">503</span>
+    <span class="p-desc">Centers unavailable.</span>
+  </div>
+    </div>
+  </div>
+</details>
+
+<details class="ep" id="op-exportCenterDebtCsv">
+  <summary>
+    <span class="m get">GET</span>
+    <span class="ep-path"><code>/api/centers/billing/debts/export</code></span>
+    <span class="ep-chev" aria-hidden="true"></span>
+    <span class="ep-sum">Export an authorized center debt snapshot as human-facing CSV</span>
+  </summary>
+  <div class="ep-body">
+<p>Requires explicitly granted data.export for the manager or configured platform allowlist. Exports outstanding receipts only, at most 5000; export-too-large refuses the entire export, never silently truncates. Optional paired due-date filters are inclusive and &lt;=366 days. UTF-8 BOM, CRLF, quoted/escaped fields and a visible [text] prefix for dangerous formula, full-width and control prefixes. CSV is for human review, not a lossless administrative import. JSON response uses the normal authenticated mobile/browser transport; UI downloads content only after validating current center/account context. Audit contains count/filters, not names.</p>
+    <p class="ep-auth"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="4" y="11" width="16" height="10" rx="2.5"/><path d="M8 11V7a4 4 0 0 1 8 0v4"/></svg><span>Requires a session: the cookie set at sign-in, or <code>Authorization: Bearer &lt;token&gt;</code> from mobile-app pairing.</span></p>
+<p class="ep-h">Query parameters</p><div class="ptab">
+  <div class="prow">
+    <span class="p-name">centerId<em class="p-req" title="required">required</em></span>
+    <span class="p-type">string</span>
+    <span class="p-desc"></span>
+  </div>
+  <div class="prow">
+    <span class="p-name">dueFrom</span>
+    <span class="p-type">string <span class="p-hint">(date)</span></span>
+    <span class="p-desc"></span>
+  </div>
+  <div class="prow">
+    <span class="p-name">dueTo</span>
+    <span class="p-type">string <span class="p-hint">(date)</span></span>
+    <span class="p-desc"></span>
+  </div>
+</div>
+
+    <p class="ep-h">Responses</p>
+    <div class="ptab">
+  <div class="prow rrow">
+    <span class="r-code s2">200</span>
+    <span class="p-desc">Audited complete snapshot for the chosen filters.<span class="r-sig">{ fileName: string, content: string, rowCount: integer <span class="p-hint">(&ndash;5000)</span>, today: string <span class="p-hint">(date)</span>, currency: always &quot;EUR&quot; }</span></span>
+  </div>
+  <div class="prow rrow">
+    <span class="r-code s4">400</span>
+    <span class="p-desc">Invalid filters or supplied export cursor.</span>
+  </div>
+  <div class="prow rrow">
+    <span class="r-code s4">401</span>
+    <span class="p-desc">No current session.</span>
+  </div>
+  <div class="prow rrow">
+    <span class="r-code s4">403</span>
+    <span class="p-desc">No current explicit export permission.</span>
+  </div>
+  <div class="prow rrow">
+    <span class="r-code s4">404</span>
+    <span class="p-desc">Module off or inaccessible center.</span>
+  </div>
+  <div class="prow rrow">
+    <span class="r-code s4">409</span>
+    <span class="p-desc">export-too-large</span>
+  </div>
+  <div class="prow rrow">
+    <span class="r-code s5">503</span>
+    <span class="p-desc">Centers unavailable.</span>
+  </div>
+    </div>
+  </div>
+</details>
 
 <details class="ep" id="op-recordCenterPayment">
   <summary>
@@ -456,12 +662,12 @@ main.api-main .lead { color: var(--fg-2); max-width: 58ch; margin: 14px 0 0; fon
   </div>
 </details>
 
-<details class="ep" id="op-updateCenterRefundCapability">
+<details class="ep" id="op-updateCenterRoleCapability">
   <summary>
     <span class="m post">POST</span>
     <span class="ep-path"><code>/api/platform/centers/role-capabilities</code></span>
     <span class="ep-chev" aria-hidden="true"></span>
-    <span class="ep-sum">Explicitly grant or revoke manual refund permission for a manager</span>
+    <span class="ep-sum">Explicitly grant or revoke refund or debt-export permission for a manager</span>
   </summary>
   <div class="ep-body">
 <p>Only CENTERS_SUPERADMIN_UIDS allowlist, independently of user.admin. Requires current assignment version and requestId; never permits trainer grants or self escalation by staff. Preserves other extra capabilities. Shared center lock coordinates revocation with mutations; assignment/center versions and business audit update atomically. Same requestId/content replays.</p>
@@ -484,9 +690,14 @@ main.api-main .lead { color: var(--fg-2); max-width: 58ch; margin: 14px 0 0; fon
     <span class="p-desc"></span>
   </div>
   <div class="prow">
-    <span class="p-name">allowRefund<em class="p-req" title="required">required</em></span>
+    <span class="p-name">allowRefund</span>
     <span class="p-type">boolean</span>
     <span class="p-desc"></span>
+  </div>
+  <div class="prow">
+    <span class="p-name">allowExport</span>
+    <span class="p-type">boolean</span>
+    <span class="p-desc">Update data.export only; exactly one grant per command.</span>
   </div>
   <div class="prow">
     <span class="p-name">requestId<em class="p-req" title="required">required</em></span>
@@ -5300,6 +5511,169 @@ main.api-main .lead { color: var(--fg-2); max-width: 58ch; margin: 14px 0 0; fon
        is <b>representative, not enforced</b>: the server stores it opaquely and the app
        grows it over time.</p>
     <div class="eps">
+
+<details class="ep sch" id="schema-CenterDebtPage">
+  <summary>
+    <span class="sch-name"><code>CenterDebtPage</code></span>
+    <span class="ep-chev" aria-hidden="true"></span>
+    <span class="ep-sum"></span>
+  </summary>
+  <div class="ep-body">
+
+<div class="ptab">
+  <div class="prow">
+    <span class="p-name">today</span>
+    <span class="p-type">string <span class="p-hint">(date)</span></span>
+    <span class="p-desc"></span>
+  </div>
+  <div class="prow">
+    <span class="p-name">dueFrom</span>
+    <span class="p-type">string | null <span class="p-hint">(date)</span></span>
+    <span class="p-desc"></span>
+  </div>
+  <div class="prow">
+    <span class="p-name">dueTo</span>
+    <span class="p-type">string | null <span class="p-hint">(date)</span></span>
+    <span class="p-desc"></span>
+  </div>
+  <div class="prow">
+    <span class="p-name">policy</span>
+    <span class="p-type">object</span>
+    <span class="p-desc"></span>
+  </div>
+  <div class="prow">
+    <span class="p-name">policy.version</span>
+    <span class="p-type">always 1</span>
+    <span class="p-desc"></span>
+  </div>
+  <div class="prow">
+    <span class="p-name">policy.graceDays</span>
+    <span class="p-type">integer <span class="p-hint">(0&ndash;365)</span></span>
+    <span class="p-desc"></span>
+  </div>
+  <div class="prow">
+    <span class="p-name">policy.automaticSuspension</span>
+    <span class="p-type">always false</span>
+    <span class="p-desc"></span>
+  </div>
+  <div class="prow">
+    <span class="p-name">summary</span>
+    <span class="p-type">object</span>
+    <span class="p-desc"></span>
+  </div>
+  <div class="prow">
+    <span class="p-name">summary.receiptCount</span>
+    <span class="p-type">integer</span>
+    <span class="p-desc"></span>
+  </div>
+  <div class="prow">
+    <span class="p-name">summary.outstandingMinor</span>
+    <span class="p-type">string</span>
+    <span class="p-desc"></span>
+  </div>
+  <div class="prow">
+    <span class="p-name">summary.overdueMinor</span>
+    <span class="p-type">string</span>
+    <span class="p-desc"></span>
+  </div>
+  <div class="prow">
+    <span class="p-name">summary.currency</span>
+    <span class="p-type">always &quot;EUR&quot;</span>
+    <span class="p-desc"></span>
+  </div>
+  <div class="prow">
+    <span class="p-name">receipts</span>
+    <span class="p-type">object[]</span>
+    <span class="p-desc"></span>
+  </div>
+  <div class="prow">
+    <span class="p-name">receipts[].id</span>
+    <span class="p-type">string</span>
+    <span class="p-desc"></span>
+  </div>
+  <div class="prow">
+    <span class="p-name">receipts[].centerId</span>
+    <span class="p-type">string</span>
+    <span class="p-desc"></span>
+  </div>
+  <div class="prow">
+    <span class="p-name">receipts[].memberId</span>
+    <span class="p-type">string</span>
+    <span class="p-desc"></span>
+  </div>
+  <div class="prow">
+    <span class="p-name">receipts[].memberName</span>
+    <span class="p-type">string</span>
+    <span class="p-desc"></span>
+  </div>
+  <div class="prow">
+    <span class="p-name">receipts[].memberNumber</span>
+    <span class="p-type">string</span>
+    <span class="p-desc"></span>
+  </div>
+  <div class="prow">
+    <span class="p-name">receipts[].periodStart</span>
+    <span class="p-type">string <span class="p-hint">(date)</span></span>
+    <span class="p-desc"></span>
+  </div>
+  <div class="prow">
+    <span class="p-name">receipts[].periodEnd</span>
+    <span class="p-type">string <span class="p-hint">(date)</span></span>
+    <span class="p-desc"></span>
+  </div>
+  <div class="prow">
+    <span class="p-name">receipts[].dueOn</span>
+    <span class="p-type">string <span class="p-hint">(date)</span></span>
+    <span class="p-desc"></span>
+  </div>
+  <div class="prow">
+    <span class="p-name">receipts[].currency</span>
+    <span class="p-type">always &quot;EUR&quot;</span>
+    <span class="p-desc"></span>
+  </div>
+  <div class="prow">
+    <span class="p-name">receipts[].totalMinor</span>
+    <span class="p-type"><a href="#schema-ExactMinorAmount">ExactMinorAmount</a></span>
+    <span class="p-desc"></span>
+  </div>
+  <div class="prow">
+    <span class="p-name">receipts[].paidMinor</span>
+    <span class="p-type"><a href="#schema-ExactMinorAmount">ExactMinorAmount</a></span>
+    <span class="p-desc"></span>
+  </div>
+  <div class="prow">
+    <span class="p-name">receipts[].refundedMinor</span>
+    <span class="p-type">string</span>
+    <span class="p-desc"></span>
+  </div>
+  <div class="prow">
+    <span class="p-name">receipts[].balanceMinor</span>
+    <span class="p-type"><a href="#schema-ExactMinorAmount">ExactMinorAmount</a></span>
+    <span class="p-desc"></span>
+  </div>
+  <div class="prow">
+    <span class="p-name">receipts[].debt</span>
+    <span class="p-type">object</span>
+    <span class="p-desc"></span>
+  </div>
+  <div class="prow">
+    <span class="p-name">receipts[].debt.status</span>
+    <span class="p-type">&quot;not-due&quot; | &quot;due&quot; | &quot;grace&quot; | &quot;overdue&quot; | &quot;settled&quot;</span>
+    <span class="p-desc"></span>
+  </div>
+  <div class="prow">
+    <span class="p-name">receipts[].debt.lateDays</span>
+    <span class="p-type">integer <span class="p-hint">(0&ndash;)</span></span>
+    <span class="p-desc"></span>
+  </div>
+  <div class="prow">
+    <span class="p-name">nextCursor</span>
+    <span class="p-type">string | null</span>
+    <span class="p-desc"></span>
+  </div>
+</div>
+  </div>
+</details>
 
 <details class="ep sch" id="schema-ExactMinorAmount">
   <summary>

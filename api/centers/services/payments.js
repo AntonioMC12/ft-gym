@@ -63,19 +63,20 @@ export function listPayments(database,uid,centerId,memberId,{limit,cursor},{plat
   },{platform,allowInactive:platform});
 }
 export function updateRefundCapability({database,user,checkSession},raw) {
-  objectBody(raw,['centerId','assignmentId','version','allowRefund','requestId']);
+  objectBody(raw,['centerId','assignmentId','version','allowRefund','allowExport','requestId']);
   const centerId=idField(raw.centerId),assignmentId=idField(raw.assignmentId),version=versionField(raw.version),requestId=requestField(raw.requestId);
-  if(typeof raw.allowRefund!=='boolean')throw new CentersError(400,'invalid-input','boolean grant required');
-  const hash=commandHash({assignmentId,version,allowRefund:raw.allowRefund}),operation='role.refund-grant';
+  const grantField=Object.hasOwn(raw,'allowRefund')?'allowRefund':'allowExport',capability=grantField==='allowRefund'?'payments.refund':'data.export',allowed=raw[grantField];
+  if(typeof allowed!=='boolean'||Object.hasOwn(raw,'allowRefund')&&Object.hasOwn(raw,'allowExport'))throw new CentersError(400,'invalid-input','exactly one boolean grant required');
+  const hash=commandHash({assignmentId,version,[grantField]:allowed}),operation=grantField==='allowRefund'?'role.refund-grant':'role.export-grant';
   return database.platformTransaction(user.id,async client=>{
     await client.query("SELECT pg_advisory_xact_lock(hashtext('ft-gym-center:' || $1))",[centerId]);
     const replay=await commandReplay(client,centerId,user.id,operation,requestId,hash);if(replay)return replay;
     const {rows}=await client.query("SELECT version,extra_capabilities FROM centers.role_assignments WHERE center_id=$1 AND id=$2 AND role='manager' AND revoked_at IS NULL AND valid_from<=CURRENT_TIMESTAMP AND (valid_until IS NULL OR valid_until>CURRENT_TIMESTAMP) FOR UPDATE",[centerId,assignmentId]);
     if(!rows.length)missing();if(rows[0].version!==version)conflict('version-conflict');
-    const extras=rows[0].extra_capabilities.filter(c=>c!=='payments.refund');if(raw.allowRefund)extras.push('payments.refund');checkSession();
+    const extras=rows[0].extra_capabilities.filter(c=>c!==capability);if(allowed)extras.push(capability);checkSession();
     await client.query('UPDATE centers.role_assignments SET extra_capabilities=$3,version=version+1 WHERE center_id=$1 AND id=$2',[centerId,assignmentId,extras]);
     await client.query('UPDATE centers.centers SET version=version+1,updated_at=now() WHERE id=$1',[centerId]);
-    await businessAudit(client,centerId,user.id,'role.refund-grant',assignmentId,{allowed:raw.allowRefund});
+    await businessAudit(client,centerId,user.id,operation,assignmentId,{allowed});
     const result={ok:true,version:version+1};await rememberCommand(client,centerId,user.id,operation,requestId,hash,result);checkSession();return result;
   },centerId);
 }

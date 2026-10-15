@@ -309,7 +309,11 @@ Actualizado16octubre2026. Detalle/evidencia y bloqueos en CENTERS_PROGRESS.md; e
 | C32 | blocked | Agregados de visitas terminados en037; ocupación física sin salidas requiere definición/datos o excluir ese KPI |
 | C33 | done | Regla opt-in de admisiones y revisión humana,039; validación general/visual diferida |
 | C38 | done | Catálogo inmutable, financiación en ledger y consumo QR explícito,041; recuperación1/1 y validación visual/general diferida |
-| C35 | todo | Iniciar solo al disponer de los contratos técnicos necesarios; no confundir implementación local con gate de producción |
+| C35 | blocked | Gate C27 pendiente; alta pública todavía sin implementar |
+| C28 | blocked | Falta formato/proceso bancario acordado |
+| C39 | blocked | Falta especificación fiscal validada |
+| C41 | blocked | Activación real excluida de esta sesión; políticas/datos/gates pendientes |
+| C42 | blocked | Matriz preparada en CENTERS_DELIVERY_STATUS.md; aceptación depende de C41 y alcance pendiente |
 
 Instrucción vigente del usuario: comprobaciones enfocadas esenciales y compilación; aplazar suites generales/revisión visual completa. done acredita criterios técnicos probados, no aceptación visual o activación real. No abrir ampliaciones opcionales de una tarea ya cerrada sin una necesidad del alcance.
 

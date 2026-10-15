@@ -190,6 +190,8 @@ Contratos de las entregas recientes: [Stripe](CENTERS_STRIPE_IMPLEMENTATION.md),
 
 ## Comprobación manual pendiente de las entregas recientes
 
+Actualización16octubre: C29/C30/C31/C33/C34/C36/C37/C38/C40 están cerradas técnicamente; esta lista es validación aplazada, no una instrucción para reimplementar esas tareas. Consultar CENTERS_DELIVERY_STATUS.md y la cabecera de CENTERS_PROGRESS.md. La instrucción vigente del usuario aplaza suites generales y revisión visual completa.
+
 Esta lista organiza el trabajo que aún no puede declararse verificado visualmente. Ejecutarla únicamente con la fixture local y una superficie de navegador permitida; la autorización general de la sesión no elimina una denegación guardada de herramientas. No generar capturas ficticias ni avanzar C30/C33 dando por cerradas sus dependencias.
 
 1. **Navegación y carga inicial.** Abrir una ficha con `centerId`, `pane` y `q` directamente, esperar configuración, alternar socios/acceso/métricas y aplicar dos períodos distintos. Atrás debe recuperar cada estado previo hasta la lista filtrada y después la pantalla anterior. Una entrada directa sin historial usa el padre. Repetir en ancho móvil y escritorio, sin desbordamiento ni controles solapados.
@@ -200,7 +202,7 @@ Esta lista organiza el trabajo que aún no puede declararse verificado visualmen
 6. **C32, cifras y fechas.** Contrastarlas con recibos/pagos de la fixture. Un período pasado filtra movimientos, conserva el saldo actual y muestra esa separación. Un neto negativo no se redondea ni cambia a positivo. Comprobar límite del período, mora no configurada y mensaje de error/recarga. El informe global no promete ocupación física, ingresos netos bancarios ni retención.
 7. **Evidencia.** Guardar fecha, cuentas ficticias utilizadas, resultados y capturas fuera de Git; registrar limitaciones en CENTERS_PROGRESS. No marcar `done` únicamente por haber abierto la pantalla. C27 necesita además su verificación externa de test y C32 las definiciones/denominadores pendientes de visitas/ocupación.
 
-Después de estas verificaciones y de cerrar sus criterios: C30 puede abordar una proyección de progreso con consentimiento específico y revocable, ajena a la aceptación de propuestas; C33 debe usar visitas físicas verificadas y umbrales explícitos. C28 sigue necesitando el formato y proceso bancario acordados, sin inventarlos desde una exportación CSV.
+C30 ya implementa consentimiento específico y revocable, ajeno a la aceptación de propuestas (CENTERS_SHARED_PROGRESS.md). C33 ya usa admisiones físicas verificadas y umbrales explícitos (CENTERS_RETENTION.md). C38 ya integra bonos y su consumo con QR/ledger (CENTERS_PASSES.md). Verificar visualmente lo implementado cuando proceda; no volver a construir esos recorridos. C28 sigue necesitando el formato y proceso bancario acordados, sin inventarlos desde una exportación CSV.
 
 ## Compartir la preview de centros con un externo
 

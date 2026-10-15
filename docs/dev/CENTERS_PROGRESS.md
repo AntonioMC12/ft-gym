@@ -9,9 +9,10 @@
 - C29/C30/C31/C33/C34/C36/C37/C40: implementación y criterios técnicos acreditados; pasan a done técnico. La aceptación visual, hardware, infraestructura y operación real NO se declaran verificadas: se registran abajo como gates de validación diferida y no se confunden con código por implementar.
 - C27: implementación test con fixture HTTP terminada; blocked por ensayo sandbox real pendiente (requiere credenciales/cuenta y autorización específica). No repetir adaptador/webhooks/UI.
 - C32: agregados de visitas implementados y comprobados en schema037. blocked solo por ocupación física: no se registran salidas; hace falta un contrato de presencia verificable o aceptar excluir ese KPI. Ninguna métrica viene de /api/activity. No rehacer los agregados.
-- Preview anterior:409f825c-dirty/schema035, datos y túnel conservados. Reconstruir al cerrar cambios; dirty corresponde a archivos previos del usuario. CI usa centers-ci-db/ft_gym_ci_centers_test, nunca PostgreSQL persistente de preview.
-- C38 terminada técnicamente en041: catálogo inmutable, bonos de pago/promociones, recibo del ledger y consumo QR explícito atómico. Recuperación con bono pagado y un crédito consumido1/1; siguientes pasos: actualizar preview conservando datos/túnel y registrar bloqueos externos restantes. Ver CENTERS_PASSES.md.
+- Preview actual:a1566365-dirty/schema041, API/web saludables. Siete archivos de cuentas/secreto/entrenamiento conservados por SHA256; mismo túnel al reconstruir. dirty corresponde a archivos previos del usuario. CI usa centers-ci-db/ft_gym_ci_centers_test, nunca PostgreSQL persistente de preview.
+- C38 terminada técnicamente en041: catálogo inmutable, bonos de pago/promociones, recibo del ledger y consumo QR explícito atómico. Recuperación con bono pagado y un crédito consumido1/1; preview actualizada conservando datos/túnel. Ver CENTERS_PASSES.md.
 - C33 terminada técnicamente en039: regla opt-in explícita sobre admisiones, episodios sin duplicados y gestiones append-only. No mensajes/cobros/cambios de acceso. Ver CENTERS_RETENTION.md.
+- Siguiente paso: resolver un bloqueo externo o la validación aplazada; no queda una implementación independiente abierta que pueda cerrarse con el alcance disponible. Matriz actual: CENTERS_DELIVERY_STATUS.md. C28/C35/C39/C41/C42 pasan a blocked con requisito de reanudación explícito, junto con C27/C32.
 - C30 terminada técnicamente en038: compartir por centro, rutinas/fechas explícitas y solo conteos de sesiones guardadas/nombres. Revocación, vínculo y roles actuales; sin cargas, fotos, notas, ejercicios o perfil. Ver CENTERS_SHARED_PROGRESS.md. C35 depende del gate externo de C27. C28 necesita proceso bancario; C39 requisitos fiscales; C41/C42 activación/aceptación reales.
 - Uso inicial:0%principal,45%semanal consumidos tras renovación natural. Continuar hasta aproximadamente95%principal (o límite que se agote primero), sin créditos de reset. Al terminar guardar/documentar y apagar sin forzar aplicaciones, autorizado por el mensaje vigente.
 
@@ -115,21 +116,21 @@ Estados permitidos: `todo`, `in_progress`, `done`, `blocked`. Una tarea done nec
 | C25 | F8 | Jobs y outbox | done |
 | C26 | F8 | Email y avisos | done |
 | C27 | F9 | Stripe | blocked |
-| C28 | F9 | SEPA | todo |
+| C28 | F9 | SEPA | blocked |
 | C29 | F10 | Propuestas de rutinas | done |
 | C30 | F10 | Progreso compartido | done |
 | C31 | F11 | QR y visitas | done |
 | C32 | F11 | KPI | blocked |
 | C33 | F11 | Riesgo de baja | done |
 | C34 | F12 | Clases y reservas | done |
-| C35 | F12 | Alta pública | todo |
+| C35 | F12 | Alta pública | blocked |
 | C36 | F12 | CSV | done |
 | C37 | F12 | Solicitud de congelación | done |
 | C38 | F12 | Bonos/promociones | done |
-| C39 | F12 | Facturas y fiscalidad | todo |
+| C39 | F12 | Facturas y fiscalidad | blocked |
 | C40 | F13 | Operación y reversión | done |
-| C41 | F13 | Activación gradual | todo |
-| C42 | F13 | Aceptación/documentación | todo |
+| C41 | F13 | Activación gradual | blocked |
+| C42 | F13 | Aceptación/documentación | blocked |
 
 ## Gates de entrega
 
@@ -759,3 +760,9 @@ Schema040/041: términos inmutables, adquisición con quoteHash y recibo pareado
 ## C38 — cierre técnico y recuperación041
 
 Recuperación desde cero1/1 en dos PostgreSQL tmpfs independientes: adquisición financiada, recibo/pago y crédito consumido conservados, reintento no repone entradas ni duplica compra, historial de visitas y RLS intactos; status041. Se ajustaron expectativas antiguas de fixture por el nuevo pago/visita y se reconstruyó la imagen base de tests antes del worker (Dockerfile.recovery deriva de ella), tras detectar una base039 obsoleta. No se atribuyen esos fallos de montaje/fixture a regresiones del producto. Evidencia final: centers-passes-recovery.log. C38 pasa a done técnico; revisión visual, suites generales y activación comercial real siguen aplazadas.
+
+## Cierre operativo041 y tareas bloqueadas
+
+Preview reconstruida desde a1566365-dirty, codex/centers-module; API/web healthy, status {available:true,schemaVersion:041}. Imagen API e7c50cccf529 e imagen web b6364779b629. Túnel existente conservado. Comparación SHA256:7 archivos antes,7 después,0 modificados o ausentes. No se ejecutaron pruebas contra esta base persistente. NoBuild no se repitió: su recorrido ya estaba acreditado y esta reconstrucción comprobó la conservación de datos.
+
+Se preparó CENTERS_DELIVERY_STATUS.md con matriz CU01–16, evidencia y límites reales. C28 bloqueada por contrato bancario; C35 por gate C27; C39 por especificación fiscal; C41 por activación real expresamente excluida; C42 por dependencias y aceptación pendientes. No queda una tarea de implementación independiente realizable sin esos requisitos; no se abren refactors, ampliaciones ni suites generales para consumir el margen. La próxima sesión debe empezar por estas decisiones o por validación expresamente priorizada, sin rehacer funciones terminadas.

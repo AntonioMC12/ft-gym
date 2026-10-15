@@ -30,7 +30,7 @@ async function fixture(t){
 }
 
 test('center metrics separate current stock from bounded flows and never multiply money through ledger joins',async t=>{
-  const {req,ids,center,other,today,yesterday,a}=await fixture(t),route=`/api/centers/metrics?centerId=${center}&from=${today}&to=${today}`;
+  const {db,req,ids,center,other,today,yesterday,a}=await fixture(t),route=`/api/centers/metrics?centerId=${center}&from=${today}&to=${today}`;
   const response=await req(route,ids.manager);assert.equal(response.status,200,JSON.stringify(response));const report=response.body;
   assert.equal(report.definitionVersion,1);assert.equal(report.centerCount,'1');assert.deepEqual(report.current,{members:'3',active:'1',frozen:'1',ended:'0',preactive:'1',subscriptions:'2',outstandingMinor:'1650',overdueMinor:'0',overduePolicyComplete:true});
   assert.deepEqual(report.period,{from:today,to:today,registeredMembers:'3',activations:'2',terminations:'0',receiptsIssued:'2',receiptTotalMinor:'2000',collectionsMinor:'500',refundsMinor:'150',netCollectionsMinor:'350'});
@@ -41,6 +41,13 @@ test('center metrics separate current stock from bounded flows and never multipl
   assert.equal((await req(route,ids.root)).body.period.netCollectionsMinor,'350');
   const tomorrow=new Date(Date.parse(today+'T12:00:00Z')+86400000).toISOString().slice(0,10);assert.equal((await req(`/api/centers/metrics?centerId=${center}&from=${today}&to=${tomorrow}`,ids.manager)).status,400);
   assert.equal((await req(route+'&memberId=foreign',ids.manager)).status,400);
+  await db.transaction({uid:ids.manager,centerId:other},async client=>assert.deepEqual((await client.query('SELECT id FROM centers.receipts WHERE center_id=$1',[other])).rows,[]));
+  await db.platformTransaction(ids.root,async client=>{
+    await client.query("INSERT INTO centers.role_assignments(id,center_id,account_uid,role) VALUES($1,$2,$3,'manager')",[center+'_backup',center,ids.other]);
+    await client.query("UPDATE centers.role_assignments SET revoked_at=NOW(),version=version+1 WHERE center_id=$1 AND account_uid=$2 AND role='manager' AND revoked_at IS NULL",[center,ids.manager]);
+  },center);
+  assert.equal((await req(route,ids.manager)).status,404,'an earlier successful report must not retain authority after role revocation');
+  assert.equal((await req(route,ids.root)).status,200,'the explicit platform identity remains independent of the revoked local role');
 });
 
 test('global metrics require explicit platform, audit all included centers and aggregate beyond a100center list',async t=>{

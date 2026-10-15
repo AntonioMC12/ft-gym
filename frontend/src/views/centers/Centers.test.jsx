@@ -5,6 +5,7 @@ import { MemoryRouter,Routes,Route,useLocation,useNavigate } from 'react-router-
 import { beforeEach, afterEach, expect, it, vi } from 'vitest'
 vi.mock('../../lib/i18n.js', () => ({ t: value => value }))
 vi.mock('../../sheets.jsx',()=>({confirmSheet:vi.fn()}))
+vi.mock('./Retention.jsx',()=>({default:()=>null}))
 vi.mock('./BillingAutomation.jsx',()=>({default:()=>null}))
 vi.mock('./NotificationSettings.jsx',()=>({default:()=>null}))
 vi.mock('./StripePayments.jsx',()=>({default:()=>null}))

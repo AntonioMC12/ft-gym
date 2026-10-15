@@ -1,3 +1,5 @@
+import {listRetention,configureRetention,reviewRetention} from './services/retention.js';
+import {retentionOptions} from './domain/retention.js';
 import {progressSelectors,ownProgressShare,changeProgressShare,readSharedProgress} from './services/shared-progress.js';
 import {previewClassSeriesCancellation,cancelClassSeries,previewClassSeries,createClassSeries,classSeriesPageOptions,getClassSeries,listClassSeries} from './services/class-series.js';
 import { CentersError } from './errors.js';
@@ -159,6 +161,12 @@ export function centersRoutes({ config, database, json, readSession, readBody, a
     'POST /api/centers/classes/series/cancel':mutate(false,(context,body)=>cancelClassSeries(context,body,{platform:isPlatformUser(config,context.user)})),
     'POST /api/centers/classes/series/preview':mutate(false,(context,body)=>previewClassSeries(context,body,{platform:isPlatformUser(config,context.user)})),
     'POST /api/centers/classes/series/create':mutate(false,(context,body)=>createClassSeries(context,body,{platform:isPlatformUser(config,context.user)})),
+    'GET /api/centers/retention':async(req,res)=>{
+      const user=guard(req,res);if(!user)return;const sv=user.sv||0,params=new URL(req.url,'http://x').searchParams,centerId=params.get('centerId');if(!recordId(centerId))return json(res,404,{error:'not found',code:'not-found'});
+      try{const result=await listRetention(database,user.id,centerId,retentionOptions(params),{platform:isPlatformUser(config,user)});if(!current(req,user,sv))return json(res,401,{error:'not signed in'});return json(res,200,result)}catch(e){return failure(res,e)}
+    },
+    'POST /api/centers/retention/policy':mutate(false,(context,body)=>configureRetention(context,body,{platform:isPlatformUser(config,context.user)})),
+    'POST /api/centers/retention/review':mutate(false,(context,body)=>reviewRetention(context,body,{platform:isPlatformUser(config,context.user)})),
     'GET /api/centers/own/training/progress/share':async(req,res)=>{
       const user=guard(req,res);if(!user)return;const sv=user.sv||0,params=new URL(req.url,'http://x').searchParams,centerId=params.get('centerId');if(!recordId(centerId))return json(res,404,{error:'not found',code:'not-found'});
       const checkSession=()=>{if(!current(req,user,sv))throw new CentersError(401,'not-signed-in','not signed in')};

@@ -269,7 +269,7 @@ Esta rama no depende de Stripe/SEPA. Reusar parsePlan/mergePlan con adaptación 
 |---|---|---|---|---|
 | C31 | QR dinámico, dispositivo de recepción y visitas verificadas | C24,C07 | Token caducable de un uso; consumo atómico; centro/horario/acceso actuales; captura reutilizada rechazada | L |
 | C32 | KPI de centro/globales: altas, bajas, ingresos y ocupación | C24,C21 | Definiciones y denominadores documentados; visitas solo después de C31; sin cruces de centro | M |
-| C33 | Alertas de riesgo de baja y acciones de retención | C32,C31 | Inactividad basada en visitas físicas, umbrales configurables y ausencia de duplicados | M |
+| C33 | Alertas de riesgo de baja y acciones de retención | C32 (contrato de admisiones),C31 | Inactividad basada en visitas físicas, umbrales configurables y ausencia de duplicados | M |
 
 C32 puede entregar métricas contractuales/financieras antes de QR, pero no marcar completo el KPI de ocupación sin C31. La presencia de /api/activity no es asistencia. Recepción valida online inicialmente; acceso offline no se improvisa. Reactivación por pago no anula suspensión manual de otra causa. Dispositivo no recibe información económica innecesaria.
 
@@ -304,10 +304,11 @@ Actualizado15octubre2026,23:42. Detalle/evidencia y bloqueos en CENTERS_PROGRESS
 
 | Tareas | Estado técnico | Lo que falta |
 |---|---|---|
-| C29,C30,C31,C34,C36,C37,C40 | done | Validación visual/hardware/operación diferida; gates de activación siguen pendientes |
+| C29,C30,C31,C33,C34,C36,C37,C40 | done | Validación visual/hardware/operación diferida; gates de activación siguen pendientes |
 | C27 | blocked | Ensayo con cuenta sandbox real y autorización/credenciales; implementación con HTTP ficticio terminada |
 | C32 | blocked | Agregados de visitas terminados en037; ocupación física sin salidas requiere definición/datos o excluir ese KPI |
-| C33,C35,C38 | todo | Iniciar solo al disponer de los contratos técnicos necesarios; no confundir implementación local con gate de producción |
+| C33 | done | Regla opt-in de admisiones y revisión humana,039; validación general/visual diferida |
+| C35,C38 | todo | Iniciar solo al disponer de los contratos técnicos necesarios; no confundir implementación local con gate de producción |
 
 Instrucción vigente del usuario: comprobaciones enfocadas esenciales y compilación; aplazar suites generales/revisión visual completa. done acredita criterios técnicos probados, no aceptación visual o activación real. No abrir ampliaciones opcionales de una tarea ya cerrada sin una necesidad del alcance.
 

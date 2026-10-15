@@ -6,10 +6,11 @@
 
 - Rama codex/centers-module; cambios Docker/web/demo previos del usuario preservados y fuera de los commits del módulo.
 - Prioridad vigente: cerrar implementación contra criterios concretos, comprobaciones enfocadas de seguridad/integridad y compilación. Suites generales y revisión visual completa aplazadas por instrucción expresa del usuario. No repetir lo ya verificado ni ampliar opcionalmente.
-- C29/C30/C31/C34/C36/C37/C40: implementación y criterios técnicos acreditados; pasan a done técnico. La aceptación visual, hardware, infraestructura y operación real NO se declaran verificadas: se registran abajo como gates de validación diferida y no se confunden con código por implementar.
+- C29/C30/C31/C33/C34/C36/C37/C40: implementación y criterios técnicos acreditados; pasan a done técnico. La aceptación visual, hardware, infraestructura y operación real NO se declaran verificadas: se registran abajo como gates de validación diferida y no se confunden con código por implementar.
 - C27: implementación test con fixture HTTP terminada; blocked por ensayo sandbox real pendiente (requiere credenciales/cuenta y autorización específica). No repetir adaptador/webhooks/UI.
 - C32: agregados de visitas implementados y comprobados en schema037. blocked solo por ocupación física: no se registran salidas; hace falta un contrato de presencia verificable o aceptar excluir ese KPI. Ninguna métrica viene de /api/activity. No rehacer los agregados.
 - Preview anterior:409f825c-dirty/schema035, datos y túnel conservados. Reconstruir al cerrar cambios; dirty corresponde a archivos previos del usuario. CI usa centers-ci-db/ft_gym_ci_centers_test, nunca PostgreSQL persistente de preview.
+- C33 terminada técnicamente en039: regla opt-in explícita sobre admisiones, episodios sin duplicados y gestiones append-only. No mensajes/cobros/cambios de acceso. Ver CENTERS_RETENTION.md.
 - C30 terminada técnicamente en038: compartir por centro, rutinas/fechas explícitas y solo conteos de sesiones guardadas/nombres. Revocación, vínculo y roles actuales; sin cargas, fotos, notas, ejercicios o perfil. Ver CENTERS_SHARED_PROGRESS.md. C35 depende del gate externo de C27. C28 necesita proceso bancario; C39 requisitos fiscales; C41/C42 activación/aceptación reales.
 - Uso inicial:0%principal,45%semanal consumidos tras renovación natural. Continuar hasta aproximadamente95%principal (o límite que se agote primero), sin créditos de reset. Al terminar guardar/documentar y apagar sin forzar aplicaciones, autorizado por el mensaje vigente.
 
@@ -118,7 +119,7 @@ Estados permitidos: `todo`, `in_progress`, `done`, `blocked`. Una tarea done nec
 | C30 | F10 | Progreso compartido | done |
 | C31 | F11 | QR y visitas | done |
 | C32 | F11 | KPI | blocked |
-| C33 | F11 | Riesgo de baja | todo |
+| C33 | F11 | Riesgo de baja | done |
 | C34 | F12 | Clases y reservas | done |
 | C35 | F12 | Alta pública | todo |
 | C36 | F12 | CSV | done |
@@ -733,3 +734,15 @@ Schema038: progress_shares con RLS, privilegios por columna, propietario vincula
 API/SQL enfocada3/3: selección permitida/no datos privados, permiso por actor, socio/centro ajeno, revocación concurrente con account-busy reintentable, idempotencia, RLS directo sin escritura de staff, pausa/rol/vínculo, rollback de auditoría y archivo ilegible503. Dominio/authz/OpenAPI9/9. UI SharedProgress+Members+MyCenters+pt-BR20/20: confirmación, sincronización antes de conceder, reintento estable, revocación sin sincronizar, respuesta/contexto/confirmación obsoletos y proyección solo lectura. Build correcto;2098cadenas y18×2708claves. No suites generales ni nueva prueba de restore/revisión visual; aplazadas según instrucción vigente. Logs externos centers-shared-progress-*.log.
 
 C30 pasa a done técnico por sus criterios (solo partes compartidas, aislamiento entre centros y exclusión de datos privados). Alcance deliberado: nombres elegidos y conteos por rutina/día/semana/último registro, no certificación de ejercicios ni fuerza. Consentimiento hasta revocación para un intervalo fijo de fechas, no acceso automático a sesiones futuras. Próximo trabajo: revisar C33 con contrato de admisiones C31+C32 ya disponible; el KPI de presencia física pendiente en C32 no es entrada del cálculo de inactividad. La preview035 se conserva hasta reconstrucción final, sin interrumpir el túnel en cada commit.
+
+## Inicio C33: cerrar avisos y gestión, sin envíos ni política inventada
+
+Se usa C31+contrato de admisiones/días locales C32 ya entregado. La dependencia pendiente de presencia/ocupación no es entrada del cálculo, por lo que esta parte es independiente. Contrato acotado en CENTERS_RETENTION.md: regla opt-in con umbral explícito, avisos derivados y episodios sin duplicar, registro humano append-only. No background worker, email, cobro, predicción o cambio contractual.
+
+## 16octubre, C33: avisos y gestión interna cerrados
+
+Schema039: política versionada por centro y acciones append-only. Por defecto desactivada sin umbral; gestión elige1..3650días naturales e inclusión explícita de afiliaciones sin admisiones. Solo miembros actuales activos; referencia última entrada C31 o fecha de alta. No entrenamiento/app activity, riesgo probabilístico, ocupación, dinero ni trabajo automático. La identidad de episodio se conserva al cambiar el umbral para no repetir avisos gestionados; nueva admisión resuelve el episodio. Historial permanece al desactivar centro/regla.
+
+Gestión/plataforma con centro seleccionado, sin elevación de admin técnico ni acceso de entrenador. Política/visita/episodio se revalidan bajo lock antes de registrar; dos operadores no duplican el episodio, replay conserva el hecho. Acción/auditoría/clave atómicas, sin UPDATE/DELETE runtime. SQL enfocado3/3 incluye privacidad/centro/rol, concurrencia, nueva admisión real que invalida aviso antiguo, paginación real31casos/cursor actor/regla y rollback de auditoría. Dominio2/2 y contrato OpenAPI a continuación. UI Retention+Centers+pt-BR32/32: umbral vacío, confirmación concreta, resultado explícito, motivo para descarte, reintento estable, contexto/confirmación obsoletos, cursor y texto inerte. Build correcto,2115cadenas/18×2733claves. No suites generales ni restore/revisión visual, aplazados según instrucción vigente. Logs externos centers-retention-*.log.
+
+C33 pasa a done técnico por criterios: admisiones físicas validadas, umbrales elegidos y ausencia de duplicados. «Contactado» registra gestión manual, no envía mensajes. La regla puede producir casos para revisar, no certifica ausencia física ni predice bajas. Con ello no quedan implementaciones previas abiertas salvo bloqueos concretos C27(sandbox real) y C32(presencia sin salidas). Siguiente tarea independiente preparada por el roadmap: C38, dependiente de C31/C20 ya cerrados, con términos explícitos y sin cobros reales.

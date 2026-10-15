@@ -420,6 +420,82 @@ paths:
         '400': { description: Invalid command or missing reason. }
         '403': { description: Management capability required. }
         '409': { description: class-closed, version-conflict or idempotency-conflict. }
+  /api/centers/retention:
+    get:
+      tags: [centers]
+      operationId: listCenterRetentionNotices
+      summary: Page derived inactivity notices or immutable human review history
+      description: |
+        Current members.manage or explicit platform allowlist, selected center. No technical-admin or trainer shortcut.
+        Default rule disabled, with no implicit threshold. Open notices include only currently active, already-joined
+        members with no effective end, using days since the last validated admission in the current center zone.
+        Never-admitted memberships are included only when explicitly configured, anchored to joinedOn.
+        No app activity, workouts, money or live occupancy is used. Lack of admissions does not prove physical absence.
+        Episodes are center/member/last-admission (or joined date), independent of policy version. Reviewed episodes
+        are not duplicated when thresholds change. A new visit resolves an episode. No notices in inactive centers.
+        Up to30rows per page. Open cursors are actor/center/policy/day/zone bound; history cursors actor/center bound.
+        History remains readable when policy/center is inactive. Returns policy, today, timezone, active, view, items,
+        nextCursor. Items contain operational name/number and dates or review outcome/note, never contacts, account IDs,
+        debt, QR/device credentials or training data. Global lists are not provided.
+      parameters:
+        - { name: centerId, in: query, required: true, schema: { type: string } }
+        - { name: view, in: query, schema: { type: string, enum: [open, history], default: open } }
+        - { name: cursor, in: query, schema: { type: string, maxLength: 2000 } }
+      responses:
+        '200': { description: Current policy and a bounded notice/history page; unconfigured policy disabled/version0. }
+        '400': { description: Unexpected selectors or stale/foreign cursor. }
+        '403': { description: Current management capability required. }
+        '404': { description: Selected center unavailable. }
+  /api/centers/retention/policy:
+    post:
+      tags: [centers]
+      operationId: configureCenterRetention
+      summary: Configure an explicit opt-in inactivity rule
+      description: Body centerId/version/fields/requestId. Fields enabled and includeNeverVisited are explicit booleans; daysWithoutVisit integer1..3650 or null only while disabled. Version0means no existing policy. Optimistic revision, audit and command identity commit together. Enabling requires active center; disabling and completed replay are allowed in inactive centers. No jobs, messages, charges, access holds or contract changes.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties: false
+              required: [centerId, version, fields, requestId]
+              properties:
+                centerId: { type: string }
+                version: { type: integer, minimum: 0 }
+                requestId: { type: string, minLength: 8, maxLength: 128 }
+                fields:
+                  type: object
+                  additionalProperties: false
+                  required: [enabled, includeNeverVisited]
+                  properties:
+                    enabled: { type: boolean }
+                    includeNeverVisited: { type: boolean }
+                    daysWithoutVisit: { type: [integer, 'null'], minimum: 1, maximum: 3650 }
+      responses:
+        '200': { description: Current policy, including on completed replay. }
+        '400': { description: Invalid explicit settings or revision. }
+        '403': { description: Current management capability required. }
+        '409': { description: version-conflict, center-inactive or idempotency-conflict. }
+  /api/centers/retention/review:
+    post:
+      tags: [centers]
+      operationId: recordCenterRetentionReview
+      summary: Record one human action per current inactivity episode
+      description: |
+        Body centerId/memberId/alertId/policyVersion/outcome/note/requestId. Outcome reviewed/contacted/dismissed;
+        note optional trimmed text up to500characters, required for dismissed. Contacted records a contact already
+        made manually and sends no message. Requires current members.manage or explicit platform allowlist.
+        Under center lock rechecks rule version, current affiliation, last admission and episode identity.
+        New visits or rule changes invalidate stale reviews. Unique center/member/episode prevents duplicates across
+        operators; different keys for a handled episode reject. Action/audit/key commit together and roll back on failure.
+        Completed replay returns the immutable action even after disabling the rule; current authority remains required.
+        SQL runtime cannot update/delete action facts. No automatic retention decisions or financial side effects.
+      responses:
+        '200': { description: Recorded action or completed replay. }
+        '400': { description: Invalid command, outcome or required dismissal reason. }
+        '403': { description: Current management capability required. }
+        '409': { description: retention-unavailable, retention-alert-changed, retention-already-reviewed, version-conflict or idempotency-conflict. }
   /api/centers/own/training/progress/share:
     get:
       tags: [centers]

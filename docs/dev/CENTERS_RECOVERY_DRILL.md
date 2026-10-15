@@ -40,6 +40,14 @@ es independiente y puede contener la vista previa local.
 7. Arranca la API con la copia restaurada: área propia y entrenamiento conservan
    sus respuestas; otro centro sigue inaccesible; repetir un pago no lo duplica;
    no se permite borrar una cuenta vinculada ni modificar recibos desde el runtime.
+8. Conserva una reserva Stripe y notificación firmada pendientes, sin liquidarlas
+   por restaurar. Conserva una propuesta de entrenamiento aceptada sin acuse y
+   permite completar su importación personal después de sincronizar.
+9. Incluye política de acceso, dispositivo, visita y QR pendiente, además de un
+   bloqueo manual independiente. El nuevo arranque invalida los QR anteriores
+   aunque aún estuvieran en plazo; repetir un escaneo registrado nunca readmite.
+   Un QR nuevo funciona con la sesión/dispositivo restaurados y el bloqueo manual
+   sigue presente. Estas pruebas no activan infraestructura física ni producción.
 
 La copia usa `pg_dump --format=custom --exclude-schema=public` en una base dedicada
 que solo contiene centros y el marcador de ensayo en `public`. Así incluye la

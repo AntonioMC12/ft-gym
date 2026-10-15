@@ -14,6 +14,7 @@ import Payments from './Payments.jsx'
 import OwnNotifications from './OwnNotifications.jsx'
 import ConfigPending from './ConfigPending.jsx'
 import TrainingProposals from './TrainingProposals.jsx'
+import OwnAccess from './OwnAccess.jsx'
 import './centers.css'
 
 const memberState=state=>state==='active'?t('Active member'):state==='frozen'?t('Frozen member'):state==='ended'?t('Ended member'):t('Pending activation')
@@ -30,6 +31,7 @@ function Membership({centerId,ownerUid}) {
     <Section title={t('Subscriptions')}><div className="centers-form">{info.subscriptions.map(row=><div key={row.id}><ContractSummary contract={row}/><Row title={t('Billing period (months)')} value={row.intervalMonths}/><Row title={t('Billing day')} value={row.billingDay}/><Row title={t('Tax policy')} value={row.priceIncludesTax==null?t('Not configured'):t(row.priceIncludesTax?'Tax included':'Tax excluded')}/>{row.taxBasisPoints!=null&&<Row title={t('Tax rate (%)')} value={minorToPrice(String(row.taxBasisPoints))}/>}</div>)}{!info.subscriptions.length&&<p>{t('Your center has no assigned fee.')}</p>}{info.subscriptionsTruncated&&<p className="small muted">{t('Showing up to 100 contracts.')}</p>}</div></Section>
     <Receipts centerId={centerId} memberId={info.member.id} ownerUid={ownerUid} own canPay={info.center.state==='active'} revision={revision} changed={()=>setRevision(value=>value+1)}/><Payments centerId={centerId} memberId={info.member.id} ownerUid={ownerUid} own revision={revision}/><OwnNotifications centerId={centerId} ownerUid={ownerUid} active={info.center.state==='active'}/>
     <TrainingProposals centerId={centerId} ownerUid={ownerUid} own active={info.center.state==='active'&&info.member.state==='active'}/>
+    <OwnAccess centerId={centerId} ownerUid={ownerUid} active={info.center.state==='active'&&info.member.state==='active'} timezone={info.center.timezone}/>
   </>
 }
 export default function MyCenters() {

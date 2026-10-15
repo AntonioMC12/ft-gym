@@ -19,6 +19,7 @@ import BillingAutomation from './BillingAutomation.jsx'
 import NotificationSettings from './NotificationSettings.jsx'
 import ConfigPending from './ConfigPending.jsx'
 import StripePayments from './StripePayments.jsx'
+import AccessPanel from './AccessPanel.jsx'
 import {useAutoMore} from '../../lib/use-auto-more.js'
 
 const stateLabel = state => state === 'active' ? t('Active center') : state === 'inactive' ? t('Inactive center') : t('Draft center')
@@ -101,6 +102,7 @@ function CenterPanel({ center, platform, capabilities, close, refresh, ownerUid,
   const memberPane=canMembers&&pane==='members'
   const canPlans=capabilities.includes('plans.manage'),planPane=canPlans&&pane==='plans'
   const canBilling=capabilities.includes('billing.read'),billingPane=canBilling&&pane==='billing'
+  const canAccess=capabilities.includes('access.manage'),accessPane=canAccess&&pane==='access'
   const [fields, setFields] = useState(() => fieldsOf(center)), [staff, setStaff] = useState([]), [manager, setManager] = useState(null)
   const [trainerUid, setTrainerUid] = useState(''), [replaceId, setReplaceId] = useState(null)
   const [busy, setBusy] = useState(false), [error, setError] = useState(null)
@@ -123,8 +125,8 @@ function CenterPanel({ center, platform, capabilities, close, refresh, ownerUid,
   const updatePath = platform ? '/api/platform/centers/update' : '/api/centers/update'
   return <><Section title={center.name}><div className="centers-form">
     <div className="centers-actions"><span className="muted small">{stateLabel(center.state)}</span><Button onClick={close}>{t('Back')}</Button></div>
-    {(canMembers||canPlans||canBilling)&&<Segmented options={[{value:'details',label:t('Center details')},...(canMembers?[{value:'members',label:t('Members')}]:[]),...(canPlans?[{value:'plans',label:t('Membership plans')}]:[]),...(canBilling?[{value:'billing',label:t('Debt and calendar')}]:[])]} value={memberPane?'members':planPane?'plans':billingPane?'billing':'details'} onChange={setPane}/>}
-    {!memberPane&&!planPane&&!billingPane&&<>
+    {(canMembers||canPlans||canBilling||canAccess)&&<Segmented options={[{value:'details',label:t('Center details')},...(canMembers?[{value:'members',label:t('Members')}]:[]),...(canPlans?[{value:'plans',label:t('Membership plans')}]:[]),...(canBilling?[{value:'billing',label:t('Debt and calendar')}]:[]),...(canAccess?[{value:'access',label:t('Center access')}]:[])]} value={memberPane?'members':planPane?'plans':billingPane?'billing':accessPane?'access':'details'} onChange={setPane}/>}
+    {!memberPane&&!planPane&&!billingPane&&!accessPane&&<>
     {(platform || capabilities.includes('center.update')) && <form onSubmit={e => { e.preventDefault(); perform(updatePath, { ...fields, centerId: center.id, version: center.version }) }}><Fields value={fields} change={setFields} /><Button type="submit" variant="primary" disabled={busy}>{t('Save')}</Button></form>}
     {staff.length > 0 && <div><h3>{t('Center staff')}</h3>{staff.map(role => <div key={role.id} className="centers-staff-row"><div><strong>{role.role === 'manager' ? t('Center manager') : t('Trainer')}</strong><div className="small muted">{role.accountUid}</div></div>
       {role.revoked ? <span className="muted small">{t('Revoked role')}</span> : (platform || role.role === 'trainer') && <div className="centers-actions">{platform && role.role==='manager' && <Button onClick={() => setReplaceId(role.id)}>{t('Replace')}</Button>}<Button disabled={busy} onClick={() => perform(platform ? '/api/platform/centers/revoke-role' : '/api/centers/staff/revoke', { centerId: center.id, version: center.version, assignmentId: role.id })}>{t('Revoke role')}</Button></div>}
@@ -137,7 +139,7 @@ function CenterPanel({ center, platform, capabilities, close, refresh, ownerUid,
     </div>}
     {error && <p role="alert">{t(centersErrorKey(error))}</p>}
     </>}
-  </div></Section>{billingPane?<><DebtCalendar key={center.id} centerId={center.id} ownerUid={ownerUid} canExport={capabilities.includes('data.export')}/><StripePayments key={'stripe:'+center.id} centerId={center.id} ownerUid={ownerUid} canReconcile={capabilities.includes('payments.record')}/><BillingAutomation key={'automation:'+center.id} centerId={center.id} ownerUid={ownerUid} platform={platform} active={center.state==='active'}/><NotificationSettings key={'notifications:'+center.id} centerId={center.id} ownerUid={ownerUid} platform={platform} active={center.state==='active'}/></>:planPane?<MembershipPlans key={center.id} centerId={center.id} ownerUid={ownerUid}/>:memberPane?<Members key={center.id} centerId={center.id} ownerUid={ownerUid} capabilities={capabilities} active={center.state==='active'}/>:
+  </div></Section>{accessPane?<AccessPanel key={'access:'+center.id} centerId={center.id} ownerUid={ownerUid} active={center.state==='active'} canManage={capabilities.includes('access.manage')} canVerify={capabilities.includes('access.verify')} timezone={center.timezone}/>:billingPane?<><DebtCalendar key={center.id} centerId={center.id} ownerUid={ownerUid} canExport={capabilities.includes('data.export')}/><StripePayments key={'stripe:'+center.id} centerId={center.id} ownerUid={ownerUid} canReconcile={capabilities.includes('payments.record')}/><BillingAutomation key={'automation:'+center.id} centerId={center.id} ownerUid={ownerUid} platform={platform} active={center.state==='active'}/><NotificationSettings key={'notifications:'+center.id} centerId={center.id} ownerUid={ownerUid} platform={platform} active={center.state==='active'}/></>:planPane?<MembershipPlans key={center.id} centerId={center.id} ownerUid={ownerUid}/>:memberPane?<Members key={center.id} centerId={center.id} ownerUid={ownerUid} capabilities={capabilities} active={center.state==='active'}/>:
     (platform||capabilities.includes('staff.manage'))&&<Invitations key={center.id} centerId={center.id} ownerUid={ownerUid} allowedKinds={platform?['manager','trainer']:['trainer']}/>}</>
 }
 

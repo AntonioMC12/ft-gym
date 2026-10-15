@@ -8,6 +8,7 @@ vi.mock('../../sheets.jsx',()=>({confirmSheet:vi.fn()}))
 vi.mock('./BillingAutomation.jsx',()=>({default:()=>null}))
 vi.mock('./NotificationSettings.jsx',()=>({default:()=>null}))
 vi.mock('./StripePayments.jsx',()=>({default:()=>null}))
+vi.mock('./AccessPanel.jsx',()=>({default:({centerId,canManage,canVerify})=><div data-access-panel={centerId} data-can-manage={String(canManage)} data-can-verify={String(canVerify)}>Reception panel</div>}))
 vi.mock('../../store/useStore.js', () => {
   const state = { user: { id: 'platform' }, config: { centers: { enabled: true } }, S: {} }
   const useStore = selector => selector ? selector(state) : state
@@ -156,4 +157,12 @@ it('discards a delayed page when the filter changes',async()=>{
   let release;platformCenters.mockResolvedValueOnce({centers:[center],nextCursor:'more'}).mockReturnValueOnce(new Promise(resolve=>release=resolve)).mockResolvedValueOnce({centers:[{...center,id:'two',name:'Second center'}],nextCursor:null})
   function Filter(){const navigate=useNavigate();return <button onClick={()=>navigate('/centers?q=Second')}>Change filter</button>}
   await act(async()=>{root.render(<MemoryRouter><Centers/><Filter/></MemoryRouter>);await Promise.resolve()});await click('Show more');await click('Change filter');await act(async()=>release({centers:[{...center,id:'old',name:'Old filter result'}],nextCursor:null}));expect(host.textContent).toContain('Second center');expect(host.textContent).not.toContain('Old filter result');expect(platformCenters).toHaveBeenLastCalledWith({query:'Second'})
+})
+it('opens access with current capabilities and Back returns to the previous pane instead of Home',async()=>{
+  const previous=history.state;history.replaceState({idx:1},'',location.href)
+  useCenters.setState({platformCapabilities:['centers.manage','members.read','members.manage','access.manage','access.verify']})
+  function Location(){const here=useLocation();return <output>{here.pathname+here.search}</output>}
+  await act(async()=>{root.render(<MemoryRouter initialEntries={['/centers?centerId=one&pane=members']}><Centers/><Location/></MemoryRouter>);await Promise.resolve()})
+  await click('Center access');expect(host.querySelector('output').textContent).toContain('pane=access');const panel=host.querySelector('[data-access-panel]');expect(panel.getAttribute('data-access-panel')).toBe('one');expect(panel.getAttribute('data-can-manage')).toBe('true');expect(panel.getAttribute('data-can-verify')).toBe('true')
+  await act(async()=>host.querySelector('button[aria-label="Back"]').click());expect(host.querySelector('output').textContent).toContain('pane=members');expect(host.querySelector('[data-access-panel]')).toBeNull();history.replaceState(previous,'',location.href)
 })

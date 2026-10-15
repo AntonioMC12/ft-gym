@@ -20,9 +20,10 @@ import {stripeStatus,stripeListOptions,checkoutStripe,reconcileStripe} from './s
 import {receiveStripeWebhook} from './services/stripe-foundation.js';
 import {readStripeBody} from './domain/stripe-webhook.js';
 import {proposeTraining,withdrawTraining,trainingListOptions,listTraining,getTraining,acceptTraining,acknowledgeTraining} from './services/training-proposals.js';
+import {configureAccess,accessStatus,accessPageOptions,createAccessDevice,changeAccessDevice,issueAccessToken,consumeAccessToken,accessMember,setAccessHold,releaseAccessHold,accessVisits} from './services/access.js';
 
 // Inject the same session and response helpers used by the rest of node:http.
-export function centersRoutes({ config, database, json, readSession, readBody, accountLocks, lookupAccount, readOwnTraining, hasTrainingExercise,
+export function centersRoutes({ config, database, json, readSession, readBody, accountLocks, lookupAccount, readOwnTraining, hasTrainingExercise, mintAccessCredential,
   accountIds = () => [], accountDirectory = () => [] }) {
   const guard = (req, res) => {
     if (!config.enabled) { json(res, 404, { error: 'not found' }); return null; }
@@ -45,7 +46,7 @@ export function centersRoutes({ config, database, json, readSession, readBody, a
     const checkSession=()=>{if(!current(req,user,sv))throw new CentersError(401,'not-signed-in','not signed in');};
     try{
       const body=await readBody(req);checkSession();
-      const result=await operation({database,accountLocks,lookupAccount,readOwnTraining,hasTrainingExercise,user,checkSession,config},body,{platform});
+      const result=await operation({database,accountLocks,lookupAccount,readOwnTraining,hasTrainingExercise,mintAccessCredential,deviceKey:req.headers?.['x-center-device-key'],user,checkSession,config},body,{platform});
       checkSession();return json(res,200,result);
     }catch(error){return failure(res,error);}
   };
@@ -63,7 +64,36 @@ export function centersRoutes({ config, database, json, readSession, readBody, a
       if(!current(req,user,sv))return json(res,401,{error:'not signed in'});return json(res,200,result);
     }catch(error){return failure(res,error)}
   };
+  const readAccess=({own=false,visits=false,member=false}={})=>async(req,res)=>{
+    const user=guard(req,res);if(!user)return;const sv=user.sv||0,params=new URL(req.url,'http://x').searchParams,centerId=params.get('centerId');
+    if(!recordId(centerId))return json(res,404,{error:'not found',code:'not-found'});
+    try{
+      let result;
+      if(member){
+        if([...params.keys()].some(key=>!['centerId','memberId'].includes(key))||!recordId(params.get('memberId')))throw new CentersError(400,'invalid-input','member selector required');
+        result=await accessMember(database,user.id,centerId,params.get('memberId'),{platform:isPlatformUser(config,user)});
+      }else{
+        if(own&&!visits&&[...params.keys()].some(key=>key!=='centerId'))throw new CentersError(400,'invalid-input','own access does not accept selectors');
+        const options=accessPageOptions(params,{own,devices:!visits}),access=visits?accessVisits:accessStatus;
+        result=await access(database,user.id,centerId,options,{own,platform:isPlatformUser(config,user)});
+      }
+      if(!current(req,user,sv))return json(res,401,{error:'not signed in'});return json(res,200,result);
+    }catch(error){return failure(res,error)}
+  };
   return {
+    'GET /api/centers/access':readAccess(),
+    'GET /api/centers/access/member':readAccess({member:true}),
+    'GET /api/centers/access/visits':readAccess({visits:true}),
+    'GET /api/centers/own/access':readAccess({own:true}),
+    'GET /api/centers/own/access/visits':readAccess({own:true,visits:true}),
+    'POST /api/centers/access/policy':mutate(false,(context,body)=>configureAccess(context,body,{platform:isPlatformUser(config,context.user)})),
+    'POST /api/centers/access/devices/create':mutate(false,(context,body)=>createAccessDevice(context,body,{platform:isPlatformUser(config,context.user)})),
+    'POST /api/centers/access/devices/rotate':mutate(false,(context,body)=>changeAccessDevice(context,body,{platform:isPlatformUser(config,context.user)})),
+    'POST /api/centers/access/devices/revoke':mutate(false,(context,body)=>changeAccessDevice(context,body,{platform:isPlatformUser(config,context.user),revoke:true})),
+    'POST /api/centers/access/holds/create':mutate(false,(context,body)=>setAccessHold(context,body,{platform:isPlatformUser(config,context.user)})),
+    'POST /api/centers/access/holds/release':mutate(false,(context,body)=>releaseAccessHold(context,body,{platform:isPlatformUser(config,context.user)})),
+    'POST /api/centers/own/access/token':mutate(false,issueAccessToken),
+    'POST /api/centers/access/consume':mutate(false,(context,body)=>consumeAccessToken(context,body,{platform:isPlatformUser(config,context.user)})),
     'GET /api/centers/training':readTraining(false),
     'GET /api/centers/own/training':readTraining(true),
     'GET /api/centers/training/proposal':readTraining(false,true),

@@ -131,6 +131,9 @@ const lock = f => { try { fs.chmodSync(path.join(DATA, f), 0o600); } catch { /* 
 const secretFile = path.join(DATA, 'secret');
 if (!fs.existsSync(secretFile)) fs.writeFileSync(secretFile, crypto.randomBytes(32).toString('hex'), { mode: 0o600 });
 const SECRET = fs.readFileSync(secretFile, 'utf8').trim();
+// The application has one JSON-writing API process. A restart/restore expires
+// outstanding access captures instead of resurrecting a recently consumed QR.
+const ACCESS_QR_EPOCH = crypto.randomBytes(32).toString('hex');
 
 const dbFile = path.join(DATA, 'db.json');
 // Every account, passkey and invite. Only a missing file starts empty: an unreadable one (a write
@@ -2642,6 +2645,12 @@ const routes = {
   ...coachRoutes({ json, readBody, readSession, requireAdmin }),
   ...centersRoutes({ config: CENTERS_CONFIG, database: CENTERS_DATABASE, json, readSession, readBody,
     hasTrainingExercise,
+    mintAccessCredential: (kind,id,version) => {
+      if(!['device','token'].includes(kind)||!Number.isSafeInteger(version)||version<1||!new RegExp('^'+(kind==='device'?'ad_':'at_')+'[a-f0-9]{32}$').test(id))throw new TypeError('invalid access credential identity');
+      // Domain-separated, reproducible private credentials. SQL stores only their
+      // hashes and versions, including when an initial HTTP response was lost.
+      return (kind==='device'?'gdev1_':'gqr1_')+crypto.createHmac('sha256',SECRET).update(JSON.stringify(['centers.access.v1',kind,id,version,...(kind==='token'?[ACCESS_QR_EPOCH]:[])])).digest('base64url');
+    },
     readOwnTraining: uid => { const value=readStateStrict(uid); if(value===UNREADABLE)throw new CentersError(503,'training-state-unavailable','personal training is unreadable'); return value; },
     accountLocks: CENTERS_ACCOUNT_LOCKS, lookupAccount: uid => db.users.find(u => u.id === uid),
     accountIds: () => db.users.map(u => u.id), accountDirectory: () => db.users.map(u => ({id:u.id,name:String(u.name||''),disabled:!!u.disabled})) }),

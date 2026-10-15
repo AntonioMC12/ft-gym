@@ -165,6 +165,251 @@ security:
   - bearerAuth: []
 
 paths:
+  /api/centers/access:
+    get:
+      tags: [centers]
+      operationId: getCenterAccess
+      summary: Read explicit access policy and a bounded reception-device page
+      description: "Requires current access.manage or explicit platform allowlist. Policy defaults disabled. Response contains policy/version, devices and nextCursor. Device hashes and credentials are never listed."
+      parameters:
+        - {"name":"centerId","in":"query","required":true,"schema":{"type":"string"}}
+        - {"name":"limit","in":"query","schema":{"type":"integer"}}
+        - {"name":"cursor","in":"query","schema":{"type":"string"}}
+      responses:
+        '200': { description: Current scoped result as described above. }
+        '400': { description: Invalid or forbidden fields/selectors. }
+        '401': { description: Missing session or invalid/expired/revoked reception-device credential. }
+        '403': { description: Missing current capability. }
+        '404': { description: Resource or current affiliation not visible in selected center. }
+        '503': { description: Centers or private credential source unavailable. }
+  /api/centers/access/member:
+    get:
+      tags: [centers]
+      operationId: getCenterMemberAccess
+      summary: Read operational access status and the active manual hold
+      description: "Requires access.manage. Explicit current member in selected center. Response contains operational identity/version, allowed boolean and current manual hold; never the personal training file."
+      parameters:
+        - {"name":"centerId","in":"query","required":true,"schema":{"type":"string"}}
+        - {"name":"memberId","in":"query","required":true,"schema":{"type":"string"}}
+      responses:
+        '200': { description: Current scoped result as described above. }
+        '400': { description: Invalid or forbidden fields/selectors. }
+        '401': { description: Missing session or invalid/expired/revoked reception-device credential. }
+        '403': { description: Missing current capability. }
+        '404': { description: Resource or current affiliation not visible in selected center. }
+        '503': { description: Centers or private credential source unavailable. }
+  /api/centers/access/visits:
+    get:
+      tags: [centers]
+      operationId: listCenterAccessVisits
+      summary: List verified admissions recorded by reception
+      description: "Requires access.verify. Cursor is bound to operator, selected center and member filter. Contains visitId, memberId, deviceId, operatorUid and visitedAt. Presence/activity data is not a visit."
+      parameters:
+        - {"name":"centerId","in":"query","required":true,"schema":{"type":"string"}}
+        - {"name":"memberId","in":"query","schema":{"type":"string"}}
+        - {"name":"limit","in":"query","schema":{"type":"integer"}}
+        - {"name":"cursor","in":"query","schema":{"type":"string"}}
+      responses:
+        '200': { description: Current scoped result as described above. }
+        '400': { description: Invalid or forbidden fields/selectors. }
+        '401': { description: Missing session or invalid/expired/revoked reception-device credential. }
+        '403': { description: Missing current capability. }
+        '404': { description: Resource or current affiliation not visible in selected center. }
+        '503': { description: Centers or private credential source unavailable. }
+  /api/centers/own/access:
+    get:
+      tags: [centers]
+      operationId: getOwnCenterAccess
+      summary: Read own current access eligibility
+      description: "Session member and current link are resolved by the server, including callers with a staff role. Only centerId is accepted. Returns enabled/allowed booleans and tokenLifetimeSeconds45, without financial amounts or manual-hold details."
+      parameters:
+        - {"name":"centerId","in":"query","required":true,"schema":{"type":"string"}}
+      responses:
+        '200': { description: Current scoped result as described above. }
+        '400': { description: Invalid or forbidden fields/selectors. }
+        '401': { description: Missing session or invalid/expired/revoked reception-device credential. }
+        '403': { description: Missing current capability. }
+        '404': { description: Resource or current affiliation not visible in selected center. }
+        '503': { description: Centers or private credential source unavailable. }
+  /api/centers/own/access/visits:
+    get:
+      tags: [centers]
+      operationId: listOwnCenterAccessVisits
+      summary: Read own recorded admission history
+      description: "Strict own scope. No member/account selectors. Response contains only own visit IDs, timestamps and nextCursor; no operator/device/account identifiers."
+      parameters:
+        - {"name":"centerId","in":"query","required":true,"schema":{"type":"string"}}
+        - {"name":"limit","in":"query","schema":{"type":"integer"}}
+        - {"name":"cursor","in":"query","schema":{"type":"string"}}
+      responses:
+        '200': { description: Current scoped result as described above. }
+        '400': { description: Invalid or forbidden fields/selectors. }
+        '401': { description: Missing session or invalid/expired/revoked reception-device credential. }
+        '403': { description: Missing current capability. }
+        '404': { description: Resource or current affiliation not visible in selected center. }
+        '503': { description: Centers or private credential source unavailable. }
+  /api/centers/access/policy:
+    post:
+      tags: [centers]
+      operationId: configureCenterAccess
+      summary: Configure explicit center access rules
+      description: "Requires access.manage, active center, current policy version and idempotency key. Initial version0. enabled, requireSubscription, denyOverdue and graceDays must all be explicit. Financial denial does not create or remove manual holds. No production activation is implied."
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/CenterAccessPolicyCommand' }
+      responses:
+        '200': { description: Current scoped result as described above. }
+        '400': { description: Invalid or forbidden fields/selectors. }
+        '401': { description: Missing session or invalid/expired/revoked reception-device credential. }
+        '403': { description: Missing current capability. }
+        '404': { description: Resource or current affiliation not visible in selected center. }
+        '409': { description: Stale version, unavailable access/token/device, existing hold or idempotency conflict. }
+        '429': { description: Bounded access issuance/scan rate exceeded. }
+        '503': { description: Centers or private credential source unavailable. }
+  /api/centers/access/devices/create:
+    post:
+      tags: [centers]
+      operationId: createCenterAccessDevice
+      summary: Register a scoped reception device
+      description: "Requires access.manage and active center. At most50unrevoked unexpired devices per center. Returns device DTO and a private credential valid30days. Same authorized idempotent request can recover the same current key; SQL/audit/idempotency store only hashes/identity/version. Never store this key in personal training state or URLs."
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/CenterAccessDeviceCreate' }
+      responses:
+        '200': { description: Current scoped result as described above. }
+        '400': { description: Invalid or forbidden fields/selectors. }
+        '401': { description: Missing session or invalid/expired/revoked reception-device credential. }
+        '403': { description: Missing current capability. }
+        '404': { description: Resource or current affiliation not visible in selected center. }
+        '409': { description: Stale version, unavailable access/token/device, existing hold or idempotency conflict. }
+        '429': { description: Bounded access issuance/scan rate exceeded. }
+        '503': { description: Centers or private credential source unavailable. }
+  /api/centers/access/devices/rotate:
+    post:
+      tags: [centers]
+      operationId: rotateCenterAccessDevice
+      summary: Rotate the current device key
+      description: "Requires access.manage and matching device version. Old key stops working immediately. Returns device DTO and current private credential. Old creation/rotation requests cannot recover superseded keys."
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/CenterAccessDeviceChange' }
+      responses:
+        '200': { description: Current scoped result as described above. }
+        '400': { description: Invalid or forbidden fields/selectors. }
+        '401': { description: Missing session or invalid/expired/revoked reception-device credential. }
+        '403': { description: Missing current capability. }
+        '404': { description: Resource or current affiliation not visible in selected center. }
+        '409': { description: Stale version, unavailable access/token/device, existing hold or idempotency conflict. }
+        '429': { description: Bounded access issuance/scan rate exceeded. }
+        '503': { description: Centers or private credential source unavailable. }
+  /api/centers/access/devices/revoke:
+    post:
+      tags: [centers]
+      operationId: revokeCenterAccessDevice
+      summary: Irreversibly revoke a reception device
+      description: "Requires access.manage and matching version. Also allowed while center is inactive. Returns current device DTO with credential null. Later requests and scan replays must revalidate device/role."
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/CenterAccessDeviceChange' }
+      responses:
+        '200': { description: Current scoped result as described above. }
+        '400': { description: Invalid or forbidden fields/selectors. }
+        '401': { description: Missing session or invalid/expired/revoked reception-device credential. }
+        '403': { description: Missing current capability. }
+        '404': { description: Resource or current affiliation not visible in selected center. }
+        '409': { description: Stale version, unavailable access/token/device, existing hold or idempotency conflict. }
+        '429': { description: Bounded access issuance/scan rate exceeded. }
+        '503': { description: Centers or private credential source unavailable. }
+  /api/centers/access/holds/create:
+    post:
+      tags: [centers]
+      operationId: holdCenterMemberAccess
+      summary: Create an independent manual access hold
+      description: "Requires access.manage, current memberVersion and nonempty reason. One active manual hold per member. Does not disable the personal account or change a financial ledger. Payment reconciliation never releases this hold."
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/CenterAccessHoldCreate' }
+      responses:
+        '200': { description: Current scoped result as described above. }
+        '400': { description: Invalid or forbidden fields/selectors. }
+        '401': { description: Missing session or invalid/expired/revoked reception-device credential. }
+        '403': { description: Missing current capability. }
+        '404': { description: Resource or current affiliation not visible in selected center. }
+        '409': { description: Stale version, unavailable access/token/device, existing hold or idempotency conflict. }
+        '429': { description: Bounded access issuance/scan rate exceeded. }
+        '503': { description: Centers or private credential source unavailable. }
+  /api/centers/access/holds/release:
+    post:
+      tags: [centers]
+      operationId: releaseCenterMemberAccess
+      summary: Explicitly release one current manual hold
+      description: "Requires access.manage, matching hold ID/member/version. Append-only release metadata and idempotency; no deletion or silent removal by payment. Also allowed with inactive center."
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/CenterAccessHoldRelease' }
+      responses:
+        '200': { description: Current scoped result as described above. }
+        '400': { description: Invalid or forbidden fields/selectors. }
+        '401': { description: Missing session or invalid/expired/revoked reception-device credential. }
+        '403': { description: Missing current capability. }
+        '404': { description: Resource or current affiliation not visible in selected center. }
+        '409': { description: Stale version, unavailable access/token/device, existing hold or idempotency conflict. }
+        '429': { description: Bounded access issuance/scan rate exceeded. }
+        '503': { description: Centers or private credential source unavailable. }
+  /api/centers/own/access/token:
+    post:
+      tags: [centers]
+      operationId: issueOwnCenterAccessToken
+      summary: Issue an opaque center-bound single-use QR token
+      description: "Derives member and recipient from session, requires current eligibility and explicit enabled policy. Valid45seconds by database clock. One outstanding token per member; replacement invalidates an older capture. Six new tokens/minute/account/center. Same current request returns identical token/expiry after a lost response within this API boot, plus database-derived remainingMs. Restart/restore invalidates earlier outstanding QR captures; generate a new request. No client clock, TTL, member or account selectors. Store/display only in memory."
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/CenterAccessOwnToken' }
+      responses:
+        '200': { description: Current scoped result as described above. }
+        '400': { description: Invalid or forbidden fields/selectors. }
+        '401': { description: Missing session or invalid/expired/revoked reception-device credential. }
+        '403': { description: Missing current capability. }
+        '404': { description: Resource or current affiliation not visible in selected center. }
+        '409': { description: Stale version, unavailable access/token/device, existing hold or idempotency conflict. }
+        '429': { description: Bounded access issuance/scan rate exceeded. }
+        '503': { description: Centers or private credential source unavailable. }
+  /api/centers/access/consume:
+    post:
+      tags: [centers]
+      operationId: consumeCenterAccessToken
+      summary: Validate and consume a QR as an online reception device
+      description: "Requires BOTH a current manager/platform session with access.verify AND X-Center-Device-Key for this center/device. Ordinary CSRF remains in force; no new exemption. Rejects an outstanding QR from an earlier API boot even when a restored SQL copy still contains it. Rechecks current center, policy, local opening hours, membership, current account link, contract, overdue policy and manual hold. Atomically appends visit, consumes QR and records scan.120scans/minute/device. Returns admitted/replayed/visitId and, only on first admission, operational member name/number. No financial data, hold reason or raw token is returned. A repeated successful request returns admitted false and replayed true; never a second admission or door-open command."
+      parameters:
+        - {"name":"X-Center-Device-Key","in":"header","required":true,"schema":{"type":"string","pattern":"^gdev1_[A-Za-z0-9_-]{43}$"}}
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/CenterAccessScan' }
+      responses:
+        '200': { description: Current scoped result as described above. }
+        '400': { description: Invalid or forbidden fields/selectors. }
+        '401': { description: Missing session or invalid/expired/revoked reception-device credential. }
+        '403': { description: Missing current capability. }
+        '404': { description: Resource or current affiliation not visible in selected center. }
+        '409': { description: Stale version, unavailable access/token/device, existing hold or idempotency conflict. }
+        '429': { description: Bounded access issuance/scan rate exceeded. }
+        '503': { description: Centers or private credential source unavailable. }
   /api/centers/training:
     get:
       tags: [centers]
@@ -4925,6 +5170,14 @@ components:
           example: { error: "that code is wrong, used or expired", code: "link-invalid" }
 
   schemas:
+    CenterAccessPolicy: {"type":"object","additionalProperties":false,"required":["enabled","requireSubscription","denyOverdue","graceDays"],"properties":{"enabled":{"type":"boolean"},"requireSubscription":{"type":"boolean"},"denyOverdue":{"type":"boolean"},"graceDays":{"type":"integer","minimum":0,"maximum":365}}}
+    CenterAccessPolicyCommand: {"type":"object","additionalProperties":false,"required":["centerId","version","policy","requestId"],"properties":{"centerId":{"type":"string"},"version":{"type":"integer","minimum":0},"policy":{"$ref":"#/components/schemas/CenterAccessPolicy"},"requestId":{"type":"string","minLength":8,"maxLength":128}}}
+    CenterAccessDeviceCreate: {"type":"object","additionalProperties":false,"required":["centerId","name","requestId"],"properties":{"centerId":{"type":"string"},"name":{"type":"string","minLength":1,"maxLength":80},"requestId":{"type":"string","minLength":8,"maxLength":128}}}
+    CenterAccessDeviceChange: {"type":"object","additionalProperties":false,"required":["centerId","id","version","requestId"],"properties":{"centerId":{"type":"string"},"id":{"type":"string"},"version":{"type":"integer","minimum":1},"requestId":{"type":"string","minLength":8,"maxLength":128}}}
+    CenterAccessHoldCreate: {"type":"object","additionalProperties":false,"required":["centerId","memberId","memberVersion","reason","requestId"],"properties":{"centerId":{"type":"string"},"memberId":{"type":"string"},"memberVersion":{"type":"integer","minimum":1},"reason":{"type":"string","minLength":1,"maxLength":250},"requestId":{"type":"string","minLength":8,"maxLength":128}}}
+    CenterAccessHoldRelease: {"type":"object","additionalProperties":false,"required":["centerId","memberId","id","version","requestId"],"properties":{"centerId":{"type":"string"},"memberId":{"type":"string"},"id":{"type":"string"},"version":{"type":"integer","minimum":1},"requestId":{"type":"string","minLength":8,"maxLength":128}}}
+    CenterAccessOwnToken: {"type":"object","additionalProperties":false,"required":["centerId","requestId"],"properties":{"centerId":{"type":"string"},"requestId":{"type":"string","minLength":8,"maxLength":128}}}
+    CenterAccessScan: {"type":"object","additionalProperties":false,"required":["centerId","deviceId","token","requestId"],"properties":{"centerId":{"type":"string"},"deviceId":{"type":"string"},"token":{"type":"string","pattern":"^gqr1_[A-Za-z0-9_-]{43}$"},"requestId":{"type":"string","minLength":8,"maxLength":128}}}
     CenterTrainingBundle:
       type: object
       additionalProperties: false

@@ -88,7 +88,7 @@ export default function TrainingProposals({centerId,member,ownerUid,own=false,ac
       {detail.acceptedAt&&<p role="status">{t('Proposal accepted')}</p>}{detail.deliveryResult&&<p role="status">{t('Delivery confirmed')}</p>}
       {!detail.acceptedAt&&(detail.state!=='offered'||detail.proposalState!=='offered')&&<p role="status">{t('This training proposal is not available. Reload it.')}</p>}
       {own&&!detail.deliveryResult&&<>
-        {!detail.acceptedAt&&detail.bundle.week&&Object.keys(detail.bundle.week).length>0&&<Row title={t('Use this weekly schedule')} subtitle={t('Replaces your current Mon–Sun assignments.')} value={<Switch checked={schedule} onChange={setSchedule}/>}/>}
+        {!detail.acceptedAt&&detail.bundle.week&&Object.keys(detail.bundle.week).length>0&&<Row title={t('Use this weekly schedule')} subtitle={t('Replaces your current Mon–Sun assignments.')} value={<Switch checked={schedule} aria-label={t('Use this weekly schedule')} onChange={setSchedule}/>}/>}
         {(detail.acceptedAt||active&&detail.state==='offered'&&detail.proposalState==='offered')&&<Button disabled={busy} onClick={deliver}>{t(detail.acceptedAt?'Retry delivery':'Accept routines')}</Button>}
       </>}
       {canOffer&&detail.proposalState==='offered'&&!detail.acceptedAt&&<Button disabled={busy} onClick={withdraw}>{t('Withdraw proposal')}</Button>}

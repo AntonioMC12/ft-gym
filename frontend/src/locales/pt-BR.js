@@ -3,9 +3,13 @@
 // Some byte-identical overrides intentionally pin wording that must not drift with pt-PT.
 import pt from './pt.js'
 import { centersStrings } from './modules/centers.js'
+import {trainingStrings} from './modules/training.js'
+import {accessStrings} from './modules/access.js'
 
 export const PT_BR_OVERRIDES = {
   ...centersStrings('pt'),
+  ...trainingStrings('pt-BR'),
+  ...accessStrings('pt-BR'),
   'Request verification code': 'Solicitar código de verificação',
   'Check the verification code or request a new one.': 'Confira o código ou solicite outro.',
   'Sending notice': 'Enviando aviso',

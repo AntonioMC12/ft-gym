@@ -21,7 +21,7 @@ test('C24: two-center pilot survives a coordinated JSON/PostgreSQL restore and r
   const {migrator}=await isolatedDatabase();t.after(()=>migrator.end());
   const users=['pilot_root','pilot_manager_a','pilot_manager_b','pilot_alice','pilot_bob','pilot_trainer'].map(id=>({id,name:id,admin:id==='pilot_root'}));
   const source=await startHttp(t,{app,users,superadminUids:['pilot_root'],attached:true});
-  const request=(h,path,uid,body,method)=>fetch(h.base+path,{headers:h.headers(uid),...(body?{method:method||'POST',body:JSON.stringify(body)}:{})}).then(async response=>({status:response.status,body:await response.json()}));
+  const request=(h,path,uid,body,method,headers={})=>fetch(h.base+path,{headers:{...h.headers(uid),...headers},...(body?{method:method||'POST',body:JSON.stringify(body)}:{})}).then(async response=>({status:response.status,body:await response.json()}));
   const req=(...args)=>request(source,...args),centers=[],members=[],receipts=[],payments=[];
   for(const [suffix,manager,account] of [['a','pilot_manager_a','pilot_alice'],['b','pilot_manager_b','pilot_bob']]){
     const center=(await req('/api/platform/centers/create','pilot_root',{name:'Fictional pilot '+suffix,managerUid:manager,requestId:'pilot_center_'+suffix})).body.center.id;centers.push(center);
@@ -44,6 +44,16 @@ test('C24: two-center pilot survives a coordinated JSON/PostgreSQL restore and r
   const trainingCreated=await req('/api/centers/training/propose','pilot_manager_a',trainingInput);assert.equal(trainingCreated.status,200,JSON.stringify(trainingCreated));
   const trainingCommand={centerId:centers[0],id:trainingCreated.body.proposal.id,versionId:trainingCreated.body.proposal.versionId,requestId:'pilot_training_accept'};
   const trainingAccepted=await req('/api/centers/own/training/accept','pilot_alice',trainingCommand);assert.equal(trainingAccepted.status,200);const trainingBefore=trainingAccepted.body.proposal;
+  const accessCenter=(await req('/api/centers/detail?centerId='+centers[0],'pilot_root')).body.center;
+  assert.equal((await req('/api/platform/centers/update','pilot_root',{centerId:centers[0],version:accessCenter.version,name:accessCenter.name,timezone:accessCenter.timezone,openingHours:Object.fromEntries(Array.from({length:7},(_,day)=>[day,[['00:00','24:00']]]))})).status,200);
+  assert.equal((await req('/api/centers/access/policy','pilot_manager_a',{centerId:centers[0],version:0,policy:{enabled:true,requireSubscription:true,denyOverdue:false,graceDays:15},requestId:'pilot_access_policy'})).status,200);
+  const accessDevice=(await req('/api/centers/access/devices/create','pilot_manager_a',{centerId:centers[0],name:'Fictional recovery reception',requestId:'pilot_access_device'})).body;
+  const firstQr=(await req('/api/centers/own/access/token','pilot_alice',{centerId:centers[0],requestId:'pilot_access_first'})).body;
+  const firstScan={centerId:centers[0],deviceId:accessDevice.device.id,token:firstQr.token,requestId:'pilot_access_scan'},deviceHeader={'X-Center-Device-Key':accessDevice.credential};
+  const firstAdmission=await req('/api/centers/access/consume','pilot_manager_a',firstScan,'POST',deviceHeader);assert.equal(firstAdmission.status,200);assert.equal(firstAdmission.body.admitted,true);
+  const pendingQrCommand={centerId:centers[0],requestId:'pilot_access_pending'},pendingQr=(await req('/api/centers/own/access/token','pilot_alice',pendingQrCommand)).body;assert.ok(pendingQr.token);
+  const heldMember=(await req('/api/centers/member?'+new URLSearchParams({centerId:centers[1],id:members[1]}),'pilot_manager_b')).body.member;
+  const heldAccess=await req('/api/centers/access/holds/create','pilot_manager_b',{centerId:centers[1],memberId:members[1],memberVersion:heldMember.version,reason:'Fictional preserved manual hold',requestId:'pilot_access_preserved_hold'});assert.equal(heldAccess.status,200);
   const personalBefore=(await req('/api/data','pilot_alice')).body;assert.ok(!JSON.stringify(personalBefore).includes('outstandingMinor'));
   assert.equal((await req('/api/platform/centers/reconciliation','pilot_root')).body.orphanedAccounts.length,0);
   const personalHash=hash(fs.readFileSync(path.join(source.dir,'state-pilot_alice.json')));
@@ -77,6 +87,12 @@ test('C24: two-center pilot survives a coordinated JSON/PostgreSQL restore and r
   assert.equal(hash(fs.readFileSync(path.join(restoredData,'state-pilot_alice.json'))),personalHash,'training file preserved byte-for-byte');
   restored=await startHttp(t,{app:target,savedData:restoredData,superadminUids:['pilot_root']});const after=(...args)=>request(restored,...args);
   assert.deepEqual((await after(ownPath,'pilot_alice')).body,ownBefore);assert.deepEqual((await after('/api/data','pilot_alice')).body,personalBefore);
+  const restoredVisits=(await after('/api/centers/own/access/visits?centerId='+centers[0],'pilot_alice')).body;assert.equal(restoredVisits.visits.length,1);assert.equal(restoredVisits.visits[0].id,firstAdmission.body.visitId);
+  const preservedHold=await after('/api/centers/access/member?'+new URLSearchParams({centerId:centers[1],memberId:members[1]}),'pilot_manager_b');assert.equal(preservedHold.body.hold.id,heldAccess.body.hold.id);assert.equal(preservedHold.body.hold.releasedAt,null,'restoration and the financial ledger cannot release a manual hold');
+  const repeatedAdmission=await after('/api/centers/access/consume','pilot_manager_a',firstScan,'POST',deviceHeader);assert.equal(repeatedAdmission.body.admitted,false);assert.equal(repeatedAdmission.body.replayed,true,'restored idempotency cannot authorize another admission');
+  assert.equal((await after('/api/centers/own/access/token','pilot_alice',pendingQrCommand)).body.code,'access-token-expired','restart changes the QR generation even with the restored session secret');
+  const oldCapture=await after('/api/centers/access/consume','pilot_manager_a',{...firstScan,token:pendingQr.token,requestId:'pilot_access_old_capture'},'POST',deviceHeader);assert.equal(oldCapture.status,200);assert.equal(oldCapture.body.admitted,false,'an unconsumed pre-restore QR cannot be resurrected');
+  const freshQr=(await after('/api/centers/own/access/token','pilot_alice',{centerId:centers[0],requestId:'pilot_access_fresh_after_restore'})).body;assert.ok(freshQr.token);const freshAdmission=await after('/api/centers/access/consume','pilot_manager_a',{...firstScan,token:freshQr.token,requestId:'pilot_access_fresh_scan'},'POST',deviceHeader);assert.equal(freshAdmission.body.admitted,true);
   const trainingRecovered=await after('/api/centers/own/training/accept','pilot_alice',trainingCommand);assert.equal(trainingRecovered.status,200);assert.deepEqual(trainingRecovered.body.proposal,trainingBefore,'accepted delivery map and intention survive recovery without changing personal training');
   assert.equal((await after('/api/centers/own/training/ack','pilot_alice',{...trainingCommand,requestId:'pilot_training_ack'})).body.code,'training-not-synced');
   const destination=trainingBefore.routineIds.source,delivered={routines:[{...trainingBefore.bundle.routines[0],id:destination}],workouts:[],unit:'kg',planDeliveries:[{id:trainingBefore.deliveryKey,acceptedAt:Date.parse(trainingBefore.acceptedAt),routineIds:[destination]}]};

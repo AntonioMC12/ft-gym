@@ -48,6 +48,7 @@ services:
       - test/centers-integration/stripe-http.test.js
       - test/centers-integration/platform-pages.test.js
       - test/centers-integration/training-proposals.test.js
+      - test/centers-integration/access.test.js
     environment:
       CENTERS_TEST_DATABASE_URL: postgresql://centers_app:fictional-runtime-test-only@centers-test-db/ft_gym_centers_test
       CENTERS_TEST_MIGRATION_DATABASE_URL: postgresql://centers_migrator:fictional-migrator-test-only@centers-test-db/ft_gym_centers_test

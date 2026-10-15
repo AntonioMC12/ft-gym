@@ -1,6 +1,19 @@
 import { api } from './api.js'
 
 export const centersMe = () => api('/api/centers/me')
+export const centerAccess=(centerId,options={},own=false)=>api('/api/centers/'+(own?'own/':'')+'access?'+new URLSearchParams({centerId,...options}))
+export const centerAccessVisits=(centerId,options={},own=false)=>api('/api/centers/'+(own?'own/':'')+'access/visits?'+new URLSearchParams({centerId,...options}))
+export const centerAccessMember=(centerId,memberId)=>api('/api/centers/access/member?'+new URLSearchParams({centerId,memberId}))
+export const consumeCenterAccess=(body,key)=>api('/api/centers/access/consume',{method:'POST',headers:{'X-Center-Device-Key':key},body:JSON.stringify(body)})
+export function accessErrorKey(error){
+  const code=error?.data?.code||error?.code
+  if(['access-unavailable','access-token-expired'].includes(code))return 'Access is unavailable. Reload or generate another QR.'
+  if(['access-device-invalid','access-device-changed'].includes(code))return 'Activate this reception device again.'
+  if(['access-rate-limited','access-device-limit'].includes(code))return 'Access limit reached. Wait before trying again.'
+  if(['invalid-access-policy','invalid-input'].includes(code))return 'Check the access settings and opening hours.'
+  if(code==='access-hold-exists')return 'This member already has a manual access hold.'
+  return centersErrorKey(error)
+}
 export const centerTraining=(centerId,options={},own=false)=>api('/api/centers/'+(own?'own/':'')+'training?'+new URLSearchParams({centerId,...options}))
 export const centerTrainingProposal=(centerId,id,own=false,versionId=null)=>api('/api/centers/'+(own?'own/':'')+'training/proposal?'+new URLSearchParams({centerId,id,...(versionId?{versionId}:{})}))
 export function trainingErrorKey(error){

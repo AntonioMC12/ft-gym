@@ -5,7 +5,7 @@ $ErrorActionPreference='Stop'
 $PSNativeCommandUseErrorActionPreference=$false
 if($Share -and $Local){throw 'Choose either -Share or -Local.'}
 $previewRoot=Split-Path $PSScriptRoot -Parent
-$dockerCommand=Get-Command docker -CommandType Application -ErrorAction SilentlyContinue
+$dockerCommand=Get-Command docker -CommandType Application -ErrorAction SilentlyContinue | Select-Object -First 1
 $dockerPath=if($dockerCommand){$dockerCommand.Source}else{Join-Path $env:LOCALAPPDATA 'Programs/DockerDesktop/resources/bin/docker.exe'}
 if(!(Test-Path -LiteralPath $dockerPath)){throw 'Docker Desktop CLI was not found.'}
 function Invoke-PreviewDocker([string[]]$Arguments){

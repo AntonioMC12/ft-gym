@@ -1,4 +1,5 @@
 // @vitest-environment happy-dom
+vi.mock('./PassProducts.jsx',()=>({default:()=>null}))
 import React, { act } from 'react'
 import { createRoot } from 'react-dom/client'
 import { MemoryRouter,Routes,Route,useLocation,useNavigate } from 'react-router-dom'

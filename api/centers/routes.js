@@ -1,3 +1,5 @@
+import {passOptions} from './domain/passes.js';
+import {listPassProducts,createPassProduct,archivePassProduct,previewPassPurchase,buyPass,listPasses,revokePass} from './services/passes.js';
 import {listRetention,configureRetention,reviewRetention} from './services/retention.js';
 import {retentionOptions} from './domain/retention.js';
 import {progressSelectors,ownProgressShare,changeProgressShare,readSharedProgress} from './services/shared-progress.js';
@@ -161,6 +163,24 @@ export function centersRoutes({ config, database, json, readSession, readBody, a
     'POST /api/centers/classes/series/cancel':mutate(false,(context,body)=>cancelClassSeries(context,body,{platform:isPlatformUser(config,context.user)})),
     'POST /api/centers/classes/series/preview':mutate(false,(context,body)=>previewClassSeries(context,body,{platform:isPlatformUser(config,context.user)})),
     'POST /api/centers/classes/series/create':mutate(false,(context,body)=>createClassSeries(context,body,{platform:isPlatformUser(config,context.user)})),
+
+    'POST /api/centers/passes/products/create':mutate(false,(context,body)=>createPassProduct(context,body,{platform:isPlatformUser(config,context.user)})),
+    'POST /api/centers/passes/products/archive':mutate(false,(context,body)=>archivePassProduct(context,body,{platform:isPlatformUser(config,context.user)})),
+    'POST /api/centers/passes/preview':mutate(false,(context,body)=>previewPassPurchase(context,body,{platform:isPlatformUser(config,context.user)})),
+    'POST /api/centers/passes/purchase':mutate(false,(context,body)=>buyPass(context,body,{platform:isPlatformUser(config,context.user)})),
+    'POST /api/centers/passes/revoke':mutate(false,(context,body)=>revokePass(context,body,{platform:isPlatformUser(config,context.user)})),
+    'GET /api/centers/passes/products':async(req,res)=>{
+      const user=guard(req,res);if(!user)return;const sv=user.sv||0,params=new URL(req.url,'http://x').searchParams,centerId=params.get('centerId');if(!recordId(centerId))return json(res,404,{error:'not found',code:'not-found'});
+      try{const options=passOptions(params,{own:false,products:true});const result=await listPassProducts(database,user.id,centerId,options,{platform:isPlatformUser(config,user)});if(!current(req,user,sv))return json(res,401,{error:'not signed in'});return json(res,200,result)}catch(e){return failure(res,e)}
+    },
+    'GET /api/centers/passes':async(req,res)=>{
+      const user=guard(req,res);if(!user)return;const sv=user.sv||0,params=new URL(req.url,'http://x').searchParams,centerId=params.get('centerId');if(!recordId(centerId))return json(res,404,{error:'not found',code:'not-found'});
+      try{const options=passOptions(params,{own:false,products:false});if(!recordId(params.get('memberId')))throw new CentersError(400,'invalid-input','member required');const result=await listPasses(database,user.id,centerId,params.get('memberId'),options,{own:false,platform:isPlatformUser(config,user)});if(!current(req,user,sv))return json(res,401,{error:'not signed in'});return json(res,200,result)}catch(e){return failure(res,e)}
+    },
+    'GET /api/centers/own/passes':async(req,res)=>{
+      const user=guard(req,res);if(!user)return;const sv=user.sv||0,params=new URL(req.url,'http://x').searchParams,centerId=params.get('centerId');if(!recordId(centerId))return json(res,404,{error:'not found',code:'not-found'});
+      try{const options=passOptions(params,{own:true,products:false});const result=await listPasses(database,user.id,centerId,null,options,{own:true,platform:isPlatformUser(config,user)});if(!current(req,user,sv))return json(res,401,{error:'not signed in'});return json(res,200,result)}catch(e){return failure(res,e)}
+    },
     'GET /api/centers/retention':async(req,res)=>{
       const user=guard(req,res);if(!user)return;const sv=user.sv||0,params=new URL(req.url,'http://x').searchParams,centerId=params.get('centerId');if(!recordId(centerId))return json(res,404,{error:'not found',code:'not-found'});
       try{const result=await listRetention(database,user.id,centerId,retentionOptions(params),{platform:isPlatformUser(config,user)});if(!current(req,user,sv))return json(res,401,{error:'not signed in'});return json(res,200,result)}catch(e){return failure(res,e)}

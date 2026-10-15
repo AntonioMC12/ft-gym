@@ -18,6 +18,7 @@ export default function AccessPanel({centerId,ownerUid,active=true,canManage=fal
   const [data,setData]=useState(null),[draft,setDraft]=useState(null),[deviceName,setDeviceName]=useState(''),[paired,setPaired]=useState(null),[code,setCode]=useState(''),[result,setResult]=useState(null)
   const [visits,setVisits]=useState([]),[visitCursor,setVisitCursor]=useState(null),[busy,setBusy]=useState(false),[error,setError]=useState(null),[revision,setRevision]=useState(0)
   useUnsavedCenterForm(draft&&data&&JSON.stringify(draft)!==JSON.stringify(data.policy)?JSON.stringify(draft):null,!!data&&busy)
+  const policyDraft=useRef(null);policyDraft.current=JSON.stringify(draft)
   const life=useRef(0),pending=useRef(false),intent=useRef(null),scanIntent=useRef(null),camera=useRef(null)
   const current=epoch=>life.current===epoch&&useStore.getState().user?.id===ownerUid
   const failure=e=>{setError(e);if(['access-device-invalid','access-device-changed'].includes(e?.data?.code||e?.code))setPaired(null);useCenters.getState().revokeOn(e)}
@@ -40,8 +41,8 @@ export default function AccessPanel({centerId,ownerUid,active=true,canManage=fal
   const save=()=>{
     const epoch=life.current;if(!draft||!data||!canManage||!active||pending.current)return
     if(!Number.isSafeInteger(draft.graceDays)||draft.graceDays<0||draft.graceDays>365){failure({code:'invalid-access-policy'});return}
-    const body={centerId,version:data.version,policy:{...draft}}
-    confirmSheet({title:t('Access rules'),message:t('Recheck opening hours, contracts and manual holds before enabling access.'),confirmText:t('Save'),onConfirm:()=>command('policy',body,epoch)})
+    const signature=policyDraft.current,body={centerId,version:data.version,policy:{...draft}}
+    confirmSheet({title:t('Access rules'),message:t('Recheck opening hours, contracts and manual holds before enabling access.'),confirmText:t('Save'),onConfirm:()=>{if(signature===policyDraft.current)return command('policy',body,epoch)}})
   }
   const device=(kind,row)=>{
     const epoch=life.current,body=kind==='create'?{centerId,name:deviceName.trim()}:{centerId,id:row.id,version:row.version}
@@ -83,7 +84,7 @@ export default function AccessPanel({centerId,ownerUid,active=true,canManage=fal
   const deviceMore=useAutoMore(moreDevices),visitMore=useAutoMore(moreVisits)
   return <><Section title={t('Access rules')}><div className="centers-form">
     {draft&&<>
-      {['enabled','requireSubscription','denyOverdue'].map((key,index)=><Row key={key} title={t(['Enable center access','Require a current subscription','Deny entry for overdue debt'][index])} value={<Switch checked={draft[key]} aria-label={t(['Enable center access','Require a current subscription','Deny entry for overdue debt'][index])} disabled={busy||!canManage||!active} onChange={value=>{if(canManage&&active&&!busy)setDraft(old=>({...old,[key]:value}))}}/>}/>)}
+      {['enabled','requireSubscription','denyOverdue','allowPasses'].map((key,index)=><Row key={key} title={t(['Enable center access','Require a current subscription','Deny entry for overdue debt','Allow explicitly selected visit passes'][index])} value={<Switch checked={draft[key]} aria-label={t(['Enable center access','Require a current subscription','Deny entry for overdue debt'][index])} disabled={busy||!canManage||!active} onChange={value=>{if(canManage&&active&&!busy)setDraft(old=>({...old,[key]:value}))}}/>}/>)}
       <label className="centers-field"><span>{t('Access debt grace (days)')}</span><NumberField className="field" value={draft.graceDays} decimal={false} disabled={busy||!canManage||!active} onChange={value=>setDraft(old=>({...old,graceDays:value}))}/></label>
       {canManage&&<Button disabled={busy||!active} onClick={save}>{t('Save')}</Button>}
     </>}

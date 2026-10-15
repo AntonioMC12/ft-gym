@@ -71,6 +71,7 @@ services:
       - test/centers-integration/access.test.js
       - test/centers-integration/metrics.test.js
       - test/centers-integration/retention.test.js
+      - test/centers-integration/passes.test.js
       - test/centers-integration/member-imports.test.js
       - test/centers-integration/role-time.test.js
       - test/centers-integration/freeze-requests.test.js

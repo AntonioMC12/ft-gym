@@ -10,6 +10,7 @@
 - C27: implementación test con fixture HTTP terminada; blocked por ensayo sandbox real pendiente (requiere credenciales/cuenta y autorización específica). No repetir adaptador/webhooks/UI.
 - C32: agregados de visitas implementados y comprobados en schema037. blocked solo por ocupación física: no se registran salidas; hace falta un contrato de presencia verificable o aceptar excluir ese KPI. Ninguna métrica viene de /api/activity. No rehacer los agregados.
 - Preview anterior:409f825c-dirty/schema035, datos y túnel conservados. Reconstruir al cerrar cambios; dirty corresponde a archivos previos del usuario. CI usa centers-ci-db/ft_gym_ci_centers_test, nunca PostgreSQL persistente de preview.
+- C38 terminada técnicamente en041: catálogo inmutable, bonos de pago/promociones, recibo del ledger y consumo QR explícito atómico. Recuperación con bono pagado y un crédito consumido1/1; siguientes pasos: actualizar preview conservando datos/túnel y registrar bloqueos externos restantes. Ver CENTERS_PASSES.md.
 - C33 terminada técnicamente en039: regla opt-in explícita sobre admisiones, episodios sin duplicados y gestiones append-only. No mensajes/cobros/cambios de acceso. Ver CENTERS_RETENTION.md.
 - C30 terminada técnicamente en038: compartir por centro, rutinas/fechas explícitas y solo conteos de sesiones guardadas/nombres. Revocación, vínculo y roles actuales; sin cargas, fotos, notas, ejercicios o perfil. Ver CENTERS_SHARED_PROGRESS.md. C35 depende del gate externo de C27. C28 necesita proceso bancario; C39 requisitos fiscales; C41/C42 activación/aceptación reales.
 - Uso inicial:0%principal,45%semanal consumidos tras renovación natural. Continuar hasta aproximadamente95%principal (o límite que se agote primero), sin créditos de reset. Al terminar guardar/documentar y apagar sin forzar aplicaciones, autorizado por el mensaje vigente.
@@ -124,7 +125,7 @@ Estados permitidos: `todo`, `in_progress`, `done`, `blocked`. Una tarea done nec
 | C35 | F12 | Alta pública | todo |
 | C36 | F12 | CSV | done |
 | C37 | F12 | Solicitud de congelación | done |
-| C38 | F12 | Bonos/promociones | todo |
+| C38 | F12 | Bonos/promociones | done |
 | C39 | F12 | Facturas y fiscalidad | todo |
 | C40 | F13 | Operación y reversión | done |
 | C41 | F13 | Activación gradual | todo |
@@ -746,3 +747,15 @@ Schema039: política versionada por centro y acciones append-only. Por defecto d
 Gestión/plataforma con centro seleccionado, sin elevación de admin técnico ni acceso de entrenador. Política/visita/episodio se revalidan bajo lock antes de registrar; dos operadores no duplican el episodio, replay conserva el hecho. Acción/auditoría/clave atómicas, sin UPDATE/DELETE runtime. SQL enfocado3/3 incluye privacidad/centro/rol, concurrencia, nueva admisión real que invalida aviso antiguo, paginación real31casos/cursor actor/regla y rollback de auditoría. Dominio2/2 y contrato OpenAPI a continuación. UI Retention+Centers+pt-BR32/32: umbral vacío, confirmación concreta, resultado explícito, motivo para descarte, reintento estable, contexto/confirmación obsoletos, cursor y texto inerte. Build correcto,2115cadenas/18×2733claves. No suites generales ni restore/revisión visual, aplazados según instrucción vigente. Logs externos centers-retention-*.log.
 
 C33 pasa a done técnico por criterios: admisiones físicas validadas, umbrales elegidos y ausencia de duplicados. «Contactado» registra gestión manual, no envía mensajes. La regla puede producir casos para revisar, no certifica ausencia física ni predice bajas. Con ello no quedan implementaciones previas abiertas salvo bloqueos concretos C27(sandbox real) y C32(presencia sin salidas). Siguiente tarea independiente preparada por el roadmap: C38, dependiente de C31/C20 ya cerrados, con términos explícitos y sin cobros reales.
+
+## Inicio C38 — bonos independientes de la cuota
+
+Dependencias C31/C20 cerradas técnicamente. Términos elegidos por responsable, catálogo inmutable, vista previa y confirmación, recibo único del ledger existente para bonos de pago y promoción gratuita explícita. Elegir bono al generar QR; un crédito por admisión, nunca al mostrar QR. No modifica contrato principal ni activa socios. Caducidad exclusiva por día del centro; revocación no equivale a devolución. Pruebas económicas, aislamiento y concurrencia esenciales; suites generales/visual diferidas.
+
+## C38 — implementación terminada, cierre de recuperación pendiente
+
+Schema040/041: términos inmutables, adquisición con quoteHash y recibo pareado del ledger, promociones gratis sin recibo cero, revocación append-only, financiación por saldo neto y consumo ligado a visita/QR. La selección explícita solo sustituye el requisito de cuota; permisos, vínculo, horario, bloqueos y deuda siguen vigentes. API/SQL5/5 nuevos + pago existente1/1 + acceso anterior2/2; dominio/acceso/OpenAPI11/11. UI de bonos/recibos/padres45/45; QR/política13/13 tras corregir silencio con acceso desactivado y respuesta tardía al cambiar selección. Build correcto;2143 textos presentes y18 locales de2766 claves. Sin suites generales ni revisión visual. Se ejecuta una recuperación esencial con adquisición pagada y un crédito ya consumido, porque se ha ampliado el ledger económico; no se repite en cada tarea. Logs centers-passes-* fuera del repositorio. C38 se mantiene in_progress hasta ese cierre y evidencia final.
+
+## C38 — cierre técnico y recuperación041
+
+Recuperación desde cero1/1 en dos PostgreSQL tmpfs independientes: adquisición financiada, recibo/pago y crédito consumido conservados, reintento no repone entradas ni duplica compra, historial de visitas y RLS intactos; status041. Se ajustaron expectativas antiguas de fixture por el nuevo pago/visita y se reconstruyó la imagen base de tests antes del worker (Dockerfile.recovery deriva de ella), tras detectar una base039 obsoleta. No se atribuyen esos fallos de montaje/fixture a regresiones del producto. Evidencia final: centers-passes-recovery.log. C38 pasa a done técnico; revisión visual, suites generales y activación comercial real siguen aplazadas.

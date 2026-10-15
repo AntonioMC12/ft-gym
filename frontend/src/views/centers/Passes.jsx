@@ -1,0 +1,42 @@
+import {useEffect,useRef,useState} from 'react'
+import {Section,Row,Button,SelectRow,TextField} from '../../components/ui.jsx'
+import {centerPasses,centerPassProducts,centerCommand,passesErrorKey} from '../../lib/centers-api.js'
+import {minorToPrice} from '../../lib/membership-price.js'
+import {useAutoMore} from '../../lib/use-auto-more.js'
+import {useStore} from '../../store/useStore.js'
+import {useCenters} from '../../store/useCenters.js'
+import {confirmSheet} from '../../sheets.jsx'
+import {useUnsavedCenterForm} from './NavigationGuard.jsx'
+import {passSummary} from './PassProducts.jsx'
+import {t} from '../../lib/i18n.js'
+export default function Passes({centerId,ownerUid,memberId,own=false,today,active=true,revision=0,changed=()=>{},onSelect,selectedId=''}){
+  const [rows,setRows]=useState([]),[cursor,setCursor]=useState(null),[products,setProducts]=useState([]),[productCursor,setProductCursor]=useState(null),[productId,setProductId]=useState(''),[startsOn,setStartsOn]=useState(''),[editor,setEditor]=useState(false),[quote,setQuote]=useState(null),[revoke,setRevoke]=useState(null),[reason,setReason]=useState(''),[busy,setBusy]=useState(false),[error,setError]=useState(null),[reload,setReload]=useState(0)
+  const life=useRef(0),pending=useRef(false),intent=useRef(null),draft=useRef(null),selectRef=useRef(onSelect);selectRef.current=onSelect;draft.current=JSON.stringify({productId,startsOn,revoke:revoke?.id,reason})
+  const current=e=>life.current===e&&useStore.getState().user?.id===ownerUid
+  const fail=e=>{setError(e);useCenters.getState().revokeOn(e)}
+  useUnsavedCenterForm(editor||revoke?draft.current:null,busy)
+  useEffect(()=>{const epoch=++life.current;pending.current=true;setBusy(true);setError(null);setRows([]);setCursor(null);setEditor(false);setQuote(null);setRevoke(null);setReason('');intent.current=null;selectRef.current?.(null)
+    centerPasses(centerId,own?{}:{memberId},own).then(page=>{if(current(epoch)){setRows(page.passes);setCursor(page.nextCursor)}}).catch(e=>{if(current(epoch))fail(e)}).finally(()=>{if(current(epoch)){pending.current=false;setBusy(false)}});return()=>{life.current++;pending.current=false}
+  },[centerId,ownerUid,memberId,own,revision,reload])
+  const more=async()=>{if(!cursor||pending.current)return;const epoch=life.current;pending.current=true;setBusy(true);try{const page=await centerPasses(centerId,{...(!own?{memberId}:{}),cursor},own);if(current(epoch)){setRows(old=>[...old,...page.passes]);setCursor(page.nextCursor)}}catch(e){if(current(epoch))fail(e)}finally{if(current(epoch)){pending.current=false;setBusy(false)}}}
+  const moreRef=useAutoMore(more)
+  const catalog=async(more=false)=>{if(pending.current)return;const epoch=life.current;pending.current=true;setBusy(true);setError(null);try{const page=await centerPassProducts(centerId,more?{cursor:productCursor}:{});if(current(epoch)){setProducts(old=>more?[...old,...page.products]:page.products);setProductCursor(page.nextCursor);if(!more){setEditor(true);setProductId('');setStartsOn(today||'');setQuote(null)}}}catch(e){if(current(epoch))fail(e)}finally{if(current(epoch)){pending.current=false;setBusy(false)}}}
+  const preview=async()=>{if(pending.current)return;const epoch=life.current,signature=draft.current;pending.current=true;setBusy(true);setError(null);try{const result=await centerCommand('/api/centers/passes/preview',{centerId,memberId,productId,startsOn});if(current(epoch)&&draft.current===signature)setQuote(result)}catch(e){if(current(epoch))fail(e)}finally{if(current(epoch)){pending.current=false;setBusy(false)}}}
+  const purchase=()=>{if(!quote)return;const epoch=life.current,signature=draft.current,q=quote.quote;confirmSheet({title:t('Assign pass'),message:`${q.memberName} · ${q.product.name} · ${q.product.credits} ${t('Pass credits')} · ${q.startsOn} → ${q.endsOn} (${t('Pass expiry is exclusive.')}) · ${minorToPrice(q.product.totalMinor)} EUR · ${t('Paid passes require a fully settled receipt. Refunds suspend unused credits.')} · ${t('This does not change the main subscription.')}`,confirmText:t('Assign pass'),onConfirm:async()=>{
+      if(!current(epoch)||signature!==draft.current||pending.current)return;pending.current=true;setBusy(true);setError(null);const body={centerId,memberId,productId,startsOn,quoteHash:quote.quoteHash},content=JSON.stringify(body);if(intent.current?.content!==content)intent.current={content,id:crypto.randomUUID()}
+      try{await centerCommand('/api/centers/passes/purchase',{...body,requestId:intent.current.id});if(current(epoch)){intent.current=null;setEditor(false);setQuote(null);setReload(n=>n+1);changed()}}catch(e){if(current(epoch))fail(e)}finally{if(current(epoch)){pending.current=false;setBusy(false)}}
+    }})}
+  const revokeNow=()=>{const epoch=life.current,signature=draft.current,id=revoke.id;confirmSheet({title:t('Revoke pass'),message:revoke.name+' · '+reason+' · '+t('Revoking a pass does not issue a refund.'),confirmText:t('Revoke pass'),danger:true,onConfirm:async()=>{if(!current(epoch)||signature!==draft.current||pending.current)return;pending.current=true;setBusy(true);const content=JSON.stringify({id,reason});if(intent.current?.content!==content)intent.current={content,id:crypto.randomUUID()};try{await centerCommand('/api/centers/passes/revoke',{centerId,id,reason,requestId:intent.current.id});if(current(epoch)){intent.current=null;setRevoke(null);setReason('');setReload(n=>n+1);changed()}}catch(e){if(current(epoch))fail(e)}finally{if(current(epoch)){pending.current=false;setBusy(false)}}}})}
+  return <Section title={t('Visit passes')}><div className="centers-form"><p className="small muted">{t('This does not change the main subscription.')} {t('Pass expiry is exclusive.')}</p>
+    {!own&&!editor&&active&&<Button disabled={busy} onClick={()=>catalog()}>{t('Assign pass')}</Button>}
+    {editor&&<><SelectRow title={t('Pass product')} value={productId} disabled={busy} options={[{value:'',label:t('Not configured')},...products.map(p=>({value:p.id,label:p.name+' · '+passSummary(p)}))]} onChange={v=>{setProductId(v);setQuote(null)}}/>{productCursor&&<Button disabled={busy} onClick={()=>catalog(true)}>{t('More pass products')}</Button>}
+      <label className="centers-field"><span>{t('Pass starts on')}</span><TextField type="date" min={today} value={startsOn} disabled={busy} onChange={e=>{setStartsOn(e.target.value);setQuote(null)}}/></label>
+      {quote?<><Row title={quote.quote.product.name} subtitle={quote.quote.startsOn+' → '+quote.quote.endsOn} value={minorToPrice(quote.quote.product.totalMinor)+' EUR'}/><Button disabled={busy} variant="primary" onClick={purchase}>{t('Assign pass')}</Button></>:<Button disabled={busy||!productId||!startsOn} onClick={preview}>{t('Preview pass purchase')}</Button>}
+      <Button disabled={busy} onClick={()=>{setEditor(false);setQuote(null);intent.current=null}}>{t('Cancel')}</Button></>}
+    {own&&onSelect&&<SelectRow title={t('Access entitlement')} value={selectedId} disabled={busy} options={[{value:'',label:t('Main subscription')},...rows.filter(p=>p.canUse).map(p=>({value:p.id,label:p.name+' · '+p.remaining+' '+t('Credits remaining')}))]} onChange={id=>onSelect(rows.find(p=>p.id===id)||null)}/>}
+    {rows.map(p=><div key={p.id}><Row title={p.name} subtitle={`${p.startsOn} → ${p.endsOn} · ${p.revoked?t('Revoked pass'):p.available?t('Available pass'):t('Unavailable pass')}`} value={p.remaining+' / '+p.credits}/>{p.receiptId&&<p className="small muted">{t('Paid passes require a fully settled receipt. Refunds suspend unused credits.')}</p>}{!own&&!p.revoked&&<Button disabled={busy||editor||!!revoke} onClick={()=>{setRevoke(p);setReason('');intent.current=null}}>{t('Revoke pass')}</Button>}</div>)}
+    {revoke&&<><Row title={revoke.name}/><label className="centers-field"><span>{t('Reason')}</span><TextField maxLength={250} value={reason} disabled={busy} onChange={e=>setReason(e.target.value)}/></label><Button disabled={busy||!reason.trim()} onClick={revokeNow}>{t('Revoke pass')}</Button><Button disabled={busy} onClick={()=>{setRevoke(null);setReason('');intent.current=null}}>{t('Cancel')}</Button></>}
+    {!rows.length&&!busy&&!error&&<p>{t('No passes available.')}</p>}{cursor&&<Button ref={moreRef} disabled={busy} onClick={more}>{t('Show more')}</Button>}<Button disabled={busy||editor||!!revoke} onClick={()=>setReload(n=>n+1)}>{t('Reload passes')}</Button>
+    {busy&&<p role="status">{t('Loading…')}</p>}{error&&<p role="alert">{t(passesErrorKey(error))}</p>}
+  </div></Section>
+}

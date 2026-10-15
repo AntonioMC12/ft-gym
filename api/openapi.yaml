@@ -420,6 +420,146 @@ paths:
         '400': { description: Invalid command or missing reason. }
         '403': { description: Management capability required. }
         '409': { description: class-closed, version-conflict or idempotency-conflict. }
+  /api/centers/passes/products:
+    get:
+      tags: [centers]
+      operationId: getPassesProducts
+      summary: "List immutable pass products (manager; cursor pages of30)"
+      description: "Selected center and current capability required; explicit platform allowlist supported for administrative routes only. Real cursor pagination30. Purchases require active membership and do not alter its subscription. Starts on chosen local day, exclusive expiry after validDays. Paid grants require a fully settled receipt; refunds suspend unused credits, never restore consumed ones. Promotions have no receipt. Receipts are not fiscal invoices. No external charge or message is sent. See docs/dev/CENTERS_PASSES.md."
+      parameters:
+        - { name: centerId, in: query, required: true, schema: { type: string } }
+        - { name: cursor, in: query, schema: { type: string, maxLength: 1024 } }
+        - { name: archived, in: query, schema: { type: string, enum: [all, active], default: active } }
+      responses:
+        '200': { description: "Current products or passes and nextCursor." }
+        '400': { description: Invalid explicit terms, fields or cursor. }
+        '401': { description: Missing current session. }
+        '403': { description: Missing capability. }
+        '404': { description: Center or resource not visible. }
+        '409': { description: Inactive membership, changed quote, archived product or retry conflict. }
+  /api/centers/passes/products/create:
+    post:
+      tags: [centers]
+      operationId: postPassesProductsCreate
+      summary: "Create explicit paid or free promotional terms"
+      description: "Selected center and current capability required; explicit platform allowlist supported for administrative routes only. Real cursor pagination30. Purchases require active membership and do not alter its subscription. Starts on chosen local day, exclusive expiry after validDays. Paid grants require a fully settled receipt; refunds suspend unused credits, never restore consumed ones. Promotions have no receipt. Receipts are not fiscal invoices. No external charge or message is sent. See docs/dev/CENTERS_PASSES.md."
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/CenterPassCreate' }
+      responses:
+        '200': { description: "Current product, pass or quote and quoteHash." }
+        '400': { description: Invalid explicit terms, fields or cursor. }
+        '401': { description: Missing current session. }
+        '403': { description: Missing capability. }
+        '404': { description: Center or resource not visible. }
+        '409': { description: Inactive membership, changed quote, archived product or retry conflict. }
+  /api/centers/passes/products/archive:
+    post:
+      tags: [centers]
+      operationId: postPassesProductsArchive
+      summary: "Archive product without altering purchased passes"
+      description: "Selected center and current capability required; explicit platform allowlist supported for administrative routes only. Real cursor pagination30. Purchases require active membership and do not alter its subscription. Starts on chosen local day, exclusive expiry after validDays. Paid grants require a fully settled receipt; refunds suspend unused credits, never restore consumed ones. Promotions have no receipt. Receipts are not fiscal invoices. No external charge or message is sent. See docs/dev/CENTERS_PASSES.md."
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/CenterPassArchive' }
+      responses:
+        '200': { description: "Current product, pass or quote and quoteHash." }
+        '400': { description: Invalid explicit terms, fields or cursor. }
+        '401': { description: Missing current session. }
+        '403': { description: Missing capability. }
+        '404': { description: Center or resource not visible. }
+        '409': { description: Inactive membership, changed quote, archived product or retry conflict. }
+  /api/centers/passes/preview:
+    post:
+      tags: [centers]
+      operationId: postPassesPreview
+      summary: "Quote one independent pass for an active member"
+      description: "Selected center and current capability required; explicit platform allowlist supported for administrative routes only. Real cursor pagination30. Purchases require active membership and do not alter its subscription. Starts on chosen local day, exclusive expiry after validDays. Paid grants require a fully settled receipt; refunds suspend unused credits, never restore consumed ones. Promotions have no receipt. Receipts are not fiscal invoices. No external charge or message is sent. See docs/dev/CENTERS_PASSES.md."
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/CenterPassPreview' }
+      responses:
+        '200': { description: "Current product, pass or quote and quoteHash." }
+        '400': { description: Invalid explicit terms, fields or cursor. }
+        '401': { description: Missing current session. }
+        '403': { description: Missing capability. }
+        '404': { description: Center or resource not visible. }
+        '409': { description: Inactive membership, changed quote, archived product or retry conflict. }
+  /api/centers/passes/purchase:
+    post:
+      tags: [centers]
+      operationId: postPassesPurchase
+      summary: "Confirm current quote atomically with existing receipt ledger"
+      description: "Selected center and current capability required; explicit platform allowlist supported for administrative routes only. Real cursor pagination30. Purchases require active membership and do not alter its subscription. Starts on chosen local day, exclusive expiry after validDays. Paid grants require a fully settled receipt; refunds suspend unused credits, never restore consumed ones. Promotions have no receipt. Receipts are not fiscal invoices. No external charge or message is sent. See docs/dev/CENTERS_PASSES.md."
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/CenterPassPurchase' }
+      responses:
+        '200': { description: "Current product, pass or quote and quoteHash." }
+        '400': { description: Invalid explicit terms, fields or cursor. }
+        '401': { description: Missing current session. }
+        '403': { description: Missing capability. }
+        '404': { description: Center or resource not visible. }
+        '409': { description: Inactive membership, changed quote, archived product or retry conflict. }
+  /api/centers/passes/revoke:
+    post:
+      tags: [centers]
+      operationId: postPassesRevoke
+      summary: "Append revocation; never automatically refund"
+      description: "Selected center and current capability required; explicit platform allowlist supported for administrative routes only. Real cursor pagination30. Purchases require active membership and do not alter its subscription. Starts on chosen local day, exclusive expiry after validDays. Paid grants require a fully settled receipt; refunds suspend unused credits, never restore consumed ones. Promotions have no receipt. Receipts are not fiscal invoices. No external charge or message is sent. See docs/dev/CENTERS_PASSES.md."
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/CenterPassRevoke' }
+      responses:
+        '200': { description: "Current product, pass or quote and quoteHash." }
+        '400': { description: Invalid explicit terms, fields or cursor. }
+        '401': { description: Missing current session. }
+        '403': { description: Missing capability. }
+        '404': { description: Center or resource not visible. }
+        '409': { description: Inactive membership, changed quote, archived product or retry conflict. }
+  /api/centers/passes:
+    get:
+      tags: [centers]
+      operationId: getPasses
+      summary: "List selected member passes (manager)"
+      description: "Selected center and current capability required; explicit platform allowlist supported for administrative routes only. Real cursor pagination30. Purchases require active membership and do not alter its subscription. Starts on chosen local day, exclusive expiry after validDays. Paid grants require a fully settled receipt; refunds suspend unused credits, never restore consumed ones. Promotions have no receipt. Receipts are not fiscal invoices. No external charge or message is sent. See docs/dev/CENTERS_PASSES.md."
+      parameters:
+        - { name: centerId, in: query, required: true, schema: { type: string } }
+        - { name: cursor, in: query, schema: { type: string, maxLength: 1024 } }
+        - { name: memberId, in: query, required: true, schema: { type: string } }
+      responses:
+        '200': { description: "Current products or passes and nextCursor." }
+        '400': { description: Invalid explicit terms, fields or cursor. }
+        '401': { description: Missing current session. }
+        '403': { description: Missing capability. }
+        '404': { description: Center or resource not visible. }
+        '409': { description: Inactive membership, changed quote, archived product or retry conflict. }
+  /api/centers/own/passes:
+    get:
+      tags: [centers]
+      operationId: getOwnPasses
+      summary: "List session member passes; no member or account selector"
+      description: "Selected center and current capability required; explicit platform allowlist supported for administrative routes only. Real cursor pagination30. Purchases require active membership and do not alter its subscription. Starts on chosen local day, exclusive expiry after validDays. Paid grants require a fully settled receipt; refunds suspend unused credits, never restore consumed ones. Promotions have no receipt. Receipts are not fiscal invoices. No external charge or message is sent. See docs/dev/CENTERS_PASSES.md."
+      parameters:
+        - { name: centerId, in: query, required: true, schema: { type: string } }
+        - { name: cursor, in: query, schema: { type: string, maxLength: 1024 } }
+      responses:
+        '200': { description: "Current products or passes and nextCursor." }
+        '400': { description: Invalid explicit terms, fields or cursor. }
+        '401': { description: Missing current session. }
+        '403': { description: Missing capability. }
+        '404': { description: Center or resource not visible. }
+        '409': { description: Inactive membership, changed quote, archived product or retry conflict. }
   /api/centers/retention:
     get:
       tags: [centers]
@@ -5940,13 +6080,20 @@ components:
                 - { type: 'null' }
               description: Unknown if a positive balance has no supported debt policy. Never silently substitute zero.
             overduePolicyComplete: { type: boolean }
-    CenterAccessPolicy: {"type":"object","additionalProperties":false,"required":["enabled","requireSubscription","denyOverdue","graceDays"],"properties":{"enabled":{"type":"boolean"},"requireSubscription":{"type":"boolean"},"denyOverdue":{"type":"boolean"},"graceDays":{"type":"integer","minimum":0,"maximum":365}}}
+    CenterPassTerms: {"type":"object","additionalProperties":false,"required":["name","kind","credits","validDays","priceMinor","priceIncludesTax","taxBasisPoints"],"properties":{"name":{"type":"string","minLength":1,"maxLength":120},"kind":{"enum":["paid","promotion"]},"credits":{"type":"integer","minimum":1,"maximum":1000},"validDays":{"type":"integer","minimum":1,"maximum":3650},"priceMinor":{"$ref":"#/components/schemas/ExactMinorAmount"},"priceIncludesTax":{"type":"boolean"},"taxBasisPoints":{"type":"integer","minimum":0,"maximum":10000}}}
+    CenterPassCreate: {"type":"object","additionalProperties":false,"required":["centerId","fields","requestId"],"properties":{"centerId":{"type":"string"},"fields":{"$ref":"#/components/schemas/CenterPassTerms"},"requestId":{"type":"string","minLength":8,"maxLength":128}}}
+    CenterPassArchive: {"type":"object","additionalProperties":false,"required":["centerId","id","version","requestId"],"properties":{"centerId":{"type":"string"},"id":{"type":"string"},"version":{"type":"integer","minimum":1},"requestId":{"type":"string","minLength":8,"maxLength":128}}}
+    CenterPassPreview: {"type":"object","additionalProperties":false,"required":["centerId","memberId","productId","startsOn"],"properties":{"centerId":{"type":"string"},"memberId":{"type":"string"},"productId":{"type":"string"},"startsOn":{"type":"string","format":"date"}}}
+    CenterPassPurchase: {"type":"object","additionalProperties":false,"required":["centerId","memberId","productId","startsOn","quoteHash","requestId"],"properties":{"centerId":{"type":"string"},"memberId":{"type":"string"},"productId":{"type":"string"},"startsOn":{"type":"string","format":"date"},"quoteHash":{"type":"string","pattern":"^[a-f0-9]{64}$"},"requestId":{"type":"string","minLength":8,"maxLength":128}}}
+    CenterPassRevoke: {"type":"object","additionalProperties":false,"required":["centerId","id","reason","requestId"],"properties":{"centerId":{"type":"string"},"id":{"type":"string"},"reason":{"type":"string","minLength":1,"maxLength":250},"requestId":{"type":"string","minLength":8,"maxLength":128}}}
+    CenterPass: {"type":"object","additionalProperties":false,"required":["id","memberId","name","kind","credits","used","remaining","startsOn","endsOn","receiptId","totalMinor","currency","revoked","available","canUse"],"properties":{"id":{"type":"string"},"memberId":{"type":"string"},"name":{"type":"string"},"kind":{"enum":["paid","promotion"]},"credits":{"type":"integer"},"used":{"type":"integer"},"remaining":{"type":"integer"},"startsOn":{"type":"string","format":"date"},"endsOn":{"type":"string","format":"date"},"receiptId":{"type":["string","null"]},"totalMinor":{"$ref":"#/components/schemas/ExactMinorAmount"},"currency":{"const":"EUR"},"revoked":{"type":"boolean"},"available":{"type":"boolean"},"canUse":{"type":"boolean"}}}
+    CenterAccessPolicy: {"type":"object","additionalProperties":false,"required":["enabled","requireSubscription","denyOverdue","graceDays"],"properties":{"enabled":{"type":"boolean"},"requireSubscription":{"type":"boolean"},"denyOverdue":{"type":"boolean"},"graceDays":{"type":"integer","minimum":0,"maximum":365},"allowPasses":{"type":"boolean","default":false,"description":"Explicit pass selection only; no automatic spending."}}}
     CenterAccessPolicyCommand: {"type":"object","additionalProperties":false,"required":["centerId","version","policy","requestId"],"properties":{"centerId":{"type":"string"},"version":{"type":"integer","minimum":0},"policy":{"$ref":"#/components/schemas/CenterAccessPolicy"},"requestId":{"type":"string","minLength":8,"maxLength":128}}}
     CenterAccessDeviceCreate: {"type":"object","additionalProperties":false,"required":["centerId","name","requestId"],"properties":{"centerId":{"type":"string"},"name":{"type":"string","minLength":1,"maxLength":80},"requestId":{"type":"string","minLength":8,"maxLength":128}}}
     CenterAccessDeviceChange: {"type":"object","additionalProperties":false,"required":["centerId","id","version","requestId"],"properties":{"centerId":{"type":"string"},"id":{"type":"string"},"version":{"type":"integer","minimum":1},"requestId":{"type":"string","minLength":8,"maxLength":128}}}
     CenterAccessHoldCreate: {"type":"object","additionalProperties":false,"required":["centerId","memberId","memberVersion","reason","requestId"],"properties":{"centerId":{"type":"string"},"memberId":{"type":"string"},"memberVersion":{"type":"integer","minimum":1},"reason":{"type":"string","minLength":1,"maxLength":250},"requestId":{"type":"string","minLength":8,"maxLength":128}}}
     CenterAccessHoldRelease: {"type":"object","additionalProperties":false,"required":["centerId","memberId","id","version","requestId"],"properties":{"centerId":{"type":"string"},"memberId":{"type":"string"},"id":{"type":"string"},"version":{"type":"integer","minimum":1},"requestId":{"type":"string","minLength":8,"maxLength":128}}}
-    CenterAccessOwnToken: {"type":"object","additionalProperties":false,"required":["centerId","requestId"],"properties":{"centerId":{"type":"string"},"requestId":{"type":"string","minLength":8,"maxLength":128}}}
+    CenterAccessOwnToken: {"type":"object","additionalProperties":false,"required":["centerId","requestId"],"properties":{"centerId":{"type":"string"},"requestId":{"type":"string","minLength":8,"maxLength":128},"passId":{"type":"string","description":"Optional explicitly selected pass. One credit consumed at admission, not issuance; no silent subscription fallback."}}}
     CenterAccessScan: {"type":"object","additionalProperties":false,"required":["centerId","deviceId","token","requestId"],"properties":{"centerId":{"type":"string"},"deviceId":{"type":"string"},"token":{"type":"string","pattern":"^gqr1_[A-Za-z0-9_-]{43}$"},"requestId":{"type":"string","minLength":8,"maxLength":128}}}
     CenterTrainingBundle:
       type: object

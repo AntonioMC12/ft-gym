@@ -300,7 +300,7 @@ C40 y la activación del MVP pueden ejecutarse antes de las ampliaciones. C42 no
 
 ## Estado de ejecución de las tareas avanzadas
 
-Actualizado15octubre2026,23:42. Detalle/evidencia y bloqueos en CENTERS_PROGRESS.md; el historial anterior no sustituye el estado vigente.
+Actualizado16octubre2026. Detalle/evidencia y bloqueos en CENTERS_PROGRESS.md; el historial anterior no sustituye el estado vigente.
 
 | Tareas | Estado técnico | Lo que falta |
 |---|---|---|
@@ -308,7 +308,8 @@ Actualizado15octubre2026,23:42. Detalle/evidencia y bloqueos en CENTERS_PROGRESS
 | C27 | blocked | Ensayo con cuenta sandbox real y autorización/credenciales; implementación con HTTP ficticio terminada |
 | C32 | blocked | Agregados de visitas terminados en037; ocupación física sin salidas requiere definición/datos o excluir ese KPI |
 | C33 | done | Regla opt-in de admisiones y revisión humana,039; validación general/visual diferida |
-| C35,C38 | todo | Iniciar solo al disponer de los contratos técnicos necesarios; no confundir implementación local con gate de producción |
+| C38 | done | Catálogo inmutable, financiación en ledger y consumo QR explícito,041; recuperación1/1 y validación visual/general diferida |
+| C35 | todo | Iniciar solo al disponer de los contratos técnicos necesarios; no confundir implementación local con gate de producción |
 
 Instrucción vigente del usuario: comprobaciones enfocadas esenciales y compilación; aplazar suites generales/revisión visual completa. done acredita criterios técnicos probados, no aceptación visual o activación real. No abrir ampliaciones opcionales de una tarea ya cerrada sin una necesidad del alcance.
 

@@ -1,4 +1,5 @@
 // @vitest-environment happy-dom
+vi.mock('./Passes.jsx',()=>({default:({onSelect})=>onSelect?<><button onClick={()=>onSelect({id:'pass_one',canUse:true})}>Choose pass</button><button onClick={()=>onSelect(null)}>Choose subscription</button></>:null}))
 import React,{act} from 'react'
 import {createRoot} from 'react-dom/client'
 import {beforeEach,afterEach,it,expect,vi} from 'vitest'
@@ -39,4 +40,8 @@ it('retains the issuance request ID across a network failure and recovers the sa
 })
 it('does not offer a token for denied or inactive affiliation and keeps off/no-history quiet',async()=>{
   centerAccess.mockResolvedValue({enabled:true,allowed:false});await render();expect(button('Show access QR')).toBeUndefined();centerAccess.mockResolvedValue({enabled:true,allowed:true});await render({active:false});expect(button('Show access QR')).toBeUndefined();centerAccess.mockResolvedValue({enabled:false,allowed:false});await render({centerId:'other'});expect(host.textContent).toBe('')
+})
+
+it('requires explicit pass choice when subscription is denied and hides a pending QR if the choice changes',async()=>{
+  centerAccess.mockResolvedValue({enabled:true,allowed:false,allowPasses:true,tokenLifetimeSeconds:45});await render();expect(button('Show pass access QR')).toBeUndefined();await click('Choose pass');expect(host.textContent).toContain('One credit is consumed only when reception validates this QR.');let resolve;centerCommand.mockImplementationOnce(()=>new Promise(done=>{resolve=done}));await click('Show pass access QR');expect(centerCommand).toHaveBeenLastCalledWith('/api/centers/own/access/token',expect.objectContaining({centerId:'center1',passId:'pass_one'}));await click('Choose subscription');await act(async()=>resolve({token,remainingMs:45000}));expect(host.querySelector('[data-access-qr]')).toBeNull();expect(button('Show access QR')).toBeUndefined();
 })

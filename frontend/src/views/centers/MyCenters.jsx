@@ -38,7 +38,7 @@ function Membership({centerId,ownerUid}) {
     <SharedProgress centerId={centerId} ownerUid={ownerUid} own centerName={info.center.name}/>
     <FreezeRequests centerId={centerId} ownerUid={ownerUid} own today={info.today} active={info.center.state==='active'} canRequest={info.member.state==='active'} changed={()=>setRevision(value=>value+1)}/>
     <Classes centerId={centerId} ownerUid={ownerUid} own/>
-    <OwnAccess centerId={centerId} ownerUid={ownerUid} active={info.center.state==='active'&&info.member.state==='active'} timezone={info.center.timezone}/>
+    <OwnAccess revision={revision} centerId={centerId} ownerUid={ownerUid} active={info.center.state==='active'&&info.member.state==='active'} timezone={info.center.timezone}/>
   </>
 }
 function Content() {

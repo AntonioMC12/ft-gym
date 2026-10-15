@@ -176,3 +176,7 @@ export function progressErrorKey(error){const code=error?.data?.code||error?.cod
 
 export const centerRetention=(centerId,options={})=>api('/api/centers/retention?'+new URLSearchParams({centerId,...options}))
 export function retentionErrorKey(error){const code=error?.data?.code||error?.code;if(code==='invalid-retention-policy')return 'Choose explicit inactivity days (1–3650) and whether to include never-visited memberships.';if(code==='invalid-retention-action')return 'Choose a review outcome; dismissing requires a reason.';if(['retention-alert-changed','retention-already-reviewed','retention-unavailable'].includes(code))return 'This inactivity notice changed or was already reviewed. Reload it.';return centersErrorKey(error)}
+
+export const centerPassProducts=(centerId,options={})=>api('/api/centers/passes/products?'+new URLSearchParams({centerId,...options}))
+export const centerPasses=(centerId,options={},own=false)=>api('/api/centers/'+(own?'own/':'')+'passes?'+new URLSearchParams({centerId,...options}))
+export function passesErrorKey(error){const code=error?.data?.code||error?.code;if(code==='invalid-pass')return 'Check pass credits, validity, price and tax policy.';if(['pass-unavailable','pass-member-inactive','pass-revoked','quote-changed'].includes(code))return 'The pass or its terms changed. Reload the preview.';return centersErrorKey(error)}

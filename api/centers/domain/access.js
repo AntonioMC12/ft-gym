@@ -4,9 +4,10 @@ import {objectBody} from './validation.js';
 const invalid=message=>{throw new CentersError(400,'invalid-access-policy',message)};
 export const ACCESS_TOKEN_LIFETIME_MS=45000;
 export function accessPolicy(value){
-  objectBody(value,['enabled','requireSubscription','denyOverdue','graceDays']);
+  objectBody(value,['enabled','requireSubscription','denyOverdue','graceDays','allowPasses']);
   if(typeof value.enabled!=='boolean'||typeof value.requireSubscription!=='boolean'||typeof value.denyOverdue!=='boolean'||!Number.isSafeInteger(value.graceDays)||value.graceDays<0||value.graceDays>365)invalid('explicit access policy required');
-  return {enabled:value.enabled,requireSubscription:value.requireSubscription,denyOverdue:value.denyOverdue,graceDays:value.graceDays};
+  if(value.allowPasses!==undefined&&typeof value.allowPasses!=='boolean')invalid('explicit pass policy required');
+  return {...(value.allowPasses?{allowPasses:true}:{}),enabled:value.enabled,requireSubscription:value.requireSubscription,denyOverdue:value.denyOverdue,graceDays:value.graceDays};
 }
 export const DEFAULT_ACCESS_POLICY=Object.freeze({enabled:false,requireSubscription:true,denyOverdue:false,graceDays:15});
 

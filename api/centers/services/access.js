@@ -19,10 +19,10 @@ function privateCredential(mint,kind,id,version){
 const deviceDto=row=>({id:row.id,name:row.name,version:row.version,expiresAt:row.expires_at,revokedAt:row.revoked_at,createdAt:row.created_at});
 async function policyRow(client,centerId){
   const row=(await client.query('SELECT * FROM centers.access_policies WHERE center_id=$1',[centerId])).rows[0];
-  return row?{policy:{enabled:row.enabled,requireSubscription:row.require_subscription,denyOverdue:row.deny_overdue,graceDays:row.grace_days},version:row.version}:{policy:{...DEFAULT_ACCESS_POLICY},version:0};
+  return row?{policy:{...(row.allow_passes?{allowPasses:true}:{}),enabled:row.enabled,requireSubscription:row.require_subscription,denyOverdue:row.deny_overdue,graceDays:row.grace_days},version:row.version}:{policy:{...DEFAULT_ACCESS_POLICY},version:0};
 }
 async function ownMember(client,uid,centerId){return (await client.query('SELECT id FROM centers.members WHERE center_id=$1 AND account_uid=$2',[centerId,uid])).rows[0]?.id||missing()}
-async function decision(client,centerId,memberId){return (await client.query('SELECT centers.access_decision($1,$2) AS decision',[centerId,memberId])).rows[0].decision}
+async function decision(client,centerId,memberId,passId=null){return (await client.query('SELECT centers.access_decision($1,$2,clock_timestamp(),$3) AS decision',[centerId,memberId,passId])).rows[0].decision}
 async function deviceRow(client,centerId,id){return (await client.query('SELECT *,expires_at>clock_timestamp() AS unexpired FROM centers.access_devices WHERE center_id=$1 AND id=$2',[centerId,id])).rows[0]||missing()}
 
 export function configureAccess({database,user,checkSession},raw,{platform=false}={}){
@@ -31,8 +31,8 @@ export function configureAccess({database,user,checkSession},raw,{platform=false
   return businessTransaction(database,user.id,centerId,'access.manage',async client=>{
     const replay=await commandReplay(client,centerId,user.id,operation,requestId,hash);if(replay)return policyRow(client,centerId);
     const previous=await policyRow(client,centerId);if(previous.version!==version)conflict('version-conflict');checkSession();
-    await client.query(`INSERT INTO centers.access_policies(center_id,enabled,require_subscription,deny_overdue,grace_days,actor_uid) VALUES($1,$2,$3,$4,$5,$6)
-      ON CONFLICT(center_id) DO UPDATE SET enabled=excluded.enabled,require_subscription=excluded.require_subscription,deny_overdue=excluded.deny_overdue,grace_days=excluded.grace_days,actor_uid=excluded.actor_uid,version=access_policies.version+1,updated_at=clock_timestamp()`,[centerId,policy.enabled,policy.requireSubscription,policy.denyOverdue,policy.graceDays,user.id]);
+    await client.query(`INSERT INTO centers.access_policies(center_id,enabled,require_subscription,deny_overdue,grace_days,actor_uid,allow_passes) VALUES($1,$2,$3,$4,$5,$6,$7)
+      ON CONFLICT(center_id) DO UPDATE SET enabled=excluded.enabled,require_subscription=excluded.require_subscription,deny_overdue=excluded.deny_overdue,grace_days=excluded.grace_days,actor_uid=excluded.actor_uid,allow_passes=excluded.allow_passes,version=access_policies.version+1,updated_at=clock_timestamp()`,[centerId,policy.enabled,policy.requireSubscription,policy.denyOverdue,policy.graceDays,user.id,!!policy.allowPasses]);
     const result=await policyRow(client,centerId);await businessAudit(client,centerId,user.id,operation,centerId,{version:result.version});await rememberCommand(client,centerId,user.id,operation,requestId,hash,{version:result.version});checkSession();return result;
   },{platform});
 }
@@ -44,7 +44,7 @@ export function accessPageOptions(params,{own=false,devices=false}={}){
 export function accessStatus(database,uid,centerId,{limit=30,cursor=null}={}, {platform=false,own=false}={}){
   return businessTransaction(database,uid,centerId,own?'access.own.read':'access.manage',async client=>{
     const policy=await policyRow(client,centerId);
-    if(own){const memberId=await ownMember(client,uid,centerId),allowed=(await decision(client,centerId,memberId))==='allowed';return {enabled:policy.policy.enabled,allowed,tokenLifetimeSeconds:45}}
+    if(own){const memberId=await ownMember(client,uid,centerId),allowed=(await decision(client,centerId,memberId))==='allowed';return {...(policy.policy.allowPasses?{allowPasses:true}:{}),enabled:policy.policy.enabled,allowed,tokenLifetimeSeconds:45}}
     const scope=cursorScope(['access-devices',uid,centerId]),after=readCursor(cursor,scope),{rows}=await client.query(`SELECT *,created_at::text AS cursor_at FROM centers.access_devices WHERE center_id=$1
       AND ($2::timestamptz IS NULL OR (created_at,id)<($2::timestamptz,$3::text)) ORDER BY created_at DESC,id DESC LIMIT $4`,[centerId,after?.at||null,after?.id||null,limit+1]);
     const page=rows.slice(0,limit);return {...policy,devices:page.map(deviceDto),nextCursor:rows.length>limit?nextCursor(scope,page.at(-1)):null};
@@ -81,16 +81,16 @@ export function changeAccessDevice({database,user,checkSession,mintAccessCredent
   },{platform,allowInactive:revoke});
 }
 export function issueAccessToken({database,user,checkSession,mintAccessCredential},raw){
-  objectBody(raw,['centerId','requestId']);const centerId=idField(raw.centerId),requestId=requestField(raw.requestId),operation='access.token.issue',hash=commandHash({});
+  objectBody(raw,['centerId','requestId','passId']);const centerId=idField(raw.centerId),passId=raw.passId==null?null:idField(raw.passId),requestId=requestField(raw.requestId),operation='access.token.issue',hash=commandHash(passId?{passId}:{});
   return businessTransaction(database,user.id,centerId,'access.token.create',async client=>{
     const memberId=await ownMember(client,user.id,centerId),replay=await commandReplay(client,centerId,user.id,operation,requestId,hash);let id;
     if(replay)id=replay.id;
     else{
-      if((await decision(client,centerId,memberId))!=='allowed')conflict('access-unavailable');
+      if((await decision(client,centerId,memberId,passId))!=='allowed')conflict('access-unavailable');
       if((await client.query("SELECT count(*)::int AS n FROM centers.access_tokens WHERE center_id=$1 AND account_uid=$2 AND issued_at>clock_timestamp()-interval '1 minute'",[centerId,user.id])).rows[0].n>=6)throw new CentersError(429,'access-rate-limited','wait before requesting another access token');
       id='at_'+commandHash([centerId,user.id,requestId]).slice(0,32);const token=privateCredential(mintAccessCredential,'token',id,1);checkSession();
       await client.query('UPDATE centers.access_tokens SET invalidated_at=clock_timestamp() WHERE center_id=$1 AND member_id=$2 AND consumed_at IS NULL AND invalidated_at IS NULL',[centerId,memberId]);
-      await client.query('INSERT INTO centers.access_tokens(id,center_id,member_id,account_uid,token_hash,issued_at,expires_at) VALUES($1,$2,$3,$4,$5,clock_timestamp(),clock_timestamp())',[id,centerId,memberId,user.id,digest(token)]);
+      await client.query('INSERT INTO centers.access_tokens(id,center_id,member_id,account_uid,token_hash,issued_at,expires_at,pass_id) VALUES($1,$2,$3,$4,$5,clock_timestamp(),clock_timestamp(),$6)',[id,centerId,memberId,user.id,digest(token),passId]);
       await rememberCommand(client,centerId,user.id,operation,requestId,hash,{id});await businessAudit(client,centerId,user.id,operation,id);
     }
     const row=(await client.query('SELECT *,expires_at>clock_timestamp() AS unexpired,greatest(0,floor(extract(epoch FROM expires_at-clock_timestamp())*1000))::integer AS remaining_ms FROM centers.access_tokens WHERE center_id=$1 AND id=$2 AND member_id=$3 AND account_uid=$4',[centerId,id,memberId,user.id])).rows[0];
@@ -113,7 +113,7 @@ export function consumeAccessToken({database,user,checkSession,deviceKey,mintAcc
     if(row){
       if(row.consumed_at||row.invalidated_at)result='used';else if(!row.unexpired||!matches(privateCredential(mintAccessCredential,'token',row.id,1),row.token_hash))result='expired';else{
         const current=(await client.query('SELECT account_uid,name,member_number FROM centers.members WHERE center_id=$1 AND id=$2',[centerId,row.member_id])).rows[0];
-        if(!current||current.account_uid!==row.account_uid||(await decision(client,centerId,row.member_id))!=='allowed')result='denied';
+        if(!current||current.account_uid!==row.account_uid||(await decision(client,centerId,row.member_id,row.pass_id))!=='allowed')result='denied';
         else{
           visit='av_'+commandHash([centerId,deviceId,user.id,requestId]).slice(0,32);checkSession();
           await client.query('INSERT INTO centers.access_visits(id,center_id,member_id,account_uid,token_id,device_id,operator_uid,visited_at) VALUES($1,$2,$3,$4,$5,$6,$7,clock_timestamp())',[visit,centerId,row.member_id,row.account_uid,row.id,deviceId,user.id]);

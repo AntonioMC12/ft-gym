@@ -30,6 +30,13 @@ fieldset.centers-fields{border:0;padding:0;min-width:0}
 .centers-accounts-list:empty{display:none}
 .centers-accounts-list .lrow{background:transparent}
 .centers-account-disabled{opacity:.5}
+.centers-import-summary{border:1px solid var(--sep);border-radius:var(--r);background:var(--surface-2);margin:16px 0}
+.centers-import-rows{max-height:420px;overflow:auto;border:1px solid var(--sep);border-radius:var(--r);margin:16px 0}
+.centers-import-rows .lrow{flex-wrap:wrap;gap:6px}
+.centers-import-rows .lrow-v{white-space:normal;font-size:13px}
+.centers-import-rows .lrow-m{min-width:120px;overflow-wrap:anywhere}
+.centers-import-rows .lrow-s{white-space:normal;overflow-wrap:anywhere}
+.centers-import-error .lrow-v{color:var(--red)}
 .centers-accounts-list .lrow-s{overflow-wrap:anywhere}
 .centers-selected, .centers-staff-row { display: flex; justify-content: space-between; align-items: center; gap: 12px; flex-wrap: wrap; padding: 12px 0; border-bottom: var(--hair) solid var(--sep); }
 .centers-page [role=alert] { color: var(--red); padding: 12px; }

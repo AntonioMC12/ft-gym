@@ -14,6 +14,7 @@ import Payments from './Payments.jsx'
 import TrainingProposals from './TrainingProposals.jsx'
 import MemberAccess from './MemberAccess.jsx'
 import {useCenterNavigation,useUnsavedCenterForm} from './NavigationGuard.jsx'
+import CsvImport from './CsvImport.jsx'
 
 const stateText=state=>state==='active'?t('Active member'):state==='frozen'?t('Frozen member'):state==='ended'?t('Ended member'):t('Pending activation')
 const fieldsOf=member=>({name:member?.name||'',email:member?.email||'',phone:member?.phone||'',nationalDocument:member?.nationalDocument||''})
@@ -47,12 +48,13 @@ function MemberForm({centerId,member,lifecycle,ownerUid,close,saved,canBilling,c
     {currentMember&&canBilling&&<><Subscriptions key={currentMember.id} centerId={centerId} member={currentMember} ownerUid={ownerUid} changed={result=>{setCurrentMember(result.member);setInfo({today:result.today,changes:result.changes})}} receiptCreated={()=>setReceiptsRevision(value=>value+1)}/><Receipts key={currentMember.id} centerId={centerId} memberId={currentMember.id} ownerUid={ownerUid} revision={receiptsRevision} canRecord={capabilities.includes('payments.record')} today={info?.today} changed={()=>setReceiptsRevision(value=>value+1)}/><Payments centerId={centerId} memberId={currentMember.id} ownerUid={ownerUid} revision={receiptsRevision} canRefund={capabilities.includes('payments.refund')} today={info?.today} changed={()=>setReceiptsRevision(value=>value+1)}/></>}</>
 }
 
-export default function Members({centerId,ownerUid,capabilities,active=true}) {
+export default function Members({centerId,ownerUid,capabilities,active=true,importId,onImport}) {
   const manage=capabilities.includes('members.manage')
   const permissionKey=capabilities.join('|')
   const [query,setQuery]=useState(''),[search,setSearch]=useState(''),[rows,setRows]=useState([]),[cursor,setCursor]=useState(null)
   const [busy,setBusy]=useState(false),[error,setError]=useState(null),[editing,setEditing]=useState(null),[revision,setRevision]=useState(0)
   const [lifecycle,setLifecycle]=useState(null)
+  const [importing,setImporting]=useState(false)
   const epoch=useRef(0),detailEpoch=useRef(0),pending=useRef(false)
   const current=id=>epoch.current===id&&useStore.getState().user?.id===ownerUid
   const failure=e=>{setError(e);if(useStore.getState().user?.id===ownerUid)useCenters.getState().revokeOn(e)}
@@ -72,10 +74,11 @@ export default function Members({centerId,ownerUid,capabilities,active=true}) {
     const id=epoch.current,detail=++detailEpoch.current;setError(null)
     try{const result=await centerMember(centerId,member.id);if(current(id)&&detailEpoch.current===detail){setEditing(result.member);setLifecycle({today:result.today,changes:result.changes})}}catch(e){if(current(id)&&detailEpoch.current===detail)failure(e)}
   }
+  if(manage&&(importing||importId))return <CsvImport key={centerId+':'+ownerUid} centerId={centerId} ownerUid={ownerUid} active={active} jobId={importId} onJob={onImport} close={()=>{setImporting(false);onImport?.(null)}} changed={()=>setRevision(r=>r+1)}/>
   if(editing)return manage?<MemberForm key={editing.id||'new'} centerId={centerId} member={editing.id?editing:null} lifecycle={lifecycle} ownerUid={ownerUid} capabilities={capabilities} active={active} canBilling={capabilities.includes('billing.manage')} close={()=>{setEditing(null);setRevision(r=>r+1)}} saved={()=>{setEditing(null);setRevision(r=>r+1)}}/>:
     <><Section title={t('Member details')}><Row title={editing.name} subtitle={stateText(editing.state)} value={editing.number}/><Button onClick={()=>setEditing(null)}>{t('Back')}</Button></Section>{capabilities.includes('training.assign')&&<TrainingProposals key={'training:'+editing.id} centerId={centerId} member={editing} ownerUid={ownerUid} canAssign active={active}/>}</>
   return <Section title={t('Members')}><div className="centers-form">
-    <div className="centers-actions"><SearchField aria-label={t('Search members')} placeholder={t('Search members')} value={query} onChange={e=>setQuery(e.target.value)} onClear={()=>setQuery('')}/>{manage&&<Button onClick={()=>{setLifecycle(null);setEditing({})}}>{t('New member')}</Button>}</div>
+    <div className="centers-actions"><SearchField aria-label={t('Search members')} placeholder={t('Search members')} value={query} onChange={e=>setQuery(e.target.value)} onClear={()=>setQuery('')}/>{manage&&<Button onClick={()=>{setLifecycle(null);setEditing({})}}>{t('New member')}</Button>}{manage&&<Button variant="tinted" disabled={!active} onClick={()=>setImporting(true)}>{t('Import members (CSV)')}</Button>}</div>
     {rows.map(member=><Row key={member.id} title={member.name} subtitle={stateText(member.state)} value={member.number} accessory="chevron" onClick={()=>open(member)}/>)}
     {!busy&&!rows.length&&!error&&<p className="muted">{t('No members available')}</p>}
     {busy&&<p role="status" className="muted">{t('Loading…')}</p>}

@@ -165,6 +165,69 @@ security:
   - bearerAuth: []
 
 paths:
+  /api/centers/members/imports/prepare:
+    post:
+      tags: [centers]
+      operationId: prepareCenterMemberCsvImport
+      summary: Prepare an actor-owned member CSV review without creating members
+      description: Current members.manage in an active selected center or explicit platform allowlist. UTF-8 CSV up to256KiB and200records, comma/semicolon with RFC4180 quoting, known name/email/phone/nationalDocument headers or documented Spanish aliases. Unknown identity/role/financial columns rejected. Explicit duplicatePolicy skip, matched using existing SQL email/document normalization. Names alone never establish identity. Invalid rows prevent completion. No accounts, roles, balances, contracts or payments created. A durable bounded job expires after24hours. Same actor/center/requestId replays; changed content conflicts.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties: false
+              required: [centerId, csv, duplicatePolicy, requestId]
+              properties:
+                centerId: { type: string }
+                csv: { type: string }
+                duplicatePolicy: { type: string, const: skip }
+                requestId: { type: string, minLength: 8, maxLength: 128 }
+      responses:
+        '200': { description: id/state/definitionVersion/expiresAt/reviewHash/summary/rows with physical line numbers and ready/skipped/error statuses. No members created. }
+        '400': { description: invalid-member-csv or invalid-input; malformed headers/quoting/limits/selectors. }
+        '403': { description: Current management capability required. }
+        '404': { description: Center unavailable. }
+        '409': { description: idempotency-conflict or center-inactive. }
+  /api/centers/members/imports/detail:
+    get:
+      tags: [centers]
+      operationId: getCenterMemberCsvImport
+      summary: Recover an owned import review or its durable completion result
+      description: Same actor and selected center, current members.manage or platform allowlist; no other staff member inherits the review. A prepared review recomputes current duplicates and reviewHash; expired jobs cannot complete. Completed jobs return member IDs/statuses without retaining the original private row fields. No CSV or administrative records enter personal state.
+      parameters:
+        - { name: centerId, in: query, required: true, schema: { type: string } }
+        - { name: id, in: query, required: true, schema: { type: string } }
+      responses:
+        '200': { description: Prepared or expired review, or completed result. }
+        '400': { description: Unexpected selector. }
+        '403': { description: Management capability missing. }
+        '404': { description: Import unavailable to this actor/center. }
+  /api/centers/members/imports/commit:
+    post:
+      tags: [centers]
+      operationId: commitCenterMemberCsvImport
+      summary: Confirm a reviewed bounded member import atomically and idempotently
+      description: Under the shared center lock, rechecks current authority, expiry and reviewHash. Any invalid row blocks the entire commit. New duplicate changes require a new review, never silently change the confirmed batch. All eligible preactive member rows, sequential numbers, audit and durable completion commit in one transaction; repeated identical confirmation returns the saved result. Completed jobs cannot run twice. No accounts, memberships/contracts, balances or charges are imported.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties: false
+              required: [centerId, id, reviewHash]
+              properties:
+                centerId: { type: string }
+                id: { type: string }
+                reviewHash: { type: string, pattern: '^[a-f0-9]{64}$' }
+      responses:
+        '200': { description: Durable completed result with imported/skipped counts and per-record member IDs/statuses. }
+        '400': { description: Invalid or unexpected command fields. }
+        '403': { description: Current members.manage required. }
+        '404': { description: Owned import unavailable. }
+        '409': { description: 'import-review-changed, import-expired, import-invalid-rows, idempotency-conflict or center-inactive.' }
   /api/centers/metrics:
     get:
       tags: [centers]

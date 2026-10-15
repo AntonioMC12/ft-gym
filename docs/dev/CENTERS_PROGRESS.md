@@ -4,6 +4,8 @@
 
 ## Punto de reanudación
 
+- C36 implementado automáticamente en schema022: importación CSV con revisión, errores por línea, política skip, job durable/actor/centro, confirmación atómica e idempotente y recuperación por URL. Ver CENTERS_MEMBER_IMPORT.md; falta revisión visual por la restricción guardada. UI solicitada implementada en49cca1e6, también pendiente de revisión visual; no repetir lo ya probado.
+
 - Navegación directa: añadir Inicio y Centros como destinos explícitos accesibles desde ficha/pestañas/formularios, manteniendo Atrás cronológico separado. Reutilizar UI/Router, conservar búsqueda del listado y proteger cambios sin guardar según el patrón existente. Feedback registrado para la próxima iteración; no cambia la preview activa.
 
 - Selección del responsable: petición de listado visible inicial de cuentas disponibles, filtrable por nombre/ID y con elección clara. Revisar AccountPicker (Centers.jsx), carga, error, vacío/sin coincidencias y paginación si corresponde, reutilizando listas/controles existentes. El usuario buscó demo, que pertenece a otra instalación; no inventar esa cuenta ni mezclar directorios. Registrar la ausencia de coincidencias de forma visible. Se incorpora a la próxima iteración junto a las mejoras visuales anteriores; preview sin cambios.
@@ -79,7 +81,7 @@ Estados permitidos: `todo`, `in_progress`, `done`, `blocked`. Una tarea done nec
 | C33 | F11 | Riesgo de baja | todo |
 | C34 | F12 | Clases y reservas | todo |
 | C35 | F12 | Alta pública | todo |
-| C36 | F12 | CSV | todo |
+| C36 | F12 | CSV | in_progress |
 | C37 | F12 | Solicitud de congelación | todo |
 | C38 | F12 | Bonos/promociones | todo |
 | C39 | F12 | Facturas y fiscalidad | todo |
@@ -493,3 +495,14 @@ No guardar credenciales, bodies privados, volcados de socios, IBAN, tarjetas o r
 - Accesos Inicio/Centros distintos de Atrás cronológico, conserva búsqueda de listado y tiene en cuenta entradas de sheets. Confirmación de descarte para formularios registrados (centro nuevo/edición, socio, cuota/contrato, políticas de avisos/acceso), bloqueo durante guardado y beforeunload para recarga/cierre. Confirmaciones de ruta/cuenta anterior inertes; cambios posteriores exigen nueva confirmación. No se intercepta el Back nativo externo al Router con un mecanismo de historial nuevo: respuestas tardías siguen descartadas y la protección de esta entrega cubre los accesos/control Atrás de la app y recarga.
 - Evidencia:84/84 UI en11archivos (`frontend/centers-ui-iteration-final-focused.log`),12/12 API/dominio/rutas/OpenAPI/empaquetado. General API693:666pasan/27fallos previos; frontend5227:5173pasan/54fallos previos en los mismos15archivos; comparación de identidades sin nuevas regresiones. Un caso final adicional de confirmación tras cambio de ruta pasa en selección84, añadido después de generales. Build pasa,2000cadenas fuente presentes y18locales/2574claves sincronizadas.
 - Sin migración nueva, schema021 y SQL de socios intactos. Revisión visual sigue pendiente por denegación guardada del navegador; no afirmar capturas nuevas. Cambios previos de demo conservados. Siguiente tarea independiente C36: CSV, dependencias C24/C13 cerradas; no desbloquea C30/C33 ni configura banco/cargos reales.
+
+## 15 octubre — C36 importación CSV revisada y durable
+
+- Migración022 aplicada únicamente al PostgreSQL ficticio; inmutable. Jobs actor/centro con FORCE RLS, preparación hasta200filas/256KiB y24h para confirmar. Tres rutas HTTP/OpenAPI, sin framework/dependencias nuevos. Parser UTF-8/BOM/coma/puntoycoma/comillas con alias conocidos españoles; reutiliza memberFields. Columnas de roles/cuentas/finanzas/centro rechazadas.
+- Política skip explícita, claves email/documento calculadas por PostgreSQL igual que sus índices únicos, duplicados existentes y dentro del archivo. Nombres solos no se fusionan. Errores bloquean el lote completo. reviewHash se recalcula bajo el bloqueo de centro; concurrencia cambia la revisión y exige recargar/confirmar. Altas preactive sin cuentas/contratos/cobros, numeración exacta y auditoría por socio más conteos; todo junto con resultado del job en una transacción. Reintento completado conserva IDs incluso si el centro está inactivo; pendiente en centro inactivo/revocación no se aplica.
+- Se elimina records al completar; resultado solo IDs/líneas/estados. Expiración no borra físicamente jobs preparados: mantenimiento/retención sigue pendiente para C40. Sin directory/CSV/permisos en S, entrenamiento idéntico antes/después, sin autoenlace por email ni mensajes externos.
+- CsvImport reutiliza controles, confirmación y navegación protegida. Plantilla, lectura estricta UTF-8/límite local, datos completos de filas y errores, recuperación importId en URL, reintento estable tras timeout y descarte de respuestas/confirmaciones antiguas. Corregido caso de URL de otro job fallida: retira revisión anterior y botón de confirmar. Cambiar archivo recuperado no deja la lectura bloqueada.17textos en18idiomas, pt-BR conectado, inputfile con botón de selección acorde al tema.
+- Evidencia: parser/expiry4/4; SQL específico4/4 (`centers-c36-imports-final.log`), incluye cookiesCSRF, SELECT directo RLS, error sin altas parciales, duplicados SQL/documento/nombres sin clave, dos confirmaciones, permisos/actor/centro/revocación, payload/timestamps protegidos, inactivo y estado personal intacto. Suite SQL47/47 (`centers-c36-all-sql.log`); añadidas últimas aserciones CSRF/selector/payload al focal sin cambiar runtime después de los47.
+- Restore0221/1 (`centers-c36-recovery.log`) con importación pendiente/completada no vacías, la completada no se reaplica y la pendiente se termina tras restaurar; JSON byte a byte, ledger/Stripe/propuestas/QR también conservados. Bases tmpfs aisladas reiniciadas; volumen compartido conservado.
+- UI38/38 en4archivos (`frontend/centers-c36-ui-focused.log`). General API697:670pass/27fallos previos; frontend5234:5180pass/54fallos previos en los mismos15archivos. Identidades comparadas sin regresiones nuevas. Build correcto,2016cadenas presentes,18locales/2591claves. Sin revisión visual por denegación guardada; C36 sigue in_progress.
+- Guía CENTERS_MEMBER_IMPORT.md detalla contrato, plantilla, límites/duplicados, atomicidad/privacidad y límites actuales. No importación de deuda/contratos ni cuentas, no push/merge/producción. Continúa la autorización vigente hasta20%restante, sin apagado.

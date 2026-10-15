@@ -1,3 +1,4 @@
+import {memberImportStrings} from './modules/member-imports.js'
 // Brazilian Portuguese overrides. Shared, region-neutral strings inherit from pt-PT.
 // Tests fingerprint every deliberately inherited entry so upstream changes require review.
 // Some byte-identical overrides intentionally pin wording that must not drift with pt-PT.
@@ -14,6 +15,7 @@ export const PT_BR_OVERRIDES = {
   ...accessStrings('pt-BR'),
   ...metricsStrings('pt-BR'),
   ...centerUiStrings('pt-BR'),
+  ...memberImportStrings('pt-BR'),
   'Request verification code': 'Solicitar código de verificação',
   'Check the verification code or request a new one.': 'Confira o código ou solicite outro.',
   'Sending notice': 'Enviando aviso',

@@ -24,6 +24,7 @@ import {configureAccess,accessStatus,accessPageOptions,createAccessDevice,change
 import {metricsOptions} from './domain/metrics.js';
 import {centerMetrics,globalMetrics} from './services/metrics.js';
 import {accountDirectoryPage} from './domain/account-directory.js';
+import {prepareMemberImport,getMemberImport,commitMemberImport} from './services/member-imports.js';
 
 // Inject the same session and response helpers used by the rest of node:http.
 export function centersRoutes({ config, database, json, readSession, readBody, accountLocks, lookupAccount, readOwnTraining, hasTrainingExercise, mintAccessCredential,
@@ -84,6 +85,14 @@ export function centersRoutes({ config, database, json, readSession, readBody, a
     }catch(error){return failure(res,error)}
   };
   return {
+    'POST /api/centers/members/imports/prepare':mutate(false,(context,body)=>prepareMemberImport(context,body,{platform:isPlatformUser(config,context.user)})),
+    'POST /api/centers/members/imports/commit':mutate(false,(context,body)=>commitMemberImport(context,body,{platform:isPlatformUser(config,context.user)})),
+    'GET /api/centers/members/imports/detail':async(req,res)=>{
+      const user=guard(req,res);if(!user)return;const sv=user.sv||0,params=new URL(req.url,'http://x').searchParams;
+      if([...params.keys()].some(key=>!['centerId','id'].includes(key)))return json(res,400,{code:'invalid-input',error:'invalid selectors'});
+      if(!recordId(params.get('centerId'))||!recordId(params.get('id')))return json(res,404,{code:'not-found',error:'not found'});
+      try{const result=await getMemberImport(database,user.id,params.get('centerId'),params.get('id'),{platform:isPlatformUser(config,user)});if(!current(req,user,sv))return json(res,401,{error:'not signed in'});return json(res,200,result)}catch(error){return failure(res,error)}
+    },
     'GET /api/centers/metrics':async(req,res)=>{
       const user=guard(req,res);if(!user)return;const sv=user.sv||0,params=new URL(req.url,'http://x').searchParams,centerId=params.get('centerId');
       if(!recordId(centerId))return json(res,404,{error:'not found',code:'not-found'});

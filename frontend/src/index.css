@@ -639,6 +639,8 @@ body.chips-dragging *{cursor:inherit}
 .field:focus,.input:focus{box-shadow:inset 0 0 0 2px var(--acc)}
 .field:disabled,.input:disabled{opacity:.55;cursor:not-allowed}
 .field[aria-invalid=true],.input[aria-invalid=true]{border-color:var(--red)}
+.field[type=file]{padding:8px;font-size:15px}
+.field[type=file]::file-selector-button{font:inherit;min-height:44px;margin-inline-end:12px;padding:8px 12px;border:1px solid var(--sep);border-radius:var(--r-sm);background:var(--acc-soft);color:var(--acc);cursor:pointer}
 .time-field{position:relative;min-width:0}
 .time-field>.field{padding-inline-end:48px;font-variant-numeric:tabular-nums}
 .time-field-picker{position:absolute;inset-inline-end:2px;top:2px;bottom:2px;min-width:44px;border:0;border-radius:var(--r-sm);background:transparent;color:var(--label-2);display:grid;place-items:center;cursor:pointer}

@@ -40,6 +40,8 @@ export function notificationErrorKey(error){
   return centersErrorKey(error)
 }
 export const centerAccounts = (query='',options={}) => api('/api/platform/centers/accounts?' + new URLSearchParams({query,...options}))
+export const centerMemberImport = (centerId,id)=>api('/api/centers/members/imports/detail?'+new URLSearchParams({centerId,id}))
+export function memberImportErrorKey(error){const code=error?.data?.code||error?.code;return code==='invalid-member-csv'?'Check the CSV headers, quoting and file limits.':code==='import-review-changed'?'Reload the review before confirming.':code==='import-expired'?'Choose the CSV file again to start a new review.':code==='import-invalid-rows'?'Fix invalid rows before importing.':membersErrorKey(error)}
 export const centerCommand = (path, body) => api(path, { method: 'POST', body: JSON.stringify(body) })
 export const centerMembers = (centerId, options = {}) => api('/api/centers/members?' + new URLSearchParams({centerId,...options}))
 export const centerMember = (centerId, id) => api('/api/centers/member?' + new URLSearchParams({centerId,id}))

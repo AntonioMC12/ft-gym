@@ -1,6 +1,8 @@
 import { api } from './api.js'
 
 export const centersMe = () => api('/api/centers/me')
+export const centerMetrics=(centerId,options={},global=false)=>api((global?'/api/platform/centers/metrics':'/api/centers/metrics')+'?'+new URLSearchParams({...(!global?{centerId}:{}),...options}))
+export function metricsErrorKey(error){return (error?.data?.code||error?.code)==='invalid-metrics-period'?'Check the reporting period (up to 366 days).':centersErrorKey(error)}
 export const centerAccess=(centerId,options={},own=false)=>api('/api/centers/'+(own?'own/':'')+'access?'+new URLSearchParams({centerId,...options}))
 export const centerAccessVisits=(centerId,options={},own=false)=>api('/api/centers/'+(own?'own/':'')+'access/visits?'+new URLSearchParams({centerId,...options}))
 export const centerAccessMember=(centerId,memberId)=>api('/api/centers/access/member?'+new URLSearchParams({centerId,memberId}))

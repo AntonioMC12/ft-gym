@@ -165,6 +165,44 @@ security:
   - bearerAuth: []
 
 paths:
+  /api/centers/metrics:
+    get:
+      tags: [centers]
+      operationId: getCenterContractFinancialMetrics
+      summary: Read exact contractual and registered financial metrics for one center
+      description: Requires current billing.read or explicit platform allowlist; inactive-center history is readable. One SQL snapshot and captured instant, center-local business dates, definitionVersion1 and EUR. Counts/money are integer strings. Current outstanding/overdue stock is separate from selected-period flows. Unsupported debt policy with a positive balance makes overdueMinor null and overduePolicyComplete false. Does not return member identities, training, visits or inferred occupancy. Default period is local month start through today.
+      parameters:
+        - { name: centerId, in: query, required: true, schema: { type: string } }
+        - { name: from, in: query, schema: { type: string, format: date } }
+        - { name: to, in: query, schema: { type: string, format: date } }
+      responses:
+        '200':
+          description: Exact aggregates. Net collections may be negative when refunding an earlier period.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/CenterMetrics' }
+        '400': { description: invalid-metrics-period or unknown selector. Both bounds together, no future period, at most366inclusive days. }
+        '403': { description: Missing billing.read. }
+        '404': { description: Center unavailable to current session. }
+        '503': { description: Centers temporarily unavailable. }
+  /api/platform/centers/metrics:
+    get:
+      tags: [centers]
+      operationId: getGlobalContractFinancialMetrics
+      summary: Read global contractual and registered financial aggregates
+      description: Explicit platform allowlist only; user.admin and center management never imply global metrics. One SQL statement uses one snapshot across all centers without a list cap; the same statement audits the read for each included center. Local-calendar dates are evaluated per center, with future local days excluded. Default period is month start through the latest current local day. Only aggregate counts and exact EUR strings leave SQL; no center/member/account list, personal state, visits or occupancy. A policy gap makes the overdue total unknown rather than silently zero.
+      parameters:
+        - { name: from, in: query, schema: { type: string, format: date } }
+        - { name: to, in: query, schema: { type: string, format: date } }
+      responses:
+        '200':
+          description: Same aggregate contract, scoped to every center under the authorized platform transaction.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/CenterMetrics' }
+        '400': { description: Invalid bounded period or forbidden center/member/account/clock selector. }
+        '403': { description: Explicit platform identity required. }
+        '503': { description: Centers temporarily unavailable. }
   /api/centers/access:
     get:
       tags: [centers]
@@ -5170,6 +5208,57 @@ components:
           example: { error: "that code is wrong, used or expired", code: "link-invalid" }
 
   schemas:
+    ExactAggregate:
+      type: string
+      pattern: '^(0|[1-9][0-9]*)$'
+      description: Exact nonnegative decimal integer; parse with arbitrary precision, never floating point. Monetary aggregates are EUR cents, without a per-payment upper bound.
+    CenterMetrics:
+      type: object
+      additionalProperties: false
+      required: [definitionVersion, currency, capturedAt, dateBasis, centerCount, period, current]
+      properties:
+        definitionVersion: { type: integer, const: 1 }
+        currency: { type: string, const: EUR }
+        capturedAt: { type: string, format: date-time }
+        dateBasis: { type: string, const: center-local-calendar }
+        centerCount: { $ref: '#/components/schemas/ExactAggregate' }
+        period:
+          type: object
+          additionalProperties: false
+          required: [from, to, registeredMembers, activations, terminations, receiptsIssued, receiptTotalMinor, collectionsMinor, refundsMinor, netCollectionsMinor]
+          properties:
+            from: { type: string, format: date }
+            to: { type: string, format: date }
+            registeredMembers: { $ref: '#/components/schemas/ExactAggregate' }
+            activations: { $ref: '#/components/schemas/ExactAggregate' }
+            terminations: { $ref: '#/components/schemas/ExactAggregate' }
+            receiptsIssued: { $ref: '#/components/schemas/ExactAggregate' }
+            receiptTotalMinor: { $ref: '#/components/schemas/ExactAggregate' }
+            collectionsMinor: { $ref: '#/components/schemas/ExactAggregate' }
+            refundsMinor: { $ref: '#/components/schemas/ExactAggregate' }
+            netCollectionsMinor:
+              type: string
+              pattern: '^(0|-?[1-9][0-9]*)$'
+              description: Registered collections minus refunds in EUR cents. May be negative; not profit or a bank settlement.
+        current:
+          type: object
+          additionalProperties: false
+          description: Current snapshot, independent of the selected flow period. Contracts include frozen memberships and do not imply entry permission.
+          required: [members, active, frozen, ended, preactive, subscriptions, outstandingMinor, overdueMinor, overduePolicyComplete]
+          properties:
+            members: { $ref: '#/components/schemas/ExactAggregate' }
+            active: { $ref: '#/components/schemas/ExactAggregate' }
+            frozen: { $ref: '#/components/schemas/ExactAggregate' }
+            ended: { $ref: '#/components/schemas/ExactAggregate' }
+            preactive: { $ref: '#/components/schemas/ExactAggregate' }
+            subscriptions: { $ref: '#/components/schemas/ExactAggregate' }
+            outstandingMinor: { $ref: '#/components/schemas/ExactAggregate' }
+            overdueMinor:
+              oneOf:
+                - { $ref: '#/components/schemas/ExactAggregate' }
+                - { type: 'null' }
+              description: Unknown if a positive balance has no supported debt policy. Never silently substitute zero.
+            overduePolicyComplete: { type: boolean }
     CenterAccessPolicy: {"type":"object","additionalProperties":false,"required":["enabled","requireSubscription","denyOverdue","graceDays"],"properties":{"enabled":{"type":"boolean"},"requireSubscription":{"type":"boolean"},"denyOverdue":{"type":"boolean"},"graceDays":{"type":"integer","minimum":0,"maximum":365}}}
     CenterAccessPolicyCommand: {"type":"object","additionalProperties":false,"required":["centerId","version","policy","requestId"],"properties":{"centerId":{"type":"string"},"version":{"type":"integer","minimum":0},"policy":{"$ref":"#/components/schemas/CenterAccessPolicy"},"requestId":{"type":"string","minLength":8,"maxLength":128}}}
     CenterAccessDeviceCreate: {"type":"object","additionalProperties":false,"required":["centerId","name","requestId"],"properties":{"centerId":{"type":"string"},"name":{"type":"string","minLength":1,"maxLength":80},"requestId":{"type":"string","minLength":8,"maxLength":128}}}

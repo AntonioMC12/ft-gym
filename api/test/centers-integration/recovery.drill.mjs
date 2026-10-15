@@ -54,6 +54,7 @@ test('C24: two-center pilot survives a coordinated JSON/PostgreSQL restore and r
   const pendingQrCommand={centerId:centers[0],requestId:'pilot_access_pending'},pendingQr=(await req('/api/centers/own/access/token','pilot_alice',pendingQrCommand)).body;assert.ok(pendingQr.token);
   const heldMember=(await req('/api/centers/member?'+new URLSearchParams({centerId:centers[1],id:members[1]}),'pilot_manager_b')).body.member;
   const heldAccess=await req('/api/centers/access/holds/create','pilot_manager_b',{centerId:centers[1],memberId:members[1],memberVersion:heldMember.version,reason:'Fictional preserved manual hold',requestId:'pilot_access_preserved_hold'});assert.equal(heldAccess.status,200);
+  const metricsPath='/api/centers/metrics?'+new URLSearchParams({centerId:centers[0],from:ownBefore.today,to:ownBefore.today}),metricsBefore=await req(metricsPath,'pilot_manager_a');assert.equal(metricsBefore.status,200);assert.equal(metricsBefore.body.current.outstandingMinor,'2300');
   const personalBefore=(await req('/api/data','pilot_alice')).body;assert.ok(!JSON.stringify(personalBefore).includes('outstandingMinor'));
   assert.equal((await req('/api/platform/centers/reconciliation','pilot_root')).body.orphanedAccounts.length,0);
   const personalHash=hash(fs.readFileSync(path.join(source.dir,'state-pilot_alice.json')));
@@ -87,6 +88,7 @@ test('C24: two-center pilot survives a coordinated JSON/PostgreSQL restore and r
   assert.equal(hash(fs.readFileSync(path.join(restoredData,'state-pilot_alice.json'))),personalHash,'training file preserved byte-for-byte');
   restored=await startHttp(t,{app:target,savedData:restoredData,superadminUids:['pilot_root']});const after=(...args)=>request(restored,...args);
   assert.deepEqual((await after(ownPath,'pilot_alice')).body,ownBefore);assert.deepEqual((await after('/api/data','pilot_alice')).body,personalBefore);
+  const metricsAfter=await after(metricsPath,'pilot_manager_a');assert.equal(metricsAfter.status,200);assert.deepEqual(metricsAfter.body.current,metricsBefore.body.current);assert.deepEqual(metricsAfter.body.period,metricsBefore.body.period,'contract/financial aggregates recompute from the restored ledger without a cached personal-state projection');
   const restoredVisits=(await after('/api/centers/own/access/visits?centerId='+centers[0],'pilot_alice')).body;assert.equal(restoredVisits.visits.length,1);assert.equal(restoredVisits.visits[0].id,firstAdmission.body.visitId);
   const preservedHold=await after('/api/centers/access/member?'+new URLSearchParams({centerId:centers[1],memberId:members[1]}),'pilot_manager_b');assert.equal(preservedHold.body.hold.id,heldAccess.body.hold.id);assert.equal(preservedHold.body.hold.releasedAt,null,'restoration and the financial ledger cannot release a manual hold');
   const repeatedAdmission=await after('/api/centers/access/consume','pilot_manager_a',firstScan,'POST',deviceHeader);assert.equal(repeatedAdmission.body.admitted,false);assert.equal(repeatedAdmission.body.replayed,true,'restored idempotency cannot authorize another admission');

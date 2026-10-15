@@ -21,6 +21,8 @@ import {receiveStripeWebhook} from './services/stripe-foundation.js';
 import {readStripeBody} from './domain/stripe-webhook.js';
 import {proposeTraining,withdrawTraining,trainingListOptions,listTraining,getTraining,acceptTraining,acknowledgeTraining} from './services/training-proposals.js';
 import {configureAccess,accessStatus,accessPageOptions,createAccessDevice,changeAccessDevice,issueAccessToken,consumeAccessToken,accessMember,setAccessHold,releaseAccessHold,accessVisits} from './services/access.js';
+import {metricsOptions} from './domain/metrics.js';
+import {centerMetrics,globalMetrics} from './services/metrics.js';
 
 // Inject the same session and response helpers used by the rest of node:http.
 export function centersRoutes({ config, database, json, readSession, readBody, accountLocks, lookupAccount, readOwnTraining, hasTrainingExercise, mintAccessCredential,
@@ -81,6 +83,15 @@ export function centersRoutes({ config, database, json, readSession, readBody, a
     }catch(error){return failure(res,error)}
   };
   return {
+    'GET /api/centers/metrics':async(req,res)=>{
+      const user=guard(req,res);if(!user)return;const sv=user.sv||0,params=new URL(req.url,'http://x').searchParams,centerId=params.get('centerId');
+      if(!recordId(centerId))return json(res,404,{error:'not found',code:'not-found'});
+      try{const result=await centerMetrics(database,user.id,centerId,metricsOptions(params),{platform:isPlatformUser(config,user)});if(!current(req,user,sv))return json(res,401,{error:'not signed in'});return json(res,200,result)}catch(error){return failure(res,error)}
+    },
+    'GET /api/platform/centers/metrics':async(req,res)=>{
+      const user=guard(req,res);if(!user)return;const sv=user.sv||0;if(!isPlatformUser(config,user))return json(res,403,{error:'forbidden',code:'forbidden'});
+      try{const result=await globalMetrics(database,config,user,metricsOptions(new URL(req.url,'http://x').searchParams,{global:true}));if(!current(req,user,sv))return json(res,401,{error:'not signed in'});return json(res,200,result)}catch(error){return failure(res,error)}
+    },
     'GET /api/centers/access':readAccess(),
     'GET /api/centers/access/member':readAccess({member:true}),
     'GET /api/centers/access/visits':readAccess({visits:true}),

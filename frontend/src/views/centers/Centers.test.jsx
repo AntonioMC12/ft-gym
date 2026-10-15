@@ -9,6 +9,7 @@ vi.mock('./BillingAutomation.jsx',()=>({default:()=>null}))
 vi.mock('./NotificationSettings.jsx',()=>({default:()=>null}))
 vi.mock('./StripePayments.jsx',()=>({default:()=>null}))
 vi.mock('./AccessPanel.jsx',()=>({default:({centerId,canManage,canVerify})=><div data-access-panel={centerId} data-can-manage={String(canManage)} data-can-verify={String(canVerify)}>Reception panel</div>}))
+vi.mock('./Metrics.jsx',()=>({default:({centerId,global,period,onPeriod})=><div data-metrics={global?'global':centerId}><output data-period>{JSON.stringify(period)}</output><button onClick={()=>onPeriod({from:'2026-09-01',to:'2026-09-30'})}>Choose report period</button></div>}))
 vi.mock('../../store/useStore.js', () => {
   const state = { user: { id: 'platform' }, config: { centers: { enabled: true } }, S: {} }
   const useStore = selector => selector ? selector(state) : state
@@ -165,4 +166,12 @@ it('opens access with current capabilities and Back returns to the previous pane
   await act(async()=>{root.render(<MemoryRouter initialEntries={['/centers?centerId=one&pane=members']}><Centers/><Location/></MemoryRouter>);await Promise.resolve()})
   await click('Center access');expect(host.querySelector('output').textContent).toContain('pane=access');const panel=host.querySelector('[data-access-panel]');expect(panel.getAttribute('data-access-panel')).toBe('one');expect(panel.getAttribute('data-can-manage')).toBe('true');expect(panel.getAttribute('data-can-verify')).toBe('true')
   await act(async()=>host.querySelector('button[aria-label="Back"]').click());expect(host.querySelector('output').textContent).toContain('pane=members');expect(host.querySelector('[data-access-panel]')).toBeNull();history.replaceState(previous,'',location.href)
+})
+it('preserves metric periods in router history and returns to the filtered list from global metrics',async()=>{
+  const previous=history.state;history.replaceState({idx:1},'',location.href);useCenters.setState({platformCapabilities:['centers.manage','metrics.global.read','billing.read','members.read']})
+  function Location(){const here=useLocation();return <output data-location>{here.pathname+here.search}</output>}
+  await act(async()=>{root.render(<MemoryRouter initialEntries={['/centers?q=Synthetic']}><Centers/><Location/></MemoryRouter>);await Promise.resolve()});await click('Global center metrics');expect(host.querySelector('[data-metrics]').getAttribute('data-metrics')).toBe('global');await click('Choose report period');await click('Choose report period');expect(host.querySelector('[data-location]').textContent).toContain('from=2026-09-01');await act(async()=>host.querySelector('button[aria-label="Back"]').click());expect(host.querySelector('[data-metrics]')).toBeTruthy();expect(host.querySelector('[data-location]').textContent).not.toContain('from=');await act(async()=>host.querySelector('button[aria-label="Back"]').click());expect(host.querySelector('[data-metrics]')).toBeNull();expect(host.querySelector('[data-location]').textContent).toBe('/centers?q=Synthetic');history.replaceState(previous,'',location.href)
+})
+it('hides global metrics without the explicit global metrics capability',async()=>{
+  await render();expect(button('Global center metrics')).toBeUndefined();expect(host.querySelector('[data-metrics]')).toBeNull()
 })

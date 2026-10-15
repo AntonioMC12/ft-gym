@@ -20,6 +20,7 @@ import NotificationSettings from './NotificationSettings.jsx'
 import ConfigPending from './ConfigPending.jsx'
 import StripePayments from './StripePayments.jsx'
 import AccessPanel from './AccessPanel.jsx'
+import Metrics from './Metrics.jsx'
 import {useAutoMore} from '../../lib/use-auto-more.js'
 
 const stateLabel = state => state === 'active' ? t('Active center') : state === 'inactive' ? t('Inactive center') : t('Draft center')
@@ -97,12 +98,13 @@ function NewCenter({ close, created, ownerUid }) {
   </form></Section>
 }
 
-function CenterPanel({ center, platform, capabilities, close, refresh, ownerUid, pane='details',setPane }) {
+function CenterPanel({ center, platform, capabilities, close, refresh, ownerUid, pane='details',setPane,metricPeriod,setMetricPeriod }) {
   const canMembers=capabilities.some(c=>['members.read','members.operational.read'].includes(c))
   const memberPane=canMembers&&pane==='members'
   const canPlans=capabilities.includes('plans.manage'),planPane=canPlans&&pane==='plans'
   const canBilling=capabilities.includes('billing.read'),billingPane=canBilling&&pane==='billing'
   const canAccess=capabilities.includes('access.manage'),accessPane=canAccess&&pane==='access'
+  const metricsPane=canBilling&&pane==='metrics'
   const [fields, setFields] = useState(() => fieldsOf(center)), [staff, setStaff] = useState([]), [manager, setManager] = useState(null)
   const [trainerUid, setTrainerUid] = useState(''), [replaceId, setReplaceId] = useState(null)
   const [busy, setBusy] = useState(false), [error, setError] = useState(null)
@@ -125,8 +127,8 @@ function CenterPanel({ center, platform, capabilities, close, refresh, ownerUid,
   const updatePath = platform ? '/api/platform/centers/update' : '/api/centers/update'
   return <><Section title={center.name}><div className="centers-form">
     <div className="centers-actions"><span className="muted small">{stateLabel(center.state)}</span><Button onClick={close}>{t('Back')}</Button></div>
-    {(canMembers||canPlans||canBilling||canAccess)&&<Segmented options={[{value:'details',label:t('Center details')},...(canMembers?[{value:'members',label:t('Members')}]:[]),...(canPlans?[{value:'plans',label:t('Membership plans')}]:[]),...(canBilling?[{value:'billing',label:t('Debt and calendar')}]:[]),...(canAccess?[{value:'access',label:t('Center access')}]:[])]} value={memberPane?'members':planPane?'plans':billingPane?'billing':accessPane?'access':'details'} onChange={setPane}/>}
-    {!memberPane&&!planPane&&!billingPane&&!accessPane&&<>
+    {(canMembers||canPlans||canBilling||canAccess)&&<Segmented options={[{value:'details',label:t('Center details')},...(canMembers?[{value:'members',label:t('Members')}]:[]),...(canPlans?[{value:'plans',label:t('Membership plans')}]:[]),...(canBilling?[{value:'billing',label:t('Debt and calendar')},{value:'metrics',label:t('Center metrics')}]:[]),...(canAccess?[{value:'access',label:t('Center access')}]:[])]} value={memberPane?'members':planPane?'plans':billingPane?'billing':accessPane?'access':metricsPane?'metrics':'details'} onChange={setPane}/>}
+    {!memberPane&&!planPane&&!billingPane&&!accessPane&&!metricsPane&&<>
     {(platform || capabilities.includes('center.update')) && <form onSubmit={e => { e.preventDefault(); perform(updatePath, { ...fields, centerId: center.id, version: center.version }) }}><Fields value={fields} change={setFields} /><Button type="submit" variant="primary" disabled={busy}>{t('Save')}</Button></form>}
     {staff.length > 0 && <div><h3>{t('Center staff')}</h3>{staff.map(role => <div key={role.id} className="centers-staff-row"><div><strong>{role.role === 'manager' ? t('Center manager') : t('Trainer')}</strong><div className="small muted">{role.accountUid}</div></div>
       {role.revoked ? <span className="muted small">{t('Revoked role')}</span> : (platform || role.role === 'trainer') && <div className="centers-actions">{platform && role.role==='manager' && <Button onClick={() => setReplaceId(role.id)}>{t('Replace')}</Button>}<Button disabled={busy} onClick={() => perform(platform ? '/api/platform/centers/revoke-role' : '/api/centers/staff/revoke', { centerId: center.id, version: center.version, assignmentId: role.id })}>{t('Revoke role')}</Button></div>}
@@ -139,7 +141,7 @@ function CenterPanel({ center, platform, capabilities, close, refresh, ownerUid,
     </div>}
     {error && <p role="alert">{t(centersErrorKey(error))}</p>}
     </>}
-  </div></Section>{accessPane?<AccessPanel key={'access:'+center.id} centerId={center.id} ownerUid={ownerUid} active={center.state==='active'} canManage={capabilities.includes('access.manage')} canVerify={capabilities.includes('access.verify')} timezone={center.timezone}/>:billingPane?<><DebtCalendar key={center.id} centerId={center.id} ownerUid={ownerUid} canExport={capabilities.includes('data.export')}/><StripePayments key={'stripe:'+center.id} centerId={center.id} ownerUid={ownerUid} canReconcile={capabilities.includes('payments.record')}/><BillingAutomation key={'automation:'+center.id} centerId={center.id} ownerUid={ownerUid} platform={platform} active={center.state==='active'}/><NotificationSettings key={'notifications:'+center.id} centerId={center.id} ownerUid={ownerUid} platform={platform} active={center.state==='active'}/></>:planPane?<MembershipPlans key={center.id} centerId={center.id} ownerUid={ownerUid}/>:memberPane?<Members key={center.id} centerId={center.id} ownerUid={ownerUid} capabilities={capabilities} active={center.state==='active'}/>:
+  </div></Section>{metricsPane?<Metrics key={'metrics:'+center.id} centerId={center.id} ownerUid={ownerUid} timezone={center.timezone} period={metricPeriod} onPeriod={setMetricPeriod}/>:accessPane?<AccessPanel key={'access:'+center.id} centerId={center.id} ownerUid={ownerUid} active={center.state==='active'} canManage={capabilities.includes('access.manage')} canVerify={capabilities.includes('access.verify')} timezone={center.timezone}/>:billingPane?<><DebtCalendar key={center.id} centerId={center.id} ownerUid={ownerUid} canExport={capabilities.includes('data.export')}/><StripePayments key={'stripe:'+center.id} centerId={center.id} ownerUid={ownerUid} canReconcile={capabilities.includes('payments.record')}/><BillingAutomation key={'automation:'+center.id} centerId={center.id} ownerUid={ownerUid} platform={platform} active={center.state==='active'}/><NotificationSettings key={'notifications:'+center.id} centerId={center.id} ownerUid={ownerUid} platform={platform} active={center.state==='active'}/></>:planPane?<MembershipPlans key={center.id} centerId={center.id} ownerUid={ownerUid}/>:memberPane?<Members key={center.id} centerId={center.id} ownerUid={ownerUid} capabilities={capabilities} active={center.state==='active'}/>:
     (platform||capabilities.includes('staff.manage'))&&<Invitations key={center.id} centerId={center.id} ownerUid={ownerUid} allowedKinds={platform?['manager','trainer']:['trainer']}/>}</>
 }
 
@@ -147,10 +149,17 @@ function Content({ user }) {
   const nav = useNavigate(), state = useCenters(),[params,setParams]=useSearchParams()
   const centerId=params.get('centerId'),pane=params.get('pane')||'details'
   const platform = state.platformCapabilities.includes('centers.manage')
+  const canGlobalMetrics=platform&&state.platformCapabilities.includes('metrics.global.read'),globalMetrics=canGlobalMetrics&&!centerId&&pane==='metrics'
   const [listed, setListed] = useState([]), [creating, setCreating] = useState(false), [detail, setDetail] = useState(null), [error, setError] = useState(null), [refreshKey, setRefreshKey] = useState(0)
   const query=params.get('q')||'',[draft,setDraft]=useState(query),[cursor,setCursor]=useState(null),[listLoading,setListLoading]=useState(false),listLife=useRef(0),listPending=useRef(false)
+  const listRoute='/centers'+(query?'?'+new URLSearchParams({q:query}):'')
+  const metricPeriod=params.has('from')||params.has('to')?{from:params.get('from')||'',to:params.get('to')||''}:null
+  const setMetricPeriod=values=>{
+    if(values.from?params.get('from')===values.from&&params.get('to')===values.to:!params.has('from')&&!params.has('to'))return
+    const next=new URLSearchParams(params);next.delete('from');next.delete('to');if(values.from){next.set('from',values.from);next.set('to',values.to)}setParams(next)
+  }
   useEffect(()=>setDraft(query),[query])
-  useEffect(()=>{if(centerId||creating||draft===query)return;const timer=setTimeout(()=>setParams(draft.trim()?{q:draft.trim()}:{},{replace:true}),250);return()=>clearTimeout(timer)},[draft,query,centerId,creating,setParams])
+  useEffect(()=>{if(centerId||creating||globalMetrics||draft===query)return;const timer=setTimeout(()=>setParams(draft.trim()?{q:draft.trim()}:{},{replace:true}),250);return()=>clearTimeout(timer)},[draft,query,centerId,creating,globalMetrics,setParams])
   const refresh = () => { if (useStore.getState().user?.id !== user.id) return; setDetail(null); setRefreshKey(k => k + 1); useCenters.getState().load(user.id) }
   const selectCenter=id=>{state.select(id||null);setCreating(false);setParams({...(id?{centerId:id}:{}),...(query?{q:query}:{})})}
   useEffect(()=>{if(state.ownerUid===user.id&&state.status==='ready'&&state.selectedId!==centerId)state.select(centerId)},[centerId,state.ownerUid,state.status,state.selectedId,user.id])
@@ -177,13 +186,13 @@ function Content({ user }) {
   const selected = state.centers.find(c => c.id === centerId)
   const choices=listed.filter(c=>platform||c.capabilities?.includes('center.read'))
   if(detail?.id===centerId&&!choices.some(c=>c.id===centerId))choices.push(detail)
-  return <div className="narrow centers-page"><div className="hdr"><button className="iconbtn" onClick={() => navBack(centerId?'/centers':'/home',nav)} aria-label={t('Back')}><Icon name="chevronLeft" /></button><h1>{t('Manage centers')}</h1></div>
-    <div className="centers-actions"><Button onClick={refresh}>{t('Reload centers')}</Button>{platform && <Button variant="primary" onClick={() => { state.select(null); setCreating(true) }}>{t('New center')}</Button>}</div>
-    {platform&&!centerId&&!creating&&<SearchField value={draft} onChange={e=>setDraft(e.target.value)} placeholder={t('Search…')} aria-label={t('Search…')}/>}
+  return <div className="narrow centers-page"><div className="hdr"><button className="iconbtn" onClick={() => navBack(centerId||globalMetrics?listRoute:'/home',nav)} aria-label={t('Back')}><Icon name="chevronLeft" /></button><h1>{t('Manage centers')}</h1></div>
+    <div className="centers-actions"><Button onClick={refresh}>{t('Reload centers')}</Button>{canGlobalMetrics&&!globalMetrics&&<Button onClick={()=>{state.select(null);setCreating(false);setParams({pane:'metrics',...(query?{q:query}:{})})}}>{t('Global center metrics')}</Button>}{platform && <Button variant="primary" onClick={() => { state.select(null); setCreating(true) }}>{t('New center')}</Button>}</div>
+    {platform&&!centerId&&!creating&&!globalMetrics&&<SearchField value={draft} onChange={e=>setDraft(e.target.value)} placeholder={t('Search…')} aria-label={t('Search…')}/>}
     {(state.status === 'loading' || state.ownerUid !== user.id||listLoading) && <p className="muted" role="status">{t('Loading centers')}</p>}
     {(error || state.error) && <p role="alert">{t(centersErrorKey(error || state.error))}</p>}
     {state.status==='ready'&&state.ownerUid===user.id&&choices.length>0&&!creating&&<SelectRow title={t('Center details')} value={centerId||''} options={[{value:'',label:t('Manage centers')},...choices.map(c=>({value:c.id,label:c.name}))]} onChange={selectCenter}/>}
-    {state.status === 'ready' && state.ownerUid === user.id && (creating && platform ? <NewCenter ownerUid={user.id} close={() => setCreating(false)} created={center => { if (useStore.getState().user?.id !== user.id) return; selectCenter(center.id); refresh() }} /> : detail?.id===centerId&&detail ? <CenterPanel key={user.id+':'+centerId} ownerUid={user.id} center={detail} platform={platform} capabilities={platform ? state.platformCapabilities : selected?.capabilities || []} close={() => navBack('/centers',nav)} refresh={refresh} pane={pane} setPane={value=>setParams({centerId,pane:value,...(query?{q:query}:{})})}/> : centerId ? <p role="status">{t('Loading centers')}</p> : <div className="centers-list">{!listed.length&&!listLoading && <p className="muted">{t('No centers available')}</p>}{listed.map(center => {
+    {state.status === 'ready' && state.ownerUid === user.id && (creating && platform ? <NewCenter ownerUid={user.id} close={() => setCreating(false)} created={center => { if (useStore.getState().user?.id !== user.id) return; selectCenter(center.id); refresh() }} /> : globalMetrics ? <Metrics key={'global:'+user.id} ownerUid={user.id} global period={metricPeriod} onPeriod={setMetricPeriod}/> : detail?.id===centerId&&detail ? <CenterPanel key={user.id+':'+centerId} ownerUid={user.id} center={detail} platform={platform} capabilities={platform ? state.platformCapabilities : selected?.capabilities || []} close={() => navBack(listRoute,nav)} refresh={refresh} metricPeriod={metricPeriod} setMetricPeriod={setMetricPeriod} pane={pane} setPane={value=>{if(value!==pane)setParams({centerId,pane:value,...(query?{q:query}:{})})}}/> : centerId ? <p role="status">{t('Loading centers')}</p> : <div className="centers-list">{!listed.length&&!listLoading && <p className="muted">{t('No centers available')}</p>}{listed.map(center => {
       const canOpen = platform || center.capabilities?.includes('center.read')
       return <Section key={center.id}><Row title={center.name} subtitle={stateLabel(center.state)} value={canOpen ? t('Center details') : null} accessory={canOpen ? 'chevron' : 'none'} onClick={canOpen ? () => selectCenter(center.id) : undefined} /></Section>
     })}{cursor&&<div ref={moreRef}><Button disabled={listLoading} onClick={more}>{t('Show more')}</Button></div>}</div>)}
@@ -193,7 +202,7 @@ function Content({ user }) {
 export default function Centers() {
   const user = useStore(s => s.user), config = useStore(s => s.config),[params]=useSearchParams()
   if (!user) return <Navigate to="/home" replace />
-  if(config==null)return <ConfigPending fallback={params.get('centerId')?'/centers':'/home'}/>
+  if(config==null)return <ConfigPending fallback={params.get('centerId')||params.get('pane')==='metrics'?'/centers':'/home'}/>
   if(!config.centers?.enabled)return <Navigate to="/home" replace />
   return <Content key={user.id} user={user} />
 }

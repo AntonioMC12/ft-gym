@@ -1,12 +1,12 @@
 # C34 — Clases y reservas
 
-Desarrollo inicial en schema026, con salas en schema030/031 y profesores en schema032/033, rama `codex/centers-module`. C34 permanece en progreso hasta completar su evidencia y revisión visual permitida. No hay activación comercial ni operaciones sobre datos reales.
+Desarrollo inicial en schema026, con salas en schema030/031 y profesores en schema032/033, rectificaciones en034 y series finitas en035, rama `codex/centers-module`. C34 permanece en progreso hasta completar su evidencia y revisión visual permitida. No hay activación comercial ni operaciones sobre datos reales.
 
 ## Alcance de esta entrega
 
-Clases individuales programadas, aforo, lista de espera FIFO, reserva/cancelación propia, cancelación administrativa de una clase futura y registro explícito de asistencia/ausencia. Se reutilizan PostgreSQL/RLS, permisos por centro, transacciones/idempotencia y React/UI actuales. No hay servicio, framework, almacén de identidad ni contabilidad nuevos.
+Clases individuales programadas, aforo, lista de espera FIFO, reserva/cancelación propia, cancelación administrativa de clases futuras individuales o de una serie revisada y registro/rectificación auditada de asistencia/ausencia. Se reutilizan PostgreSQL/RLS, permisos por centro, transacciones/idempotencia y React/UI actuales. No hay servicio, framework, almacén de identidad ni contabilidad nuevos.
 
-No se incorporan series recurrentes, catálogo de salas, avisos externos de clase, penalizaciones económicas. La lista administrativa de reservas requiere gestión: un entrenador puede leer horarios y contadores, sin obtener el listado de socios de la clase. Estas limitaciones deben permanecer visibles al aceptar el alcance; no se anuncia el CU completo por haber implementado su núcleo de reservas.
+No se incorporan recurrencias infinitas, catálogo de salas, avisos externos de clase ni penalizaciones económicas. La lista administrativa de reservas requiere gestión: un entrenador puede leer horarios y contadores, sin obtener el listado de socios de la clase. Estas limitaciones deben permanecer visibles al aceptar el alcance; no se anuncia el CU completo por haber implementado su núcleo de reservas.
 
 ## Condiciones explícitas
 
@@ -101,6 +101,14 @@ La gestión puede preparar una serie semanal con fecha inicial/final inclusiva, 
 
 preview es una revisión sin escrituras y su hash liga actor/centro/definición/hechos. create exige ese hash más una clave de comando; bajo locks actuales vuelve a revisar y rechaza íntegramente cambios, errores, cero fechas válidas o exceso del límite. No se encadenan peticiones HTTP ni transacciones anidadas: grupo, clases, tarifas, auditoría y clave se confirman juntos. Un fallo en cualquier ocurrencia revierte todo. La pertenencia/posición son inmutables y una restricción diferida exige el total completo; no quedan grupos parciales. Las migraciones previas se conservan.
 
-El grupo conserva definición versionada y zona original; cada clase mantiene sus términos independientes y los flujos existentes de reserva, asistencia y cancelación individual. No hay recurrencia infinita, worker, cuota nueva, sanción ni aviso externo. Repetir una clave completada devuelve el mismo grupo con los estados actuales, incluso en centro inactivo. Modificar en bloque o cancelar una serie entera queda fuera de esta entrega.
+El grupo conserva definición versionada y zona original; cada clase mantiene sus términos independientes y los flujos existentes de reserva, asistencia y cancelación individual. No hay recurrencia infinita, worker, cuota nueva, sanción ni aviso externo. Repetir una clave completada devuelve el mismo grupo con los estados actuales, incluso en centro inactivo. Modificar horarios/términos en bloque queda fuera de esta entrega. La cancelación revisada de ocurrencias futuras se describe abajo.
 
 Listado de grupos de30con cursor real ligado a actor/centro y detalle completo (máximo25por contrato/SQL). Solo gestión vigente/plataforma acceden a definiciones; el calendario propio mantiene su proyección sin datos administrativos. La UI reutiliza Check, campos, Row/Section y confirmSheet; prepara antes de crear, exige nueva revisión tras cambios y conserva identidad al reintentar una respuesta perdida. Los conflictos DST ofrecen las elecciones existentes. Se descartan revisiones y confirmaciones de contexto obsoleto. Atrás desde reservas vuelve al grupo y desde el grupo al origen real (calendario o listado). La revisión visual permanece pendiente.
+
+## Cancelación conjunta revisada (sin migración adicional)
+
+Desde el grupo se abre una revisión de todas sus ocurrencias: las futuras programadas se cancelarán y las iniciadas/canceladas se conservan. Se muestran cantidades de clases, plazas y espera, sin identificar socios en la revisión. Exige motivo no vacío de una línea (máximo250), confirmación separada y hash de revisión actual. Un cambio de reserva invalida el hash incluso si se conserva el mismo número de plazas/esperas; también queda ligado a actor, centro y grupo. Cambiar el motivo invalida confirmaciones abiertas. Un fallo de red conserva formulario y clave de reintento; un conflicto exige revisar de nuevo conservando el motivo.
+
+Dentro del lock de centro se repite la revisión y se reutiliza cancelScheduledClass, común con la cancelación individual. Todo el lote comparte transacción: clases/reservas activas/contadores/auditorías/clave. Un fallo al final revierte también lo anterior; un nuevo inicio durante la espera o el recorrido no deja un lote parcial. No se promueve espera ni se generan cargos, reembolsos o avisos. Centro inactivo admite liberar compromisos; gestión vigente sigue siendo obligatoria. Cero futuras no ejecuta un comando nuevo, pero el replay completado sigue recuperando el estado actual. Definición de la serie y asistencia pasada intactas.
+
+Las pruebas incluyen cambios de ocupantes con conteos iguales, autoridad por actor, concurrencia/replay, histórico sembrado como hechos ficticios nuevos (sin cambiar fechas existentes), rollback de auditoría y espera real de lock que cruza el inicio. El restore conserva cancelaciones y claves de creación/cancelación, sin recrear clases ni añadir auditorías.

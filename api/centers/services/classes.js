@@ -130,14 +130,20 @@ export function cancelClassReservation({database,user,checkSession},raw){
     checkSession();await client.query('SELECT centers.cancel_own_class_reservation($1,$2)',[id,version]);await rememberCommand(client,centerId,user.id,operation,requestId,hash,{id});checkSession();return {reservation:reservationDto(await reservationRecord(client,centerId,id))};
   },{allowInactive:true});
 }
+export async function cancelScheduledClass(client,{centerId,id,reason,userId}){
+  // Also recheck after any previous occurrence in a batch; rollback the batch if time has crossed.
+  const {rows:[clock]}=await client.query('SELECT starts_at>clock_timestamp() AS future,state FROM centers.classes WHERE center_id=$1 AND id=$2',[centerId,id]);
+  if(!clock||clock.state!=='scheduled'||!clock.future)conflict('class-closed');
+  await client.query("UPDATE centers.classes SET state='canceled',cancel_reason=$3,version=version+1 WHERE center_id=$1 AND id=$2",[centerId,id,reason]);
+  await client.query("UPDATE centers.class_reservations SET state='canceled',reason=$3,version=version+1 WHERE center_id=$1 AND class_id=$2 AND state IN ('booked','waiting')",[centerId,id,reason]);
+  await businessAudit(client,centerId,userId,'class.canceled',id);
+}
 export function cancelClass({database,user,checkSession},raw,{platform=false}={}){
   objectBody(raw,['centerId','id','version','reason','requestId']);const centerId=idField(raw.centerId),id=idField(raw.id),version=versionField(raw.version),reason=textField(raw.reason,250,{required:true}),requestId=requestField(raw.requestId),hash=commandHash({id,version,reason}),operation='class.cancel';
   return businessTransaction(database,user.id,centerId,'classes.manage',async client=>{
     const event=await eventRecord(client,centerId,id),replay=await commandReplay(client,centerId,user.id,operation,requestId,hash);if(replay)return {event:classDto(event)};
     if(event.version!==version)conflict('version-conflict');const {rows:[clock]}=await client.query('SELECT $1::timestamptz>clock_timestamp() AS future',[event.starts_at]);if(event.state!=='scheduled'||!clock.future)conflict('class-closed');checkSession();
-    await client.query("UPDATE centers.classes SET state='canceled',cancel_reason=$3,version=version+1 WHERE center_id=$1 AND id=$2",[centerId,id,reason]);
-    await client.query("UPDATE centers.class_reservations SET state='canceled',reason=$3,version=version+1 WHERE center_id=$1 AND class_id=$2 AND state IN ('booked','waiting')",[centerId,id,reason]);
-    await businessAudit(client,centerId,user.id,'class.canceled',id);await rememberCommand(client,centerId,user.id,operation,requestId,hash,{id});checkSession();return {event:classDto(await eventRecord(client,centerId,id))};
+    await cancelScheduledClass(client,{centerId,id,reason,userId:user.id});await rememberCommand(client,centerId,user.id,operation,requestId,hash,{id});checkSession();return {event:classDto(await eventRecord(client,centerId,id))};
   },{platform,allowInactive:true});
 }
 export function classAttendance({database,user,checkSession},raw,{platform=false}={}){

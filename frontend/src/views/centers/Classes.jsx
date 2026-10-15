@@ -133,6 +133,35 @@ function AttendanceReview({centerId,ownerUid,id,timezone,close,changed}){
     <Button type="button" disabled={busy} onClick={()=>navigate(close)}>{t('Back')}</Button>
   </div></Section>
 }
+function SeriesCancellation({centerId,ownerUid,id,close,changed}){
+  const [review,setReview]=useState(null),[reason,setReason]=useState(''),[busy,setBusy]=useState(true),[error,setError]=useState(null),[revision,setRevision]=useState(0),[stale,setStale]=useState(false)
+  const life=useRef(0),pending=useRef(false),retry=useRef(null),latest=useRef(''),navigate=useCenterNavigation()
+  const current=epoch=>life.current===epoch&&useStore.getState().user?.id===ownerUid
+  const body=()=>({centerId,id,reason:reason.trim(),reviewHash:review?.reviewHash})
+  latest.current=JSON.stringify(body());useUnsavedCenterForm(reason?latest.current:null,busy)
+  const fail=e=>{setError(e);useCenters.getState().revokeOn(e)}
+  useEffect(()=>{const epoch=++life.current;pending.current=true;setBusy(true);setError(null);setReview(null);setStale(false)
+    centerCommand('/api/centers/classes/series/cancel/preview',{centerId,id}).then(dto=>{if(dto.definitionVersion!==1)throw new Error('unsupported series definition');if(current(epoch))setReview(dto)}).catch(e=>{if(current(epoch))fail(e)}).finally(()=>{if(current(epoch)){pending.current=false;setBusy(false)}})
+    return()=>{life.current++;pending.current=false}
+  },[centerId,ownerUid,id,revision])
+  const cancel=()=>{
+    if(pending.current||!review?.summary.classes||!reason.trim()||stale)return
+    const epoch=life.current,content=body(),signature=JSON.stringify(content)
+    confirmSheet({title:t('Cancel future classes'),message:review.series.name+' · '+t('Classes')+': '+review.summary.classes+' · '+t('Booked')+': '+review.summary.booked+' · '+t('Waiting list')+': '+review.summary.waiting+' · '+t('No automatic fees or penalties.'),confirmText:t('Confirm'),danger:true,onConfirm:async()=>{
+      if(!current(epoch)||pending.current||latest.current!==signature)return
+      pending.current=true;setBusy(true);setError(null);if(retry.current?.signature!==signature)retry.current={signature,id:crypto.randomUUID()}
+      try{await centerCommand('/api/centers/classes/series/cancel',{...content,requestId:retry.current.id});if(current(epoch))changed()}catch(e){if(current(epoch)){fail(e);if(['class-series-review-changed','class-series-invalid','class-closed'].includes(e?.data?.code||e?.code))setStale(true)}}finally{if(current(epoch)){pending.current=false;setBusy(false)}}
+    }})
+  }
+  return <Section title={t('Cancel future classes')}><div className="centers-form"><p>{t('Classes already started or canceled are preserved.')}</p>
+    {review&&<><h3>{review.series.name}</h3><Row title={t('Classes')} value={String(review.summary.classes)}/><Row title={t('Booked')} value={String(review.summary.booked)}/><Row title={t('Waiting list')} value={String(review.summary.waiting)}/>
+      <div className="centers-import-rows">{review.classes.map(event=><Row key={event.id} title={event.name} subtitle={classSchedule(event,dateLocale())} value={t(event.cancelable?'Cancel class':'Preserved')}/>)}</div>
+      <label className="centers-field"><span>{t('Reason')}</span><TextArea required maxLength={250} disabled={busy} value={reason} onChange={e=>setReason(e.target.value)}/></label>
+      <Button type="button" variant="danger" disabled={busy||stale||!reason.trim()||!review.summary.classes} onClick={cancel}>{t('Cancel future classes')}</Button>
+    </>}{busy&&<p role="status">{t('Loading…')}</p>}{error&&<p role="alert">{t(classesErrorKey(error))}</p>}
+    <Button type="button" disabled={busy} onClick={()=>setRevision(value=>value+1)}>{t('Review class series')}</Button><Button type="button" disabled={busy} onClick={()=>navigate(close)}>{t('Back')}</Button>
+  </div></Section>
+}
 function Content({centerId,ownerUid,own=false,canManage=false}){
   const [mode,setMode]=useState('list'),[data,setData]=useState(null),[dataCenter,setDataCenter]=useState(null),[busy,setBusy]=useState(false),[error,setError]=useState(null),[revision,setRevision]=useState(0)
   const [correctionId,setCorrectionId]=useState(null),[rosterParent,setRosterParent]=useState('list'),[seriesParent,setSeriesParent]=useState('series-list')
@@ -144,7 +173,7 @@ function Content({centerId,ownerUid,own=false,canManage=false}){
   useUnsavedCenterForm(reason?reason:null,busy)
   useEffect(()=>{
     const epoch=++life.current;pending.current=true;retry.current=null;setBusy(true);setData(null);setError(null);setReason('');setCorrectionId(null)
-    if(mode==='create'||mode==='create-series'){pending.current=false;setBusy(false);return()=>{life.current++}}
+    if(mode==='create'||mode==='create-series'||mode.startsWith('series-cancel:')){pending.current=false;setBusy(false);return()=>{life.current++}}
     const request=mode==='list'?centerClasses(centerId,{own,...(applied||{})}):mode==='series-list'?centerClassSeriesList(centerId):mode.startsWith('series:')?centerClassSeries(centerId,mode.slice(7)):centerClassRoster(centerId,mode.slice(7))
     request.then(result=>{if(current(epoch)){setData(result);if(mode==='list'||mode.startsWith('series:')){setDataCenter({...result.center,today:result.today});if(mode==='list')setFilters({from:result.from,to:result.to})}}}).catch(e=>{if(current(epoch))fail(e)}).finally(()=>{if(current(epoch)){pending.current=false;setBusy(false)}})
     return()=>{life.current++;pending.current=false}
@@ -166,6 +195,7 @@ function Content({centerId,ownerUid,own=false,canManage=false}){
     try{const key=mode==='list'?'classes':mode==='series-list'?'series':'reservations',result=mode==='list'?await centerClasses(centerId,{own,from:data.from,to:data.to,cursor:data.nextCursor}):mode==='series-list'?await centerClassSeriesList(centerId,{cursor:data.nextCursor}):await centerClassRoster(centerId,mode.slice(7),{cursor:data.nextCursor});if(current(epoch))setData(previous=>({...previous,...result,[key]:[...previous[key],...result[key]]}))}catch(e){if(current(epoch))fail(e)}finally{if(current(epoch)){pending.current=false;setBusy(false)}}
   }
   const moreRef=useAutoMore(more)
+  if(mode.startsWith('series-cancel:')&&canManage&&!own)return <SeriesCancellation key={centerId+':'+ownerUid+':'+mode} centerId={centerId} ownerUid={ownerUid} id={mode.slice(14)} close={()=>{setData(null);setMode('series:'+mode.slice(14))}} changed={()=>{setData(null);setMode('series:'+mode.slice(14));setRevision(value=>value+1)}}/>
   if(correctionId&&canManage&&!own)return <AttendanceReview key={centerId+':'+ownerUid+':'+correctionId} centerId={centerId} ownerUid={ownerUid} id={correctionId} timezone={data?.event.timezone} close={()=>setCorrectionId(null)} changed={()=>{setCorrectionId(null);setRevision(value=>value+1)}}/>
   if((mode==='create'||mode==='create-series')&&canManage&&!own)return <ClassEditor startSeries={mode==='create-series'} key={centerId+':'+ownerUid+':'+mode} centerId={centerId} ownerUid={ownerUid} timezone={dataCenter?.timezone} today={dataCenter?.today} close={()=>changeMode('list')} saved={result=>{changeMode(result?.seriesId?'series:'+result.seriesId:'list');setRevision(value=>value+1)}}/>
   return <Section title={t(mode.startsWith('roster:')?'Class roster':mode==='series-list'||mode.startsWith('series:')?'Class series':'Classes')}><div className="centers-form">
@@ -175,7 +205,7 @@ function Content({centerId,ownerUid,own=false,canManage=false}){
       {dataCenter&&dataCenter.state!=='active'&&<p role="status">{t('Inactive center')}</p>}
       {mode==='list'&&<form onSubmit={e=>{e.preventDefault();setApplied(filters.from&&filters.to?{...filters}:null);setRevision(value=>value+1)}}><div className="centers-fields">{['from','to'].map(key=><label key={key} className="centers-field"><span>{t(key==='from'?'From':'To')}</span><TextField type="date" required disabled={busy} value={filters[key]} onChange={e=>setFilters(previous=>({...previous,[key]:e.target.value}))}/></label>)}</div><Button type="submit" disabled={busy}>{t('Apply')}</Button></form>}
       {mode==='list'&&canManage&&!own&&<><Button type="button" variant="primary" disabled={busy||!dataCenter||dataCenter.state!=='active'} onClick={()=>changeMode('create')}>{t('New class')}</Button><Button type="button" disabled={busy} onClick={()=>changeMode('series-list')}>{t('Class series')}</Button></>}
-      {mode.startsWith('series:')&&<><h3>{data?.series.name}</h3><Button type="button" disabled={busy} onClick={()=>navigate(()=>changeMode(seriesParent))}>{t('Back')}</Button></>}
+      {mode.startsWith('series:')&&<><h3>{data?.series.name}</h3><Button type="button" variant="tinted" disabled={busy||!data} onClick={()=>changeMode('series-cancel:'+mode.slice(7))}>{t('Cancel future classes')}</Button><Button type="button" disabled={busy} onClick={()=>navigate(()=>changeMode(seriesParent))}>{t('Back')}</Button></>}
       {data?.classes.map(event=>{const reservation=event.ownReservation,held=reservation&&['booked','waiting','attended'].includes(reservation.state),available=event.booked<event.capacity,eventActive=event.state==='scheduled',centerActive=data.center.state==='active';return <article key={event.id} className="centers-class-card"><h3>{event.name}</h3><p>{classSchedule(event,dateLocale())}</p>{event.room&&<p>{t('Class room')}: {event.room}</p>}{event.instructorName&&<p>{t('Trainer')}: {event.instructorName}</p>}{canManage&&!own&&event.instructorNeedsReview&&<p role="status" className="centers-import-notice">{t('Review the instructor assignment before this class.')}</p>}<p className="small muted">{t('Capacity')}: {event.booked}/{event.capacity} · {t('Waiting list')}: {event.waiting}/{event.waitlistCapacity}</p>
         {event.cancelReason&&<p>{t('Canceled')}: {event.cancelReason}</p>}{reservation&&<Row title={t(status(reservation.state))}/>}
         {own&&eventActive&&event.bookingOpen&&!held&&<><Button type="button" variant={available?'primary':'tinted'} disabled={busy||!centerActive||!event.eligible||!available&&event.waiting>=event.waitlistCapacity} onClick={()=>confirm(available?'Reserve place':'Join waiting list',event,'/api/centers/own/classes/reserve',{id:event.id})}>{t(available?'Reserve place':'Join waiting list')}</Button>{!event.eligible&&<p className="small muted">{t('Your membership or plan does not allow this class.')}</p>}{!available&&event.waiting>=event.waitlistCapacity&&<p>{t('This class is full.')}</p>}</>}

@@ -87,6 +87,9 @@ test('C24: two-center pilot survives a coordinated JSON/PostgreSQL restore and r
   }catch(error){await sourceBackup.query('ROLLBACK');throw error}
   const attendanceCommand={centerId:centers[0],id:pastReservationId,version:1,attendanceRevision:0,state:'no-show',reason:'Fictional recovery attendance correction',requestId:'pilot_attendance_correction'};
   const attendanceCorrected=await req('/api/centers/classes/attendance/correct','pilot_manager_a',attendanceCommand);assert.equal(attendanceCorrected.status,200,JSON.stringify(attendanceCorrected));
+  const cancelReview=await req('/api/centers/classes/series/cancel/preview','pilot_manager_a',{centerId:centers[0],id:seriesCreated.body.series.id});assert.equal(cancelReview.status,200);
+  const seriesCancelCommand={centerId:centers[0],id:seriesCreated.body.series.id,reason:'Fictional recovered series closure',reviewHash:cancelReview.body.reviewHash,requestId:'pilot_series_cancel'};
+  const seriesCanceled=await req('/api/centers/classes/series/cancel','pilot_manager_a',seriesCancelCommand);assert.equal(seriesCanceled.status,200);assert.ok(seriesCanceled.body.classes.every(row=>row.state==='canceled'));
   let freezeCommand,freezeResult;
   for(const [index,manager,uid] of [[0,'pilot_manager_a','pilot_alice'],[1,'pilot_manager_b','pilot_bob']]){
     const config={enabled:true,minDays:1,maxDays:15,noticeDays:0,maxDaysPerYear:30,billingEffect:'contract-proration'};
@@ -141,8 +144,9 @@ test('C24: two-center pilot survives a coordinated JSON/PostgreSQL restore and r
   assert.deepEqual((await after(ownPath,'pilot_alice')).body,ownBefore);assert.deepEqual((await after('/api/data','pilot_alice')).body,personalBefore);
   const metricsAfter=await after(metricsPath,'pilot_manager_a');assert.equal(metricsAfter.status,200);assert.deepEqual(metricsAfter.body.current,metricsBefore.body.current);assert.deepEqual(metricsAfter.body.period,metricsBefore.body.period,'contract/financial aggregates recompute from the restored ledger without a cached personal-state projection');
   assert.deepEqual((await after('/api/centers/classes/attendance/correct','pilot_manager_a',attendanceCommand)).body,attendanceCorrected.body,'attendance replay does not append after restore');
-  const recoveredSeries=await after('/api/centers/classes/series/detail?'+new URLSearchParams({centerId:centers[0],id:seriesCreated.body.series.id}),'pilot_manager_a');assert.equal(recoveredSeries.status,200);assert.deepEqual(recoveredSeries.body,seriesCreated.body,'series definition and every occurrence survive restore');
-  assert.deepEqual((await after('/api/centers/classes/series/create','pilot_manager_a',seriesCommand)).body,seriesCreated.body,'restored command does not schedule another series');
+  const recoveredSeries=await after('/api/centers/classes/series/detail?'+new URLSearchParams({centerId:centers[0],id:seriesCreated.body.series.id}),'pilot_manager_a');assert.equal(recoveredSeries.status,200);assert.deepEqual(recoveredSeries.body,seriesCanceled.body,'series definition and canceled occurrences survive restore');
+  assert.deepEqual((await after('/api/centers/classes/series/create','pilot_manager_a',seriesCommand)).body,seriesCanceled.body,'restored command does not schedule another series');
+  assert.deepEqual((await after('/api/centers/classes/series/cancel','pilot_manager_a',seriesCancelCommand)).body,seriesCanceled.body,'restored cancellation key does not append audits or change past facts');
   const correctionHistory=await after('/api/centers/classes/attendance/history?'+new URLSearchParams({centerId:centers[0],id:pastReservationId}),'pilot_manager_a');assert.equal(correctionHistory.body.corrections.length,1);assert.equal(correctionHistory.body.reservation.originalState,'attended');assert.equal(correctionHistory.body.reservation.state,'no-show');
   const restoredCsv=await after('/api/centers/members/imports/detail?'+new URLSearchParams({centerId:centers[0],id:csvPending.body.id}),'pilot_manager_a');assert.equal(restoredCsv.status,200);assert.equal(restoredCsv.body.reviewHash,csvPending.body.reviewHash);
   assert.deepEqual((await after('/api/centers/members/imports/commit','pilot_manager_a',csvCompletedCommand)).body,csvCompleted.body,'a restored completed import returns its old member IDs and does not run twice');

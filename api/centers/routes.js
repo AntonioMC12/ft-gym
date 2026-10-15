@@ -1,4 +1,4 @@
-import {previewClassSeries,createClassSeries,classSeriesPageOptions,getClassSeries,listClassSeries} from './services/class-series.js';
+import {previewClassSeriesCancellation,cancelClassSeries,previewClassSeries,createClassSeries,classSeriesPageOptions,getClassSeries,listClassSeries} from './services/class-series.js';
 import { CentersError } from './errors.js';
 import {notificationMode} from './notification-config.js';
 import {notificationStatus,configureNotificationPolicy,ownNotificationContact,requestNotificationContact,verifyNotificationContact,disableNotificationContact,retryBlockedNotifications} from './services/notification-contacts.js';
@@ -154,6 +154,8 @@ export function centersRoutes({ config, database, json, readSession, readBody, a
       const user=guard(req,res);if(!user)return;const sv=user.sv||0,params=new URL(req.url,'http://x').searchParams,centerId=params.get('centerId');if(!recordId(centerId))return json(res,404,{error:'not found',code:'not-found'});
       try{const options=classSeriesPageOptions(params,{detail:true}),result=await getClassSeries(database,user.id,centerId,options.id,{platform:isPlatformUser(config,user),lookupAccount});if(!current(req,user,sv))return json(res,401,{error:'not signed in'});return json(res,200,result)}catch(error){return failure(res,error)}
     },
+    'POST /api/centers/classes/series/cancel/preview':mutate(false,(context,body)=>previewClassSeriesCancellation(context,body,{platform:isPlatformUser(config,context.user)})),
+    'POST /api/centers/classes/series/cancel':mutate(false,(context,body)=>cancelClassSeries(context,body,{platform:isPlatformUser(config,context.user)})),
     'POST /api/centers/classes/series/preview':mutate(false,(context,body)=>previewClassSeries(context,body,{platform:isPlatformUser(config,context.user)})),
     'POST /api/centers/classes/series/create':mutate(false,(context,body)=>createClassSeries(context,body,{platform:isPlatformUser(config,context.user)})),
     'GET /api/centers/classes':readClasses(false),

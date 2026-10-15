@@ -225,6 +225,44 @@ paths:
         '400': { description: Unexpected selector or invalid cursor. }
         '403': { description: Management capability required. }
         '404': { description: Selected center unavailable. }
+  /api/centers/classes/series/cancel/preview:
+    post:
+      tags: [centers]
+      operationId: previewCenterClassSeriesCancellation
+      summary: Review future series classes and active reservations affected by cancellation
+      description: |
+        Body centerId/id. Current management or platform allowlist, including inactive centers.
+        Returns definitionVersion1, series id/name/timezone, all bounded occurrence facts with
+        cancelable flags, summary classes/booked/waiting/skipped and reviewHash. Already started
+        or canceled classes remain preserved. No member identities or notes in this projection.
+        Hash binds actor/center/group, current class states/versions and active reservation
+        identities/states/versions internally; changed bookings require a fresh review even when
+        aggregate counts are unchanged. No cancellation occurs during preview.
+      responses:
+        '200': { description: Bounded cancellation review and hash, including zero targets. }
+        '400': { description: Unexpected selectors or invalid identity. }
+        '403': { description: Current management capability required. }
+        '404': { description: Series unavailable in selected center. }
+  /api/centers/classes/series/cancel:
+    post:
+      tags: [centers]
+      operationId: cancelCenterClassSeries
+      summary: Atomically cancel the reviewed future occurrences and active reservations
+      description: |
+        Body centerId/id/reason/reviewHash/requestId; reason nonempty single-line up to250chars.
+        Current management or platform allowlist. Active and inactive centers are supported.
+        Under the center lock recomputes the hash; any changed booking/state/time boundary requires
+        a fresh review, and zero targets rejects. Reuses individual cancellation in one transaction:
+        class states, active booked/waiting reservations, counters, audits and command identity.
+        Rechecks future time before each occurrence and rolls back the whole batch on any failure.
+        No waiting-list promotion, refund, penalty or external notification. Historical attendance
+        and original series definition remain intact. Completed replay returns current group facts.
+      responses:
+        '200': { description: Current series detail with all occurrences. }
+        '400': { description: Invalid reason, review hash or command identity. }
+        '403': { description: Current management capability required. }
+        '404': { description: Series unavailable in selected center. }
+        '409': { description: class-series-review-changed, class-series-invalid, class-closed or idempotency-conflict. }
   /api/centers/classes/series/preview:
     post:
       tags: [centers]

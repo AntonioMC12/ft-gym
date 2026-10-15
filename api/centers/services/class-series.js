@@ -1,10 +1,10 @@
 import {CentersError} from '../errors.js';
-import {objectBody,idField,requestField} from '../domain/validation.js';
+import {objectBody,idField,requestField,textField} from '../domain/validation.js';
 import {classFields} from '../domain/classes.js';
 import {classSeriesInput,SERIES_MAX_CLASSES} from '../domain/class-series.js';
 import {businessTransaction} from './context.js';
 import {commandHash,commandReplay,rememberCommand,businessAudit} from './commands.js';
-import {classDto,insertScheduledClass,instructorReviewFlags} from './classes.js';
+import {classDto,insertScheduledClass,instructorReviewFlags,cancelScheduledClass} from './classes.js';
 import {cursorScope,readCursor,nextCursor} from '../domain/pagination.js';
 
 const conflict=code=>{throw new CentersError(409,code,'review class series again')};
@@ -102,5 +102,33 @@ export function listClassSeries(database,uid,centerId,options,{platform=false}={
   return businessTransaction(database,uid,centerId,'classes.manage',async client=>{
     const {rows}=await client.query('SELECT *,created_at::text AS cursor_at FROM centers.class_series WHERE center_id=$1 AND ($2::timestamptz IS NULL OR (created_at,id)<($2::timestamptz,$3::text)) ORDER BY created_at DESC,id DESC LIMIT 31',[centerId,after?.at||null,after?.id||null]);
     const page=rows.slice(0,30);return {series:page.map(seriesDto),nextCursor:rows.length>30?nextCursor(scope,page.at(-1)):null};
+  },{platform,allowInactive:true});
+}
+
+async function cancellationReview(client,centerId,uid,id){
+  const {rows:[series]}=await client.query('SELECT id,name,timezone FROM centers.class_series WHERE center_id=$1 AND id=$2',[centerId,id]);
+  if(!series)throw new CentersError(404,'not-found','not found');
+  const {rows}=await client.query("SELECT *,class_on::text,state='scheduled' AND starts_at>clock_timestamp() AS cancelable FROM centers.classes WHERE center_id=$1 AND series_id=$2 ORDER BY series_position",[centerId,id]);
+  const targets=rows.filter(row=>row.cancelable),ids=targets.map(row=>row.id);
+  const {rows:reservations}=await client.query("SELECT id,class_id,state,version FROM centers.class_reservations WHERE center_id=$1 AND class_id=ANY($2::text[]) AND state IN ('booked','waiting') ORDER BY class_id,id",[centerId,ids]);
+  const summary={classes:targets.length,booked:reservations.filter(row=>row.state==='booked').length,waiting:reservations.filter(row=>row.state==='waiting').length,skipped:rows.length-targets.length};
+  const reviewHash=commandHash({definitionVersion:1,centerId,uid,id,events:rows.map(row=>[row.id,row.version,row.state,row.cancelable,row.booked_count,row.waiting_count]),reservations});
+  return {dto:{definitionVersion:1,series,classes:rows.map(row=>({...classDto(row),cancelable:row.cancelable})),summary,reviewHash},targets};
+}
+export function previewClassSeriesCancellation({database,user,checkSession},raw,{platform=false}={}){
+  objectBody(raw,['centerId','id']);const centerId=idField(raw.centerId),id=idField(raw.id);
+  return businessTransaction(database,user.id,centerId,'classes.manage',async client=>{const review=await cancellationReview(client,centerId,user.id,id);checkSession();return review.dto},{platform,allowInactive:true});
+}
+export function cancelClassSeries({database,user,checkSession,lookupAccount},raw,{platform=false}={}){
+  objectBody(raw,['centerId','id','reason','reviewHash','requestId']);
+  const centerId=idField(raw.centerId),id=idField(raw.id),reason=textField(raw.reason,250,{required:true}),requestId=requestField(raw.requestId),reviewHash=raw.reviewHash;
+  if(typeof reviewHash!=='string'||!/^[a-f0-9]{64}$/.test(reviewHash)||/[\u0000-\u001f\u007f]/.test(reason))throw new CentersError(400,'invalid-input','explicit reason and review required');
+  const operation='class.series.cancel',hash=commandHash({id,reason,reviewHash});
+  return businessTransaction(database,user.id,centerId,'classes.manage',async client=>{
+    const replay=await commandReplay(client,centerId,user.id,operation,requestId,hash);if(replay)return seriesDetails(client,centerId,replay.id,lookupAccount);
+    const review=await cancellationReview(client,centerId,user.id,id);if(review.dto.reviewHash!==reviewHash)conflict('class-series-review-changed');if(!review.targets.length)conflict('class-series-invalid');
+    for(const event of review.targets){checkSession();await cancelScheduledClass(client,{centerId,id:event.id,reason,userId:user.id})}
+    await businessAudit(client,centerId,user.id,'class.series.canceled',id,review.dto.summary);
+    await rememberCommand(client,centerId,user.id,operation,requestId,hash,{id});checkSession();return seriesDetails(client,centerId,id,lookupAccount);
   },{platform,allowInactive:true});
 }

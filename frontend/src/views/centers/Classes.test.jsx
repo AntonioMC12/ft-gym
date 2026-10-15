@@ -151,3 +151,20 @@ it('pages the series directory and returns from roster through the actual series
   await rowClick('Weekly cs_one');await click('Class roster');await click('Back');expect(centerClassSeries).toHaveBeenCalledTimes(2);centerClassSeriesList.mockResolvedValue({series:[group('cs_one')],nextCursor:null});await click('Back');expect(host.textContent).toContain('Create weekly series');
   await click('Back');centerClasses.mockResolvedValue({...page,classes:[{...event,seriesId:'cs_one'}]});await click('Reload centers');await click('View series');await click('Back');expect(host.textContent).toContain('New class');
 })
+
+const cancelReview=()=>({definitionVersion:1,series:group('cs_one'),reviewHash:'b'.repeat(64),classes:[{...event,cancelable:true},{...event,id:'old',name:'Past class',cancelable:false}],summary:{classes:1,booked:1,waiting:0,skipped:1}})
+async function openSeriesCancellation(){centerClassSeriesList.mockResolvedValue({series:[group('cs_one')],nextCursor:null});centerClassSeries.mockResolvedValue(seriesDetails());await render({own:false,canManage:true});await click('Class series');await rowClick('Weekly cs_one');await click('Cancel future classes')}
+it('reviews affected classes and reservations and confirms cancellation with a reason and stable retry key',async()=>{
+  centerCommand.mockResolvedValueOnce(cancelReview()).mockRejectedValueOnce({code:'network'}).mockResolvedValueOnce({});await openSeriesCancellation();expect(button('Cancel future classes').disabled).toBe(true);expect(host.textContent).toContain('Past class');expect(host.textContent).toContain('Preserved');
+  fill(host.querySelector('textarea'),'Closure reviewed');await click('Cancel future classes');expect(centerCommand).toHaveBeenCalledTimes(1);expect(confirmSheet.mock.calls[0][0].danger).toBe(true);await act(async()=>confirmSheet.mock.calls[0][0].onConfirm());
+  await click('Cancel future classes');await act(async()=>confirmSheet.mock.calls[1][0].onConfirm());expect(centerCommand.mock.calls[1][0]).toBe('/api/centers/classes/series/cancel');expect(centerCommand.mock.calls[1][1]).toMatchObject({centerId:'a',id:'cs_one',reason:'Closure reviewed',reviewHash:'b'.repeat(64)});expect(centerCommand.mock.calls[2][1].requestId).toBe(centerCommand.mock.calls[1][1].requestId);
+  await click('Back');expect(host.textContent).toContain('Create weekly series');
+})
+it('invalidates changed cancellation confirmations and requires fresh server review after a booking conflict',async()=>{
+  centerCommand.mockResolvedValueOnce(cancelReview()).mockRejectedValueOnce({code:'class-series-review-changed'}).mockResolvedValueOnce({...cancelReview(),reviewHash:'c'.repeat(64)});await openSeriesCancellation();fill(host.querySelector('textarea'),'Old reason');await click('Cancel future classes');fill(host.querySelector('textarea'),'New reason');await act(async()=>confirmSheet.mock.calls[0][0].onConfirm());expect(centerCommand).toHaveBeenCalledTimes(1);
+  await click('Cancel future classes');await act(async()=>confirmSheet.mock.calls[1][0].onConfirm());expect(button('Cancel future classes').disabled).toBe(true);await click('Review class series');expect(host.querySelector('textarea').value).toBe('New reason');expect(button('Cancel future classes').disabled).toBe(false);
+})
+it('does not apply cancellation review or confirmations from a different selected center',async()=>{
+  let release;centerCommand.mockImplementationOnce(()=>new Promise(resolve=>release=resolve));await openSeriesCancellation();await render({centerId:'b',own:false,canManage:true});await act(async()=>release(cancelReview()));expect(host.textContent).not.toContain('Past class');expect(host.querySelector('textarea')).toBeNull();
+  centerCommand.mockResolvedValueOnce(cancelReview());await openSeriesCancellation();fill(host.querySelector('textarea'),'Valid reason');await click('Cancel future classes');await render({centerId:'b',own:false,canManage:true});await act(async()=>confirmSheet.mock.calls.at(-1)[0].onConfirm());expect(centerCommand).toHaveBeenCalledTimes(2);
+})

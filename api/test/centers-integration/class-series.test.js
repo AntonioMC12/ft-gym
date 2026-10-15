@@ -1,7 +1,8 @@
+import pg from 'pg';
 import {test} from 'node:test';
 import assert from 'node:assert/strict';
 import {fixture,shift} from './class-fixture.mjs';
-import {createClassSeries} from '../../centers/services/class-series.js';
+import {cancelClassSeries,createClassSeries} from '../../centers/services/class-series.js';
 import {commandHash} from '../../centers/services/commands.js';
 
 const source=f=>{const date=shift(f.today,1);return {centerId:f.center,timezone:'Europe/Madrid',fields:{name:'Fictional weekly class',date,startTime:'10:00',endTime:'11:00',capacity:1,waitlistCapacity:1,cancelBeforeMinutes:0,eligiblePlanIds:[f.plan.id]},rule:{until:shift(date,14),weekdays:[new Date(date+'T00:00:00Z').getUTCDay()],excludedDates:[]}}};
@@ -59,4 +60,67 @@ test('series list paginates more than thirty groups with actor-bound cursors and
   const second=(await f.req(url+'&cursor='+encodeURIComponent(first.nextCursor),f.ids.manager)).body;assert.equal(second.series.length,1);assert.equal(second.nextCursor,null);assert.equal(new Set([...first.series,...second.series].map(row=>row.id)).size,31);
   assert.equal((await f.req(url+'&cursor='+encodeURIComponent(first.nextCursor),f.ids.root)).status,400);
   await f.db.transaction({uid:f.ids.alice,centerId:f.center},async client=>assert.equal((await client.query('SELECT * FROM centers.class_series WHERE center_id=$1',[f.center])).rows.length,0));
+});
+
+const cancellation=(f,id)=>f.req('/api/centers/classes/series/cancel/preview',f.ids.manager,{centerId:f.center,id});
+test('reviewed series cancellation detects booking changes, cancels all future commitments once and preserves past classes',async t=>{
+  const f=await fixture(t),id='cs_'+commandHash(f.p+'_historical').slice(0,32),dates=[shift(f.today,-7),shift(f.today,7),shift(f.today,14)],created={series:{id},classes:dates.map((date,n)=>({id:'cl_'+commandHash([f.p,'historical',n]).slice(0,32),date}))};
+  const seed=await fictionalSeed(t,f);
+  // Insert a new fictional historical group; never rewrite an existing class date.
+  await seed.query('BEGIN');try{await seed.query("SET LOCAL session_replication_role='replica'");
+    const input=source(f);input.fields.date=dates[0];input.rule.until=dates[2];input.rule.excludedDates=[f.today];
+    await seed.query("INSERT INTO centers.class_series(id,center_id,name,timezone,total,definition,actor_uid) VALUES($1,$2,'Historical fictional series','Europe/Madrid',3,$3,$4)",[id,f.center,{definitionVersion:1,fields:input.fields,rule:input.rule},f.ids.manager]);
+    for(const [n,event] of created.classes.entries()){
+      await seed.query("INSERT INTO centers.classes(id,center_id,name,class_on,starts_at,ends_at,timezone,capacity,waitlist_capacity,cancel_before_minutes,actor_uid,series_id,series_position) VALUES($1,$2,'Historical fictional occurrence',$3,($3::date+time '10:00') AT TIME ZONE 'Europe/Madrid',($3::date+time '11:00') AT TIME ZONE 'Europe/Madrid','Europe/Madrid',1,1,0,$4,$5,$6)",[event.id,f.center,event.date,f.ids.manager,id,n+1]);
+      await seed.query('INSERT INTO centers.class_plans(center_id,class_id,plan_id) VALUES($1,$2,$3)',[f.center,event.id,f.plan.id]);
+    }await seed.query('COMMIT');
+  }catch(e){await seed.query('ROLLBACK');throw e}
+  const initial=(await cancellation(f,id)).body;assert.equal(initial.summary.classes,2);assert.equal(initial.summary.skipped,1);
+  const seat=await f.reserve(created.classes[1],'alice','series_cancel'),waiting=await f.reserve(created.classes[1],'bob','series_cancel');assert.equal(seat.status,200);assert.equal(waiting.body.reservation.state,'waiting');
+  const command={centerId:f.center,id,reason:'Fictional closure',reviewHash:initial.reviewHash,requestId:f.p+'_cancel_series'};
+  assert.equal((await f.req('/api/centers/classes/series/cancel',f.ids.manager,command)).body.code,'class-series-review-changed');
+  const updated=(await cancellation(f,id)).body;assert.deepEqual(updated.summary,{classes:2,booked:1,waiting:1,skipped:1});assert.ok(!JSON.stringify(updated).includes(f.members.alice));
+  await f.cancel(seat.body.reservation,'alice','changed_occupant');await f.reserve(created.classes[1],'charlie','replacement_waiter');
+  const sameCounts=(await cancellation(f,id)).body;assert.deepEqual(sameCounts.summary,updated.summary);assert.notEqual(sameCounts.reviewHash,updated.reviewHash,'swapping reservation identities invalidates review even when all counts match');
+  assert.equal((await f.req('/api/centers/classes/series/cancel',f.ids.manager,{...command,reviewHash:updated.reviewHash})).body.code,'class-series-review-changed');
+  assert.equal((await f.req('/api/centers/classes/series/cancel',f.ids.root,{...command,reviewHash:sameCounts.reviewHash})).body.code,'class-series-review-changed','reviews are scoped to the actor');
+  command.reviewHash=sameCounts.reviewHash;
+  assert.equal((await f.req('/api/centers/classes/series/cancel',f.ids.trainer,command)).status,403);assert.equal((await f.req('/api/centers/classes/series/cancel/preview',f.ids.alice,{centerId:f.center,id})).status,403);
+  await f.db.platformTransaction(f.ids.root,client=>client.query("UPDATE centers.centers SET state='inactive',version=version+1 WHERE id=$1",[f.center]),f.center);
+  const results=await Promise.all([f.req('/api/centers/classes/series/cancel',f.ids.manager,command),f.req('/api/centers/classes/series/cancel',f.ids.manager,command)]);assert.ok(results.every(row=>row.status===200),JSON.stringify(results));assert.deepEqual(results[0].body,results[1].body);
+  assert.deepEqual(results[0].body.classes.map(row=>row.state),['scheduled','canceled','canceled']);const roster=(await f.roster(created.classes[1])).body;assert.ok(roster.reservations.every(row=>row.state==='canceled'));assert.equal(roster.event.booked,0);assert.equal(roster.event.waiting,0);
+  const empty=(await cancellation(f,id)).body;assert.equal(empty.summary.classes,0);assert.equal((await f.req('/api/centers/classes/series/cancel',f.ids.manager,{...command,requestId:f.p+'_nothing',reviewHash:empty.reviewHash})).body.code,'class-series-invalid');
+});
+test('series cancellation rolls back earlier events and reservations when a later audit fails',async t=>{
+  const f=await fixture(t),input=source(f),created=(await create(f,input,(await preview(f,input)).body.reviewHash)).body,id=created.series.id;
+  await f.reserve(created.classes[0],'alice','rollback_series');const review=(await cancellation(f,id)).body,command={centerId:f.center,id,reason:'Fictional audit rollback',reviewHash:review.reviewHash,requestId:f.p+'_cancel_rollback'};let audits=0;
+  const database={transaction:(context,work)=>f.db.transaction(context,client=>work({query:(sql,args)=>{if(sql.startsWith('INSERT INTO centers.business_audit')&&++audits===2)throw new Error('fictional second cancellation audit');return client.query(sql,args)}}))};
+  await assert.rejects(cancelClassSeries({database,user:{id:f.ids.manager},checkSession(){},lookupAccount:()=>null},command),/fictional second cancellation audit/);
+  const unchanged=(await cancellation(f,id)).body;assert.equal(unchanged.reviewHash,review.reviewHash);assert.equal(unchanged.classes[0].booked,1);assert.equal((await f.roster(created.classes[0])).body.reservations[0].state,'booked');
+  assert.equal((await f.req('/api/centers/classes/series/cancel',f.ids.manager,command)).status,200);
+});
+
+async function fictionalSeed(t,f){
+  const url=new URL(f.app);assert.equal(url.hostname,'centers-ci-db');assert.equal(url.pathname,'/ft_gym_ci_centers_test');url.username='centers_bootstrap';url.password='fictional-bootstrap-test-only';
+  const seed=new pg.Client({connectionString:url.href});await seed.connect();t.after(()=>seed.end());assert.equal((await seed.query('SELECT kind FROM centers.environment WHERE singleton')).rows[0].kind,'test');
+  return seed;
+}
+
+test('a queued series cancellation rechecks the future set after the center lock and does not partially cancel',async t=>{
+  const f=await fixture(t),seed=await fictionalSeed(t,f),id='cs_'+commandHash(f.p+'_boundary').slice(0,32),events=[0,1].map(n=>'cl_'+commandHash([f.p,'boundary',n]).slice(0,32));
+  await seed.query('BEGIN');try{await seed.query("SET LOCAL session_replication_role='replica'");
+    await seed.query("INSERT INTO centers.class_series(id,center_id,name,timezone,total,definition,actor_uid) VALUES($1,$2,'Fictional time boundary','Europe/Madrid',2,'{}',$3)",[id,f.center,f.ids.manager]);
+    for(const [n,event] of events.entries())await seed.query("INSERT INTO centers.classes(id,center_id,name,class_on,starts_at,ends_at,timezone,capacity,waitlist_capacity,cancel_before_minutes,actor_uid,series_id,series_position) VALUES($1,$2,'Fictional boundary',((clock_timestamp()+make_interval(secs=>$3)) AT TIME ZONE 'Europe/Madrid')::date,clock_timestamp()+make_interval(secs=>$3),clock_timestamp()+make_interval(secs=>$3+3600),'Europe/Madrid',1,0,0,$4,$5,$6)",[event,f.center,n?86400:3,f.ids.manager,id,n+1]);
+    await seed.query('COMMIT');
+  }catch(e){await seed.query('ROLLBACK');throw e}
+  const review=(await cancellation(f,id)).body;assert.equal(review.summary.classes,2);
+  let release,locked;const entered=new Promise(resolve=>locked=resolve),hold=new Promise(resolve=>release=resolve);
+  const blocker=f.db.transaction({uid:f.ids.manager,centerId:f.center},async client=>{await client.query("SELECT pg_advisory_xact_lock(hashtext('ft-gym-center:'||$1))",[f.center]);locked();await hold});await entered;
+  const waiting=f.req('/api/centers/classes/series/cancel',f.ids.manager,{centerId:f.center,id,reviewHash:review.reviewHash,reason:'Fictional queued cancellation',requestId:f.p+'_queued_cancel'});
+  try{
+    let queued=false;for(let attempt=0;attempt<100;attempt++){const {rows:[row]}=await seed.query("SELECT EXISTS(SELECT 1 FROM pg_stat_activity WHERE usename='centers_app' AND wait_event='advisory') AS waiting");if(row.waiting){queued=true;break}await new Promise(resolve=>setTimeout(resolve,10))}assert.equal(queued,true,'request actually waits on the center lock');
+    await seed.query('SELECT pg_sleep(3.2)');
+  }finally{release();await blocker}
+  const response=await waiting;assert.equal(response.status,409);assert.equal(response.body.code,'class-series-review-changed');
+  const unchanged=(await cancellation(f,id)).body;assert.equal(unchanged.summary.classes,1);assert.ok(unchanged.classes.every(event=>event.state==='scheduled'),'the remaining future class is not partially canceled');
 });

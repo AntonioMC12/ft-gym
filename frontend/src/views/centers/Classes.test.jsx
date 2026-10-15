@@ -3,11 +3,11 @@ import React,{act} from 'react'
 import {createRoot} from 'react-dom/client'
 import {beforeEach,afterEach,it,expect,vi} from 'vitest'
 vi.mock('../../lib/i18n.js',()=>({t:key=>key,dateLocale:()=> 'en-GB'}))
-vi.mock('../../lib/centers-api.js',()=>({centerClassInstructors:vi.fn(),centerClasses:vi.fn(),centerClassRoster:vi.fn(),centerPlans:vi.fn(),centerCommand:vi.fn(),classesErrorKey:error=>error?.code||'error'}))
+vi.mock('../../lib/centers-api.js',()=>({centerAttendanceHistory:vi.fn(),centerClassInstructors:vi.fn(),centerClasses:vi.fn(),centerClassRoster:vi.fn(),centerPlans:vi.fn(),centerCommand:vi.fn(),classesErrorKey:error=>error?.code||'error'}))
 vi.mock('../../store/useStore.js',()=>{const state={user:{id:'alice'},S:{}};return {useStore:Object.assign(selector=>selector(state),{getState:()=>state})}})
 vi.mock('../../store/useCenters.js',()=>({useCenters:{getState:()=>({revokeOn:vi.fn()})}}))
 vi.mock('../../sheets.jsx',()=>({confirmSheet:vi.fn()}))
-import {centerClassInstructors,centerClasses,centerClassRoster,centerPlans,centerCommand} from '../../lib/centers-api.js'
+import {centerAttendanceHistory,centerClassInstructors,centerClasses,centerClassRoster,centerPlans,centerCommand} from '../../lib/centers-api.js'
 import {useStore} from '../../store/useStore.js'
 import {useUI} from '../../store/useUI.js'
 import {bindUI} from '../../components/ui.jsx'
@@ -53,6 +53,27 @@ it('submits an optional room with the existing class command and keeps room conf
   fill(field('Class room (optional)'),'Sala A');await click('Create class');
   expect(centerCommand.mock.calls[0][1].fields.room).toBe('Sala A');expect(field('Class room (optional)').value).toBe('Sala A');
   expect(host.querySelector('[role=alert]').textContent).toContain('class-room-conflict');expect(button('Create class').disabled).toBe(false);
+})
+const correctionPage=()=>({reservation:{id:'rb_one',classId:'cl_one',state:'no-show',originalState:'no-show',version:2,attendanceRevision:0},corrections:[],nextCursor:null})
+const correctionRoster=()=>({...roster,event:{...roster.event,noShowOpen:true},reservations:[{...roster.reservations[0],state:'no-show',version:2,attendanceRevision:0}]})
+it('requires a correction reason and explicit confirmation, preserving retry identity after a lost response',async()=>{
+  centerClassRoster.mockResolvedValue(correctionRoster());centerAttendanceHistory.mockResolvedValue(correctionPage());centerCommand.mockRejectedValueOnce({code:'network'}).mockResolvedValue({});
+  await render({own:false,canManage:true});await click('Class roster');await click('Correct attendance');
+  expect(button('Confirm').disabled).toBe(true);fill(field('Reason'),'Reviewed with reception');await click('Confirm');expect(centerCommand).not.toHaveBeenCalled();
+  await act(async()=>confirmSheet.mock.calls[0][0].onConfirm());await click('Confirm');await act(async()=>confirmSheet.mock.calls[1][0].onConfirm());
+  const first=centerCommand.mock.calls[0];expect(first[0]).toBe('/api/centers/classes/attendance/correct');expect(first[1]).toMatchObject({centerId:'a',id:'rb_one',version:2,attendanceRevision:0,state:'attended',reason:'Reviewed with reception'});expect(centerCommand.mock.calls[1][1].requestId).toBe(first[1].requestId);
+})
+it('keeps the reviewed revision while paging history and ignores changed confirmation contents',async()=>{
+  centerClassRoster.mockResolvedValue(correctionRoster());centerAttendanceHistory.mockResolvedValueOnce({...correctionPage(),nextCursor:'older'}).mockResolvedValueOnce({...correctionPage(),reservation:{...correctionPage().reservation,attendanceRevision:99},corrections:[{id:'ac_old',revision:1,fromState:'attended',state:'no-show',reason:'<script>private()</script>',actorUid:'manager',createdAt:'2026-10-20T09:00:00Z'}]});
+  await render({own:false,canManage:true});await click('Class roster');await click('Correct attendance');await click('Show more');
+  expect(centerAttendanceHistory).toHaveBeenLastCalledWith('a','rb_one',{cursor:'older'});expect(host.querySelector('script')).toBeNull();expect(host.textContent).toContain('<script>private()</script>');
+  fill(field('Reason'),'First review');await click('Confirm');fill(field('Reason'),'Changed review');await act(async()=>confirmSheet.mock.calls[0][0].onConfirm());expect(centerCommand).not.toHaveBeenCalled();
+  await click('Confirm');await act(async()=>confirmSheet.mock.calls[1][0].onConfirm());expect(centerCommand.mock.calls[0][1].attendanceRevision).toBe(0);
+})
+it('discards a pending correction/history when the selected center changes',async()=>{
+  centerClassRoster.mockResolvedValue(correctionRoster());let release;centerAttendanceHistory.mockImplementationOnce(()=>new Promise(resolve=>release=resolve));
+  await render({own:false,canManage:true});await click('Class roster');await click('Correct attendance');await render({centerId:'b',own:false,canManage:true});
+  await act(async()=>release({...correctionPage(),corrections:[{id:'secret',revision:1,fromState:'attended',state:'no-show',reason:'OLD PRIVATE NOTE',actorUid:'old',createdAt:'2026-10-20T09:00:00Z'}]}));expect(host.textContent).not.toContain('OLD PRIVATE NOTE');expect(centerCommand).not.toHaveBeenCalled();
 })
 it('reserves only the signed-in membership after confirmation and retains retry identity on failure',async()=>{
   centerCommand.mockRejectedValueOnce(new Error('network')).mockResolvedValue({});await render();await click('Reserve place');expect(centerCommand).not.toHaveBeenCalled()

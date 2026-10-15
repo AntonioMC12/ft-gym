@@ -139,6 +139,7 @@ export function classesErrorKey(error){
   const code=error?.data?.code||error?.code
   if(code==='class-full')return 'This class is full.'
   if(code==='class-ineligible')return 'Your membership or plan does not allow this class.'
+  if(code==='class-attendance-unchanged')return 'Attendance already has that state.'
   if(code==='class-instructor-conflict')return 'This instructor already has a class at that time.'
   if(code==='class-instructor-unavailable')return 'The instructor assignment does not cover this class.'
   if(code==='class-room-conflict')return 'This room already has a class at that time.'
@@ -160,3 +161,5 @@ export function centersErrorKey(error) {
 }
 
 export const centerClassInstructors=(centerId,options={})=>api('/api/centers/classes/instructors?'+new URLSearchParams({centerId,...options}))
+
+export const centerAttendanceHistory=(centerId,id,options={})=>api('/api/centers/classes/attendance/history?'+new URLSearchParams({centerId,id,...options}))

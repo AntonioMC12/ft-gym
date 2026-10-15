@@ -1,7 +1,7 @@
 import {useEffect,useRef,useState} from 'react'
 import {Button,Section,Row,TextField,TextArea,NumberField,Check,SelectRow} from '../../components/ui.jsx'
 import TimeField from '../../components/TimeField.jsx'
-import {centerClassInstructors,centerClasses,centerClassRoster,centerPlans,centerCommand,classesErrorKey} from '../../lib/centers-api.js'
+import {centerAttendanceHistory,centerClassInstructors,centerClasses,centerClassRoster,centerPlans,centerCommand,classesErrorKey} from '../../lib/centers-api.js'
 import {classSchedule} from '../../lib/class-display.js'
 import {useStore} from '../../store/useStore.js'
 import {useCenters} from '../../store/useCenters.js'
@@ -66,8 +66,44 @@ function ClassEditor({centerId,ownerUid,timezone,today,close,saved}){
     <div className="centers-actions"><Button type="button" disabled={busy} onClick={()=>navigate(close)}>{t('Back')}</Button><Button type="submit" variant="primary" disabled={busy||!fields.name.trim()||!fields.date||!fields.startTime||!fields.endTime||!fields.eligiblePlanIds.length||['capacity','waitlistCapacity','cancelBeforeMinutes'].some(key=>fields[key]==null)}>{t('Create class')}</Button></div>
   </form></Section>
 }
+function AttendanceReview({centerId,ownerUid,id,timezone,close,changed}){
+  const [snapshot,setSnapshot]=useState(null),[rows,setRows]=useState([]),[cursor,setCursor]=useState(null),[state,setState]=useState(''),[reason,setReason]=useState(''),[busy,setBusy]=useState(true),[error,setError]=useState(null),[revision,setRevision]=useState(0)
+  const life=useRef(0),pending=useRef(false),retry=useRef(null),latest=useRef(null),navigate=useCenterNavigation()
+  const current=epoch=>life.current===epoch&&useStore.getState().user?.id===ownerUid
+  const body=()=>({centerId,id,version:snapshot?.version,attendanceRevision:snapshot?.attendanceRevision,state,reason:reason.trim()})
+  latest.current=JSON.stringify(body());useUnsavedCenterForm(reason||state&&snapshot&&state!==(snapshot.state==='attended'?'no-show':'attended')?latest.current:null,busy)
+  const fail=e=>{setError(e);useCenters.getState().revokeOn(e)}
+  useEffect(()=>{
+    const epoch=++life.current;pending.current=true;setBusy(true);setError(null);setSnapshot(null);setRows([]);setCursor(null);setReason('');setState('');retry.current=null
+    centerAttendanceHistory(centerId,id).then(result=>{if(current(epoch)){setSnapshot(result.reservation);setRows(result.corrections);setCursor(result.nextCursor);setState(result.reservation.state==='attended'?'no-show':'attended')}}).catch(e=>{if(current(epoch))fail(e)}).finally(()=>{if(current(epoch)){pending.current=false;setBusy(false)}})
+    return()=>{life.current++;pending.current=false}
+  },[centerId,ownerUid,id,revision])
+  const more=async()=>{if(pending.current||!cursor)return;const epoch=life.current;pending.current=true;setBusy(true);setError(null)
+    try{const result=await centerAttendanceHistory(centerId,id,{cursor});if(current(epoch)){setRows(old=>[...old,...result.corrections]);setCursor(result.nextCursor)}}catch(e){if(current(epoch))fail(e)}finally{if(current(epoch)){pending.current=false;setBusy(false)}}
+  }
+  const save=()=>{
+    if(pending.current||!snapshot||!reason.trim()||state===snapshot.state)return;const epoch=life.current,content=body(),signature=JSON.stringify(content)
+    confirmSheet({title:t('Correct attendance'),message:t(status(snapshot.state))+' → '+t(status(state))+' · '+content.reason,confirmText:t('Confirm'),onConfirm:async()=>{
+      if(!current(epoch)||pending.current||latest.current!==signature)return
+      pending.current=true;setBusy(true);setError(null);if(retry.current?.signature!==signature)retry.current={signature,id:crypto.randomUUID()}
+      try{await centerCommand('/api/centers/classes/attendance/correct',{...content,requestId:retry.current.id});if(current(epoch))changed()}catch(e){if(current(epoch))fail(e)}finally{if(current(epoch)){pending.current=false;setBusy(false)}}
+    }})
+  }
+  const moment=value=>new Intl.DateTimeFormat(dateLocale(),{timeZone:timezone,dateStyle:'short',timeStyle:'short'}).format(new Date(value))
+  return <Section title={t('Correct attendance')}><div className="centers-form">
+    {snapshot&&<><Row title={t('Original attendance')} value={t(status(snapshot.originalState||snapshot.state))}/><Row title={t('Current attendance')} value={t(status(snapshot.state))}/>
+      <fieldset disabled={busy} className="centers-lifecycle-fields"><SelectRow title={t('Correct attendance')} value={state} options={[{value:'attended',label:t('Attended')},{value:'no-show',label:t('No-show')}]} onChange={setState}/><label className="centers-field"><span>{t('Reason')}</span><TextField required maxLength={250} value={reason} onChange={e=>setReason(e.target.value)}/></label></fieldset>
+      <Button type="button" variant="primary" disabled={busy||!reason.trim()||state===snapshot.state} onClick={save}>{t('Confirm')}</Button>
+      <h3>{t('Attendance history')}</h3>{rows.map(row=><Row key={row.id} title={t(status(row.fromState))+' → '+t(status(row.state))} subtitle={row.reason+' · '+row.actorUid+' · '+moment(row.createdAt)} value={'#'+row.revision}/>)}
+      {cursor&&<Button type="button" disabled={busy} onClick={more}>{t('Show more')}</Button>}
+    </>}
+    {busy&&<p role="status">{t('Loading…')}</p>}{error&&<><p role="alert">{t(classesErrorKey(error))}</p><Button type="button" disabled={busy} onClick={()=>navigate(()=>setRevision(value=>value+1))}>{t('Retry')}</Button></>}
+    <Button type="button" disabled={busy} onClick={()=>navigate(close)}>{t('Back')}</Button>
+  </div></Section>
+}
 function Content({centerId,ownerUid,own=false,canManage=false}){
   const [mode,setMode]=useState('list'),[data,setData]=useState(null),[dataCenter,setDataCenter]=useState(null),[busy,setBusy]=useState(false),[error,setError]=useState(null),[revision,setRevision]=useState(0)
+  const [correctionId,setCorrectionId]=useState(null)
   const [filters,setFilters]=useState({from:'',to:''}),[applied,setApplied]=useState(null),[reason,setReason]=useState('')
   const life=useRef(0),pending=useRef(false),retry=useRef(null),latest=useRef(null),navigate=useCenterNavigation()
   const changeMode=next=>{setData(null);setMode(next)}
@@ -75,7 +111,7 @@ function Content({centerId,ownerUid,own=false,canManage=false}){
   const fail=e=>{setError(e);useCenters.getState().revokeOn(e)}
   useUnsavedCenterForm(reason?reason:null,busy)
   useEffect(()=>{
-    const epoch=++life.current;pending.current=true;retry.current=null;setBusy(true);setData(null);setError(null);setReason('')
+    const epoch=++life.current;pending.current=true;retry.current=null;setBusy(true);setData(null);setError(null);setReason('');setCorrectionId(null)
     if(mode==='create'){pending.current=false;setBusy(false);return()=>{life.current++}}
     const request=mode==='list'?centerClasses(centerId,{own,...(applied||{})}):centerClassRoster(centerId,mode.slice(7))
     request.then(result=>{if(current(epoch)){setData(result);if(mode==='list'){setDataCenter({...result.center,today:result.today});setFilters({from:result.from,to:result.to})}}}).catch(e=>{if(current(epoch))fail(e)}).finally(()=>{if(current(epoch)){pending.current=false;setBusy(false)}})
@@ -98,6 +134,7 @@ function Content({centerId,ownerUid,own=false,canManage=false}){
     try{const result=mode==='list'?await centerClasses(centerId,{own,from:data.from,to:data.to,cursor:data.nextCursor}):await centerClassRoster(centerId,mode.slice(7),{cursor:data.nextCursor});if(current(epoch))setData(previous=>({...previous,...result,[mode==='list'?'classes':'reservations']:[...previous[mode==='list'?'classes':'reservations'],...result[mode==='list'?'classes':'reservations']]}))}catch(e){if(current(epoch))fail(e)}finally{if(current(epoch)){pending.current=false;setBusy(false)}}
   }
   const moreRef=useAutoMore(more)
+  if(correctionId&&canManage&&!own)return <AttendanceReview key={centerId+':'+ownerUid+':'+correctionId} centerId={centerId} ownerUid={ownerUid} id={correctionId} timezone={data?.event.timezone} close={()=>setCorrectionId(null)} changed={()=>{setCorrectionId(null);setRevision(value=>value+1)}}/>
   if(mode==='create'&&canManage&&!own)return <ClassEditor key={centerId+':'+ownerUid} centerId={centerId} ownerUid={ownerUid} timezone={dataCenter?.timezone} today={dataCenter?.today} close={()=>changeMode('list')} saved={()=>{changeMode('list');setRevision(value=>value+1)}}/>
   return <Section title={t(mode==='list'?'Classes':'Class roster')}><div className="centers-form">
     <p className="small muted">{t('No automatic fees or penalties.')}</p>
@@ -114,7 +151,7 @@ function Content({centerId,ownerUid,own=false,canManage=false}){
       </article>})}{data&&!data.classes.length&&<p>{t('No classes available.')}</p>}
     </>}
     {mode.startsWith('roster:')&&data&&<><h3>{data.event.name}</h3><p>{classSchedule(data.event,dateLocale())}</p>{data.event.room&&<p>{t('Class room')}: {data.event.room}</p>}{data.event.instructorName&&<p>{t('Trainer')}: {data.event.instructorName}</p>}<Button type="button" disabled={busy} onClick={()=>navigate(()=>changeMode('list'))}>{t('Back')}</Button>
-      {data.reservations.map(row=><div key={row.id} className="centers-class-reservation"><Row title={row.name} subtitle={row.number} value={t(status(row.state))}/>{row.state==='booked'&&<div className="centers-actions"><Button type="button" variant="tinted" disabled={busy||!!reason||!data.event.attendanceOpen} onClick={()=>confirm('Attended',data.event,'/api/centers/classes/attendance',{id:row.id,version:row.version,state:'attended'})}>{t('Attended')}</Button><Button type="button" variant="ghost" disabled={busy||!!reason||!data.event.noShowOpen} onClick={()=>confirm('No-show',data.event,'/api/centers/classes/attendance',{id:row.id,version:row.version,state:'no-show'})}>{t('No-show')}</Button></div>}</div>)}
+      {data.reservations.map(row=><div key={row.id} className="centers-class-reservation"><Row title={row.name} subtitle={row.number} value={t(status(row.state))}/>{['attended','no-show'].includes(row.state)&&<Button type="button" variant="tinted" disabled={busy||!!reason||!data.event.noShowOpen} onClick={()=>setCorrectionId(row.id)}>{t('Correct attendance')}</Button>}{row.state==='booked'&&<div className="centers-actions"><Button type="button" variant="tinted" disabled={busy||!!reason||!data.event.attendanceOpen} onClick={()=>confirm('Attended',data.event,'/api/centers/classes/attendance',{id:row.id,version:row.version,state:'attended'})}>{t('Attended')}</Button><Button type="button" variant="ghost" disabled={busy||!!reason||!data.event.noShowOpen} onClick={()=>confirm('No-show',data.event,'/api/centers/classes/attendance',{id:row.id,version:row.version,state:'no-show'})}>{t('No-show')}</Button></div>}</div>)}
       {!data.reservations.length&&<p>{t('No reservations available.')}</p>}
       {data.event.canCancelClass&&<form onSubmit={e=>{e.preventDefault();confirm('Cancel class',data.event,'/api/centers/classes/cancel',{id:data.event.id,version:data.event.version,reason:reason.trim()})}}><label className="centers-field"><span>{t('Reason')}</span><TextArea required maxLength={250} disabled={busy} value={reason} onChange={e=>setReason(e.target.value)}/></label><div className="centers-actions"><Button type="button" disabled={busy} onClick={()=>setReason('')}>{t('Cancel')}</Button><Button type="submit" variant="danger" disabled={busy||!reason.trim()}>{t('Cancel class')}</Button></div></form>}
     </>}

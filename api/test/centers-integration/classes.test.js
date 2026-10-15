@@ -5,6 +5,7 @@ import pg from 'pg';
 import {isolatedDatabase,startHttp} from './helpers.mjs';
 import {createCentersDatabase} from '../../centers/db.js';
 import {commandHash} from '../../centers/services/commands.js';
+import {correctClassAttendance} from '../../centers/services/classes.js';
 const shift=(day,n)=>{const value=new Date(day+'T00:00:00Z');value.setUTCDate(value.getUTCDate()+n);return value.toISOString().slice(0,10)};
 async function fixture(t,{instructors=0}={}){
   const {app,migrator}=await isolatedDatabase(),db=createCentersDatabase({enabled:true,databaseUrl:app});t.after(async()=>{await db.close();await migrator.end()});
@@ -162,4 +163,45 @@ test('attendance and no-show are explicit immutable facts after the class, witho
   }
   assert.equal((await f.req('/api/centers/classes/attendance',f.ids.manager,{centerId:f.center,id:rows[1],version:2,state:'attended',requestId:f.p+'_overwrite'})).body.code,'class-reservation-ended');
   const money=await f.db.transaction({uid:f.ids.manager,centerId:f.center},client=>client.query('SELECT count(*)::integer AS n FROM centers.receipts WHERE center_id=$1',[f.center]));assert.equal(money.rows[0].n,0);
+  const correct=(id,state,revision=0,suffix='one',actor=f.ids.manager)=>f.req('/api/centers/classes/attendance/correct',actor,{centerId:f.center,id,version:2,attendanceRevision:revision,state,reason:'Private fictional attendance review',requestId:f.p+'_correction_'+suffix});
+  assert.equal((await correct(rows[1],'attended',0,'trainer',f.ids.trainer)).status,403);
+  assert.equal((await correct(rows[1],'attended',0,'member',f.ids.bob)).status,403);
+  assert.equal((await correct(rows[1],'attended',0,'technical',f.ids.technical)).status,404);
+  const competing=await Promise.all([correct(rows[1],'attended',0,'a'),correct(rows[1],'attended',0,'b')]);assert.equal(competing.filter(r=>r.status===200).length,1,JSON.stringify(competing));assert.equal(competing.find(r=>r.status!==200).body.code,'version-conflict');
+  const won=competing.findIndex(r=>r.status===200),result=competing[won].body.reservation;assert.equal(result.originalState,'no-show');assert.equal(result.state,'attended');assert.equal(result.attendanceRevision,1);
+  assert.deepEqual((await correct(rows[1],'attended',0,won===0?'a':'b')).body,competing[won].body);
+  assert.equal((await correct(rows[1],'attended',1,'same')).body.code,'class-attendance-unchanged');
+  const historyUrl='/api/centers/classes/attendance/history?'+new URLSearchParams({centerId:f.center,id:rows[1]});
+  const history=await f.req(historyUrl,f.ids.manager);assert.equal(history.status,200);assert.equal(history.body.corrections.length,1);assert.equal(history.body.corrections[0].fromState,'no-show');assert.equal(history.body.corrections[0].reason,'Private fictional attendance review');
+  assert.equal((await f.req(historyUrl,f.ids.bob)).status,403);
+  const own=(await f.own('bob')).body;assert.equal(own.classes.find(row=>row.id===classId).ownReservation.state,'attended');assert.ok(!JSON.stringify(own).includes('Private fictional attendance review'));
+  await f.db.transaction({uid:f.ids.bob,centerId:f.center},async client=>{
+    assert.equal((await client.query('SELECT * FROM centers.class_attendance_corrections WHERE reservation_id=$1',[rows[1]])).rows.length,0);
+    assert.equal((await client.query('SELECT effective_state FROM centers.class_reservation_profiles WHERE id=$1',[rows[1]])).rows[0].effective_state,'attended');
+  });
+  await assert.rejects(f.db.transaction({uid:f.ids.bob,centerId:f.center},client=>client.query('SELECT * FROM centers.class_attendance_state($1,$2)',[f.center,rows[0]])),{code:'42501'});
+  const base=await f.db.transaction({uid:f.ids.manager,centerId:f.center},client=>client.query('SELECT state,version FROM centers.class_reservations WHERE id=$1',[rows[1]]));assert.deepEqual(base.rows[0],{state:'no-show',version:2});
+  assert.equal((await f.roster({id:classId})).body.event.booked,2);
+  await assert.rejects(f.db.transaction({uid:f.ids.manager,centerId:f.center},client=>client.query("UPDATE centers.class_attendance_corrections SET reason='changed' WHERE reservation_id=$1",[rows[1]])),{code:'42501'});
+  await assert.rejects(f.db.transaction({uid:f.ids.manager,centerId:f.center},client=>client.query('DELETE FROM centers.class_attendance_corrections WHERE reservation_id=$1',[rows[1]])),{code:'42501'});
+  // Actual INSERT + counter update must both roll back if the audit write fails.
+  const failed={transaction:(context,work)=>f.db.transaction(context,client=>work({query:(sql,args)=>{if(sql.startsWith('INSERT INTO centers.business_audit'))throw new Error('fictional audit unavailable');return client.query(sql,args)}}))};
+  await assert.rejects(correctClassAttendance({database:failed,user:{id:f.ids.manager},checkSession(){}},{centerId:f.center,id:rows[1],version:2,attendanceRevision:1,state:'no-show',reason:'Private failed review',requestId:f.p+'_rollback'}),/fictional audit unavailable/);
+  assert.equal((await f.roster({id:classId})).body.event.booked,2);assert.equal((await f.req(historyUrl,f.ids.manager)).body.corrections.length,1);
+  const second=await correct(rows[1],'no-show',1,'second');assert.equal(second.status,200);assert.equal(second.body.reservation.attendanceRevision,2);assert.equal((await f.roster({id:classId})).body.event.booked,1);
+  let currentState='no-show';for(let n=2;n<53;n++){currentState=currentState==='attended'?'no-show':'attended';assert.equal((await correct(rows[1],currentState,n,'history_'+n)).status,200)}
+  const firstPage=(await f.req(historyUrl,f.ids.manager)).body;assert.equal(firstPage.corrections.length,50);assert.ok(firstPage.nextCursor);
+  const lastPage=(await f.req(historyUrl+'&cursor='+encodeURIComponent(firstPage.nextCursor),f.ids.manager)).body;assert.equal(lastPage.corrections.length,3);assert.equal(lastPage.nextCursor,null);
+  assert.equal(new Set([...firstPage.corrections,...lastPage.corrections].map(row=>row.id)).size,53);
+  assert.equal((await f.req(historyUrl+'&cursor='+encodeURIComponent(firstPage.nextCursor),f.ids.root)).status,400);
+  const otherReservation='/api/centers/classes/attendance/history?'+new URLSearchParams({centerId:f.center,id:rows[0],cursor:firstPage.nextCursor});assert.equal((await f.req(otherReservation,f.ids.manager)).status,400);
+  const ongoingClass='cl_'+commandHash(f.p+'_ongoing').slice(0,32),ongoingReservation='rb_'+commandHash(f.p+'_ongoing').slice(0,32);
+  await seed.query('BEGIN');try{
+    await seed.query("SET LOCAL session_replication_role='replica'");
+    await seed.query("INSERT INTO centers.classes(id,center_id,name,class_on,starts_at,ends_at,timezone,capacity,waitlist_capacity,cancel_before_minutes,booked_count,actor_uid) VALUES($1,$2,'Ongoing fictional class',$3,statement_timestamp()-interval '1 hour',statement_timestamp()+interval '1 hour','Europe/Madrid',1,0,0,1,$4)",[ongoingClass,f.center,f.today,f.ids.manager]);
+    await seed.query("INSERT INTO centers.class_reservations(id,center_id,class_id,member_id,actor_uid,queue_order) VALUES($1,$2,$3,$4,$5,1)",[ongoingReservation,f.center,ongoingClass,f.members.alice,f.ids.alice]);await seed.query('COMMIT');
+  }catch(error){await seed.query('ROLLBACK');throw error}
+  const initial=await f.req('/api/centers/classes/attendance',f.ids.manager,{centerId:f.center,id:ongoingReservation,version:1,state:'attended',requestId:f.p+'_ongoing_attended'});assert.equal(initial.status,200);
+  assert.equal((await correct(ongoingReservation,'no-show',0,'ongoing')).body.code,'class-not-ended');
+  await assert.rejects(f.db.transaction({uid:f.ids.manager,centerId:f.center},client=>client.query("INSERT INTO centers.class_attendance_corrections(id,center_id,class_id,reservation_id,revision,to_state,reason,actor_uid) VALUES($1,$2,$3,$4,1,'no-show','Premature fixture',$5)",['ac_'+commandHash(f.p+'_premature').slice(0,32),f.center,ongoingClass,ongoingReservation,f.ids.manager])),{code:'23514'});
 });

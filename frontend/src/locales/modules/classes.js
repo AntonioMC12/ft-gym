@@ -63,4 +63,26 @@ const instructorWords={
   "zh-TW": "課程教練（選填）|沒有可用的教練。|教練的任職期限不涵蓋此課程。|該教練在此時間已有課程。"
 }
 for(const [lang,value] of Object.entries(instructorWords))words[lang]+='|'+value
+keys.push('Correct attendance','Attendance history','Original attendance','Current attendance','Attendance already has that state.')
+const attendanceWords={
+  "es": "Rectificar asistencia|Historial de asistencia|Asistencia original|Asistencia actual|La asistencia ya tiene ese estado.",
+  "de": "Teilnahme korrigieren|Teilnahmeverlauf|Ursprüngliche Teilnahme|Aktuelle Teilnahme|Die Teilnahme hat bereits diesen Status.",
+  "fr": "Rectifier la présence|Historique de présence|Présence initiale|Présence actuelle|La présence a déjà cet état.",
+  "it": "Correggi presenza|Storico presenze|Presenza originale|Presenza attuale|La presenza ha già questo stato.",
+  "pt": "Retificar presença|Histórico de presença|Presença original|Presença atual|A presença já tem esse estado.",
+  "pt-BR": "Retificar presença|Histórico de presença|Presença original|Presença atual|A presença já tem esse estado.",
+  "pl": "Skoryguj obecność|Historia obecności|Pierwotna obecność|Aktualna obecność|Obecność ma już ten stan.",
+  "hu": "Jelenlét javítása|Jelenléti előzmények|Eredeti jelenlét|Aktuális jelenlét|A jelenlét már ebben az állapotban van.",
+  "tr": "Katılımı düzelt|Katılım geçmişi|İlk katılım kaydı|Güncel katılım|Katılım zaten bu durumda.",
+  "ru": "Исправить посещение|История посещений|Исходное посещение|Текущее посещение|Посещение уже имеет этот статус.",
+  "uk": "Виправити відвідування|Історія відвідувань|Початкове відвідування|Поточне відвідування|Відвідування вже має цей стан.",
+  "ar": "تصحيح الحضور|سجل الحضور|الحضور الأصلي|الحضور الحالي|الحضور بالفعل بهذه الحالة.",
+  "hi": "उपस्थिति सुधारें|उपस्थिति इतिहास|मूल उपस्थिति|वर्तमान उपस्थिति|उपस्थिति की स्थिति पहले से यही है।",
+  "bn": "উপস্থিতি সংশোধন|উপস্থিতির ইতিহাস|মূল উপস্থিতি|বর্তমান উপস্থিতি|উপস্থিতির অবস্থা ইতিমধ্যে এটিই।",
+  "th": "แก้ไขการเข้าร่วม|ประวัติการเข้าร่วม|การเข้าร่วมเดิม|การเข้าร่วมปัจจุบัน|การเข้าร่วมอยู่ในสถานะนี้แล้ว",
+  "ko": "출석 정정|출석 내역|원래 출석|현재 출석|출석이 이미 이 상태입니다.",
+  "zh": "更正出勤|出勤历史|原始出勤|当前出勤|出勤已处于此状态。",
+  "zh-TW": "更正出勤|出勤歷史|原始出勤|目前出勤|出勤已處於此狀態。"
+}
+for(const [lang,value] of Object.entries(attendanceWords))words[lang]+='|'+value
 export function classStrings(lang){const values=words[lang]?.split('|');if(values?.length!==keys.length)throw new Error('incomplete class translations: '+lang);return Object.fromEntries(keys.map((key,index)=>[key,values[index]]))}

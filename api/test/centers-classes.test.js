@@ -1,7 +1,13 @@
 import {test} from 'node:test';
 import assert from 'node:assert/strict';
 import {classFields,classTimeCandidates} from '../centers/domain/classes.js';
+import {correctClassAttendance} from '../centers/services/classes.js';
 const base={name:'Fictional class',date:'2026-10-20',startTime:'18:00',endTime:'19:00',capacity:10,waitlistCapacity:5,cancelBeforeMinutes:60,eligiblePlanIds:['plan_a']};
+test('attendance corrections reject authority claims, missing reviews and invalid reasons before database access',()=>{
+  const valid={centerId:'c',id:'rb_a',version:2,attendanceRevision:0,state:'attended',reason:'Reception review',requestId:'request_one'};
+  const context={database:{transaction(){assert.fail('invalid input opened database')}},user:{id:'manager'},checkSession(){}};
+  for(const patch of [{reason:''},{reason:'x'.repeat(251)},{reason:'bad\0note'},{attendanceRevision:-1},{attendanceRevision:1.5},{state:'booked'},{actorUid:'claimed'},{version:null}])assert.throws(()=>correctClassAttendance(context,{...valid,...patch}),{code:'invalid-input'});
+});
 test('optional room preserves old command hashes and bounds plain room labels',()=>{
   const old=classFields(base,{timezone:'Europe/Madrid'});assert.equal(Object.hasOwn(old,'room'),false);
   assert.deepEqual(classFields({...base,room:''},{timezone:'Europe/Madrid'}),old);

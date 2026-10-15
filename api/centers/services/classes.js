@@ -8,16 +8,16 @@ import {cursorScope,readCursor,nextCursor} from '../domain/pagination.js';
 
 const conflict=code=>{throw new CentersError(409,code,'class or reservation changed; reload')};
 const missing=()=>{throw new CentersError(404,'not-found','not found')};
-const reservationDto=row=>({id:row.id,classId:row.class_id,memberId:row.member_id,state:row.state,version:row.version,reason:row.reason,queueOrder:String(row.queue_order)});
+const reservationDto=row=>({id:row.id,classId:row.class_id,memberId:row.member_id,state:row.effective_state||row.state,originalState:row.state,attendanceRevision:row.attendance_revision||0,version:row.version,reason:row.reason,queueOrder:String(row.queue_order)});
 const classDto=row=>({id:row.id,name:row.name,date:row.class_on,startsAt:new Date(row.starts_at).toISOString(),endsAt:new Date(row.ends_at).toISOString(),timezone:row.timezone,
   capacity:row.capacity,waitlistCapacity:row.waitlist_capacity,cancelBeforeMinutes:row.cancel_before_minutes,booked:row.booked_count,waiting:row.waiting_count,state:row.state,version:row.version,cancelReason:row.cancel_reason,room:row.room||null,instructorName:row.instructor_name||null});
 async function ownMember(client,centerId,uid){const {rows}=await client.query('SELECT id FROM centers.members WHERE center_id=$1 AND account_uid=$2',[centerId,uid]);return rows[0]?.id||missing()}
 async function eventRecord(client,centerId,id){const {rows}=await client.query('SELECT *,class_on::text FROM centers.classes WHERE center_id=$1 AND id=$2',[centerId,id]);return rows[0]||missing()}
-async function reservationRecord(client,centerId,id){const {rows}=await client.query('SELECT * FROM centers.class_reservations WHERE center_id=$1 AND id=$2',[centerId,id]);return rows[0]||missing()}
+async function reservationRecord(client,centerId,id){const {rows}=await client.query('SELECT * FROM centers.class_reservation_profiles WHERE center_id=$1 AND id=$2',[centerId,id]);return rows[0]||missing()}
 async function ownProjection(client,event,memberId,uid){
   const {rows:[flags]}=await client.query(`SELECT centers.class_eligible($1,$2) AS eligible,clock_timestamp()<$3::timestamptz AS open,
     clock_timestamp()<$3::timestamptz-make_interval(mins=>$4) AS can_cancel`,[event.id,memberId,event.starts_at,event.cancel_before_minutes]);
-  const {rows}=await client.query('SELECT * FROM centers.class_reservations WHERE center_id=$1 AND class_id=$2 AND member_id=$3 AND actor_uid=$4 ORDER BY queue_order DESC LIMIT 1',[event.center_id,event.id,memberId,uid]);
+  const {rows}=await client.query('SELECT * FROM centers.class_reservation_profiles WHERE center_id=$1 AND class_id=$2 AND member_id=$3 AND actor_uid=$4 ORDER BY queue_order DESC LIMIT 1',[event.center_id,event.id,memberId,uid]);
   return {eligible:flags.eligible,bookingOpen:flags.open,canCancel:flags.can_cancel,ownReservation:rows[0]?reservationDto(rows[0]):null};
 }
 export function classListOptions(params,{detail=false}={}){
@@ -35,8 +35,8 @@ export function listClasses(database,uid,centerId,options,{platform=false,own=fa
       CASE WHEN $8::boolean THEN centers.class_eligible(c.id,$6) ELSE NULL END AS eligible,
       clock_timestamp()<c.starts_at AS booking_open,clock_timestamp()<c.starts_at-make_interval(mins=>c.cancel_before_minutes) AS can_cancel,
       row_to_json(own_row) AS own_reservation
-      FROM centers.classes c LEFT JOIN LATERAL (SELECT r.id,r.class_id,r.member_id,r.state,r.version,r.reason,r.queue_order::text
-        FROM centers.class_reservations r WHERE $8::boolean AND r.center_id=c.center_id AND r.class_id=c.id AND r.member_id=$6 AND r.actor_uid=$7 ORDER BY r.queue_order DESC LIMIT 1)own_row ON true
+      FROM centers.classes c LEFT JOIN LATERAL (SELECT r.id,r.class_id,r.member_id,r.state,r.effective_state,r.attendance_revision,r.version,r.reason,r.queue_order::text
+        FROM centers.class_reservation_profiles r WHERE $8::boolean AND r.center_id=c.center_id AND r.class_id=c.id AND r.member_id=$6 AND r.actor_uid=$7 ORDER BY r.queue_order DESC LIMIT 1)own_row ON true
       WHERE c.center_id=$1 AND c.class_on BETWEEN $2::date AND $3::date
       AND ($4::timestamptz IS NULL OR (c.starts_at,c.id)>($4::timestamptz,$5)) ORDER BY c.starts_at,c.id LIMIT 31`,[centerId,from,to,after?.at||null,after?.id||null,memberId,uid,own]);
     const page=rows.slice(0,30),classes=page.map(row=>({...classDto(row),...(own?{eligible:row.eligible,bookingOpen:row.booking_open,canCancel:row.can_cancel,ownReservation:row.own_reservation?reservationDto(row.own_reservation):null}:{})}));
@@ -47,7 +47,7 @@ export function classRoster(database,uid,centerId,options,{platform=false}={}){
   return businessTransaction(database,uid,centerId,'classes.manage',async client=>{
     const event=await eventRecord(client,centerId,options.id),scope=cursorScope({kind:'class-roster',uid,centerId,id:event.id});let after='0';
     if(options.cursor){try{const value=JSON.parse(Buffer.from(options.cursor,'base64url').toString('utf8'));if(value.scope!==scope||typeof value.after!=='string'||! /^[1-9][0-9]{0,18}$/.test(value.after)||BigInt(value.after)>9223372036854775807n)throw new Error();after=value.after}catch{throw new CentersError(400,'invalid-input','invalid class roster cursor')}}
-    const {rows}=await client.query(`SELECT r.*,m.name,m.member_number FROM centers.class_reservations r JOIN centers.members m ON (m.center_id,m.id)=(r.center_id,r.member_id)
+    const {rows}=await client.query(`SELECT r.*,m.name,m.member_number FROM centers.class_reservation_profiles r JOIN centers.members m ON (m.center_id,m.id)=(r.center_id,r.member_id)
       WHERE r.center_id=$1 AND r.class_id=$2 AND r.queue_order>$3::bigint ORDER BY r.queue_order LIMIT 51`,[centerId,event.id,after]);
     const page=rows.slice(0,50),{rows:plans}=await client.query('SELECT plan_id FROM centers.class_plans WHERE center_id=$1 AND class_id=$2 ORDER BY plan_id',[centerId,event.id]);
     const {rows:[clock]}=await client.query('SELECT clock_timestamp()>=$1::timestamptz AS started,clock_timestamp()>=$2::timestamptz AS ended',[event.starts_at,event.ends_at]);
@@ -136,5 +136,36 @@ export function classAttendance({database,user,checkSession},raw,{platform=false
     if(!clock.started||state==='no-show'&&!clock.ended)conflict('class-not-ended');checkSession();
     const {rows}=await client.query('UPDATE centers.class_reservations SET state=$3,version=version+1 WHERE center_id=$1 AND id=$2 RETURNING *',[centerId,id,state]);
     await businessAudit(client,centerId,user.id,'class.'+state,id,{classId:event.id});await rememberCommand(client,centerId,user.id,operation,requestId,hash,{id});checkSession();return {reservation:reservationDto(rows[0])};
+  },{platform,allowInactive:true});
+}
+
+export function attendanceHistoryOptions(params){
+  if([...params.keys()].some(key=>!['centerId','id','cursor'].includes(key))||(params.get('cursor')||'').length>2000)throw new CentersError(400,'invalid-input','invalid attendance selectors');
+  return {id:idField(params.get('id')),cursor:params.get('cursor')||null};
+}
+const correctionDto=row=>({id:row.id,revision:row.revision,fromState:row.from_state,state:row.to_state,reason:row.reason,actorUid:row.actor_uid,createdAt:new Date(row.created_at).toISOString()});
+export function classAttendanceHistory(database,uid,centerId,options,{platform=false}={}){
+  return businessTransaction(database,uid,centerId,'classes.manage',async client=>{
+    const reservation=await reservationRecord(client,centerId,options.id),scope=cursorScope(['attendance-history',uid,centerId,options.id]);let before=1000000001;
+    if(options.cursor){try{const value=JSON.parse(Buffer.from(options.cursor,'base64url').toString('utf8'));if(value.scope!==scope||!Number.isSafeInteger(value.before)||value.before<1||value.before>1000000000)throw new Error();before=value.before}catch{throw new CentersError(400,'invalid-input','invalid attendance cursor')}}
+    const {rows}=await client.query('SELECT * FROM centers.class_attendance_corrections WHERE center_id=$1 AND reservation_id=$2 AND revision<$3 ORDER BY revision DESC LIMIT 51',[centerId,reservation.id,before]);
+    const page=rows.slice(0,50);return {reservation:reservationDto(reservation),corrections:page.map(correctionDto),nextCursor:rows.length>50?Buffer.from(JSON.stringify({scope,before:page.at(-1).revision})).toString('base64url'):null};
+  },{platform,allowInactive:true});
+}
+export function correctClassAttendance({database,user,checkSession},raw,{platform=false}={}){
+  objectBody(raw,['centerId','id','version','attendanceRevision','state','reason','requestId']);
+  const centerId=idField(raw.centerId),id=idField(raw.id),version=versionField(raw.version),requestId=requestField(raw.requestId),reason=textField(raw.reason,250,{required:true}),state=raw.state,revision=raw.attendanceRevision;
+  if(!Number.isSafeInteger(revision)||revision<0||revision>=1000000000||!['attended','no-show'].includes(state)||/[\u0000-\u001f\u007f]/.test(reason))throw new CentersError(400,'invalid-input','explicit attendance correction required');
+  const operation='class.attendance.correct',hash=commandHash({id,version,revision,state,reason});
+  return businessTransaction(database,user.id,centerId,'classes.manage',async client=>{
+    const row=await reservationRecord(client,centerId,id),replay=await commandReplay(client,centerId,user.id,operation,requestId,hash);if(replay)return {reservation:reservationDto(row)};
+    if(row.version!==version||(row.attendance_revision||0)!==revision)conflict('version-conflict');
+    if(!['attended','no-show'].includes(row.state))conflict('class-reservation-ended');
+    if((row.effective_state||row.state)===state)conflict('class-attendance-unchanged');
+    const event=await eventRecord(client,centerId,row.class_id),{rows:[clock]}=await client.query('SELECT clock_timestamp()>=$1::timestamptz AS ended',[event.ends_at]);if(!clock.ended)conflict('class-not-ended');
+    checkSession();const correctionId='ac_'+commandHash([centerId,user.id,requestId]).slice(0,32);
+    await client.query('INSERT INTO centers.class_attendance_corrections(id,center_id,class_id,reservation_id,revision,to_state,reason,actor_uid) VALUES($1,$2,$3,$4,$5,$6,$7,$8)',[correctionId,centerId,event.id,id,revision+1,state,reason,user.id]);
+    await businessAudit(client,centerId,user.id,'class.attendance.corrected',id,{classId:event.id,revision:revision+1,fromState:row.effective_state||row.state,state});
+    await rememberCommand(client,centerId,user.id,operation,requestId,hash,{id});checkSession();return {reservation:reservationDto(await reservationRecord(client,centerId,id))};
   },{platform,allowInactive:true});
 }

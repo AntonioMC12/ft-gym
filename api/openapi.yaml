@@ -296,6 +296,49 @@ paths:
         '400': { description: Invalid command or missing reason. }
         '403': { description: Management capability required. }
         '409': { description: class-closed, version-conflict or idempotency-conflict. }
+  /api/centers/classes/attendance/history:
+    get:
+      tags: [centers]
+      operationId: getClassAttendanceCorrectionHistory
+      summary: Read a manager-only page of immutable attendance rectifications
+      description: Current classes.manage or platform allowlist, including inactive-center history. Returns effective reservation and up to50 correction records, newest first, with original transition/reason/actor/time. Cursor bound to actor/center/reservation. Own members receive effective state and revision through own reservation projections, never the private correction history or reasons, including at SQL/RLS level.
+      parameters:
+        - { name: centerId, in: query, required: true, schema: { type: string } }
+        - { name: id, in: query, required: true, schema: { type: string } }
+        - { name: cursor, in: query, schema: { type: string, maxLength: 2000 } }
+      responses:
+        '200': { description: reservation/corrections/nextCursor. }
+        '400': { description: Invalid selectors or cursor. }
+        '403': { description: Management capability required. }
+        '404': { description: Selected reservation unavailable. }
+  /api/centers/classes/attendance/correct:
+    post:
+      tags: [centers]
+      operationId: correctCenterClassAttendance
+      summary: Append an audited attendance rectification without rewriting the first fact
+      description: classes.manage or platform allowlist. Class must have ended and its original reservation fact must be attended/no-show. Requires base version, current attendanceRevision, opposite effective state and a nonempty single-line reason. Inactive-center historical corrections permitted. Appends one immutable record and updates protected effective seat count, audit and idempotency in one transaction. No invoices, fines, access changes or queue promotion. Concurrent stale reviews fail; replay never appends another entry. Responses include effective state, originalState and attendanceRevision.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties: false
+              required: [centerId, id, version, attendanceRevision, state, reason, requestId]
+              properties:
+                centerId: { type: string }
+                id: { type: string }
+                version: { type: integer, minimum: 1 }
+                attendanceRevision: { type: integer, minimum: 0, maximum: 999999999 }
+                state: { type: string, enum: [attended, no-show] }
+                reason: { type: string, minLength: 1, maxLength: 250 }
+                requestId: { type: string, minLength: 8, maxLength: 128 }
+      responses:
+        '200': { description: Effective reservation with immutable originalState and attendanceRevision. }
+        '400': { description: Invalid correction or reason. }
+        '403': { description: Management capability required. }
+        '404': { description: Selected reservation unavailable. }
+        '409': { description: version-conflict, class-reservation-ended, class-not-ended, class-attendance-unchanged or idempotency-conflict. }
   /api/centers/classes/attendance:
     post:
       tags: [centers]

@@ -72,6 +72,17 @@ test('C24: two-center pilot survives a coordinated JSON/PostgreSQL restore and r
   const teacherId=instructorDirectory.instructors[0].id;
   const classCreated=await req('/api/centers/classes/create','pilot_manager_a',{centerId:centers[0],fields:{name:'Recovered fictional class',room:'Sala restaurada',instructorAssignmentId:teacherId,date:freezeDate(1),startTime:'10:00',endTime:'11:00',capacity:1,waitlistCapacity:1,cancelBeforeMinutes:0,eligiblePlanIds:[classPlans[0].id]},requestId:'pilot_class_create'});assert.equal(classCreated.status,200,JSON.stringify(classCreated));
   const classCommand={centerId:centers[0],id:classCreated.body.event.id,requestId:'pilot_class_reservation'},classReserved=await req('/api/centers/own/classes/reserve','pilot_alice',classCommand);assert.equal(classReserved.status,200,JSON.stringify(classReserved));
+  const pastClassId='cl_'+hash('pilot_past_attendance').slice(0,32),pastReservationId='rb_'+hash('pilot_past_reservation').slice(0,32);
+  assert.equal((await sourceBackup.query('SELECT kind FROM centers.environment WHERE singleton')).rows[0].kind,'test');
+  await sourceBackup.query('BEGIN');try{
+    await sourceBackup.query("SET LOCAL session_replication_role='replica'");
+    await sourceBackup.query(`INSERT INTO centers.classes(id,center_id,name,class_on,starts_at,ends_at,timezone,capacity,waitlist_capacity,cancel_before_minutes,booked_count,actor_uid)
+      VALUES($1,$2,'Past recovery attendance',((statement_timestamp()-interval '2 hours') AT TIME ZONE 'Europe/Madrid')::date,statement_timestamp()-interval '2 hours',statement_timestamp()-interval '1 hour','Europe/Madrid',1,0,0,1,'pilot_manager_a')`,[pastClassId,centers[0]]);
+    await sourceBackup.query("INSERT INTO centers.class_reservations(id,center_id,class_id,member_id,actor_uid,queue_order,state) VALUES($1,$2,$3,$4,'pilot_alice',1,'attended')",[pastReservationId,centers[0],pastClassId,members[0]]);
+    await sourceBackup.query('COMMIT');
+  }catch(error){await sourceBackup.query('ROLLBACK');throw error}
+  const attendanceCommand={centerId:centers[0],id:pastReservationId,version:1,attendanceRevision:0,state:'no-show',reason:'Fictional recovery attendance correction',requestId:'pilot_attendance_correction'};
+  const attendanceCorrected=await req('/api/centers/classes/attendance/correct','pilot_manager_a',attendanceCommand);assert.equal(attendanceCorrected.status,200,JSON.stringify(attendanceCorrected));
   let freezeCommand,freezeResult;
   for(const [index,manager,uid] of [[0,'pilot_manager_a','pilot_alice'],[1,'pilot_manager_b','pilot_bob']]){
     const config={enabled:true,minDays:1,maxDays:15,noticeDays:0,maxDaysPerYear:30,billingEffect:'contract-proration'};
@@ -125,6 +136,8 @@ test('C24: two-center pilot survives a coordinated JSON/PostgreSQL restore and r
   assert.equal(restoredClass.booked,1);assert.equal(restoredClass.ownReservation.id,classReserved.body.reservation.id,'seat counters and owner survive restore');
   assert.deepEqual((await after(ownPath,'pilot_alice')).body,ownBefore);assert.deepEqual((await after('/api/data','pilot_alice')).body,personalBefore);
   const metricsAfter=await after(metricsPath,'pilot_manager_a');assert.equal(metricsAfter.status,200);assert.deepEqual(metricsAfter.body.current,metricsBefore.body.current);assert.deepEqual(metricsAfter.body.period,metricsBefore.body.period,'contract/financial aggregates recompute from the restored ledger without a cached personal-state projection');
+  assert.deepEqual((await after('/api/centers/classes/attendance/correct','pilot_manager_a',attendanceCommand)).body,attendanceCorrected.body,'attendance replay does not append after restore');
+  const correctionHistory=await after('/api/centers/classes/attendance/history?'+new URLSearchParams({centerId:centers[0],id:pastReservationId}),'pilot_manager_a');assert.equal(correctionHistory.body.corrections.length,1);assert.equal(correctionHistory.body.reservation.originalState,'attended');assert.equal(correctionHistory.body.reservation.state,'no-show');
   const restoredCsv=await after('/api/centers/members/imports/detail?'+new URLSearchParams({centerId:centers[0],id:csvPending.body.id}),'pilot_manager_a');assert.equal(restoredCsv.status,200);assert.equal(restoredCsv.body.reviewHash,csvPending.body.reviewHash);
   assert.deepEqual((await after('/api/centers/members/imports/commit','pilot_manager_a',csvCompletedCommand)).body,csvCompleted.body,'a restored completed import returns its old member IDs and does not run twice');
   assert.deepEqual((await after(sourceMemberPath,'pilot_manager_a')).body.member.sourceRegistration,sourceRegistration,'restored source registration retains all private historical fields');

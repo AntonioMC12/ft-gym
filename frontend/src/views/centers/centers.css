@@ -50,6 +50,11 @@ fieldset.centers-fields{border:0;padding:0;min-width:0}
 .centers-accounts-list .lrow{background:transparent}
 .centers-account-disabled{opacity:.5}
 .centers-import-summary{border:1px solid var(--sep);border-radius:var(--r);background:var(--surface-2);margin:16px 0}
+.centers-source-registration{margin:12px;padding:12px;border:1px solid var(--sep);border-radius:var(--r);min-width:0}
+.centers-source-registration .lrow{padding-inline:0;overflow-wrap:anywhere}
+.centers-source-registration summary{cursor:pointer;min-height:44px;display:list-item;align-content:center;color:var(--acc);padding:10px 0}
+.centers-source-registration summary:focus-visible{outline:2px solid var(--acc);outline-offset:3px;border-radius:var(--r-sm)}
+.centers-source-conditions{white-space:pre-wrap;overflow-wrap:anywhere;line-height:1.5;font-size:13px;color:var(--label-2)}
 .centers-import-rows{max-height:420px;overflow:auto;border:1px solid var(--sep);border-radius:var(--r);margin:16px 0}
 .centers-import-rows .lrow{flex-wrap:wrap;gap:6px}
 .centers-import-rows .lrow-v{white-space:normal;font-size:13px}

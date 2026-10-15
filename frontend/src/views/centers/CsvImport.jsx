@@ -6,6 +6,7 @@ import {useCenters} from '../../store/useCenters.js'
 import {confirmSheet} from '../../sheets.jsx'
 import {t} from '../../lib/i18n.js'
 import {useCenterNavigation,useUnsavedCenterForm} from './NavigationGuard.jsx'
+import SourceRegistration from './SourceRegistration.jsx'
 
 export default function CsvImport({centerId,ownerUid,active=true,jobId,onJob,close,changed}){
   const [csv,setCsv]=useState(''),[name,setName]=useState(''),[job,setJob]=useState(null),[busy,setBusy]=useState(false),[error,setError]=useState(null)
@@ -48,12 +49,13 @@ export default function CsvImport({centerId,ownerUid,active=true,jobId,onJob,clo
     }})
   }
   const template=()=>{
-    const url=URL.createObjectURL(new Blob(['\uFEFFname,email,phone,nationalDocument\r\n'],{type:'text/csv;charset=utf-8'})),anchor=document.createElement('a');anchor.href=url;anchor.download='members-template.csv';anchor.click();setTimeout(()=>URL.revokeObjectURL(url),1000)
+    const url=URL.createObjectURL(new Blob(['\uFEFFMarca temporal,Nº ABONADO,Nombre Completo,DNI,Dirección,Fecha Nacimiento,Teléfono,Condiciones de Inscripción y protección de datos\r\n'],{type:'text/csv;charset=utf-8'})),anchor=document.createElement('a');anchor.href=url;anchor.download='socios-plantilla.csv';anchor.click();setTimeout(()=>URL.revokeObjectURL(url),1000)
   }
   const done=job?.state==='completed',counts=done?job.result:job?.summary
   const details=fields=>fields?[[t('Contact email'),fields.email],[t('Phone'),fields.phone],[t('National document'),fields.nationalDocument]].filter(([,value])=>value).map(([label,value])=>label+': '+value).join(' · '):undefined
   return <Section title={t('Import members (CSV)')}><div className="centers-form">
     <p className="small muted">{t('Use UTF-8 CSV, up to 200 rows and 256 KiB.')}</p>
+    <p className="small muted">{t('The socio.csv template is supported, including its multiline conditions header.')}</p>
     <p className="small muted">{t('Duplicates match email or document; names alone are not merged.')}</p>
     <p className="small muted">{t('Import creates pending members, without accounts, contracts or payments.')}</p>
     <Button type="button" variant="tinted" onClick={template}>{t('Download CSV template')}</Button>
@@ -66,8 +68,8 @@ export default function CsvImport({centerId,ownerUid,active=true,jobId,onJob,clo
       {job.state==='expired'&&<p role="alert">{t('Choose the CSV file again to start a new review.')}</p>}
       {!done&&counts?.errors>0&&<p role="alert">{t('Fix invalid rows before importing.')}</p>}
       {!done&&<Button type="button" disabled={busy} onClick={()=>load(job.id)}>{t('Review import')}</Button>}
-      <div className="centers-import-rows">{(done?job.result.rows:job.rows).map(row=><Row key={row.record} className={row.status==='error'?'centers-import-error':''} title={t('Line')+' '+row.line+(row.fields?' · '+row.fields.name:'')} subtitle={details(row.fields)}
-        value={row.status==='error'?t('Check the member details.'):row.status==='ready'?t('Ready to import'):row.status==='imported'?t('Import completed'):t('Skipped duplicates')}/>)}</div>
+      <div className="centers-import-rows">{(done?job.result.rows:job.rows).map(row=><div key={row.record}><Row className={row.status==='error'?'centers-import-error':''} title={t('Line')+' '+row.line+(row.fields?' · '+row.fields.name:'')} subtitle={details(row.fields)}
+        value={row.status==='error'?t('Check the member details.'):row.status==='ready'?t('Ready to import'):row.status==='imported'?t('Import completed'):t('Skipped duplicates')}/><SourceRegistration value={row.sourceRegistration}/></div>)}</div>
       {!done&&<Button type="button" variant="primary" disabled={busy||!active||job.state!=='prepared'||!!job.summary.errors} onClick={commit}>{t('Confirm import')}</Button>}
     </>}
     {busy&&<p role="status">{t('Loading…')}</p>}{error&&<p role="alert">{t(memberImportErrorKey(error))}</p>}

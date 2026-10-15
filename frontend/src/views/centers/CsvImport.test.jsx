@@ -24,6 +24,18 @@ const click=text=>act(async()=>{button(text).click();await Promise.resolve()})
 const upload=(file={name:'members.csv',size:24,arrayBuffer:async()=>new TextEncoder().encode('name,email\nA,a@example.test').buffer})=>act(async()=>{
   const input=host.querySelector('input[type=file]');Object.defineProperty(input,'files',{configurable:true,value:[file]});input.dispatchEvent(new Event('change',{bubbles:true}));await Promise.resolve()
 })
+it('reviews source registration before confirmation and renders imported conditions as inert text',async()=>{
+  const sourceRegistration={subscriberNumber:'0007',address:'Example street',birthDate:'1990-10-05',submittedAt:'15/10/2026 10:00:00',conditionsText:'Conditions\n<script>window.bad=true</script>',conditionsResponse:'Accepted in source'};
+  centerMemberImport.mockResolvedValue({...review,rows:[{...review.rows[0],sourceRegistration}]});await render({jobId:review.id});
+  expect(host.textContent).toContain('0007');expect(host.textContent).toContain('Example street');expect(host.textContent).toContain('1990-10-05');
+  expect(host.querySelector('details').textContent).toContain('<script>window.bad=true</script>');expect(host.querySelector('script')).toBeNull();
+  expect(host.textContent).toContain('does not verify consent');expect(host.textContent).toContain('Accepted in source');expect(centerCommand).not.toHaveBeenCalled();
+})
+it('downloads a UTF-8 template using the supplied Spanish columns',async()=>{
+  const create=vi.spyOn(URL,'createObjectURL').mockReturnValue('blob:template'),revoke=vi.spyOn(URL,'revokeObjectURL').mockImplementation(()=>{}),anchor=vi.spyOn(HTMLAnchorElement.prototype,'click').mockImplementation(()=>{});
+  try{await render();await click('Download CSV template');expect(await create.mock.calls[0][0].text()).toContain('Marca temporal,Nº ABONADO,Nombre Completo,DNI,Dirección,Fecha Nacimiento,Teléfono,Condiciones de Inscripción y protección de datos');expect(anchor.mock.instances[0].download).toBe('socios-plantilla.csv')}
+  finally{create.mockRestore();revoke.mockRestore();anchor.mockRestore()}
+})
 it('requires a review and explicit confirmation, preserves prepare identity across retries and never writes personal state',async()=>{
   const personal=structuredClone(useStore.getState().S);centerCommand.mockRejectedValueOnce(new Error('network')).mockResolvedValueOnce(review).mockResolvedValueOnce(done);
   await render();await upload();await click('Review import');const first=centerCommand.mock.calls[0][1];await click('Review import');expect(centerCommand.mock.calls[1][1].requestId).toBe(first.requestId);expect(first.duplicatePolicy).toBe('skip');expect(onJob).toHaveBeenCalledWith(review.id);

@@ -67,13 +67,13 @@ export function commitMemberImport({database,user,checkSession},raw,{platform=fa
     if(review.summary.errors)throw error('import-invalid-rows');
     const eligible=review.rows.filter(row=>row.status==='ready');
     const {rows:[sequence]}=await client.query("SELECT (coalesce(max(substring(member_number from '^M-([0-9]+)$')::numeric),0)+1)::text AS next FROM centers.members WHERE center_id=$1",[centerId]);
-    const start=BigInt(sequence.next),insert=eligible.map((row,i)=>({id:'m_'+commandHash([job.id,row.record]).slice(0,32),number:'M-'+String(start+BigInt(i)).padStart(6,'0'),...row.fields}));
+    const start=BigInt(sequence.next),insert=eligible.map((row,i)=>({id:'m_'+commandHash([job.id,row.record]).slice(0,32),number:'M-'+String(start+BigInt(i)).padStart(6,'0'),...row.fields,sourceRegistration:row.sourceRegistration||null}));
     if(insert.some(row=>row.number.length>40))throw error('member-number-exhausted');
     checkSession();
     if(insert.length){
-      await client.query(`INSERT INTO centers.members(id,center_id,member_number,name,email,phone,national_document,joined_on)
-        SELECT r.id,$1,r.number,r.name,r.email,r.phone,r."nationalDocument",(statement_timestamp() AT TIME ZONE c.timezone)::date
-        FROM jsonb_to_recordset($2::jsonb) AS r(id text,number text,name text,email text,phone text,"nationalDocument" text) CROSS JOIN centers.centers c WHERE c.id=$1`,[centerId,JSON.stringify(insert)]);
+      await client.query(`INSERT INTO centers.members(id,center_id,member_number,name,email,phone,national_document,source_registration,joined_on)
+        SELECT r.id,$1,r.number,r.name,r.email,r.phone,r."nationalDocument",r."sourceRegistration",(statement_timestamp() AT TIME ZONE c.timezone)::date
+        FROM jsonb_to_recordset($2::jsonb) AS r(id text,number text,name text,email text,phone text,"nationalDocument" text,"sourceRegistration" jsonb) CROSS JOIN centers.centers c WHERE c.id=$1`,[centerId,JSON.stringify(insert)]);
       await client.query(`INSERT INTO centers.business_audit(center_id,actor_uid,action,target_id,details)
         SELECT $1,$2,'member.created',r.id,jsonb_build_object('source','csv','importId',$3::text) FROM jsonb_to_recordset($4::jsonb) AS r(id text)`,[centerId,user.id,id,JSON.stringify(insert)]);
     }

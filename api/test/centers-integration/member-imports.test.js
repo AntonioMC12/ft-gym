@@ -18,6 +18,33 @@ async function fixture(t){
   return {db,h,ids,p,req,center,other,prepare,detail,commit};
 }
 
+test('socio export confirms all source data atomically, preserves internal numbering and restricts private source detail',async t=>{
+  const {db,ids,p,req,center,other,prepare,detail,commit}=await fixture(t);
+  const header='Marca temporal,Nº ABONADO,Nombre Completo,DNI,Dirección,Fecha Nacimiento,Teléfono,"Condiciones de Inscripción y protección de datos\r\n\r\n1. Condiciones ficticias; no configurar pagos."';
+  const csv=header+'\r\n\r\n\r\n\r\n15/10/2026 10:00:00,0007,"Nombre, Prueba",00000001A,Calle ficticia 1,5/10/1990,001234567,Acepto las condiciones\r\n';
+  const response=await prepare(csv);assert.equal(response.status,200,JSON.stringify(response));const job=response.body;
+  assert.deepEqual(job.summary,{total:1,ready:1,skipped:0,errors:0});const source=job.rows[0].sourceRegistration;
+  assert.equal(source.birthDate,'1990-10-05');assert.equal(source.subscriberNumber,'0007');assert.match(source.conditionsText,/Condiciones ficticias/);
+  const completed=await commit(job);assert.equal(completed.status,200,JSON.stringify(completed));const id=completed.body.result.rows[0].memberId;
+  const url='/api/centers/member?'+new URLSearchParams({centerId:center,id});
+  const member=(await req(url,ids.manager)).body.member;assert.equal(member.number,'M-000001');assert.deepEqual(member.sourceRegistration,source);
+  assert.equal(member.phone,'001234567');assert.equal(member.accountLinked,false);
+  assert.equal((await req(url,ids.root)).body.member.sourceRegistration.subscriberNumber,'0007');
+  assert.equal((await req(url,ids.trainer)).body.member.sourceRegistration,undefined);
+  assert.equal((await req(url,ids.other)).status,404);
+  assert.equal((await req('/api/centers/members?'+new URLSearchParams({centerId:center}),ids.manager)).body.members[0].sourceRegistration,undefined);
+  const edited=await req('/api/centers/members/update',ids.manager,{centerId:center,id,version:member.version,name:'Edited',phone:member.phone,nationalDocument:member.nationalDocument});assert.equal(edited.status,200);
+  assert.deepEqual((await req(url,ids.manager)).body.member.sourceRegistration,source,'normal edits retain the source snapshot');
+  assert.deepEqual((await detail(job.id)).body,completed.body);assert.ok(!JSON.stringify(completed.body).includes('Calle ficticia'));
+  const again=await prepare(csv,'duplicate');assert.equal(again.body.summary.skipped,1);
+  const invalid=await prepare(csv.replace('5/10/1990','31/02/1990'),'bad-date');assert.equal(invalid.body.summary.errors,1);assert.equal((await commit(invalid.body)).body.code,'import-invalid-rows');
+  await db.transaction({uid:ids.manager,centerId:center},async client=>{
+    assert.equal((await client.query('SELECT count(*)::int AS n FROM centers.consents WHERE center_id=$1',[center])).rows[0].n,0);
+    assert.equal((await client.query('SELECT source_registration FROM centers.members WHERE center_id=$1',[other])).rows.length,0);
+  });
+  await assert.rejects(db.transaction({uid:ids.manager,centerId:center},client=>client.query("UPDATE centers.members SET source_registration='[]' WHERE id=$1",[id])),{code:'23514'});
+});
+
 test('CSV review creates no members, skips SQL-normalized duplicates and confirms exactly once under concurrent retries',async t=>{
   const {db,ids,p,req,center,prepare,detail,commit}=await fixture(t);
   const existing=await req('/api/centers/members/create',ids.manager,{centerId:center,name:'Existing',email:'existing@example.com',nationalDocument:'AB-123',requestId:p+'_existing'});assert.equal(existing.status,200);

@@ -9,7 +9,7 @@ export async function memberRecord(client,centerId,id,{version}={}) {
     if(!rows.length)throw new CentersError(404,'not-found','not found');
     if(rows[0].version!==version)throw new CentersError(409,'version-conflict','member changed; reload it');
   }
-  const {rows}=await client.query(`SELECT ${MEMBER_PROJECTION},local_today::text AS local_today FROM centers.member_profiles WHERE center_id=$1 AND id=$2`,[centerId,id]);
+  const {rows}=await client.query(`SELECT ${MEMBER_PROJECTION},source_registration,local_today::text AS local_today FROM centers.member_profiles WHERE center_id=$1 AND id=$2`,[centerId,id]);
   if(!rows.length)throw new CentersError(404,'not-found','not found');
   return rows[0];
 }

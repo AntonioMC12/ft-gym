@@ -40,5 +40,6 @@ export function memberDto(member, capabilities) {
     name: member.name, state: member.state, version: member.version };
   if (!capabilities.includes('members.read')) return operational;
   return { ...operational, accountLinked:!!member.account_uid, email: member.email, phone: member.phone, nationalDocument: member.national_document,
-    joinedOn: member.joined_on, endsOn: member.ends_on };
+    joinedOn: member.joined_on, endsOn: member.ends_on,
+    ...(capabilities.includes('members.manage')&&member.source_registration?{sourceRegistration:member.source_registration}:{}) };
 }

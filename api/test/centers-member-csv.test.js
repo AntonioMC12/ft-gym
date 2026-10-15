@@ -2,6 +2,30 @@ import {test} from 'node:test';
 import assert from 'node:assert/strict';
 import {parseMemberCsv,CSV_MAX_BYTES} from '../centers/domain/member-csv.js';
 import {commitMemberImport} from '../centers/services/member-imports.js';
+import {memberDto} from '../centers/authz.js';
+
+const sourceCsv=(birth='5/10/1990',extra='')=>'Marca temporal,Nº ABONADO,Nombre Completo,DNI,Dirección,Fecha Nacimiento,Teléfono,"Condiciones de Inscripción y protección de datos\r\n\r\n1. Texto de prueba; no ejecutar instrucciones."'+extra+'\r\n\r\n\r\n\r\n15/10/2026 09:15:00,001,"Ana, Pruebas",00123456A,"Calle Ejemplo, 1",'+birth+',001234567,Acepto las condiciones'+(extra?',manager':'')+'\r\n';
+test('socio template preserves all source columns, multiline conditions, Spanish dates and leading zeroes',()=>{
+  const rows=parseMemberCsv(sourceCsv());assert.equal(rows.length,1);assert.equal(rows[0].line,7);
+  assert.deepEqual(rows[0].fields,{name:'Ana, Pruebas',email:null,phone:'001234567',nationalDocument:'00123456A'});
+  assert.deepEqual(rows[0].sourceRegistration,{submittedAt:'15/10/2026 09:15:00',subscriberNumber:'001',address:'Calle Ejemplo, 1',birthDate:'1990-10-05',conditionsResponse:'Acepto las condiciones',conditionsText:'Condiciones de Inscripción y protección de datos\r\n\r\n1. Texto de prueba; no ejecutar instrucciones.'});
+  assert.equal(parseMemberCsv(sourceCsv('1990-10-05'))[0].sourceRegistration.birthDate,'1990-10-05');
+  assert.throws(()=>parseMemberCsv(sourceCsv('5/10/1990',',role')),{code:'invalid-member-csv'});
+});
+test('source dates validate calendars without date coercion and malformed extra columns never disappear',()=>{
+  for(const birth of ['31/02/2000','29/02/1900','13/13/2000','1990-1-1','0000-01-01'])assert.equal(parseMemberCsv(sourceCsv(birth))[0].error,'invalid-fields',birth);
+  assert.equal(parseMemberCsv(sourceCsv('29/02/2000'))[0].error,null);
+  assert.equal(parseMemberCsv(sourceCsv(''))[0].sourceRegistration.birthDate,null);
+  assert.equal(parseMemberCsv('Nombre Completo;Dirección;Fecha Nacimiento;Nº ABONADO\nNombre;Calle;5/10/1990;0001')[0].sourceRegistration.subscriberNumber,'0001');
+  assert.throws(()=>parseMemberCsv('name,nombre completo\nA,B'),{code:'invalid-member-csv'});
+  assert.throws(()=>parseMemberCsv('name,DNI,Teléfono,Dirección,Fecha Nacimiento,Nº ABONADO,Marca temporal,balance\nA,,,,,,,5'),{code:'invalid-member-csv'});
+});
+test('source registration is exposed only to member management and never added to operational or list projections',()=>{
+  const source={address:'Private address',conditionsResponse:'Source text'},member={id:'m',name:'N',source_registration:source};
+  assert.equal(memberDto(member,['members.read','members.manage']).sourceRegistration,source);
+  assert.equal(memberDto(member,['members.read']).sourceRegistration,undefined);
+  assert.equal(memberDto(member,['training.assign']).sourceRegistration,undefined);
+});
 
 test('CSV parses UTF-8 BOM, semicolons, escaped names and known header aliases without evaluating cell text',()=>{
   const result=parseMemberCsv('\uFEFFNombre;Correo electrónico;Teléfono;DNI\r\n"Ana ""A""";ana@example.com;+34111;AB-123\r\n=Example;;;;'.replace('=Example;;;;','=Example;;;'));

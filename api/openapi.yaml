@@ -225,6 +225,92 @@ paths:
         '400': { description: Unexpected selector or invalid cursor. }
         '403': { description: Management capability required. }
         '404': { description: Selected center unavailable. }
+  /api/centers/classes/series/preview:
+    post:
+      tags: [centers]
+      operationId: previewCenterClassSeries
+      summary: Review a finite weekly series without creating any classes
+      description: |
+        Current classes.manage or platform allowlist, active center. Body contains centerId, timezone
+        (expected current center zone), fields (same explicit terms as classes/create) and rule:
+        until (inclusive date), weekdays (unique JavaScript weekdays 0 Sunday through6), excludedDates
+        (unique candidate dates). The date span is at most93days; a committed group has1..25classes.
+        Every selected date is returned as ready, error with code, or explicitly excluded. No silent
+        omission or DST time shift. Plans, room overlaps and optional instructor coverage/identity are
+        checked against current data. No durable job or background recurrence is created.
+        Returns definitionVersion1, timezone, rows, summary, limitExceeded and a SHA256 reviewHash
+        bound to actor/center/input and reviewed facts. A timezone change requires reloading.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties: false
+              required: [centerId, timezone, fields, rule]
+              properties:
+                centerId: { type: string }
+                timezone: { type: string, maxLength: 80 }
+                fields: { type: object, description: Same fields as single class creation, including optional room/instructor and independent repeated-hour choices. }
+                rule:
+                  type: object
+                  additionalProperties: false
+                  required: [until, weekdays]
+                  properties:
+                    until: { type: string, format: date }
+                    weekdays: { type: array, minItems: 1, maxItems: 7, uniqueItems: true, items: { type: integer, minimum: 0, maximum: 6 } }
+                    excludedDates: { type: array, maxItems: 94, uniqueItems: true, items: { type: string, format: date } }
+      responses:
+        '200': { description: Complete bounded review; error rows must be resolved or explicitly excluded before creation. }
+        '400': { description: Invalid fields, dates, weekdays or exclusions. }
+        '403': { description: Current management capability required. }
+        '409': { description: class-timezone-changed, class-closed or center-inactive. }
+  /api/centers/classes/series/create:
+    post:
+      tags: [centers]
+      operationId: createCenterClassSeries
+      summary: Atomically create every ready class of a previously reviewed series
+      description: |
+        Same body as series/preview plus reviewHash (64 lowercase hex) and requestId.
+        Recomputes review under the center lock and optional instructor account locks. Any changed
+        review, invalid row, zero ready dates or more than25ready dates rejects the entire group.
+        Stores immutable definitionVersion1 and links each dated class by seriesId/seriesPosition.
+        All classes, plans, audit and idempotency commit together; SQL deferred completeness rejects
+        partial groups. A completed key returns the same group with current class states, including
+        in an inactive center, without another insertion. No fees, penalties, email or endless job.
+        Individual occurrences use existing roster/booking/cancellation; group membership is immutable.
+      responses:
+        '200': { description: series metadata and all its1..25classes, center, today, bounds and nextCursor null. }
+        '400': { description: Invalid explicit fields, rule, hash or command identity. }
+        '403': { description: Current management capability required. }
+        '409': { description: class-series-review-changed, class-series-invalid, class-timezone-changed, center-inactive or idempotency-conflict. }
+  /api/centers/classes/series:
+    get:
+      tags: [centers]
+      operationId: listCenterClassSeries
+      summary: Page immutable weekly series definitions for management
+      description: Current classes.manage or platform allowlist, including inactive center history. Thirty groups per page, newest first with actor/center cursor. Own members and trainers cannot read these definitions; their calendar exposes only occurrence facts and optional series identity.
+      parameters:
+        - { name: centerId, in: query, required: true, schema: { type: string } }
+        - { name: cursor, in: query, schema: { type: string, maxLength: 2000 } }
+      responses:
+        '200': { description: series array and nextCursor. }
+        '400': { description: Invalid selectors or cursor. }
+        '403': { description: Current management capability required. }
+  /api/centers/classes/series/detail:
+    get:
+      tags: [centers]
+      operationId: getCenterClassSeries
+      summary: Read one management series with all bounded occurrences
+      description: Current management capability or platform allowlist. Includes immutable definition, original timezone and all1..25occurrences with current states and instructorNeedsReview. No hidden truncation, reservations or member contacts. Inactive history remains available; reservations are read separately through the authorized roster.
+      parameters:
+        - { name: centerId, in: query, required: true, schema: { type: string } }
+        - { name: id, in: query, required: true, schema: { type: string } }
+      responses:
+        '200': { description: series, classes, center, today, from/to and nextCursor null. }
+        '400': { description: Invalid selectors. }
+        '403': { description: Current management capability required. }
+        '404': { description: Series unavailable in selected center. }
   /api/centers/classes/create:
     post:
       tags: [centers]

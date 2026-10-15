@@ -139,6 +139,9 @@ export function classesErrorKey(error){
   const code=error?.data?.code||error?.code
   if(code==='class-full')return 'This class is full.'
   if(code==='class-ineligible')return 'Your membership or plan does not allow this class.'
+  if(code==='class-series-review-changed')return 'Review this series again after changes.'
+  if(code==='class-timezone-changed')return 'The center time zone changed. Reload before scheduling.'
+  if(code==='invalid-class-series'||code==='class-series-invalid')return 'Review the series dates, limits and conflicts.'
   if(code==='class-attendance-unchanged')return 'Attendance already has that state.'
   if(code==='class-instructor-conflict')return 'This instructor already has a class at that time.'
   if(code==='class-instructor-unavailable')return 'The instructor assignment does not cover this class.'
@@ -163,3 +166,6 @@ export function centersErrorKey(error) {
 export const centerClassInstructors=(centerId,options={})=>api('/api/centers/classes/instructors?'+new URLSearchParams({centerId,...options}))
 
 export const centerAttendanceHistory=(centerId,id,options={})=>api('/api/centers/classes/attendance/history?'+new URLSearchParams({centerId,id,...options}))
+
+export const centerClassSeriesList=(centerId,options={})=>api('/api/centers/classes/series?'+new URLSearchParams({centerId,...options}))
+export const centerClassSeries=(centerId,id)=>api('/api/centers/classes/series/detail?'+new URLSearchParams({centerId,id}))

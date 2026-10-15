@@ -1,3 +1,4 @@
+import {classSeriesStrings} from './class-series.js'
 const keys=['Classes','New class','Class name','Capacity','Waiting list capacity','Cancellation notice (minutes)','Eligible plans','Reserve place','Join waiting list','Cancel reservation','Cancel class','Class roster','Booked','Waiting list','Attended','No-show','Ineligible','No classes available.','No reservations available.','Choose the first or second occurrence of this repeated hour.','First occurrence','Second occurrence','Check the class schedule, plans and limits.','This class is full.','Your membership or plan does not allow this class.','Booking or cancellation is closed.','No automatic fees or penalties.','Create class']
 const words={
  es:'Clases|Nueva clase|Nombre de la clase|Aforo|Plazas en lista de espera|Preaviso de cancelación (minutos)|Cuotas admitidas|Reservar plaza|Entrar en lista de espera|Cancelar reserva|Cancelar clase|Reservas de la clase|Plaza reservada|Lista de espera|Asistencia confirmada|Ausencia|Sin derecho a esta clase|No hay clases disponibles.|No hay reservas disponibles.|Elige la primera o segunda aparición de esta hora repetida.|Primera aparición|Segunda aparición|Revisa el horario, las cuotas y los límites de la clase.|La clase está completa.|Tu afiliación o cuota no permite esta clase.|El plazo de reserva o cancelación ha cerrado.|Sin cargos ni penalizaciones automáticas.|Crear clase',
@@ -107,4 +108,4 @@ const reviewWords={
   "zh-TW": "請在此課程開始前檢查教練任職情況。|尚無出勤更正紀錄。"
 }
 for(const [lang,value] of Object.entries(reviewWords))words[lang]+='|'+value
-export function classStrings(lang){const values=words[lang]?.split('|');if(values?.length!==keys.length)throw new Error('incomplete class translations: '+lang);return Object.fromEntries(keys.map((key,index)=>[key,values[index]]))}
+export function classStrings(lang){const values=words[lang]?.split('|');if(values?.length!==keys.length)throw new Error('incomplete class translations: '+lang);return {...Object.fromEntries(keys.map((key,index)=>[key,values[index]])),...classSeriesStrings(lang)}}

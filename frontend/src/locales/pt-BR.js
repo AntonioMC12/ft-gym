@@ -1,3 +1,4 @@
+import {classStrings} from './modules/classes.js'
 import {memberImportStrings} from './modules/member-imports.js'
 // Brazilian Portuguese overrides. Shared, region-neutral strings inherit from pt-PT.
 // Tests fingerprint every deliberately inherited entry so upstream changes require review.
@@ -11,6 +12,7 @@ import {centerUiStrings} from './modules/center-ui.js'
 
 export const PT_BR_OVERRIDES = {
   ...centersStrings('pt'),
+  ...classStrings('pt-BR'),
   ...trainingStrings('pt-BR'),
   ...accessStrings('pt-BR'),
   ...metricsStrings('pt-BR'),

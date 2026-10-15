@@ -74,6 +74,7 @@ services:
       - test/centers-integration/freeze-requests.test.js
       - test/centers-integration/maintenance.test.js
       - test/centers-integration/classes.test.js
+      - test/centers-integration/class-series.test.js
       - test/centers-integration/business-clock.test.js
     environment:
       CENTERS_TEST_DATABASE_URL: postgresql://centers_app:fictional-runtime-test-only@centers-ci-db/ft_gym_ci_centers_test

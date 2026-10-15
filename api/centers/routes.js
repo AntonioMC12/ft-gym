@@ -1,3 +1,4 @@
+import {previewClassSeries,createClassSeries,classSeriesPageOptions,getClassSeries,listClassSeries} from './services/class-series.js';
 import { CentersError } from './errors.js';
 import {notificationMode} from './notification-config.js';
 import {notificationStatus,configureNotificationPolicy,ownNotificationContact,requestNotificationContact,verifyNotificationContact,disableNotificationContact,retryBlockedNotifications} from './services/notification-contacts.js';
@@ -39,6 +40,7 @@ export function centersRoutes({ config, database, json, readSession, readBody, a
   };
   const failure = (res, error) => {
     if (error instanceof CentersError) return json(res, error.status, { error: error.message, code: error.code });
+    if(error.code==='23514'&&error.constraint==='class_series_review')return json(res,409,{error:'class series review changed',code:'class-series-review-changed'});
     if(error.code==='23514'&&error.constraint==='class_attendance_revision')return json(res,409,{error:'attendance revision changed',code:'version-conflict'});
     if(error.code==='23514'&&error.constraint==='class_instructor_available')return json(res,409,{error:'instructor assignment unavailable',code:'class-instructor-unavailable'});
     if(error.code==='23514'&&error.constraint==='class_instructor_schedule')return json(res,409,{error:'instructor schedule conflict',code:'class-instructor-conflict'});
@@ -144,6 +146,16 @@ export function centersRoutes({ config, database, json, readSession, readBody, a
       try{const result=await classInstructors(database,user.id,centerId,classInstructorOptions(params),{platform:isPlatformUser(config,user),lookupAccount});
         if(!current(req,user,sv))return json(res,401,{error:'not signed in'});return json(res,200,result)}catch(error){return failure(res,error)}
     },
+    'GET /api/centers/classes/series':async(req,res)=>{
+      const user=guard(req,res);if(!user)return;const sv=user.sv||0,params=new URL(req.url,'http://x').searchParams,centerId=params.get('centerId');if(!recordId(centerId))return json(res,404,{error:'not found',code:'not-found'});
+      try{const result=await listClassSeries(database,user.id,centerId,classSeriesPageOptions(params),{platform:isPlatformUser(config,user)});if(!current(req,user,sv))return json(res,401,{error:'not signed in'});return json(res,200,result)}catch(error){return failure(res,error)}
+    },
+    'GET /api/centers/classes/series/detail':async(req,res)=>{
+      const user=guard(req,res);if(!user)return;const sv=user.sv||0,params=new URL(req.url,'http://x').searchParams,centerId=params.get('centerId');if(!recordId(centerId))return json(res,404,{error:'not found',code:'not-found'});
+      try{const options=classSeriesPageOptions(params,{detail:true}),result=await getClassSeries(database,user.id,centerId,options.id,{platform:isPlatformUser(config,user),lookupAccount});if(!current(req,user,sv))return json(res,401,{error:'not signed in'});return json(res,200,result)}catch(error){return failure(res,error)}
+    },
+    'POST /api/centers/classes/series/preview':mutate(false,(context,body)=>previewClassSeries(context,body,{platform:isPlatformUser(config,context.user)})),
+    'POST /api/centers/classes/series/create':mutate(false,(context,body)=>createClassSeries(context,body,{platform:isPlatformUser(config,context.user)})),
     'GET /api/centers/classes':readClasses(false),
     'GET /api/centers/own/classes':readClasses(true),
     'GET /api/centers/classes/roster':readClasses(false,true),

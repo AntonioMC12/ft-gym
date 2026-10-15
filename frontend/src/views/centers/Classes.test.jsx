@@ -3,11 +3,11 @@ import React,{act} from 'react'
 import {createRoot} from 'react-dom/client'
 import {beforeEach,afterEach,it,expect,vi} from 'vitest'
 vi.mock('../../lib/i18n.js',()=>({t:key=>key,dateLocale:()=> 'en-GB'}))
-vi.mock('../../lib/centers-api.js',()=>({centerAttendanceHistory:vi.fn(),centerClassInstructors:vi.fn(),centerClasses:vi.fn(),centerClassRoster:vi.fn(),centerPlans:vi.fn(),centerCommand:vi.fn(),classesErrorKey:error=>error?.code||'error'}))
+vi.mock('../../lib/centers-api.js',()=>({centerClassSeries:vi.fn(),centerClassSeriesList:vi.fn(),centerAttendanceHistory:vi.fn(),centerClassInstructors:vi.fn(),centerClasses:vi.fn(),centerClassRoster:vi.fn(),centerPlans:vi.fn(),centerCommand:vi.fn(),classesErrorKey:error=>error?.code||'error'}))
 vi.mock('../../store/useStore.js',()=>{const state={user:{id:'alice'},S:{}};return {useStore:Object.assign(selector=>selector(state),{getState:()=>state})}})
 vi.mock('../../store/useCenters.js',()=>({useCenters:{getState:()=>({revokeOn:vi.fn()})}}))
 vi.mock('../../sheets.jsx',()=>({confirmSheet:vi.fn()}))
-import {centerAttendanceHistory,centerClassInstructors,centerClasses,centerClassRoster,centerPlans,centerCommand} from '../../lib/centers-api.js'
+import {centerClassSeries,centerClassSeriesList,centerAttendanceHistory,centerClassInstructors,centerClasses,centerClassRoster,centerPlans,centerCommand} from '../../lib/centers-api.js'
 import {useStore} from '../../store/useStore.js'
 import {useUI} from '../../store/useUI.js'
 import {bindUI} from '../../components/ui.jsx'
@@ -116,4 +116,38 @@ it('roster attendance uses server flags and a changed cancellation reason invali
 })
 it('own cancellation stays disabled after the server deadline without changing the reservation',async()=>{
   centerClasses.mockResolvedValue({...page,classes:[{...event,booked:1,canCancel:false,ownReservation:{id:'rb_one',state:'booked',version:2}}]});await render();expect(button('Cancel reservation').disabled).toBe(true);expect(host.textContent).toContain('Booking or cancellation is closed.');expect(centerCommand).not.toHaveBeenCalled()
+})
+
+const reviewSeriesPage=(extra={})=>({definitionVersion:1,reviewHash:'a'.repeat(64),summary:{total:1,ready:1,excluded:0,errors:0},limitExceeded:false,rows:[{date:'2026-10-25',status:'ready',startsAt:'2026-10-25T01:15:00Z',endsAt:'2026-10-25T01:45:00Z'}],...extra})
+const checkLabel=async label=>act(async()=>{host.querySelector('button[role=checkbox][aria-label="'+label+'"]').click();await Promise.resolve()})
+async function weeklyEditor(){await render({own:false,canManage:true});await click('New class');await completeEditor();await checkLabel('Weekly class series');fill(field('Series end date'),'2026-11-01');await checkLabel('Sunday')}
+const group=id=>({id,name:'Weekly '+id,timezone:'Europe/Madrid',total:1,definition:{fields:{date:'2026-10-25'},rule:{until:'2026-11-01'}}})
+const seriesDetails=()=>({...page,series:group('cs_one'),classes:[{...event,seriesId:'cs_one',seriesPosition:1}]})
+it('reviews weekly dates before confirmation and preserves command identity when the response is lost',async()=>{
+  centerCommand.mockResolvedValueOnce(reviewSeriesPage()).mockRejectedValueOnce({code:'network'}).mockResolvedValueOnce({series:{id:'cs_one'}});centerClassSeries.mockResolvedValue(seriesDetails());
+  await weeklyEditor();expect(button('Create weekly series')).toBeUndefined();await click('Review class series');expect(centerCommand.mock.calls[0][0]).toBe('/api/centers/classes/series/preview');
+  expect(centerCommand.mock.calls[0][1]).toMatchObject({timezone:'Europe/Madrid',rule:{until:'2026-11-01',weekdays:[0],excludedDates:[]}});
+  await click('Create weekly series');expect(centerCommand).toHaveBeenCalledTimes(1);await act(async()=>confirmSheet.mock.calls[0][0].onConfirm());await click('Create weekly series');await act(async()=>confirmSheet.mock.calls[1][0].onConfirm());
+  expect(centerCommand.mock.calls[1][0]).toBe('/api/centers/classes/series/create');expect(centerCommand.mock.calls[2][1].requestId).toBe(centerCommand.mock.calls[1][1].requestId);expect(centerClassSeries).toHaveBeenCalledWith('a','cs_one');
+})
+it('invalidates a reviewed series and old confirmations when fields or excluded dates change',async()=>{
+  centerCommand.mockResolvedValue(reviewSeriesPage());await weeklyEditor();await click('Review class series');await click('Create weekly series');
+  fill(field('Class name'),'Changed class');expect(button('Create weekly series').disabled).toBe(true);await act(async()=>confirmSheet.mock.calls[0][0].onConfirm());expect(centerCommand).toHaveBeenCalledTimes(1);
+  await click('Review class series');await checkLabel('Exclude date 2026-10-25');expect(button('Create weekly series').disabled).toBe(true);expect(host.textContent).toContain('Review this series again after changes.');
+  centerCommand.mockResolvedValue(reviewSeriesPage({summary:{total:1,ready:0,excluded:1,errors:0},rows:[{date:'2026-10-25',status:'excluded'}]}));await click('Review class series');expect(centerCommand.mock.calls.at(-1)[1].rule.excludedDates).toEqual(['2026-10-25']);expect(button('Create weekly series').disabled).toBe(true);
+})
+it('keeps ambiguous dates and over-limit series blocked until explicitly reviewed again',async()=>{
+  centerCommand.mockResolvedValue(reviewSeriesPage({summary:{total:1,ready:0,excluded:0,errors:1},rows:[{date:'2026-10-25',status:'error',code:'class-time-ambiguous'}]}));await weeklyEditor();await click('Review class series');expect(button('Create weekly series').disabled).toBe(true);
+  expect(host.textContent).toContain('Choose the first or second occurrence of this repeated hour.');await rowClick('From');await rowClick('First occurrence');await rowClick('To');await rowClick('Second occurrence');
+  centerCommand.mockResolvedValue(reviewSeriesPage({limitExceeded:true}));await click('Review class series');expect(button('Create weekly series').disabled).toBe(true);expect(centerCommand.mock.calls.at(-1)[1].fields.disambiguation).toEqual({start:'earlier',end:'later'});
+})
+it('discards a delayed series review after switching centers',async()=>{
+  let release;centerCommand.mockImplementationOnce(()=>new Promise(resolve=>release=resolve));await weeklyEditor();await click('Review class series');await render({centerId:'b',own:false,canManage:true});
+  await act(async()=>{release(reviewSeriesPage());await Promise.resolve()});expect(button('Create weekly series')).toBeUndefined();expect(host.textContent).not.toContain('Ready to create');
+})
+it('pages the series directory and returns from roster through the actual series origin',async()=>{
+  centerClassSeriesList.mockResolvedValueOnce({series:[group('cs_one')],nextCursor:'next_series'}).mockResolvedValueOnce({series:[group('cs_two')],nextCursor:null});centerClassSeries.mockResolvedValue(seriesDetails());await render({own:false,canManage:true});await click('Class series');await click('Show more');
+  expect(centerClassSeriesList).toHaveBeenLastCalledWith('a',{cursor:'next_series'});expect(host.textContent).toContain('Weekly cs_one');expect(host.textContent).toContain('Weekly cs_two');
+  await rowClick('Weekly cs_one');await click('Class roster');await click('Back');expect(centerClassSeries).toHaveBeenCalledTimes(2);centerClassSeriesList.mockResolvedValue({series:[group('cs_one')],nextCursor:null});await click('Back');expect(host.textContent).toContain('Create weekly series');
+  await click('Back');centerClasses.mockResolvedValue({...page,classes:[{...event,seriesId:'cs_one'}]});await click('Reload centers');await click('View series');await click('Back');expect(host.textContent).toContain('New class');
 })

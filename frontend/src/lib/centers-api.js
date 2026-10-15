@@ -1,6 +1,15 @@
 import { api } from './api.js'
 
 export const centersMe = () => api('/api/centers/me')
+export const centerTraining=(centerId,options={},own=false)=>api('/api/centers/'+(own?'own/':'')+'training?'+new URLSearchParams({centerId,...options}))
+export const centerTrainingProposal=(centerId,id,own=false,versionId=null)=>api('/api/centers/'+(own?'own/':'')+'training/proposal?'+new URLSearchParams({centerId,id,...(versionId?{versionId}:{})}))
+export function trainingErrorKey(error){
+  const code=error?.data?.code||error?.code
+  if(code==='invalid-training-plan')return 'Check the proposed routines. Only catalogue exercises are supported.'
+  if(['training-not-synced','training-state-unavailable'].includes(code))return 'Sync your training, then retry delivery.'
+  if(['training-member-inactive','training-account-required','training-proposal-unavailable','training-not-accepted'].includes(code))return 'This training proposal is not available. Reload it.'
+  return centersErrorKey(error)
+}
 export const platformCenters = (options={}) => api('/api/platform/centers'+(Object.keys(options).length?'?'+new URLSearchParams(options):''))
 export const centerDetail = id => api('/api/centers/detail?centerId=' + encodeURIComponent(id))
 export const centerStaff = id => api('/api/centers/staff?centerId=' + encodeURIComponent(id))

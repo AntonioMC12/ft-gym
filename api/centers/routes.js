@@ -19,9 +19,10 @@ import {ownMembership,ownReceipts,ownPayments,ownPortalOptions} from './services
 import {stripeStatus,stripeListOptions,checkoutStripe,reconcileStripe} from './services/stripe-service.js';
 import {receiveStripeWebhook} from './services/stripe-foundation.js';
 import {readStripeBody} from './domain/stripe-webhook.js';
+import {proposeTraining,withdrawTraining,trainingListOptions,listTraining,getTraining,acceptTraining,acknowledgeTraining} from './services/training-proposals.js';
 
 // Inject the same session and response helpers used by the rest of node:http.
-export function centersRoutes({ config, database, json, readSession, readBody, accountLocks, lookupAccount,
+export function centersRoutes({ config, database, json, readSession, readBody, accountLocks, lookupAccount, readOwnTraining, hasTrainingExercise,
   accountIds = () => [], accountDirectory = () => [] }) {
   const guard = (req, res) => {
     if (!config.enabled) { json(res, 404, { error: 'not found' }); return null; }
@@ -44,11 +45,34 @@ export function centersRoutes({ config, database, json, readSession, readBody, a
     const checkSession=()=>{if(!current(req,user,sv))throw new CentersError(401,'not-signed-in','not signed in');};
     try{
       const body=await readBody(req);checkSession();
-      const result=await operation({database,accountLocks,lookupAccount,user,checkSession,config},body,{platform});
+      const result=await operation({database,accountLocks,lookupAccount,readOwnTraining,hasTrainingExercise,user,checkSession,config},body,{platform});
       checkSession();return json(res,200,result);
     }catch(error){return failure(res,error);}
   };
+  const readTraining=(own,detail=false)=>async(req,res)=>{
+    const user=guard(req,res);if(!user)return;const sv=user.sv||0,params=new URL(req.url,'http://x').searchParams,centerId=params.get('centerId');
+    if(!recordId(centerId))return json(res,404,{error:'not found',code:'not-found'});
+    try{
+      let result;
+      if(detail){
+        const id=params.get('id'),versionId=params.get('versionId');
+        if(!recordId(id)||(versionId!==null&&!recordId(versionId)))return json(res,404,{error:'not found',code:'not-found'});
+        if([...params.keys()].some(key=>!['centerId','id','versionId'].includes(key)))throw new CentersError(400,'invalid-input','invalid training selectors');
+        result=await getTraining(database,user.id,centerId,id,{own,platform:isPlatformUser(config,user),versionId});
+      }else result=await listTraining(database,user.id,centerId,trainingListOptions(params,{own}),{own,platform:isPlatformUser(config,user)});
+      if(!current(req,user,sv))return json(res,401,{error:'not signed in'});return json(res,200,result);
+    }catch(error){return failure(res,error)}
+  };
   return {
+    'GET /api/centers/training':readTraining(false),
+    'GET /api/centers/own/training':readTraining(true),
+    'GET /api/centers/training/proposal':readTraining(false,true),
+    'GET /api/centers/own/training/proposal':readTraining(true,true),
+    'POST /api/centers/training/propose':mutate(false,(context,body)=>proposeTraining(context,body,{platform:isPlatformUser(config,context.user)})),
+    'POST /api/centers/training/revise':mutate(false,(context,body)=>proposeTraining(context,body,{platform:isPlatformUser(config,context.user),revise:true})),
+    'POST /api/centers/training/withdraw':mutate(false,(context,body)=>withdrawTraining(context,body,{platform:isPlatformUser(config,context.user)})),
+    'POST /api/centers/own/training/accept':mutate(false,acceptTraining),
+    'POST /api/centers/own/training/ack':mutate(false,acknowledgeTraining),
     'POST /api/centers/stripe/webhook': async(req,res)=>{
       if(!config.enabled)return json(res,404,{error:'not found'});
       const params=new URL(req.url,'http://x').searchParams,profileId=params.get('profileId');

@@ -26,6 +26,7 @@ import {createCloudflareEmailTransport} from './centers/services/notification-cl
 import { centersRoutes } from './centers/routes.js';
 import { createAccountLocks } from './centers/account-links.js';
 import { CentersError } from './centers/errors.js';
+import {libraryHas as hasTrainingExercise} from './coach/core/library.js';
 import { startCadence } from './coach/cadence.js';
 import { startWarmup } from './coach/warmup.js';
 import { dayReminderPush, nudgePush, restTimerPush, testPush } from './push-messages.js';
@@ -2640,6 +2641,8 @@ const routes = {
   // a cycle. Every one of them is inert while the feature is unconfigured.
   ...coachRoutes({ json, readBody, readSession, requireAdmin }),
   ...centersRoutes({ config: CENTERS_CONFIG, database: CENTERS_DATABASE, json, readSession, readBody,
+    hasTrainingExercise,
+    readOwnTraining: uid => { const value=readStateStrict(uid); if(value===UNREADABLE)throw new CentersError(503,'training-state-unavailable','personal training is unreadable'); return value; },
     accountLocks: CENTERS_ACCOUNT_LOCKS, lookupAccount: uid => db.users.find(u => u.id === uid),
     accountIds: () => db.users.map(u => u.id), accountDirectory: () => db.users.map(u => ({id:u.id,name:String(u.name||''),disabled:!!u.disabled})) }),
 

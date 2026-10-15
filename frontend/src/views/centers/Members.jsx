@@ -11,11 +11,12 @@ import Invitations from './Invitations.jsx'
 import Subscriptions from './Subscriptions.jsx'
 import Receipts from './Receipts.jsx'
 import Payments from './Payments.jsx'
+import TrainingProposals from './TrainingProposals.jsx'
 
 const stateText=state=>state==='active'?t('Active member'):state==='frozen'?t('Frozen member'):state==='ended'?t('Ended member'):t('Pending activation')
 const fieldsOf=member=>({name:member?.name||'',email:member?.email||'',phone:member?.phone||'',nationalDocument:member?.nationalDocument||''})
 
-function MemberForm({centerId,member,lifecycle,ownerUid,close,saved,canBilling,capabilities}) {
+function MemberForm({centerId,member,lifecycle,ownerUid,close,saved,canBilling,capabilities,active}) {
   const [fields,setFields]=useState(()=>fieldsOf(member)),[busy,setBusy]=useState(false),[error,setError]=useState(null)
   const [currentMember,setCurrentMember]=useState(member),[info,setInfo]=useState(lifecycle)
   const [requestId]=useState(()=>crypto.randomUUID())
@@ -37,10 +38,11 @@ function MemberForm({centerId,member,lifecycle,ownerUid,close,saved,canBilling,c
     <div className="centers-actions"><Button type="button" disabled={busy} onClick={close}>{t('Back')}</Button><Button type="submit" variant="primary" disabled={busy||!fields.name.trim()}>{t('Save')}</Button></div>
   </form></Section>{currentMember&&info?.today&&<MembershipActions key={currentMember.version} centerId={centerId} member={currentMember} info={info} ownerUid={ownerUid} changed={result=>{setCurrentMember(result.member);setInfo({today:result.today,changes:result.changes})}}/>}
     {currentMember&&<Invitations centerId={centerId} ownerUid={ownerUid} memberId={currentMember.id} linked={currentMember.accountLinked}/>}
+    {currentMember&&capabilities.includes('training.assign')&&<TrainingProposals key={'training:'+currentMember.id} centerId={centerId} member={currentMember} ownerUid={ownerUid} canAssign active={active}/>}
     {currentMember&&canBilling&&<><Subscriptions key={currentMember.id} centerId={centerId} member={currentMember} ownerUid={ownerUid} changed={result=>{setCurrentMember(result.member);setInfo({today:result.today,changes:result.changes})}} receiptCreated={()=>setReceiptsRevision(value=>value+1)}/><Receipts key={currentMember.id} centerId={centerId} memberId={currentMember.id} ownerUid={ownerUid} revision={receiptsRevision} canRecord={capabilities.includes('payments.record')} today={info?.today} changed={()=>setReceiptsRevision(value=>value+1)}/><Payments centerId={centerId} memberId={currentMember.id} ownerUid={ownerUid} revision={receiptsRevision} canRefund={capabilities.includes('payments.refund')} today={info?.today} changed={()=>setReceiptsRevision(value=>value+1)}/></>}</>
 }
 
-export default function Members({centerId,ownerUid,capabilities}) {
+export default function Members({centerId,ownerUid,capabilities,active=true}) {
   const manage=capabilities.includes('members.manage')
   const permissionKey=capabilities.join('|')
   const [query,setQuery]=useState(''),[search,setSearch]=useState(''),[rows,setRows]=useState([]),[cursor,setCursor]=useState(null)
@@ -65,8 +67,8 @@ export default function Members({centerId,ownerUid,capabilities}) {
     const id=epoch.current,detail=++detailEpoch.current;setError(null)
     try{const result=await centerMember(centerId,member.id);if(current(id)&&detailEpoch.current===detail){setEditing(result.member);setLifecycle({today:result.today,changes:result.changes})}}catch(e){if(current(id)&&detailEpoch.current===detail)failure(e)}
   }
-  if(editing)return manage?<MemberForm key={editing.id||'new'} centerId={centerId} member={editing.id?editing:null} lifecycle={lifecycle} ownerUid={ownerUid} capabilities={capabilities} canBilling={capabilities.includes('billing.manage')} close={()=>{setEditing(null);setRevision(r=>r+1)}} saved={()=>{setEditing(null);setRevision(r=>r+1)}}/>:
-    <Section title={t('Member details')}><Row title={editing.name} subtitle={stateText(editing.state)} value={editing.number}/><Button onClick={()=>setEditing(null)}>{t('Back')}</Button></Section>
+  if(editing)return manage?<MemberForm key={editing.id||'new'} centerId={centerId} member={editing.id?editing:null} lifecycle={lifecycle} ownerUid={ownerUid} capabilities={capabilities} active={active} canBilling={capabilities.includes('billing.manage')} close={()=>{setEditing(null);setRevision(r=>r+1)}} saved={()=>{setEditing(null);setRevision(r=>r+1)}}/>:
+    <><Section title={t('Member details')}><Row title={editing.name} subtitle={stateText(editing.state)} value={editing.number}/><Button onClick={()=>setEditing(null)}>{t('Back')}</Button></Section>{capabilities.includes('training.assign')&&<TrainingProposals key={'training:'+editing.id} centerId={centerId} member={editing} ownerUid={ownerUid} canAssign active={active}/>}</>
   return <Section title={t('Members')}><div className="centers-form">
     <div className="centers-actions"><SearchField aria-label={t('Search members')} placeholder={t('Search members')} value={query} onChange={e=>setQuery(e.target.value)} onClear={()=>setQuery('')}/>{manage&&<Button onClick={()=>{setLifecycle(null);setEditing({})}}>{t('New member')}</Button>}</div>
     {rows.map(member=><Row key={member.id} title={member.name} subtitle={stateText(member.state)} value={member.number} accessory="chevron" onClick={()=>open(member)}/>)}

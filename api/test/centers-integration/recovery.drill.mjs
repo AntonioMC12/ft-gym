@@ -39,6 +39,11 @@ test('C24: two-center pilot survives a coordinated JSON/PostgreSQL restore and r
   }
   const ownPath='/api/centers/own/membership?centerId='+centers[0],ownBefore=(await req(ownPath,'pilot_alice')).body;
   assert.equal(ownBefore.summary.outstandingMinor,'2300');assert.equal((await req('/api/centers/own/membership?centerId='+centers[1],'pilot_alice')).status,404);
+  const trainingMember=(await req('/api/centers/member?'+new URLSearchParams({centerId:centers[0],id:members[0]}),'pilot_manager_a')).body.member;
+  const trainingInput={centerId:centers[0],memberId:members[0],memberVersion:trainingMember.version,bundle:{opengym_plan:1,name:'Fictional recovery plan',unit:'kg',routines:[{id:'source',name:'Recovery push',ex:[{id:'0025',sets:3,reps:8,weight:60}]}],week:{1:['source']},customEx:[]},requestId:'pilot_training_propose'};
+  const trainingCreated=await req('/api/centers/training/propose','pilot_manager_a',trainingInput);assert.equal(trainingCreated.status,200,JSON.stringify(trainingCreated));
+  const trainingCommand={centerId:centers[0],id:trainingCreated.body.proposal.id,versionId:trainingCreated.body.proposal.versionId,requestId:'pilot_training_accept'};
+  const trainingAccepted=await req('/api/centers/own/training/accept','pilot_alice',trainingCommand);assert.equal(trainingAccepted.status,200);const trainingBefore=trainingAccepted.body.proposal;
   const personalBefore=(await req('/api/data','pilot_alice')).body;assert.ok(!JSON.stringify(personalBefore).includes('outstandingMinor'));
   assert.equal((await req('/api/platform/centers/reconciliation','pilot_root')).body.orphanedAccounts.length,0);
   const personalHash=hash(fs.readFileSync(path.join(source.dir,'state-pilot_alice.json')));
@@ -72,6 +77,11 @@ test('C24: two-center pilot survives a coordinated JSON/PostgreSQL restore and r
   assert.equal(hash(fs.readFileSync(path.join(restoredData,'state-pilot_alice.json'))),personalHash,'training file preserved byte-for-byte');
   restored=await startHttp(t,{app:target,savedData:restoredData,superadminUids:['pilot_root']});const after=(...args)=>request(restored,...args);
   assert.deepEqual((await after(ownPath,'pilot_alice')).body,ownBefore);assert.deepEqual((await after('/api/data','pilot_alice')).body,personalBefore);
+  const trainingRecovered=await after('/api/centers/own/training/accept','pilot_alice',trainingCommand);assert.equal(trainingRecovered.status,200);assert.deepEqual(trainingRecovered.body.proposal,trainingBefore,'accepted delivery map and intention survive recovery without changing personal training');
+  assert.equal((await after('/api/centers/own/training/ack','pilot_alice',{...trainingCommand,requestId:'pilot_training_ack'})).body.code,'training-not-synced');
+  const destination=trainingBefore.routineIds.source,delivered={routines:[{...trainingBefore.bundle.routines[0],id:destination}],workouts:[],unit:'kg',planDeliveries:[{id:trainingBefore.deliveryKey,acceptedAt:Date.parse(trainingBefore.acceptedAt),routineIds:[destination]}]};
+  assert.equal((await after('/api/data','pilot_alice',{state:delivered,stamped:true},'PUT')).status,200);
+  const trainingAck=await after('/api/centers/own/training/ack','pilot_alice',{...trainingCommand,requestId:'pilot_training_ack'});assert.equal(trainingAck.status,200);assert.equal(trainingAck.body.proposal.deliveryResult,'applied');
   assert.equal((await after('/api/centers/own/membership?centerId='+centers[1],'pilot_alice')).status,404);
   assert.equal((await after('/api/centers/members?centerId='+centers[1],'pilot_manager_a')).status,404);
   const replay=await after('/api/centers/payments/record','pilot_manager_a',payments[0]);assert.equal(replay.status,200);assert.equal((await after('/api/centers/payments?'+new URLSearchParams({centerId:centers[0],memberId:members[0]}),'pilot_manager_a')).body.payments.length,1);

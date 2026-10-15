@@ -1,5 +1,4 @@
 import {CentersError} from '../errors.js';
-import {LIB_BY_ID} from '../../coach/core/library.js';
 import {objectBody,textField} from './validation.js';
 
 const invalid=message=>{throw new CentersError(400,'invalid-training-plan',message)};
@@ -12,9 +11,9 @@ function shape(value,fields){try{return objectBody(value,fields)}catch{invalid('
 function number(value,min,max,integer=false){if(typeof value!=='number'||!Number.isFinite(value)||value<min||value>max||(integer&&!Number.isSafeInteger(value)))invalid('invalid prescription number');return value}
 function text(value,max,required=false){try{return textField(value,max,{required})}catch{invalid('invalid training plan text')}}
 function policy(value){if(!policies.has(value))invalid('unknown progression policy');return value}
-function cleanExercise(value){
+function cleanExercise(value,hasExercise){
   shape(value,exerciseFields);
-  if(typeof value.id!=='string'||!LIB_BY_ID.has(value.id))invalid('exercise is not in the catalogue');
+  if(typeof value.id!=='string'||!hasExercise(value.id))invalid('exercise is not in the catalogue');
   const out={id:value.id,sets:number(value.sets,1,50,true)};
   if(value.mode!=null){if(!['reps','time','cardio'].includes(value.mode))invalid('invalid exercise mode');out.mode=value.mode}
   for(const key of ['reps','repsMin','repsMax'])if(value[key]!=null)out[key]=number(value[key],1,1000,true);
@@ -49,7 +48,8 @@ function cleanExercise(value){
 
 // A proposal is a bounded training bundle, never a whole profile. Keep the same
 // prescription vocabulary as buildPlanBundle; do not use the Coach's lossy summary.
-export function trainingPlan(value){
+export function trainingPlan(value,hasExercise){
+  if(typeof hasExercise!=='function')throw new CentersError(503,'training-catalogue-unavailable','exercise catalogue is unavailable');
   let raw;try{raw=JSON.stringify(value)}catch{invalid('invalid training plan JSON')}
   if(!raw||Buffer.byteLength(raw)>65536)invalid('training plan exceeds 64 KiB');
   shape(value,rootFields);
@@ -65,7 +65,7 @@ export function trainingPlan(value){
     if(row.emoji!=null)out.emoji=text(row.emoji,16)||'';
     if(row.prog!=null)out.prog=policy(row.prog);
     if(row.excludeFromProgression!=null){if(typeof row.excludeFromProgression!=='boolean')invalid('invalid progression exclusion');out.excludeFromProgression=row.excludeFromProgression}
-    out.ex=row.ex.map(cleanExercise);return out;
+    out.ex=row.ex.map(ex=>cleanExercise(ex,hasExercise));return out;
   });
   const week={};
   if(value.week!=null){

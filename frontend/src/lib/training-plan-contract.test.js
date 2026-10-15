@@ -1,5 +1,7 @@
 import {it,expect} from 'vitest'
-import {trainingPlan} from '../../../api/centers/domain/training-plan.js'
+import {trainingPlan as validateTrainingPlan} from '../../../api/centers/domain/training-plan.js'
+import {libraryHas} from '../../../api/coach/core/library.js'
+const trainingPlan=value=>validateTrainingPlan(value,libraryHas)
 import {buildPlanBundle,parsePlan} from './plan-share.js'
 import {applyPlanDelivery} from './plan-delivery.js'
 

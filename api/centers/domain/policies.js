@@ -13,4 +13,4 @@ export const ROLE_CAPABILITIES = Object.freeze({
 });
 
 // Refunds are explicit for the platform allowlist and optional manager grants, never user.admin.
-export const PLATFORM_CAPABILITIES = Object.freeze(['centers.manage', 'managers.manage', 'metrics.global.read', 'members.read', 'members.manage', 'staff.manage', 'plans.manage', 'billing.read', 'billing.manage', 'payments.record', 'payments.refund', 'data.export']);
+export const PLATFORM_CAPABILITIES = Object.freeze(['centers.manage', 'managers.manage', 'metrics.global.read', 'members.read', 'members.manage', 'staff.manage', 'plans.manage', 'billing.read', 'billing.manage', 'payments.record', 'payments.refund', 'data.export', 'training.assign']);

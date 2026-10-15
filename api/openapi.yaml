@@ -165,6 +165,164 @@ security:
   - bearerAuth: []
 
 paths:
+  /api/centers/training:
+    get:
+      tags: [centers]
+      operationId: listCenterTrainingProposals
+      summary: List current proposal versions for selected-center training staff
+      description: Requires training.assign or explicit platform allowlist. No personal workout data is read. Cursor is bound to actor, center and member filter. Inactive-center history remains readable.
+      parameters:
+        - { name: centerId, in: query, required: true, schema: { type: string } }
+        - { name: memberId, in: query, schema: { type: string } }
+        - { name: limit, in: query, schema: { type: integer, minimum: 1, maximum: 50, default: 20 } }
+        - { name: cursor, in: query, schema: { type: string, maxLength: 1024 } }
+      responses:
+        '200': { description: Proposals with counts and acceptance/ack history, plus nextCursor. No bundle or personal progress in list rows. }
+        '400': { description: Invalid selectors or cursor. }
+        '403': { description: Missing training.assign. }
+        '404': { description: Center or member unavailable. }
+  /api/centers/own/training:
+    get:
+      tags: [centers]
+      operationId: listOwnCenterTrainingProposals
+      summary: List proposals for the session-owned member and original recipient
+      description: Strict own scope even for a caller who also manages the center. Rejects member/account selectors; never enables staff progress access.
+      parameters:
+        - { name: centerId, in: query, required: true, schema: { type: string } }
+        - { name: limit, in: query, schema: { type: integer, minimum: 1, maximum: 50, default: 20 } }
+        - { name: cursor, in: query, schema: { type: string, maxLength: 1024 } }
+      responses:
+        '200': { description: Own proposal summaries and nextCursor, without member/staff/account identifiers. }
+        '400': { description: Invalid or forbidden selector. }
+        '404': { description: No current own affiliation. }
+  /api/centers/training/proposal:
+    get:
+      tags: [centers]
+      operationId: getCenterTrainingProposal
+      summary: Read an immutable proposal version and delivery tracking
+      parameters:
+        - { name: centerId, in: query, required: true, schema: { type: string } }
+        - { name: id, in: query, required: true, schema: { type: string } }
+        - { name: versionId, in: query, schema: { type: string } }
+      responses:
+        '200': { description: Proposal bundle, revision, stable deliveryKey/routineIds and historical acceptance/ack. Defaults to current revision. No personal training is read. }
+        '400': { description: Unknown selector. }
+        '403': { description: Missing training.assign. }
+        '404': { description: Proposal not visible in selected center. }
+  /api/centers/own/training/proposal:
+    get:
+      tags: [centers]
+      operationId: getOwnCenterTrainingProposal
+      summary: Review a proposal bound to the session account and current member link
+      parameters:
+        - { name: centerId, in: query, required: true, schema: { type: string } }
+        - { name: id, in: query, required: true, schema: { type: string } }
+        - { name: versionId, in: query, schema: { type: string } }
+      responses:
+        '200': { description: Own immutable proposal content and delivery map; acceptedAt stays null until explicit acceptance. No staff/member/account identifiers. }
+        '400': { description: Invalid or forbidden selector. }
+        '404': { description: Proposal is not owned by the current session member. }
+  /api/centers/training/propose:
+    post:
+      tags: [centers]
+      operationId: proposeCenterTraining
+      summary: Offer a bounded catalogue plan to an active linked member
+      description: Requires training.assign and active center/member. Revalidates memberVersion under center lock. Creates immutable version, random delivery key and stable personal routine IDs. Does not write recipient JSON. No custom exercises or media in this first contract. Errors include invalid-training-plan, training-account-required, training-member-inactive, version-conflict and idempotency-conflict.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties: false
+              required: [centerId, memberId, memberVersion, bundle, requestId]
+              properties:
+                centerId: { type: string }
+                memberId: { type: string }
+                memberVersion: { type: integer, minimum: 1 }
+                bundle: { $ref: '#/components/schemas/CenterTrainingBundle' }
+                requestId: { type: string, minLength: 8, maxLength: 128 }
+      responses:
+        '200': { description: Proposal and first immutable version. Same idempotent command retains its fixed map. }
+        '400': { description: Invalid bounded plan or input. }
+        '403': { description: Missing training.assign. }
+        '404': { description: Center/member unavailable. }
+        '409': { description: Stale version, inactive affiliation, missing linked account or idempotency conflict. }
+  /api/centers/training/revise:
+    post:
+      tags: [centers]
+      operationId: reviseCenterTraining
+      summary: Offer another immutable revision without overwriting personal routines
+      description: Requires active center/member, original recipient link, training.assign and current proposal version. Supersedes the previous offer. Existing acceptance can still recover; a superseded unaccepted version cannot start acceptance. New revision has a new stable map and requires a new explicit personal decision.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties: false
+              required: [centerId, id, version, bundle, requestId]
+              properties:
+                centerId: { type: string }
+                id: { type: string }
+                version: { type: integer, minimum: 1 }
+                bundle: { $ref: '#/components/schemas/CenterTrainingBundle' }
+                requestId: { type: string, minLength: 8, maxLength: 128 }
+      responses:
+        '200': { description: New immutable proposal revision. }
+        '400': { description: Invalid plan/input. }
+        '403': { description: Missing training.assign. }
+        '404': { description: Proposal/recipient unavailable. }
+        '409': { description: version-conflict, training-proposal-unavailable or idempotency-conflict. }
+  /api/centers/training/withdraw:
+    post:
+      tags: [centers]
+      operationId: withdrawCenterTraining
+      summary: Withdraw the current unaccepted offer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/CenterTrainingWithdraw' }
+      responses:
+        '200': { description: Offer withdrawn with version increment; no personal routine deletion. }
+        '400': { description: Invalid input. }
+        '403': { description: Missing training.assign. }
+        '404': { description: Proposal unavailable. }
+        '409': { description: Stale, withdrawn or already accepted current offer. }
+  /api/centers/own/training/accept:
+    post:
+      tags: [centers]
+      operationId: acceptOwnCenterTraining
+      summary: Persist explicit own acceptance and recover its stable delivery
+      description: Derives recipient from session and current member link. Requires active center/member and current offered version for first acceptance. Retries of an existing acceptance return identical delivery map and acceptedAt, including after supersession or center deactivation. Does not itself import routines or replace a calendar. No member/account/amount selectors permitted.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/CenterTrainingOwnCommand' }
+      responses:
+        '200': { description: Accepted proposal with immutable bundle, deliveryKey, routineIds and millisecond-precision acceptedAt. }
+        '400': { description: Invalid/forbidden input. }
+        '404': { description: Current own link or original recipient does not match. }
+        '409': { description: training-proposal-unavailable, training-member-inactive, center-inactive or idempotency-conflict. }
+  /api/centers/own/training/ack:
+    post:
+      tags: [centers]
+      operationId: acknowledgeOwnCenterTraining
+      summary: Acknowledge an accepted delivery after personal JSON synchronization
+      description: Reads only the authenticated account state through the existing strict reader, under account then center locks. Compares stored provenance and all destination IDs/tombstones to the SQL acceptance. Client claims alone are insufficient. Append-only historical result applied or removed; not continuous progress sharing. Existing intent may finish while center/member is inactive, but current recipient link must still match.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/CenterTrainingOwnCommand' }
+      responses:
+        '200': { description: Own proposal summary and immutable historical deliveryResult/acknowledgedAt. }
+        '400': { description: Invalid/forbidden input. }
+        '404': { description: Original/current recipient mismatch. }
+        '409': { description: training-not-accepted, training-not-synced, account-busy or idempotency-conflict. }
+        '503': { description: training-state-unavailable or centers temporarily unavailable. }
   /api/centers/stripe/webhook:
     post:
       tags: [centers]
@@ -4767,6 +4925,37 @@ components:
           example: { error: "that code is wrong, used or expired", code: "link-invalid" }
 
   schemas:
+    CenterTrainingBundle:
+      type: object
+      additionalProperties: false
+      required: [opengym_plan, unit, routines]
+      description: At most64KiB UTF-8,20routines,40exercises per routine and200total. Existing buildPlanBundle vocabulary with finite typed prescriptions, notes up to1000characters, valid progression/pyramids/rests/intensifiers and catalogue IDs. No profile fields, custom exercises or media. Unknown nested fields rejected. Exported date is ignored for authority and canonical content.
+      properties:
+        opengym_plan: { type: integer, enum: [1] }
+        unit: { type: string, enum: [kg, lb] }
+        name: { type: string, maxLength: 120 }
+        exported: { type: string }
+        routines: { type: array, minItems: 1, maxItems: 20, items: { type: object } }
+        week: { type: object, description: Weekdays0through6 mapped to unique source routine IDs; legacy scalar ID accepted. }
+        customEx: { type: array, maxItems: 0, items: { type: object } }
+    CenterTrainingWithdraw:
+      type: object
+      additionalProperties: false
+      required: [centerId, id, version, requestId]
+      properties:
+        centerId: { type: string }
+        id: { type: string }
+        version: { type: integer, minimum: 1 }
+        requestId: { type: string, minLength: 8, maxLength: 128 }
+    CenterTrainingOwnCommand:
+      type: object
+      additionalProperties: false
+      required: [centerId, id, versionId, requestId]
+      properties:
+        centerId: { type: string }
+        id: { type: string }
+        versionId: { type: string }
+        requestId: { type: string, minLength: 8, maxLength: 128 }
     CenterAutomationStatus:
       type: object
       required: [settings, today, workerEnabled, counts, jobs, pendingEvents]

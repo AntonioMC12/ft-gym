@@ -1,8 +1,13 @@
 import {test} from 'node:test';
 import assert from 'node:assert/strict';
-import {trainingPlan,appliedTrainingDelivery} from '../centers/domain/training-plan.js';
+import {trainingPlan as validateTrainingPlan,appliedTrainingDelivery} from '../centers/domain/training-plan.js';
+import {libraryHas} from '../coach/core/library.js';
+const trainingPlan=value=>validateTrainingPlan(value,libraryHas);
 
 const plan=()=>({opengym_plan:1,name:'Strength',unit:'kg',routines:[{id:'r1',name:'Push',emoji:'💪',prog:'double',ex:[{id:'0025',sets:3,reps:8,weight:60}]}],week:{1:['r1']},customEx:[]});
+test('proposals fail closed without the injected existing catalogue',()=>{
+  assert.throws(()=>validateTrainingPlan(plan()),{status:503,code:'training-catalogue-unavailable'});
+});
 test('training proposals preserve the full prescription vocabulary with deterministic normalization',()=>{
   const p=plan();p.routines[0].excludeFromProgression=true;
   Object.assign(p.routines[0].ex[0],{mode:'reps',pyramid:[12,8,'max'],pyramidRest:[90,60,0],pyramidWeight:[60,65,0],bodyweight:false,side:true,prog:'linear',inc:2.5,backoff:true,lastToFailure:true,deloadFactor:0.8,dbLoad:'each',repsMin:5,repsMax:12,setsMax:5,restSec:90,warmupRestSec:60,sg:'a',note:'Keep form',warmupSets:2,intensifier:{type:'dropset',count:2,pct:20}});

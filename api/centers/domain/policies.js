@@ -9,7 +9,7 @@ export const ROLE_CAPABILITIES = Object.freeze({
   manager: Object.freeze(['center.read', 'center.update', 'staff.manage', 'members.read', 'members.manage',
     'plans.manage', 'billing.read', 'billing.manage', 'payments.record', 'training.assign', 'access.manage', 'access.verify']),
   trainer: Object.freeze(['center.read', 'members.operational.read', 'training.assign', 'training.shared.read']),
-  member: Object.freeze(['membership.own.read', 'receipts.own.read', 'payments.own.create', 'training.own.read', 'access.own.read', 'access.token.create']),
+  member: Object.freeze(['membership.own.read', 'membership.own.request', 'receipts.own.read', 'payments.own.create', 'training.own.read', 'access.own.read', 'access.token.create']),
 });
 
 // Refunds are explicit for the platform allowlist and optional manager grants, never user.admin.

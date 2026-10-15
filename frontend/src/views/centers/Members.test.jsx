@@ -3,6 +3,7 @@ import React,{act} from 'react'
 import {createRoot} from 'react-dom/client'
 import {beforeEach,afterEach,it,expect,vi} from 'vitest'
 vi.mock('../../lib/i18n.js',()=>({t:key=>key}))
+vi.mock('./FreezeRequests.jsx',()=>({default:()=>null}))
 vi.mock('../../store/useStore.js',()=>{const state={user:{id:'manager'}};return{useStore:Object.assign(selector=>selector(state),{getState:()=>state})}})
 vi.mock('../../lib/centers-api.js',()=>({centerMembers:vi.fn(),centerMember:vi.fn(),centerCommand:vi.fn(),membersErrorKey:()=> 'error',centersMe:vi.fn(),centerInvitations:vi.fn().mockResolvedValue({invites:[]}),invitationErrorKey:()=> 'error'}))
 vi.mock('../../sheets.jsx',()=>({confirmSheet:vi.fn(options=>options.onConfirm())}))
@@ -16,6 +17,19 @@ afterEach(()=>{act(()=>root.unmount());host.remove()})
 const render=(centerId='a',capabilities=['members.read','members.manage'])=>act(async()=>{root.render(<Members key={centerId} centerId={centerId} ownerUid="manager" capabilities={capabilities}/>);await Promise.resolve()})
 const click=text=>act(async()=>{[...host.querySelectorAll('button')].find(button=>button.textContent===text).click();await Promise.resolve()})
 const fill=(input,value)=>act(()=>{Object.getOwnPropertyDescriptor(input.tagName==='TEXTAREA'?HTMLTextAreaElement.prototype:HTMLInputElement.prototype,'value').set.call(input,value);input.dispatchEvent(new Event('input',{bubbles:true}))})
+it('explains draft versus inactive CSV requirements and offers details without activating the center',async()=>{
+  const onDetails=vi.fn()
+  const show=state=>act(async()=>{root.render(<Members centerId="a" ownerUid="manager" capabilities={['members.manage']} active={state==='active'} centerState={state} onDetails={onDetails}/>);await Promise.resolve()})
+  await show('draft')
+  const csv=[...host.querySelectorAll('button')].find(b=>b.textContent==='Import members (CSV)')
+  expect(csv.disabled).toBe(true)
+  expect(document.getElementById(csv.getAttribute('aria-describedby')).textContent).toContain('Assign a manager')
+  await click('Center details');expect(onDetails).toHaveBeenCalledOnce();expect(centerCommand).not.toHaveBeenCalled()
+  await show('inactive');expect(host.textContent).toContain('Activate the center before importing members.')
+  expect(host.textContent).not.toContain('Assign a manager to activate')
+  await show('active');expect(csv.disabled).toBe(false);expect(csv.hasAttribute('aria-describedby')).toBe(false)
+  expect(host.querySelector('.centers-import-notice')).toBeNull()
+})
 it('loads the next server page without replacing the first page',async()=>{
   centerMembers.mockResolvedValueOnce({members:[sample],nextCursor:'next'}).mockResolvedValueOnce({members:[{...sample,id:'two',name:'Second member'}],nextCursor:null})
   await render();await click('Show more')

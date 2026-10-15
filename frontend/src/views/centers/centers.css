@@ -17,10 +17,19 @@ fieldset.centers-fields{border:0;padding:0;min-width:0}
 .centers-hour-day>.centers-actions{margin:0 0 12px}
 .centers-hour-day .btn{width:auto;min-height:44px;padding:10px 14px;border:1px solid var(--sep);border-radius:var(--r)}
 .centers-form .centers-actions>.btn.plain{background:var(--surface-2);border:1px solid var(--sep)}
-.centers-tabs-scroll{overflow-x:auto;max-width:100%;margin:12px 0;scrollbar-width:thin}
-.centers-tabs-scroll>.seg{min-width:calc(var(--n) * 108px);min-height:44px}
-.centers-tabs-scroll .seg button{white-space:nowrap}
-.centers-hour-remove{align-self:end;color:var(--red)}
+.centers-tabs-scroll{min-width:0;max-width:100%;margin:12px 0 20px}
+.centers-tabs-hint{display:none;align-items:center;gap:6px;margin:6px 4px 0}
+.centers-tabs-scroll:has(>.seg[data-overflow="true"])>.centers-tabs-hint{display:flex}
+[dir="rtl"] .centers-tabs-hint .icn{transform:rotate(180deg)}
+.centers-hour-day .centers-hour-remove{align-self:end;width:44px;min-width:44px;padding:10px;color:var(--label-2);border-color:transparent;background:transparent}
+.centers-hour-day .centers-hour-remove:hover,.centers-hour-day .centers-hour-remove:focus-visible{color:var(--red);border-color:var(--red)}
+.centers-hour-footer{display:flex;border-top:1px solid var(--sep);margin-top:12px;padding-top:12px}
+.centers-hour-footer .btn{display:inline-flex;align-items:center;justify-content:center;gap:6px}
+.centers-import-notice{margin:12px 0;padding:14px;border:1px solid var(--sep);border-radius:var(--r);background:var(--surface-2)}
+.centers-import-notice p{margin:0 0 12px}
+.centers-freeze-request{border:1px solid var(--sep);border-radius:var(--r);padding:12px;margin:12px 0}
+.centers-freeze-request .lrow{padding-inline:0;flex-wrap:wrap;gap:8px}
+.centers-freeze-request .lrow-s{white-space:normal;overflow-wrap:anywhere}
 .centers-hour-row { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) auto; gap: 8px; align-items: center; margin: 8px 0; }
 .centers-list { display: grid; gap: 14px; }
 .centers-card { border: var(--hair) solid var(--sep); border-radius: 18px; background: var(--surface); padding: 20px; }

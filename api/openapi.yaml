@@ -165,6 +165,116 @@ security:
   - bearerAuth: []
 
 paths:
+  /api/centers/freezes:
+    get:
+      tags: [centers]
+      operationId: listCenterFreezeRequests
+      summary: Read freeze policy and a member's paginated freeze requests
+      description: Current members.manage or explicit platform allowlist; selected center and member required. Returns 30 requests, newest first, with a scoped nextCursor. Inactive history stays readable.
+      parameters:
+        - { name: centerId, in: query, required: true, schema: { type: string } }
+        - { name: memberId, in: query, required: true, schema: { type: string } }
+        - { name: cursor, in: query, schema: { type: string } }
+      responses:
+        '200': { description: 'policy {config,version}, requests and nextCursor; no configured policy means enabled false and version zero.' }
+        '400': { description: Unexpected selector or invalid scoped cursor. }
+        '403': { description: Management capability required. }
+        '404': { description: Center or member unavailable. }
+  /api/centers/own/freezes:
+    get:
+      tags: [centers]
+      operationId: listOwnCenterFreezeRequests
+      summary: Read only the signed-in member's own requests and current policy
+      description: Same 30-row cursor contract as the administrative list. Derives member from session; memberId/account selectors are rejected, including for managers who are also members.
+      parameters:
+        - { name: centerId, in: query, required: true, schema: { type: string } }
+        - { name: cursor, in: query, schema: { type: string } }
+      responses:
+        '200': { description: Current policy and actor-owned requests only. }
+        '400': { description: Invalid selectors or cursor. }
+        '404': { description: Own membership unavailable. }
+  /api/centers/freezes/policy:
+    post:
+      tags: [centers]
+      operationId: configureCenterFreezePolicy
+      summary: Explicitly configure optional self-service freezing
+      description: Current members.manage or explicit platform allowlist, active center, optimistic policy version and idempotent requestId. Disabled by default. All limits must be supplied; minimum/maximum/annual days 1..366, notice 0..366, minimum <= maximum <= annual. billingEffect must be contract-proration; the existing pinned contract's proration governs future calculation. No changes to receipts or debt.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties: false
+              required: [centerId, config, version, requestId]
+              properties:
+                centerId: { type: string }
+                version: { type: integer, minimum: 0 }
+                requestId: { type: string, minLength: 8, maxLength: 128 }
+                config:
+                  type: object
+                  additionalProperties: false
+                  required: [enabled, minDays, maxDays, noticeDays, maxDaysPerYear, billingEffect]
+                  properties:
+                    enabled: { type: boolean }
+                    minDays: { type: integer, minimum: 1, maximum: 366 }
+                    maxDays: { type: integer, minimum: 1, maximum: 366 }
+                    noticeDays: { type: integer, minimum: 0, maximum: 366 }
+                    maxDaysPerYear: { type: integer, minimum: 1, maximum: 366 }
+                    billingEffect: { type: string, const: contract-proration }
+      responses:
+        '200': { description: Saved policy and version. }
+        '400': { description: Missing or invalid explicit limits. }
+        '403': { description: Management capability required. }
+        '409': { description: Version conflict, idempotency conflict or inactive center. }
+  /api/centers/own/freezes/request:
+    post:
+      tags: [centers]
+      operationId: requestOwnCenterFreeze
+      summary: Request a bounded freeze without changing membership or billing
+      description: Derives member from session. Active member and center, enabled policy, exclusive resumption date, pre-notice and annual day limits required. Annual allowance includes actual administrative frozen days and scheduled changes. One pending request per member. Stable requestId returns the durable request; changed content conflicts. No request can directly approve itself.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties: false
+              required: [centerId, effectiveOn, resumeOn, reason, requestId]
+              properties:
+                centerId: { type: string }
+                effectiveOn: { type: string, format: date }
+                resumeOn: { type: string, format: date }
+                reason: { type: string, minLength: 1, maxLength: 250 }
+                requestId: { type: string, minLength: 8, maxLength: 128 }
+      responses:
+        '200': { description: Actor-owned pending request; no lifecycle or financial mutation. }
+        '400': { description: Unexpected fields or invalid dates. }
+        '404': { description: Own membership unavailable. }
+        '409': { description: freeze-disabled, freeze-limits, freeze-pending, pending-transition, invalid-transition or idempotency-conflict. }
+  /api/centers/own/freezes/withdraw:
+    post:
+      tags: [centers]
+      operationId: withdrawOwnCenterFreeze
+      summary: Withdraw one's own pending request, including in an inactive center
+      description: Requires centerId, id, version, action withdrawn and requestId; optional reason. Own actor and current own membership are checked before replay. Terminal requests cannot change again.
+      responses:
+        '200': { description: Durable withdrawn request. }
+        '400': { description: Invalid decision fields. }
+        '404': { description: Own request unavailable. }
+        '409': { description: Version, terminal state or idempotency conflict. }
+  /api/centers/freezes/decide:
+    post:
+      tags: [centers]
+      operationId: decideCenterFreeze
+      summary: Approve or reject a pending request with current authority
+      description: Requires centerId, id, version, action approved/rejected and requestId. Rejection requires reason. Approval also requires current memberVersion, unchanged policy version, same linked owner, valid dates/annual budget, active center/member and no conflicting scheduled change. Uses the existing lifecycle transaction to create freeze plus automatic resume once, then saves decision/audit atomically. Existing receipts/debt are unchanged. Rejection remains allowed in an inactive center. Cookie CSRF rules apply to all mutations.
+      responses:
+        '200': { description: Durable request and lifecycle result on approval; concurrent identical retries return the same result. }
+        '400': { description: Invalid decision fields. }
+        '403': { description: Management capability required. }
+        '404': { description: Request or selected center unavailable. }
+        '409': { description: Version/idempotency conflict, freeze-policy-changed, freeze-owner-changed, freeze-limits, freeze-decided, pending-transition or inactive center. }
   /api/centers/members/imports/prepare:
     post:
       tags: [centers]

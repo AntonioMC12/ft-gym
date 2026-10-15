@@ -117,10 +117,29 @@ export function Switch({ checked, onChange, disabled, ...accessibility }) {
 /* ============================ segmented ============================ */
 
 // options: [{ value, label, icon? }]  — the selected pill slides between cells.
-export function Segmented({ options, value, onChange, className = '' }) {
+export function Segmented({ options, value, onChange, className = '', scrollable = false, label }) {
+  const container = useRef(null)
+  useEffect(() => {
+    if (!scrollable) return
+    const element = container.current
+    const selected = element?.querySelector('button.on')
+    if (!selected) return
+    const measure = () => {
+      element.dataset.overflow = String(element.scrollWidth > element.clientWidth + 1)
+      // Scroll only this control; scrollIntoView could also move the page or a sheet.
+      const viewport = element.getBoundingClientRect(), item = selected.getBoundingClientRect()
+      if (item.left < viewport.left) element.scrollLeft += item.left - viewport.left
+      else if (item.right > viewport.right) element.scrollLeft += item.right - viewport.right
+    }
+    measure()
+    const observer = typeof ResizeObserver === 'undefined' ? null : new ResizeObserver(measure)
+    observer?.observe(element)
+    for (const button of element.querySelectorAll('button')) observer?.observe(button)
+    return () => observer?.disconnect()
+  }, [scrollable, value, options])
   const i = Math.max(0, options.findIndex(o => o.value === value))
   return (
-    <div className={'seg ' + className} style={{ '--n': options.length, '--i': i }}>
+    <div ref={container} role={label ? 'group' : undefined} aria-label={label} className={'seg ' + (scrollable ? 'seg-scrollable ' : '') + className} style={{ '--n': options.length, '--i': i }}>
       <span className="seg-sel" aria-hidden="true" />
       {options.map(o => (
         <button

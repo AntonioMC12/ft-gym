@@ -765,6 +765,12 @@ body.chips-dragging *{cursor:inherit}
 .seg button .icn{font-size:16px}
 .seg button:not(.on){color:var(--label-2);font-weight:400}
 .seg button:active{opacity:.5}
+.seg.seg-scrollable{overflow-x:auto;max-width:100%;gap:8px;padding:4px;background:transparent;scroll-padding-inline:4px;scrollbar-width:thin;overscroll-behavior-inline:contain}
+.seg-scrollable>.seg-sel{display:none}
+.seg.seg-scrollable>button{flex:0 0 auto;min-width:max-content;min-height:44px;padding:10px 16px;white-space:nowrap;border:1px solid var(--sep);border-radius:var(--r);background:var(--surface-2)}
+.seg.seg-scrollable>button.on{background:var(--acc-soft);border-color:var(--acc);color:var(--label);font-weight:600}
+.seg.seg-scrollable>button::before{inset:0}
+.seg.seg-scrollable>button:focus-visible{outline:2px solid var(--acc);outline-offset:1px}
 /* sitting in a list row: shrink to content instead of filling the row. The control never
    shrinks below its labels, so a row whose title and control do not both fit — most translated
    packs at 390px: "Übungs-Animationen" against "Voll · Klein · Aus" — wraps the control onto its

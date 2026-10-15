@@ -33,12 +33,18 @@ async function resultAfterChange(client,context,id) {
 }
 
 export async function transitionMember({database,user,checkSession},raw,{platform=false}={}) {
+  const centerId=idField(raw.centerId);
+  return businessTransaction(database,user.id,centerId,'members.manage',(client,context)=>transitionMemberInTransaction(client,context,{user,checkSession},raw),{platform});
+}
+
+// Shared by administrative changes and approved requests; the caller owns the transaction.
+export async function transitionMemberInTransaction(client,context,{user,checkSession},raw) {
   objectBody(raw,['centerId','id','version','action','effectiveOn','resumeOn','reason','requestId']);
   const centerId=idField(raw.centerId),id=idField(raw.id),version=versionField(raw.version),requestId=requestField(raw.requestId);
   const input={action:textField(raw.action,20,{required:true}),effectiveOn:membershipDate(raw.effectiveOn),
     resumeOn:raw.resumeOn==null?null:membershipDate(raw.resumeOn),reason:textField(raw.reason,250)};
   const bodyHash=hash({id,version,...input}),operation='member.transition';
-  return businessTransaction(database,user.id,centerId,'members.manage',async(client,context)=>{
+  if(context.centerId!==centerId||context.uid!==user.id||!context.capabilities.includes('members.manage'))throw new CentersError(403,'forbidden','forbidden');
     const previous=await replay(client,centerId,user.id,operation,requestId,bodyHash);if(previous)return previous;
     const member=await memberRecord(client,centerId,id,{version});
     const {rows:pending}=await client.query(`SELECT h.id,h.parent_id,h.effective_on::text,p.effective_on::text AS parent_on FROM centers.membership_changes h
@@ -64,7 +70,6 @@ export async function transitionMember({database,user,checkSession},raw,{platfor
     await audit(client,centerId,user.id,'member.'+plan.action,changeId,{memberId:id,effectiveOn:plan.effectiveOn,resumeOn:plan.resumeOn,scheduled:plan.scheduled});
     const result=await resultAfterChange(client,context,id);
     await remember(client,centerId,user.id,operation,requestId,bodyHash,result);checkSession();return result;
-  },{platform});
 }
 
 export async function cancelMemberTransition({database,user,checkSession},raw,{platform=false}={}) {

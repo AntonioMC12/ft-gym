@@ -124,6 +124,16 @@ export function membersErrorKey(error) {
   return centersErrorKey(error)
 }
 
+export const centerFreezes=(centerId,{own=false,...options}={})=>api('/api/centers/'+(own?'own/':'')+'freezes?'+new URLSearchParams({centerId,...options}))
+export function freezeErrorKey(error){
+  const code=error?.data?.code||error?.code
+  if(code==='freeze-disabled')return 'Freeze requests are disabled.'
+  if(code==='freeze-limits'||code==='invalid-input')return 'Check the freeze dates and configured limits.'
+  if(code==='freeze-policy-changed'||code==='freeze-decided'||code==='freeze-owner-changed')return 'Center changed. Reload and try again.'
+  if(code==='freeze-pending')return 'Cancel the pending change before adding another.'
+  return membersErrorKey(error)
+}
+
 export function centersErrorKey(error) {
   const code = error?.data?.code || error?.code
   if (code === 'version-conflict' || code === 'account-busy' || code === 'idempotency-conflict') return 'Center changed. Reload and try again.'

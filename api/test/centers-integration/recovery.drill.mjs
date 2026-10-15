@@ -57,6 +57,17 @@ test('C24: two-center pilot survives a coordinated JSON/PostgreSQL restore and r
   const csvCompletedReview=await req('/api/centers/members/imports/prepare','pilot_manager_a',{centerId:centers[0],csv:'name,email\nRestored CSV member,csv-completed@example.test',duplicatePolicy:'skip',requestId:'pilot_csv_completed'});assert.equal(csvCompletedReview.status,200);
   const csvCompletedCommand={centerId:centers[0],id:csvCompletedReview.body.id,reviewHash:csvCompletedReview.body.reviewHash},csvCompleted=await req('/api/centers/members/imports/commit','pilot_manager_a',csvCompletedCommand);assert.equal(csvCompleted.status,200);
   const csvPending=await req('/api/centers/members/imports/prepare','pilot_manager_a',{centerId:centers[0],csv:'name,email\nPending restored CSV,csv-pending@example.test',duplicatePolicy:'skip',requestId:'pilot_csv_pending'});assert.equal(csvPending.status,200);
+  const freezeDate=offset=>{const date=new Date(ownBefore.today+'T00:00:00Z');date.setUTCDate(date.getUTCDate()+offset);return date.toISOString().slice(0,10)};
+  let freezeCommand,freezeResult;
+  for(const [index,manager,uid] of [[0,'pilot_manager_a','pilot_alice'],[1,'pilot_manager_b','pilot_bob']]){
+    const config={enabled:true,minDays:1,maxDays:15,noticeDays:0,maxDaysPerYear:30,billingEffect:'contract-proration'};
+    assert.equal((await req('/api/centers/freezes/policy',manager,{centerId:centers[index],config,version:0,requestId:'pilot_freeze_policy_'+index})).status,200);
+    const pending=await req('/api/centers/own/freezes/request',uid,{centerId:centers[index],effectiveOn:freezeDate(3),resumeOn:freezeDate(5),reason:'Fictional recovery freeze',requestId:'pilot_freeze_request_'+index});assert.equal(pending.status,200,JSON.stringify(pending));
+    if(index===0){const member=(await req('/api/centers/member?'+new URLSearchParams({centerId:centers[index],id:members[index]}),manager)).body.member;
+      freezeCommand={centerId:centers[index],id:pending.body.request.id,version:1,memberVersion:member.version,action:'approved',requestId:'pilot_freeze_approve'};
+      const approved=await req('/api/centers/freezes/decide',manager,freezeCommand);assert.equal(approved.status,200,JSON.stringify(approved));freezeResult=approved.body;
+    }
+  }
   const metricsPath='/api/centers/metrics?'+new URLSearchParams({centerId:centers[0],from:ownBefore.today,to:ownBefore.today}),metricsBefore=await req(metricsPath,'pilot_manager_a');assert.equal(metricsBefore.status,200);assert.equal(metricsBefore.body.current.outstandingMinor,'2300');
   const personalBefore=(await req('/api/data','pilot_alice')).body;assert.ok(!JSON.stringify(personalBefore).includes('outstandingMinor'));
   assert.equal((await req('/api/platform/centers/reconciliation','pilot_root')).body.orphanedAccounts.length,0);
@@ -90,6 +101,8 @@ test('C24: two-center pilot survives a coordinated JSON/PostgreSQL restore and r
   const verification=await verifyRestoredIdentity(targetBackup,restoredData);assert.equal(verification.referencedAccounts,4);
   assert.equal(hash(fs.readFileSync(path.join(restoredData,'state-pilot_alice.json'))),personalHash,'training file preserved byte-for-byte');
   restored=await startHttp(t,{app:target,savedData:restoredData,superadminUids:['pilot_root']});const after=(...args)=>request(restored,...args);
+  assert.deepEqual((await after('/api/centers/freezes/decide','pilot_manager_a',freezeCommand)).body,freezeResult,'approved freeze stays idempotent after restore');
+  assert.equal((await after('/api/centers/own/freezes?centerId='+centers[1],'pilot_bob')).body.requests[0].state,'pending','pending approval survives restore');
   assert.deepEqual((await after(ownPath,'pilot_alice')).body,ownBefore);assert.deepEqual((await after('/api/data','pilot_alice')).body,personalBefore);
   const metricsAfter=await after(metricsPath,'pilot_manager_a');assert.equal(metricsAfter.status,200);assert.deepEqual(metricsAfter.body.current,metricsBefore.body.current);assert.deepEqual(metricsAfter.body.period,metricsBefore.body.period,'contract/financial aggregates recompute from the restored ledger without a cached personal-state projection');
   const restoredCsv=await after('/api/centers/members/imports/detail?'+new URLSearchParams({centerId:centers[0],id:csvPending.body.id}),'pilot_manager_a');assert.equal(restoredCsv.status,200);assert.equal(restoredCsv.body.reviewHash,csvPending.body.reviewHash);

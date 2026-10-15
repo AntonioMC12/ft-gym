@@ -67,6 +67,22 @@ it('editing the first opening interval preserves the remaining intervals', async
   expect(centerCommand.mock.calls[0][1].openingHours[1]).toEqual([['09:00', '12:00'], ['16:00', '22:00']])
 })
 
+it('adds a contiguous interval and removing the last interval switches the day off without submitting',async()=>{
+  await render();await click('New center')
+  await act(async()=>host.querySelector('button[aria-label="Monday"]').click())
+  const day=host.querySelector('.centers-hour-day')
+  await act(async()=>[...day.querySelectorAll('button')].find(b=>b.textContent==='Add time interval').click())
+  expect(day.querySelectorAll('.centers-hour-row')).toHaveLength(2)
+  expect(day.querySelector('input[aria-label="Monday From 2"]').value).toBe('22:00')
+  expect(day.querySelector('input[aria-label="Monday To 2"]').value).toBe('24:00')
+  expect(day.textContent).not.toContain('Add time interval')
+  await act(async()=>day.querySelector('button[aria-label="Remove: Monday 2"]').click())
+  await act(async()=>day.querySelector('button[aria-label="Remove: Monday 1"]').click())
+  expect(day.querySelector('button[role="switch"]').getAttribute('aria-checked')).toBe('false')
+  expect(day.querySelector('.centers-hour-row')).toBeNull()
+  expect(centerCommand).not.toHaveBeenCalled();expect(host.textContent).toContain('Opening hours')
+})
+
 it('schedule switches and clearing account search do not submit wizard steps', async () => {
   await render(); await click('New center'); input(host.querySelector('input'),'Synthetic')
   await act(async()=>{host.querySelector('button[role="switch"]').click()})

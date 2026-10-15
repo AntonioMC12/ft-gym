@@ -39,6 +39,21 @@ it('selection, navigation and search controls do not submit their containing for
   expect(action).toHaveBeenCalledTimes(6);expect(submit).not.toHaveBeenCalled()
 })
 
+it('scrollable sections keep selection visible inside their control and observe resize without scrolling the page',()=>{
+  const options=[{value:'first',label:'First'},{value:'last',label:'Last long section'}]
+  const show=value=>act(()=>root.render(<Segmented scrollable label="Sections" options={options} value={value} onChange={()=>{}}/>))
+  show('first')
+  const control=host.querySelector('.seg'),last=host.querySelectorAll('button')[1]
+  Object.defineProperties(control,{clientWidth:{configurable:true,value:200},scrollWidth:{configurable:true,value:400}})
+  const box=vi.spyOn(control,'getBoundingClientRect').mockReturnValue({left:0,right:200})
+  const item=vi.spyOn(last,'getBoundingClientRect').mockReturnValue({left:220,right:380})
+  const pageScroll=vi.spyOn(window,'scrollTo')
+  show('last')
+  expect(control.dataset.overflow).toBe('true');expect(control.scrollLeft).toBe(180)
+  expect(last.getAttribute('aria-pressed')).toBe('true');expect(pageScroll).not.toHaveBeenCalled()
+  box.mockRestore();item.mockRestore();pageScroll.mockRestore()
+})
+
 describe('Slider', () => {
   // 300px track from x=100 to x=400 over 0..300 so 1px == 1 unit
   const mountSlider = (value, onChange) => {

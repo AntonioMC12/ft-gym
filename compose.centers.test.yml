@@ -52,6 +52,7 @@ services:
       - test/centers-integration/metrics.test.js
       - test/centers-integration/member-imports.test.js
       - test/centers-integration/role-time.test.js
+      - test/centers-integration/freeze-requests.test.js
     environment:
       CENTERS_TEST_DATABASE_URL: postgresql://centers_app:fictional-runtime-test-only@centers-test-db/ft_gym_centers_test
       CENTERS_TEST_MIGRATION_DATABASE_URL: postgresql://centers_migrator:fictional-migrator-test-only@centers-test-db/ft_gym_centers_test

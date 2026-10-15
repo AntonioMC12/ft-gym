@@ -25,6 +25,7 @@ import {metricsOptions} from './domain/metrics.js';
 import {centerMetrics,globalMetrics} from './services/metrics.js';
 import {accountDirectoryPage} from './domain/account-directory.js';
 import {prepareMemberImport,getMemberImport,commitMemberImport} from './services/member-imports.js';
+import {configureFreezePolicy,freezePageOptions,listFreezeRequests,requestFreeze,decideFreeze} from './services/freeze-requests.js';
 
 // Inject the same session and response helpers used by the rest of node:http.
 export function centersRoutes({ config, database, json, readSession, readBody, accountLocks, lookupAccount, readOwnTraining, hasTrainingExercise, mintAccessCredential,
@@ -43,6 +44,12 @@ export function centersRoutes({ config, database, json, readSession, readBody, a
     return json(res, 503, { error: 'centers are temporarily unavailable', code: 'centers-unavailable' });
   };
   const current = (req, user, sv) => readSession(req) === user && (user.sv || 0) === sv;
+  const readFreezes=own=>async(req,res)=>{
+    const user=guard(req,res);if(!user)return;const sv=user.sv||0,params=new URL(req.url,'http://x').searchParams,centerId=params.get('centerId');
+    if(!recordId(centerId))return json(res,404,{error:'not found',code:'not-found'});
+    try{const result=await listFreezeRequests(database,user.id,centerId,freezePageOptions(params,{own}),{own,platform:!own&&isPlatformUser(config,user)});
+      if(!current(req,user,sv))return json(res,401,{error:'not signed in'});return json(res,200,result)}catch(error){return failure(res,error)}
+  };
   const mutate = (platform, operation) => async (req,res) => {
     const user=guard(req,res);if(!user)return;
     const sv=user.sv||0;
@@ -115,6 +122,12 @@ export function centersRoutes({ config, database, json, readSession, readBody, a
     'POST /api/centers/access/holds/release':mutate(false,(context,body)=>releaseAccessHold(context,body,{platform:isPlatformUser(config,context.user)})),
     'POST /api/centers/own/access/token':mutate(false,issueAccessToken),
     'POST /api/centers/access/consume':mutate(false,(context,body)=>consumeAccessToken(context,body,{platform:isPlatformUser(config,context.user)})),
+    'GET /api/centers/freezes':readFreezes(false),
+    'GET /api/centers/own/freezes':readFreezes(true),
+    'POST /api/centers/freezes/policy':mutate(false,(context,body)=>configureFreezePolicy(context,body,{platform:isPlatformUser(config,context.user)})),
+    'POST /api/centers/own/freezes/request':mutate(false,requestFreeze),
+    'POST /api/centers/own/freezes/withdraw':mutate(false,(context,body)=>decideFreeze(context,body,{own:true})),
+    'POST /api/centers/freezes/decide':mutate(false,(context,body)=>decideFreeze(context,body,{platform:isPlatformUser(config,context.user)})),
     'GET /api/centers/training':readTraining(false),
     'GET /api/centers/own/training':readTraining(true),
     'GET /api/centers/training/proposal':readTraining(false,true),

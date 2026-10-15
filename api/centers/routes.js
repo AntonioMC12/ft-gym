@@ -39,6 +39,7 @@ export function centersRoutes({ config, database, json, readSession, readBody, a
   };
   const failure = (res, error) => {
     if (error instanceof CentersError) return json(res, error.status, { error: error.message, code: error.code });
+    if (error.code === '23514' && error.constraint === 'class_room_schedule') return json(res, 409, { error: 'class room schedule conflict', code: 'class-room-conflict' });
     if (error.code === '23505') return json(res, 409, { error: 'duplicate resource', code: 'duplicate' });
     if (error.code === '23P01') return json(res,409,{error:'subscription periods overlap',code:'subscription-overlap'});
     if (error.code === '23514' || error.code === '23503') return json(res, 409, { error: 'invalid business relation or state', code: 'invalid-state' });

@@ -10,7 +10,7 @@ const conflict=code=>{throw new CentersError(409,code,'class or reservation chan
 const missing=()=>{throw new CentersError(404,'not-found','not found')};
 const reservationDto=row=>({id:row.id,classId:row.class_id,memberId:row.member_id,state:row.state,version:row.version,reason:row.reason,queueOrder:String(row.queue_order)});
 const classDto=row=>({id:row.id,name:row.name,date:row.class_on,startsAt:new Date(row.starts_at).toISOString(),endsAt:new Date(row.ends_at).toISOString(),timezone:row.timezone,
-  capacity:row.capacity,waitlistCapacity:row.waitlist_capacity,cancelBeforeMinutes:row.cancel_before_minutes,booked:row.booked_count,waiting:row.waiting_count,state:row.state,version:row.version,cancelReason:row.cancel_reason});
+  capacity:row.capacity,waitlistCapacity:row.waitlist_capacity,cancelBeforeMinutes:row.cancel_before_minutes,booked:row.booked_count,waiting:row.waiting_count,state:row.state,version:row.version,cancelReason:row.cancel_reason,room:row.room||null});
 async function ownMember(client,centerId,uid){const {rows}=await client.query('SELECT id FROM centers.members WHERE center_id=$1 AND account_uid=$2',[centerId,uid]);return rows[0]?.id||missing()}
 async function eventRecord(client,centerId,id){const {rows}=await client.query('SELECT *,class_on::text FROM centers.classes WHERE center_id=$1 AND id=$2',[centerId,id]);return rows[0]||missing()}
 async function reservationRecord(client,centerId,id){const {rows}=await client.query('SELECT * FROM centers.class_reservations WHERE center_id=$1 AND id=$2',[centerId,id]);return rows[0]||missing()}
@@ -62,7 +62,7 @@ export function createClass({database,user,checkSession},raw,{platform=false}={}
     const {rows:[clock]}=await client.query('SELECT $1::timestamptz>clock_timestamp() AS future',[fields.startsAt]);if(!clock.future)conflict('class-closed');
     const {rows:plans}=await client.query('SELECT id FROM centers.membership_plans WHERE center_id=$1 AND id=ANY($2::text[]) AND archived_at IS NULL',[centerId,fields.eligiblePlanIds]);if(plans.length!==fields.eligiblePlanIds.length)conflict('class-plan-required');
     const id='cl_'+commandHash([centerId,user.id,requestId]).slice(0,32);checkSession();
-    await client.query('INSERT INTO centers.classes(id,center_id,name,class_on,starts_at,ends_at,timezone,capacity,waitlist_capacity,cancel_before_minutes,actor_uid) VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11)',[id,centerId,fields.name,fields.date,fields.startsAt,fields.endsAt,fields.timezone,fields.capacity,fields.waitlistCapacity,fields.cancelBeforeMinutes,user.id]);
+    await client.query('INSERT INTO centers.classes(id,center_id,name,class_on,starts_at,ends_at,timezone,capacity,waitlist_capacity,cancel_before_minutes,actor_uid,room) VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12)',[id,centerId,fields.name,fields.date,fields.startsAt,fields.endsAt,fields.timezone,fields.capacity,fields.waitlistCapacity,fields.cancelBeforeMinutes,user.id,fields.room||null]);
     await client.query('INSERT INTO centers.class_plans(center_id,class_id,plan_id) SELECT $1,$2,p FROM unnest($3::text[])p',[centerId,id,fields.eligiblePlanIds]);
     await businessAudit(client,centerId,user.id,'class.created',id,{startsAt:fields.startsAt,endsAt:fields.endsAt,capacity:fields.capacity,waitlistCapacity:fields.waitlistCapacity,cancelBeforeMinutes:fields.cancelBeforeMinutes});
     await rememberCommand(client,centerId,user.id,operation,requestId,hash,{id});checkSession();return {event:classDto(await eventRecord(client,centerId,id))};

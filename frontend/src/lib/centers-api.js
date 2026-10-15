@@ -139,6 +139,7 @@ export function classesErrorKey(error){
   const code=error?.data?.code||error?.code
   if(code==='class-full')return 'This class is full.'
   if(code==='class-ineligible')return 'Your membership or plan does not allow this class.'
+  if(code==='class-room-conflict')return 'This room already has a class at that time.'
   if(code==='class-time-ambiguous')return 'Choose the first or second occurrence of this repeated hour.'
   if(code==='class-time-missing'||code==='class-plan-required'||code==='invalid-input'||code==='invalid-state')return 'Check the class schedule, plans and limits.'
   if(['class-closed','class-cancel-closed','class-not-ended','class-reservation-ended'].includes(code))return 'Booking or cancellation is closed.'

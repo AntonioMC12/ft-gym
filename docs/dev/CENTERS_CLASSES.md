@@ -1,12 +1,12 @@
 # C34 — Clases y reservas
 
-Desarrollo en schema026, rama `codex/centers-module`. C34 permanece en progreso hasta completar su evidencia y revisión visual permitida. No hay activación comercial ni operaciones sobre datos reales.
+Desarrollo inicial en schema026, con salas opcionales en schema030/031, rama `codex/centers-module`. C34 permanece en progreso hasta completar su evidencia y revisión visual permitida. No hay activación comercial ni operaciones sobre datos reales.
 
 ## Alcance de esta entrega
 
 Clases individuales programadas, aforo, lista de espera FIFO, reserva/cancelación propia, cancelación administrativa de una clase futura y registro explícito de asistencia/ausencia. Se reutilizan PostgreSQL/RLS, permisos por centro, transacciones/idempotencia y React/UI actuales. No hay servicio, framework, almacén de identidad ni contabilidad nuevos.
 
-No se incorporan series recurrentes, asignación de profesor/sala, avisos externos de clase, corrección posterior de hechos terminales ni penalizaciones económicas. La lista administrativa de reservas requiere gestión: un entrenador puede leer horarios y contadores, sin obtener el listado de socios de la clase. Estas limitaciones deben permanecer visibles al aceptar el alcance; no se anuncia el CU completo por haber implementado su núcleo de reservas.
+No se incorporan series recurrentes, asignación de profesor o catálogo de salas, avisos externos de clase, corrección posterior de hechos terminales ni penalizaciones económicas. La lista administrativa de reservas requiere gestión: un entrenador puede leer horarios y contadores, sin obtener el listado de socios de la clase. Estas limitaciones deben permanecer visibles al aceptar el alcance; no se anuncia el CU completo por haber implementado su núcleo de reservas.
 
 ## Condiciones explícitas
 
@@ -52,3 +52,13 @@ OpenAPI documenta GET `/api/centers/classes`, `/own/classes`, `/classes/roster`;
 Pruebas cubren última plaza concurrente, cola FIFO, baja futura de un candidato, replay que no recrea reservas canceladas, privacidad/roles/centro/CSRF, contadores protegidos, registro de ausencia/asistencia, listas de32clases y51reservas, calendario/DST y cambios de contexto UI. Para probar hechos después de la clase sin sleeps ni reescribir fechas existentes se insertan filas ficticias pasadas en la base Compose explícita y marcada `test`; el bypass de triggers se limita a esa transacción de siembra y no afecta las operaciones que se verifican.
 
 El simulacro de restauración conserva clase, contador y reserva propia no vacíos y comprueba replay después de recuperar JSON+SQL. Consultar resultados finales y bloqueos visuales en `CENTERS_PROGRESS.md`; build/tests no acreditan por sí solos el resultado visual.
+
+## Salas opcionales (schema030/031)
+
+Crear una clase permite indicar sala (texto1..120, opcional, sin controles). Las clases existentes o sin sala conservan el comportamiento anterior y sus hashes de idempotencia; no se les asigna una sala ficticia ni se infiere una capacidad física. Se mantiene la etiqueta original y una clave SQL normaliza mayúsculas y espacios para comparar dentro del centro. No es un catálogo de instalaciones ni asignación de profesor.
+
+Una misma sala del mismo centro no admite dos clases programadas con intervalos que se solapen. Se comparan instantes, por lo que se conserva el tratamiento de zonas/DST. El intervalo es [inicio,fin): se admite una clase que empieza justo al terminar la anterior. Otras salas y otros centros son independientes. Cancelar una clase libera su intervalo; cambiar sala exige cancelar/recrear, igual que cambiar horas y condiciones.
+
+El servidor serializa creaciones con el lock de centro existente. Un trigger SQL adicional comprueba el solapamiento y devuelve una restricción nombrada, traducida por HTTP a409 class-room-conflict y por i18n a un mensaje específico. Se conserva RLS, sin extensión ni privilegio de escritura general: el permiso nuevo permite exclusivamente INSERT(room), no UPDATE(room). La prueba concurrente exige un éxito y un conflicto, no dos altas ni un error genérico.
+
+La sala aparece en horarios propios, gestión y cabecera de reservas. El editor reutiliza TextField y protección de formulario; un conflicto conserva los datos para corregir/reintentar. Se prueba texto HTML inerte, envío del campo, fechas adyacentes, solapamiento parcial, cancelación/liberación y separación entre centros. Restore conserva una sala no vacía. C34 permanece in_progress por revisión visual y el resto del alcance documentado.

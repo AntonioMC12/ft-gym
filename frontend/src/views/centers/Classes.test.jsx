@@ -22,6 +22,11 @@ function Sheets(){return useUI(s=>s.sheets).map(sheet=><section key={sheet.id} d
 beforeEach(()=>{vi.clearAllMocks();useStore.getState().user={id:'alice'};useUI.getState().closeAll();bindUI(useUI);centerClasses.mockResolvedValue(page);centerClassRoster.mockResolvedValue(roster);centerPlans.mockResolvedValue({plans:[{id:'p1',name:'Allowed fee',archived:false}],nextCursor:null});centerCommand.mockResolvedValue({});host=document.createElement('div');document.body.append(host);root=createRoot(host)})
 afterEach(()=>{act(()=>{root.unmount();useUI.getState().closeAll()});host.remove()})
 const render=(extra={})=>act(async()=>{root.render(<><Classes centerId="a" ownerUid="alice" own {...extra}/><Sheets/></>);await Promise.resolve()})
+it('shows room labels in own and management schedules as plain text',async()=>{
+  centerClasses.mockResolvedValue({...page,classes:[{...event,room:'Sala <script>private()</script>'}]});await render();
+  expect(host.textContent).toContain('Sala <script>private()</script>');expect(host.querySelector('script')).toBeNull();
+  await render({own:false,canManage:true});expect(host.textContent).toContain('Class room');expect(host.textContent).toContain('Sala <script>private()</script>');
+})
 const button=text=>[...host.querySelectorAll('button')].find(b=>b.textContent===text)
 const click=text=>act(async()=>{button(text).click();await Promise.resolve()})
 const rowClick=text=>act(async()=>{[...host.querySelectorAll('button.lrow')].find(b=>b.querySelector('.lrow-t')?.textContent===text).click();await Promise.resolve()})
@@ -30,6 +35,12 @@ const field=label=>[...host.querySelectorAll('label.centers-field')].find(node=>
 async function completeEditor(){
   fill(field('Class name'),'New class');fill(field('Date'),'2026-10-25');fill(field('From'),'02:15');fill(field('To'),'02:45');fill(field('Capacity'),'10');fill(field('Waiting list capacity'),'0');fill(field('Cancellation notice (minutes)'),'0');await act(async()=>host.querySelector('button[role=checkbox]').click())
 }
+it('submits an optional room with the existing class command and keeps room conflicts reviewable',async()=>{
+  centerCommand.mockRejectedValueOnce({code:'class-room-conflict'});await render({own:false,canManage:true});await click('New class');await completeEditor();
+  fill(field('Class room (optional)'),'Sala A');await click('Create class');
+  expect(centerCommand.mock.calls[0][1].fields.room).toBe('Sala A');expect(field('Class room (optional)').value).toBe('Sala A');
+  expect(host.querySelector('[role=alert]').textContent).toContain('class-room-conflict');expect(button('Create class').disabled).toBe(false);
+})
 it('reserves only the signed-in membership after confirmation and retains retry identity on failure',async()=>{
   centerCommand.mockRejectedValueOnce(new Error('network')).mockResolvedValue({});await render();await click('Reserve place');expect(centerCommand).not.toHaveBeenCalled()
   await act(async()=>confirmSheet.mock.calls[0][0].onConfirm());await click('Reserve place');await act(async()=>confirmSheet.mock.calls[1][0].onConfirm())

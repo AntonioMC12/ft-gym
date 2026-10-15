@@ -2,6 +2,12 @@ import {test} from 'node:test';
 import assert from 'node:assert/strict';
 import {classFields,classTimeCandidates} from '../centers/domain/classes.js';
 const base={name:'Fictional class',date:'2026-10-20',startTime:'18:00',endTime:'19:00',capacity:10,waitlistCapacity:5,cancelBeforeMinutes:60,eligiblePlanIds:['plan_a']};
+test('optional room preserves old command hashes and bounds plain room labels',()=>{
+  const old=classFields(base,{timezone:'Europe/Madrid'});assert.equal(Object.hasOwn(old,'room'),false);
+  assert.deepEqual(classFields({...base,room:''},{timezone:'Europe/Madrid'}),old);
+  assert.equal(classFields({...base,room:' Sala A '},{timezone:'Europe/Madrid'}).room,'Sala A');
+  for(const room of ['x'.repeat(121),'Sala\nA'])assert.throws(()=>classFields({...base,room},{timezone:'Europe/Madrid'}));
+});
 test('class schedule requires explicit limits and named eligible plans, without financial penalties',()=>{
   const result=classFields(base,{timezone:'Europe/Madrid'});assert.equal(result.startsAt,'2026-10-20T16:00:00.000Z');assert.equal(result.endsAt,'2026-10-20T17:00:00.000Z');assert.equal(result.cancelBeforeMinutes,60);
   for(const raw of [{...base,capacity:0},{...base,waitlistCapacity:null},{...base,cancelBeforeMinutes:-1},{...base,eligiblePlanIds:[]},{...base,eligiblePlanIds:['a','a']},{...base,penaltyMinor:100},{...base,endTime:'17:00'}])assert.throws(()=>classFields(raw,{timezone:'Europe/Madrid'}));

@@ -19,4 +19,26 @@ const words={
  zh:'课程|新课程|课程名称|名额|候补名额|取消提前通知 (分钟)|允许的套餐|预订名额|加入候补名单|取消预订|取消课程|课程预订名单|已预订|候补名单|已确认出席|缺席|不符合资格|暂无课程。|暂无预订。|请选择此重复时间的第一次或第二次。|第一次|第二次|请检查课程时间、套餐及限制。|本课程已满。|您的会员状态或套餐不允许参加本课程。|预订或取消期限已过。|不自动收取费用或罚款。|创建课程',
  'zh-TW':'課程|新課程|課程名稱|名額|候補名額|取消提前通知 (分鐘)|允許的方案|預訂名額|加入候補名單|取消預訂|取消課程|課程預訂名單|已預訂|候補名單|已確認出席|缺席|不符合資格|暫無課程。|暫無預訂。|請選擇此重複時間的第一次或第二次。|第一次|第二次|請檢查課程時間、方案及限制。|本課程已滿。|您的會員狀態或方案不允許參加本課程。|預訂或取消期限已過。|不自動收取費用或罰款。|建立課程',
 }
+keys.push('Class room','Class room (optional)','This room already has a class at that time.')
+const roomWords={
+  "es": "Sala|Sala de la clase (opcional)|La sala ya tiene una clase en ese horario.",
+  "de": "Raum|Kursraum (optional)|Dieser Raum ist zu dieser Zeit bereits belegt.",
+  "fr": "Salle|Salle du cours (facultatif)|Cette salle accueille déjà un cours à cet horaire.",
+  "it": "Sala|Sala del corso (facoltativa)|Questa sala ospita già un corso a quell’ora.",
+  "pt": "Sala|Sala da aula (opcional)|Esta sala já tem uma aula nesse horário.",
+  "pt-BR": "Sala|Sala da aula (opcional)|Esta sala já tem uma aula nesse horário.",
+  "pl": "Sala|Sala zajęć (opcjonalnie)|W tej sali są już zajęcia w tym terminie.",
+  "hu": "Terem|Óraterem (opcionális)|Ebben a teremben már van óra ebben az időpontban.",
+  "tr": "Salon|Ders salonu (isteğe bağlı)|Bu salonda o saatte zaten bir ders var.",
+  "ru": "Зал|Зал занятия (необязательно)|В этом зале уже есть занятие в это время.",
+  "uk": "Зала|Зала заняття (необов’язково)|У цій залі вже є заняття в цей час.",
+  "ar": "القاعة|قاعة الحصة (اختياري)|توجد حصة بالفعل في هذه القاعة في هذا الوقت.",
+  "hi": "कक्ष|कक्षा कक्ष (वैकल्पिक)|इस समय इस कक्ष में पहले से एक कक्षा है।",
+  "bn": "কক্ষ|ক্লাসের কক্ষ (ঐচ্ছিক)|এই সময়ে এই কক্ষে ইতিমধ্যে একটি ক্লাস আছে।",
+  "th": "ห้อง|ห้องเรียน (ไม่บังคับ)|ห้องนี้มีคลาสอยู่แล้วในเวลานี้",
+  "ko": "강의실|수업 강의실 (선택 사항)|해당 시간에 이 강의실에는 이미 수업이 있습니다.",
+  "zh": "教室|课程教室（可选）|该教室在此时间已有课程。",
+  "zh-TW": "教室|課程教室（選填）|該教室在此時間已有課程。"
+}
+for(const [lang,value] of Object.entries(roomWords))words[lang]+='|'+value
 export function classStrings(lang){const values=words[lang]?.split('|');if(values?.length!==keys.length)throw new Error('incomplete class translations: '+lang);return Object.fromEntries(keys.map((key,index)=>[key,values[index]]))}

@@ -31,6 +31,22 @@ async function fixture(t){
   const own=(key,params={})=>req('/api/centers/own/classes?'+new URLSearchParams({centerId:center,...params}),ids[key]);
   return {db,app,p,h,req,ids,center,other,plan,members,today,detail,create,reserve,cancel,roster,own};
 }
+test('room scheduling serializes concurrent overlaps, preserves adjacent slots and releases canceled classes',async t=>{
+  const f=await fixture(t);
+  const responses=await Promise.all([f.create('room_a',{room:'Sala  A'}),f.create('room_b',{room:' sala a '})]);
+  assert.equal(responses.filter(r=>r.status===200).length,1,JSON.stringify(responses));assert.equal(responses.find(r=>r.status!==200).body.code,'class-room-conflict');
+  const winner=responses.find(r=>r.status===200).body.event;assert.ok(winner.room);
+  const adjacent=await f.create('adjacent',{room:'SALA A',startTime:'11:00',endTime:'12:00'});assert.equal(adjacent.status,200,JSON.stringify(adjacent));
+  assert.equal((await f.create('different_room',{room:'Sala B'})).status,200);
+  const own=(await f.own('alice')).body.classes.find(r=>r.id===winner.id);assert.equal(own.room,winner.room);
+  const canceled=await f.req('/api/centers/classes/cancel',f.ids.manager,{centerId:f.center,id:winner.id,version:winner.version,reason:'Fictional room freed',requestId:f.p+'_room_cancel'});assert.equal(canceled.status,200);
+  assert.equal((await f.create('released',{room:'Sala A'})).status,200);
+  const overlap=await f.create('partial',{room:'Sala A',startTime:'10:30',endTime:'11:30'});assert.equal(overlap.body.code,'class-room-conflict');
+  const otherPlan=(await f.req('/api/centers/plans/create',f.ids.root,{centerId:f.other,name:'Other classes',priceMinor:'1000',currency:'EUR',intervalMonths:1,priceIncludesTax:true,taxBasisPoints:0,proration:'none',requestId:f.p+'_other_plan'})).body.plan;
+  const other=await f.req('/api/centers/classes/create',f.ids.root,{centerId:f.other,fields:{name:'Other center',room:'Sala A',date:winner.date,startTime:'10:00',endTime:'11:00',capacity:1,waitlistCapacity:0,cancelBeforeMinutes:0,eligiblePlanIds:[otherPlan.id]},requestId:f.p+'_other_room'});assert.equal(other.status,200,JSON.stringify(other));
+  await assert.rejects(f.db.transaction({uid:f.ids.manager,centerId:f.center},client=>client.query('UPDATE centers.classes SET room=$2,version=version+1 WHERE id=$1',[adjacent.body.event.id,'Sala moved'])),{code:'42501'});
+});
+
 test('one concurrent seat never oversells, FIFO promotion is atomic, and replay never resurrects a canceled reservation',async t=>{
   const f=await fixture(t),created=await f.create();assert.equal(created.status,200,JSON.stringify(created));const event=created.body.event;
   const keys=['alice','bob','charlie'],responses=await Promise.all(keys.map(key=>f.reserve(event,key)));

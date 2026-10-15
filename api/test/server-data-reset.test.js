@@ -84,3 +84,19 @@ test('PUT /api/data: a profile never reset gets no stamp', async t => {
   assert.equal('resetAt' in doc, false);
   assert.equal('resetIds' in doc, false);
 });
+
+test('PUT /api/data: accepted plan provenance survives old writers and a late device cannot undo a deletion', async t => {
+  const h=await startServer(t),id='cr_'+'b'.repeat(32),delivery={id:'td_'+'a'.repeat(32),acceptedAt:1800000000000,routineIds:[id]};
+  const put=async state=>{const r=await fetch(`${h.api}/api/data`,{method:'PUT',headers:headers(),body:JSON.stringify({state,stamped:true})});assert.equal(r.status,200);return r.json()};
+  const onDisk=()=>JSON.parse(fs.readFileSync(path.join(h.dataDir,`state-${UID}.json`),'utf8'));
+  await put({_ts:100,routines:[],workouts:[],planDeliveries:[delivery],deleted:{routines:{[id]:100}}});
+  const response=await put({_ts:200,routines:[{id,name:'Delayed delivery',ex:[],_ts:200}],workouts:[]});
+  assert.deepEqual(onDisk().routines,[]);
+  assert.deepEqual(onDisk().planDeliveries,[delivery]);
+  assert.equal(onDisk().deleted.routines[id],100);
+  assert.equal(onDisk()._rev,response.rev+1);
+  await put({_ts:300,routines:[{id,name:'Restored explicitly',ex:[],_ts:300}],workouts:[],deleted:{routines:{[id]:-300}}});
+  assert.equal(onDisk().routines[0].name,'Restored explicitly');
+  await put({_ts:400,routines:[],workouts:[],resetAt:400,resetIds:{routines:[id],planDeliveries:[delivery.id]}});
+  assert.equal(onDisk().planDeliveries,undefined);
+});

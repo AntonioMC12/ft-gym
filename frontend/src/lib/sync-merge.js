@@ -78,6 +78,7 @@ import { bestWeightForEntry } from './history.js'
 import { convertStateUnit, convertBodyWeight } from './units.js'
 import { sanitizeAccent } from './accent.js'
 import { readDayNote as readNote } from './day-notes.js'
+import {mergePlanDeliveries,protectPlanDeliveryDeletions} from './plan-delivery-state.js'
 
 const clone = o => JSON.parse(JSON.stringify(o))
 const list = v => (Array.isArray(v) ? v : [])
@@ -401,6 +402,7 @@ const bodyweightKey = e => `${e?.d}|${e?.t ?? ''}`
 const RESET_LISTS = {
   workouts: workoutKey, routines: x => x?.id, customEx: x => x?.id, bodyweight: bodyweightKey,
   measurements: bodyweightKey, gymCards: x => x?.id, equipProfiles: x => x?.id, favEx: x => x,
+  planDeliveries: x=>x?.id,
 }
 const RESET_MAPS = ['exNotes', 'barWeights', ...STAMPED_MAPS]
 /** An entry's name in resetIds: a workout's id (or day and start), a weigh-in's day and time, … */
@@ -460,6 +462,7 @@ export function sinceReset(S, at, ids) {
     out.equipProfiles = []
     out.gymCards = []
     out.favEx = []
+    out.planDeliveries=[]
     out.exNotes = {}
     out.barWeights = {}
     for (const f of STAMPED_MAPS) {
@@ -613,6 +616,7 @@ const OWN_MERGE = new Set([
   '_ts', '_rev', '_wid', '_wids', '_unstamped', '_prior', 'active', 'unit', 'unitSet', 'resetAt', 'resetIds', 'deleted', 'edited', 'undone', 'routineOrder',
   'workouts', 'routines', 'customEx', 'equipProfiles', 'gymCards', 'bodyweight', 'measurements', 'favEx',
   'exWeights', 'balanceOverrides', 'loadKind', 'plates', 'dbLoad', 'dumbbells', 'dayNotes',
+  'planDeliveries',
 ])
 // Stamped per key instead of whole: one day of the plan, one exercise's note or bar.
 const PER_KEY = new Set(['week', 'dayPlan', 'exNotes', 'barWeights'])
@@ -746,6 +750,7 @@ export function mergeStates(a0, b0, { prefer } = {}) {
   const n = side === 'a' ? a : b
   const o = n === a ? b : a
   const out = clone(n)
+  if(n.planDeliveries||o.planDeliveries)out.planDeliveries=mergePlanDeliveries(n.planDeliveries,o.planDeliveries)
   // The unit is the lead's by now; so is the record of choosing it.
   const unitBy = lead || (unitStamp(a) >= unitStamp(b) ? a : b)
   if (unitBy.unitSet) out.unitSet = clone(unitBy.unitSet)
@@ -868,6 +873,7 @@ export function mergeStates(a0, b0, { prefer } = {}) {
     if (Object.keys(undone).length) out.undone = undone; else delete out.undone
   }
   if (deleted) out.deleted = deleted; else delete out.deleted
+  protectPlanDeliveryDeletions(out)
   out._ts = Math.max(a._ts || 0, b._ts || 0)
   if (resetAt) out.resetAt = resetAt
   if (resetIds) out.resetIds = resetIds

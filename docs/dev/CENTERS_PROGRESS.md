@@ -9,6 +9,7 @@
 - Guía: [CENTERS_ROADMAP.md](CENTERS_ROADMAP.md). Instrucciones: [AGENTS.md](../../AGENTS.md).
 - C27: conciliación, HTTP, flujo propio y UI implementados en modo test; revisión visual pendiente por denegación guardada del navegador a localhost:5178. Ver [CENTERS_STRIPE_IMPLEMENTATION.md](CENTERS_STRIPE_IMPLEMENTATION.md). No repetir lo ya implementado ni eludir el bloqueo con otra superficie.
 - Siguiente trabajo independiente: C28 requiere formato/proceso bancario acordados antes de exportación efectiva; continuar C29/F10 mientras esa condición y la revisión visual estén pendientes. La dependencia de C29 es C24, ya cerrada.
+- C29 en progreso: base personal de entrega convergente y validador de bundle verificadas; consultar `CENTERS_TRAINING_DELIVERY.md`. Todavía faltan las tablas, servicios HTTP y UI de propuestas. No presentarlo como asignación ya disponible.
 - Último hito cerrado: C26, avisos verificados, recordatorios agrupados y adaptador opcional desactivado con HTTP simulado.
 - Pruebas C18: 47 unitarias API, 66 frontend/controles, 3 OpenAPI y 10 SQL+HTTP reales pasan. Comparativa general y comprobación visual registradas abajo.
 
@@ -59,7 +60,7 @@ Estados permitidos: `todo`, `in_progress`, `done`, `blocked`. Una tarea done nec
 | C26 | F8 | Email y avisos | done |
 | C27 | F9 | Stripe | in_progress |
 | C28 | F9 | SEPA | todo |
-| C29 | F10 | Propuestas de rutinas | todo |
+| C29 | F10 | Propuestas de rutinas | in_progress |
 | C30 | F10 | Progreso compartido | todo |
 | C31 | F11 | QR y visitas | todo |
 | C32 | F11 | KPI | todo |
@@ -409,3 +410,12 @@ No guardar credenciales, bodies privados, volcados de socios, IBAN, tarjetas o r
 - Revisión visual pendiente: CUA deniega localhost:5178 por preferencia guardada, también tras la autorización general de la sesión. No se ha eludido por HTTP de escritorio, otro navegador ni controlador. C27 se mantiene in_progress; no atribuirle una captura visual o una cuenta sandbox real que no se han probado.
 - Preview explícita ficticia disponible mediante stripe-preview.mjs, con proveedor simulado, perfiles fake y jobs desactivados; estado del carrier en ../informes/centers-stripe-preview. Preview ordinaria no activa el simulador por defecto. No confundir con configuración real de Stripe. No abrir enlaces fake en Stripe para intentar completar un pago.
 - Siguiente rama independiente del roadmap: C29 (depende de C24). C28 aún necesita formato bancario y proceso acordados; no inventar condiciones de remesa ni exportar datos reales. Autorización vigente: seguir hasta 5% restante y apagar; no gastar créditos para reiniciar límites, ni push/merge/despliegue/cargos.
+
+## 15 octubre — C29 base de aceptación convergente
+
+- `mergePlan` reutilizado con mapa de IDs estable opcional; importación ordinaria conserva IDs nuevos. `applyPlanDelivery` añade rutinas sin sobrescribir cambios del socio, convierte unidades y solo sustituye la semana por opción expresa; conserva calendario por fechas y sesión activa. Valida identidades/mapas y conflictos antes de mutar.
+- Procedencia personal mínima en `planDeliveries`, sin centro/socio/staff/permisos/dinero. Unión determinista, reset consciente de sus IDs y prevención de resurrección ante aceptación tardía. Frontend y API comparten reglas equivalentes verificadas; Undo negativo explícito sigue restaurando. PUT conserva marcas omitidas por clientes antiguos y comunica la corrección mediante la revisión existente. La imagen Docker incluye el nuevo módulo requerido.
+- Validador puro de propuestas usa el catálogo generado existente y el vocabulario de `buildPlanBundle`: preserva descansos, pirámides, cargas por serie, calentamientos, intensificadores y progresión. Límite64KiB UTF-8,20rutinas/40ejercicios por rutina/200totales. Rechaza perfil completo, multimedia, campos desconocidos, ejercicios personalizados y números ambiguos. Prueba de contrato compara la importación existente en kg/lb.
+- Evidencia:158/158 frontend en9archivos (`frontend/centers-c29-foundation-ui.log`);29/29 API seleccionadas, incluidas tres con servidor real/disco temporal. Build correcto. General API682:655pass/27fallos previos, sin nuevas identidades tras corregir COPY (`api/centers-c29-general-api.log`). General frontend previa a dos casos finales:5184:5130pass/54fallos previos, mismos15archivos que C27 (`frontend/centers-c29-general-ui.log`). Los dos casos finales pasan en la selección de158.
+- C29 permanece in_progress. Falta migración020, versiones/intenciones/acuse durable con RLS, HTTP/OpenAPI, controles propios/staff y ensayo SQL/restauración no vacíos. La marca del perfil no autoriza acceso ni acredita aplicación sin contrastarla con una intención SQL. C30 no iniciado, sin lectura de progreso por staff. No cambios SQL desde019 ni datos reales.
+- La ventana primaria se reinició automáticamente durante la ejecución; no se utilizó ningún crédito de reset. Última lectura4%primaria/79%semanal. Continúa la autorización de trabajo; guardar el avance antes del umbral solicitado y ejecutar el apagado cuando corresponda.

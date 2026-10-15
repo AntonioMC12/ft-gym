@@ -274,14 +274,15 @@ export function parsePlan(raw, destinationUnit = 'kg') {
 /**
  * Merge a parsed bundle into a draft state `s` (call inside store.update).
  *  - customs: reuse one you already have with the same name + body part, else add it fresh
- *  - routines: always added as NEW routines (fresh ids) — never overwrites yours
+ *  - routines: new routines by default; a delivery may supply its stable server-issued map
  *  - schedule: optional; when on, the shared week REPLACES yours (days the shared plan
  *    leaves empty become rest days — a half-overwritten week would silently mix two plans)
  */
-export function mergePlan(s, bundle, { schedule } = {}) {
+export function mergePlan(s, bundle, { schedule, routineIds } = {}) {
   const destination = planUnit(s.unit == null ? 'kg' : s.unit)
   if (!destination) unitError()
   const source = convertedBundle(bundle, destination)
+  if(routineIds){const ids=source.routines.map(r=>Object.hasOwn(routineIds,r.id)?routineIds[r.id]:null);if(ids.some(id=>typeof id!=='string'||!id)||new Set(ids).size!==ids.length)throw new Error('invalid destination routine map')}
   s.customEx = s.customEx || []
   const exIdMap = {}
   ;(source.customEx || []).forEach(c => {
@@ -294,10 +295,15 @@ export function mergePlan(s, bundle, { schedule } = {}) {
     const clean = cleanCustom(c)
     s.customEx.push({ ...clean, id: nid, ...(clean.secondaries ? { sm: clean.secondaries } : {}), custom: true })
   })
-  const ridMap = {}
+  const ridMap = Object.create(null)
+  let added=0
   source.routines.forEach(r => {
-    const nid = uid()
+    const nid = routineIds ? routineIds[r.id] : uid()
     ridMap[r.id] = nid
+    // A delivery's server-issued map is stable across devices and retries. Never
+    // overwrite a recipient's later edits or add a second copy of the same routine.
+    if(routineIds&&s.routines.some(existing=>existing.id===nid))return
+    added++
     s.routines.push({
       id: nid,
       name: r.name || t('Shared routine'),
@@ -317,7 +323,7 @@ export function mergePlan(s, bundle, { schedule } = {}) {
       if (ids.length) s.week[d] = ids
     })
   }
-  return { routines: source.routines.length }
+  return { routines: added }
 }
 
 /* ------------------------------- printable PDF ------------------------------- */

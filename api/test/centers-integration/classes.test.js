@@ -181,3 +181,14 @@ test('attendance and no-show are explicit immutable facts after the class, witho
   assert.equal((await correct(ongoingReservation,'no-show',0,'ongoing')).body.code,'class-not-ended');
   await assert.rejects(f.db.transaction({uid:f.ids.manager,centerId:f.center},client=>client.query("INSERT INTO centers.class_attendance_corrections(id,center_id,class_id,reservation_id,revision,to_state,reason,actor_uid) VALUES($1,$2,$3,$4,1,'no-show','Premature fixture',$5)",['ac_'+commandHash(f.p+'_premature').slice(0,32),f.center,ongoingClass,ongoingReservation,f.ids.manager])),{code:'23514'});
 });
+
+test('completed individual creation replays original timezone terms in an inactive center and keeps legacy hashes',async t=>{
+  const f=await fixture(t),teacher=(await f.req('/api/centers/classes/instructors?centerId='+f.center,f.ids.manager)).body.instructors.find(row=>row.role==='trainer');
+  const created=await f.create('original_zone',{instructorAssignmentId:teacher.id});assert.equal(created.status,200);
+  await f.db.platformTransaction(f.ids.root,client=>client.query("UPDATE centers.centers SET state='inactive',timezone='UTC',version=version+1 WHERE id=$1",[f.center]),f.center);
+  const replay=await f.create('original_zone',{instructorAssignmentId:teacher.id});assert.equal(replay.status,200,JSON.stringify(replay));assert.deepEqual(replay.body,created.body);
+  assert.equal((await f.create('original_zone',{name:'Changed retry',instructorAssignmentId:teacher.id})).body.code,'idempotency-conflict');
+  assert.equal((await f.create('new_inactive',{instructorAssignmentId:teacher.id})).body.code,'center-inactive');
+  assert.equal((await f.create('new_inactive_without_teacher')).body.code,'center-inactive');
+  assert.equal((await f.db.transaction({uid:f.ids.manager,centerId:f.center},client=>client.query('SELECT count(*)::int AS n FROM centers.classes WHERE center_id=$1',[f.center]))).rows[0].n,1);
+});

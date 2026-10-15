@@ -86,10 +86,12 @@ export async function insertScheduledClass(client,{centerId,userId,id,fields,ins
 export async function createClass({database,user,checkSession,lookupAccount,accountLocks},raw,{platform=false}={}){
   objectBody(raw,['centerId','fields','requestId']);const centerId=idField(raw.centerId),requestId=requestField(raw.requestId),operation='class.create';
   const assignmentId=raw.fields?.instructorAssignmentId;let instructorUid=null;
-  if(assignmentId){idField(assignmentId);instructorUid=await businessTransaction(database,user.id,centerId,'classes.manage',async client=>{const {rows}=await client.query('SELECT account_uid FROM centers.role_assignments WHERE center_id=$1 AND id=$2',[centerId,assignmentId]);return rows[0]?.account_uid||conflict('class-instructor-unavailable')},{platform})}
-  const execute=()=>businessTransaction(database,user.id,centerId,'classes.manage',async client=>{
-    const {rows:[center]}=await client.query('SELECT timezone FROM centers.centers WHERE id=$1',[centerId]),fields=classFields(raw.fields,{timezone:center.timezone}),hash=commandHash(fields);
+  if(assignmentId){idField(assignmentId);instructorUid=await businessTransaction(database,user.id,centerId,'classes.manage',async client=>{const {rows}=await client.query('SELECT account_uid FROM centers.role_assignments WHERE center_id=$1 AND id=$2',[centerId,assignmentId]);return rows[0]?.account_uid||conflict('class-instructor-unavailable')},{platform,allowInactive:true})}
+  const execute=()=>businessTransaction(database,user.id,centerId,'classes.manage',async(client,context)=>{
+    const {rows:[original]}=await client.query("SELECT c.timezone FROM centers.idempotency_records i JOIN centers.classes c ON c.center_id=i.center_id AND c.id=i.result->>'id' WHERE i.center_id=$1 AND i.actor_uid=$2 AND i.operation=$3 AND i.request_id=$4",[centerId,user.id,operation,requestId]);
+    const {rows:[center]}=await client.query('SELECT timezone FROM centers.centers WHERE id=$1',[centerId]),fields=classFields(raw.fields,{timezone:original?.timezone||center.timezone}),hash=commandHash(fields);
     const replay=await commandReplay(client,centerId,user.id,operation,requestId,hash);if(replay)return {event:classDto(await eventRecord(client,centerId,replay.id))};
+    if(context.center.state!=='active')conflict('center-inactive');
     const {rows:[clock]}=await client.query('SELECT $1::timestamptz>clock_timestamp() AS future',[fields.startsAt]);if(!clock.future)conflict('class-closed');
     const {rows:plans}=await client.query('SELECT id FROM centers.membership_plans WHERE center_id=$1 AND id=ANY($2::text[]) AND archived_at IS NULL',[centerId,fields.eligiblePlanIds]);if(plans.length!==fields.eligiblePlanIds.length)conflict('class-plan-required');
     let instructorName=null;
@@ -102,7 +104,7 @@ export async function createClass({database,user,checkSession,lookupAccount,acco
     const id='cl_'+commandHash([centerId,user.id,requestId]).slice(0,32);checkSession();
     const event=await insertScheduledClass(client,{centerId,userId:user.id,id,fields,instructorName});
     await rememberCommand(client,centerId,user.id,operation,requestId,hash,{id});checkSession();return {event};
-  },{platform});
+  },{platform,allowInactive:true});
   return instructorUid?accountLocks.withAccounts([user.id,instructorUid],execute):execute();
 }
 export function reserveClass({database,user,checkSession},raw){

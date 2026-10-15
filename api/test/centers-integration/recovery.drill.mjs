@@ -70,7 +70,8 @@ test('C24: two-center pilot survives a coordinated JSON/PostgreSQL restore and r
   const classPlans=(await req('/api/centers/plans?centerId='+centers[0],'pilot_manager_a')).body.plans;
   const instructorDirectory=(await req('/api/centers/classes/instructors?centerId='+centers[0],'pilot_manager_a')).body;
   const teacherId=instructorDirectory.instructors[0].id;
-  const classCreated=await req('/api/centers/classes/create','pilot_manager_a',{centerId:centers[0],fields:{name:'Recovered fictional class',room:'Sala restaurada',instructorAssignmentId:teacherId,date:freezeDate(1),startTime:'10:00',endTime:'11:00',capacity:1,waitlistCapacity:1,cancelBeforeMinutes:0,eligiblePlanIds:[classPlans[0].id]},requestId:'pilot_class_create'});assert.equal(classCreated.status,200,JSON.stringify(classCreated));
+  const classCreateCommand={centerId:centers[0],fields:{name:'Recovered fictional class',room:'Sala restaurada',instructorAssignmentId:teacherId,date:freezeDate(1),startTime:'10:00',endTime:'11:00',capacity:1,waitlistCapacity:1,cancelBeforeMinutes:0,eligiblePlanIds:[classPlans[0].id]},requestId:'pilot_class_create'};
+  const classCreated=await req('/api/centers/classes/create','pilot_manager_a',classCreateCommand);assert.equal(classCreated.status,200,JSON.stringify(classCreated));
   const classCommand={centerId:centers[0],id:classCreated.body.event.id,requestId:'pilot_class_reservation'},classReserved=await req('/api/centers/own/classes/reserve','pilot_alice',classCommand);assert.equal(classReserved.status,200,JSON.stringify(classReserved));
   const seriesInput={centerId:centers[0],timezone:'Europe/Madrid',fields:{name:'Recovered weekly series',room:'Sala restaurada',instructorAssignmentId:teacherId,date:freezeDate(2),startTime:'14:00',endTime:'15:00',capacity:3,waitlistCapacity:0,cancelBeforeMinutes:0,eligiblePlanIds:[classPlans[0].id]},rule:{until:freezeDate(9),weekdays:[new Date(freezeDate(2)+'T00:00:00Z').getUTCDay()],excludedDates:[]}};
   const seriesReview=await req('/api/centers/classes/series/preview','pilot_manager_a',seriesInput);assert.equal(seriesReview.status,200,JSON.stringify(seriesReview));assert.equal(seriesReview.body.summary.ready,2);
@@ -137,6 +138,7 @@ test('C24: two-center pilot survives a coordinated JSON/PostgreSQL restore and r
   assert.equal((await after('/api/centers/own/freezes?centerId='+centers[1],'pilot_bob')).body.requests[0].state,'pending','pending approval survives restore');
   const expiredImport=await after('/api/centers/members/imports/detail?'+new URLSearchParams({centerId:centers[0],id:expiredImportId}),'pilot_manager_a');
   assert.equal(expiredImport.body.state,'expired');assert.deepEqual(expiredImport.body.rows,[]);assert.ok(!JSON.stringify(expiredImport).includes('expired@example.test'),'restore does not resurrect cleared CSV content');
+  assert.deepEqual((await after('/api/centers/classes/create','pilot_manager_a',classCreateCommand)).body,{event:{...classCreated.body.event,booked:1}},'individual class creation replay returns current counters after coordinated restore');
   assert.deepEqual((await after('/api/centers/own/classes/reserve','pilot_alice',classCommand)).body,classReserved.body,'class reservation replays after restoring');
   const restoredClass=(await after('/api/centers/own/classes?centerId='+centers[0],'pilot_alice')).body.classes.find(event=>event.id===classCommand.id);
   assert.equal(restoredClass.room,'Sala restaurada');assert.equal(restoredClass.instructorName,classCreated.body.event.instructorName);

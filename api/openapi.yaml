@@ -354,7 +354,7 @@ paths:
       tags: [centers]
       operationId: createCenterClass
       summary: Schedule a single class with explicit capacity, waitlist and cancellation rules
-      description: classes.manage or explicit platform allowlist in active center. fields requires name, date, startTime/endTime HH:mm, capacity1..1000, waitlistCapacity0..1000, cancelBeforeMinutes0..10080 and1..50unique eligiblePlanIds from this center's unarchived catalog. Uses center zone, same civil day, optional end24:00, at most12civil/13absolute hours. Nonexistent times reject; repeated times require explicit disambiguation, either earlier/later for both or object start/end with independent choices. No implicit fees, fines or recurrence. Stable requestId; stored class identity replays current state.
+      description: classes.manage or explicit platform allowlist in active center. fields requires name, date, startTime/endTime HH:mm, capacity1..1000, waitlistCapacity0..1000, cancelBeforeMinutes0..10080 and1..50unique eligiblePlanIds from this center's unarchived catalog. Uses center zone, same civil day, optional end24:00, at most12civil/13absolute hours. Nonexistent times reject; repeated times require explicit disambiguation, either earlier/later for both or object start/end with independent choices. No implicit fees, fines or recurrence. Stable requestId; stored class identity replays current state using its original timezone even after a center timezone change or deactivation. Current management is still required; an inactive center rejects new creation. Legacy body hashes remain unchanged.
       requestBody:
         required: true
         content:

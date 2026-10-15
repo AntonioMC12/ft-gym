@@ -42,14 +42,35 @@ test('expired CSV payloads are cleared in bounded concurrent batches, preserving
     if(sql.startsWith('INSERT INTO centers.business_audit'))throw new Error('fixture audit failure');
     return client.query(sql,params);
   }}),selected)};
-  await assert.rejects(maintenanceTick(failedAudit),/fixture audit failure/);
+  const failed=await maintenanceTick(failedAudit);assert.equal(failed.failed,2);assert.equal(failed.expired,0);
   assert.equal((await fixture.query("SELECT count(*)::integer AS n FROM centers.member_import_jobs WHERE id=ANY($1::text[]) AND state='prepared'",[ids])).rows[0].n,205,'payload cleanup rolls back if its audit cannot be saved');
+  // The first center fails consistently: other centers still commit independently.
+  const poison=[...centers].sort()[0],healthy=centers.find(id=>id!==poison);
+  const partialDb={platformTransaction:(actor,work,selected)=>selected===poison?failedAudit.platformTransaction(actor,work,selected):db.platformTransaction(actor,work,selected)};
+  const partial=await maintenanceTick(partialDb);assert.equal(partial.failed,1);assert.ok(partial.expired>0);
+  assert.equal((await fixture.query("SELECT count(*)::int AS n FROM centers.member_import_jobs WHERE center_id=$1 AND state='expired'",[healthy])).rows[0].n,partial.expired);
+  // A paging key advances past a failed center and resets only after the end.
+  assert.equal((await maintenanceTick(db,{afterCenter:partial.nextCenter})).centers,0);
   const concurrent=await Promise.all([maintenanceTick(db),maintenanceTick(db)]);assert.ok(concurrent.every(result=>result.expired<=400));
-  const remaining=await maintenanceTick(db);assert.equal(concurrent.reduce((n,result)=>n+result.expired,0)+remaining.expired,205);
+  const remaining=await maintenanceTick(db);assert.equal(partial.expired+concurrent.reduce((n,result)=>n+result.expired,0)+remaining.expired,205);
   const purged=await fixture.query('SELECT count(*)::integer AS n FROM centers.member_import_jobs WHERE id=ANY($1::text[]) AND state=$2 AND records IS NULL',[ids,'expired']);assert.equal(purged.rows[0].n,205);
   assert.equal((await req('/api/centers/members/imports/detail?'+new URLSearchParams({centerId:center,id:prepare.body.id}))).body.state,'prepared');
   assert.deepEqual((await req('/api/centers/members/imports/commit',doneCommand)).body,done.body);
   assert.equal((await req('/api/centers/members/imports/commit',{centerId:center,id:expiredId,reviewHash:'a'.repeat(64)})).body.code,'import-expired');
   assert.equal((await req('/api/centers/members/imports/prepare',{centerId:center,csv,duplicatePolicy:'skip',requestId:p+'_expired_0_0'})).body.state,'expired');
   const personal=await req('/api/data');assert.ok(!JSON.stringify(personal).includes('retention@example.test'));
+  // Four poisoned centers must not starve the fifth (the discovery batch size).
+  const rotation=[];
+  for(let n=0;n<5;n++){
+    const result=await req('/api/platform/centers/create',{name:p+'_rotation_'+n,managerUid:uid,requestId:p+'_rotation_'+n});assert.equal(result.status,200);
+    const target=result.body.center.id,request=p+'_rotate_job_'+n,id='mi_'+commandHash([target,uid,request]).slice(0,32);rotation.push(target);
+    await fixture.query(`INSERT INTO centers.member_import_jobs(id,center_id,actor_uid,request_id,input_hash,records,created_at,expires_at)
+      VALUES($1,$2,$3,$4,$5,$6,statement_timestamp()-interval '25 hours',statement_timestamp()-interval '1 hour')`,[id,target,uid,request,inputHash,JSON.stringify(record)]);
+  }
+  const poisoned=await maintenanceTick(failedAudit);assert.equal(poisoned.centers,4);assert.equal(poisoned.failed,4);
+  const later=await maintenanceTick(db,{afterCenter:poisoned.nextCenter});assert.equal(later.expired,1);assert.equal(later.nextCenter,[...rotation].sort().at(-1));
+  const end=await maintenanceTick(db,{afterCenter:later.nextCenter});assert.equal(end.nextCenter,null);
+  const retried=await maintenanceTick(db,{afterCenter:end.nextCenter});assert.equal(retried.expired,4);
+  await assert.rejects(db.transaction({uid,centerId:center},client=>client.query('SELECT centers.expired_import_centers(4,NULL)')),{code:'42501'});
+  await assert.rejects(db.platformTransaction(uid,client=>client.query('SELECT centers.expired_import_centers(0,NULL)')),{code:'22023'});
 });

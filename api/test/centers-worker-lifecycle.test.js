@@ -12,3 +12,9 @@ test('a failing independent worker reports only a stable error code and another 
   const bad=startCentersWorker(async()=>{throw new Error('private provider response')},{enabled:true,onError:code=>first(code)}),good=startCentersWorker(async()=>second('done'),{enabled:true});
   try{assert.equal(await failed,'centers-jobs-unavailable');assert.equal(await succeeded,'done')}finally{await Promise.all([bad.stop(),good.stop()])}
 });
+test('a rejected error observer cannot crash a worker or prevent its next tick and graceful stop',async()=>{
+  let ticks=0,finish;const twice=new Promise(resolve=>finish=resolve);
+  const worker=startCentersWorker(async()=>{ticks++;if(ticks===2)finish();throw new Error('private payload')},{enabled:true,intervalMs:1,onError:async()=>{throw new Error('observer failed')}});
+  try{await twice}finally{await worker.stop()}
+  assert.equal(ticks,2);
+});

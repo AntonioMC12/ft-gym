@@ -304,10 +304,10 @@ Actualizado15octubre2026,23:42. Detalle/evidencia y bloqueos en CENTERS_PROGRESS
 
 | Tareas | Estado técnico | Lo que falta |
 |---|---|---|
-| C29,C31,C34,C36,C37,C40 | done | Validación visual/hardware/operación diferida; gates de activación siguen pendientes |
+| C29,C30,C31,C34,C36,C37,C40 | done | Validación visual/hardware/operación diferida; gates de activación siguen pendientes |
 | C27 | blocked | Ensayo con cuenta sandbox real y autorización/credenciales; implementación con HTTP ficticio terminada |
 | C32 | blocked | Agregados de visitas terminados en037; ocupación física sin salidas requiere definición/datos o excluir ese KPI |
-| C30,C33,C35,C38 | todo | Iniciar solo al disponer de los contratos técnicos necesarios; no confundir implementación local con gate de producción |
+| C33,C35,C38 | todo | Iniciar solo al disponer de los contratos técnicos necesarios; no confundir implementación local con gate de producción |
 
 Instrucción vigente del usuario: comprobaciones enfocadas esenciales y compilación; aplazar suites generales/revisión visual completa. done acredita criterios técnicos probados, no aceptación visual o activación real. No abrir ampliaciones opcionales de una tarea ya cerrada sin una necesidad del alcance.
 

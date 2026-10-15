@@ -67,6 +67,7 @@ services:
       - test/centers-integration/stripe-http.test.js
       - test/centers-integration/platform-pages.test.js
       - test/centers-integration/training-proposals.test.js
+      - test/centers-integration/shared-progress.test.js
       - test/centers-integration/access.test.js
       - test/centers-integration/metrics.test.js
       - test/centers-integration/member-imports.test.js

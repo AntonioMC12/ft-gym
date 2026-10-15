@@ -3,6 +3,7 @@ import React,{act} from 'react'
 import {createRoot} from 'react-dom/client'
 import {MemoryRouter} from 'react-router-dom'
 import {beforeEach,afterEach,it,expect,vi} from 'vitest'
+vi.mock('./SharedProgress.jsx',()=>({default:()=>null}))
 vi.mock('../../lib/i18n.js',()=>({t:key=>key}))
 vi.mock('./OwnNotifications.jsx',()=>({default:()=>null}))
 vi.mock('./Classes.jsx',()=>({default:()=>null}))

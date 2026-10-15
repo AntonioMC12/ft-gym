@@ -420,6 +420,86 @@ paths:
         '400': { description: Invalid command or missing reason. }
         '403': { description: Management capability required. }
         '409': { description: class-closed, version-conflict or idempotency-conflict. }
+  /api/centers/own/training/progress/share:
+    get:
+      tags: [centers]
+      operationId: getOwnCenterProgressShare
+      summary: Read the linked owner's progress-sharing configuration
+      description: Own training.own.read in selected center, including inactive affiliation for revocation. Only centerId accepted; no member/account selectors. Returns share enabled/routineIds/from/to/version (zero if absent), today and canEnable. Default disabled. The date window is the chosen logged-workout date range, not an expiry of consent. It remains active until revoked while center/member/account remain eligible.
+      parameters:
+        - { name: centerId, in: query, required: true, schema: { type: string } }
+      responses:
+        '200': { description: Current own sharing configuration. }
+        '400': { description: Unexpected identity or report selectors. }
+        '404': { description: Current linked membership unavailable. }
+    post:
+      tags: [centers]
+      operationId: changeOwnCenterProgressShare
+      summary: Explicitly grant or revoke a limited metadata projection
+      description: |
+        Body centerId, version (integer0for no existing grant), requestId and fields.
+        enabled=true requires1..20distinct existing synchronized routineIds and actual from/to dates,
+        at most366inclusive logged days, no future to date in the center zone. Active center/member/account
+        required for granting. enabled=false clears the scope and works while inactive or JSON unreadable.
+        Only the current linked owner can write, even when staff/platform. No member/account selector.
+        Account then center locks, optimistic revision, audit and command identity commit together.
+        Completed replay returns the current sharing configuration and never reenables a revoked grant.
+        Rebinding a member does not transfer consent to its new account. No private training is copied
+        into SQL or administrative state. Revocation applies to subsequent reads, not already delivered reports.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties: false
+              required: [centerId, version, requestId, fields]
+              properties:
+                centerId: { type: string }
+                version: { type: integer, minimum: 0 }
+                requestId: { type: string, minLength: 8, maxLength: 128 }
+                fields:
+                  type: object
+                  additionalProperties: false
+                  required: [enabled]
+                  properties:
+                    enabled: { type: boolean }
+                    routineIds: { type: array, minItems: 1, maxItems: 20, uniqueItems: true, items: { type: string } }
+                    from: { type: string, format: date }
+                    to: { type: string, format: date }
+      responses:
+        '200': { description: Current share after commit or completed replay. }
+        '400': { description: Invalid explicit scope or unexpected fields. }
+        '403': { description: Own membership capability required. }
+        '404': { description: Current linked membership unavailable. }
+        '409': { description: version-conflict, account-busy, invalid-progress-share, progress-routines-unavailable, inactive membership or idempotency-conflict. }
+        '503': { description: Training file unavailable when granting; revocation does not require it. }
+  /api/centers/training/progress:
+    get:
+      tags: [centers]
+      operationId: getCenterSharedTrainingProgress
+      summary: Read only the progress metadata explicitly shared with this center
+      description: |
+        Current training.shared.read and selected center/member required; technical admin alone is insufficient.
+        Current account binding, enabled consent and active center/member/account are rechecked after account
+        and center locks. Shared=false exposes no training activity when no eligible consent exists.
+        Shared=true returns definitionVersion1, dateBasis logged-workout-date, the chosen period and at most20
+        routine rows with name (null if deleted), sessions, days, lastSessionOn and weekly from/sessions counts.
+        Routine/workout/account IDs, sets, loads, exercise entries, notes, photos, body data and active workouts
+        never leave the projection. Sessions count saved metadata assigned to chosen routines; they do not
+        prove completed exercise or strength progress. A combined saved session may count in each chosen routine.
+        Duplicate session keys and positive workout tombstones are excluded. No user-selectable account/period.
+        Missing or corrupt JSON does not become a fabricated empty profile; unreadable shape/file returns503.
+      parameters:
+        - { name: centerId, in: query, required: true, schema: { type: string } }
+        - { name: memberId, in: query, required: true, schema: { type: string } }
+      responses:
+        '200': { description: shared=false or a strictly whitelisted metadata report. }
+        '400': { description: Unexpected selectors or invalid member identity. }
+        '403': { description: Current sharing-read capability required. }
+        '404': { description: Center/member unavailable or binding changed while acquiring locks. }
+        '409': { description: Account update busy; retry without changing consent. }
+        '503': { description: Personal training file unreadable. }
   /api/centers/classes/attendance/history:
     get:
       tags: [centers]

@@ -1,16 +1,16 @@
 # Registro de ejecución: módulo de centros
 
-Última actualización: 15 de octubre de 2026.
+Última actualización: 16 de octubre de 2026.
 
-## Punto de reanudación — continuación del 15 de octubre,23:42
+## Punto de reanudación — continuación del16octubre
 
 - Rama codex/centers-module; cambios Docker/web/demo previos del usuario preservados y fuera de los commits del módulo.
 - Prioridad vigente: cerrar implementación contra criterios concretos, comprobaciones enfocadas de seguridad/integridad y compilación. Suites generales y revisión visual completa aplazadas por instrucción expresa del usuario. No repetir lo ya verificado ni ampliar opcionalmente.
-- C29/C31/C34/C36/C37/C40: implementación y criterios técnicos acreditados; pasan a done técnico. La aceptación visual, hardware, infraestructura y operación real NO se declaran verificadas: se registran abajo como gates de validación diferida y no se confunden con código por implementar.
+- C29/C30/C31/C34/C36/C37/C40: implementación y criterios técnicos acreditados; pasan a done técnico. La aceptación visual, hardware, infraestructura y operación real NO se declaran verificadas: se registran abajo como gates de validación diferida y no se confunden con código por implementar.
 - C27: implementación test con fixture HTTP terminada; blocked por ensayo sandbox real pendiente (requiere credenciales/cuenta y autorización específica). No repetir adaptador/webhooks/UI.
 - C32: agregados de visitas implementados y comprobados en schema037. blocked solo por ocupación física: no se registran salidas; hace falta un contrato de presencia verificable o aceptar excluir ese KPI. Ninguna métrica viene de /api/activity. No rehacer los agregados.
 - Preview anterior:409f825c-dirty/schema035, datos y túnel conservados. Reconstruir al cerrar cambios; dirty corresponde a archivos previos del usuario. CI usa centers-ci-db/ft_gym_ci_centers_test, nunca PostgreSQL persistente de preview.
-- Trabajo siguiente independiente: C30 (progreso expresamente compartido), apoyado en C29 técnico terminado y aislamiento C07. C35 depende del gate externo de C27. C28 necesita proceso bancario; C39 requisitos fiscales; C41/C42 activación/aceptación reales.
+- C30 terminada técnicamente en038: compartir por centro, rutinas/fechas explícitas y solo conteos de sesiones guardadas/nombres. Revocación, vínculo y roles actuales; sin cargas, fotos, notas, ejercicios o perfil. Ver CENTERS_SHARED_PROGRESS.md. C35 depende del gate externo de C27. C28 necesita proceso bancario; C39 requisitos fiscales; C41/C42 activación/aceptación reales.
 - Uso inicial:0%principal,45%semanal consumidos tras renovación natural. Continuar hasta aproximadamente95%principal (o límite que se agote primero), sin créditos de reset. Al terminar guardar/documentar y apagar sin forzar aplicaciones, autorizado por el mensaje vigente.
 
 ### Cierre técnico y validación diferida
@@ -115,7 +115,7 @@ Estados permitidos: `todo`, `in_progress`, `done`, `blocked`. Una tarea done nec
 | C27 | F9 | Stripe | blocked |
 | C28 | F9 | SEPA | todo |
 | C29 | F10 | Propuestas de rutinas | done |
-| C30 | F10 | Progreso compartido | todo |
+| C30 | F10 | Progreso compartido | done |
 | C31 | F11 | QR y visitas | done |
 | C32 | F11 | KPI | blocked |
 | C33 | F11 | Riesgo de baja | todo |
@@ -721,3 +721,15 @@ Implementados conteos exactos por período, afiliaciones visitantes, socio/día,
 036 añade índice centro/instante; al probar global se detectó que la RLS intencionadamente requiere centro seleccionado y devolvía cero. Se conserva036aplicada y se añade037: función STABLE de agregados con alcance/rol explícitos, search_path fijo, sin EXECUTE público ni acceso runtime global a filas crudas. No se relaja la RLS del dispositivo/socio. SQL métricas6/6 incluye entradas API reales, global/local/rol/cruces, SQL directo a función rechazado y ambos instantes de una hora repetida; histórico ficticio nuevo sembrado solo en CI/tmpfs comprobado. Dominio/OpenAPI5/5, UI+pt-BR10/10, build e i18n2083cadenas/18×2691claves. No suites generales, restore o revisión visual, aplazados por instrucción del usuario.
 
 C32 pasa de in_progress a blocked con trabajo posible terminado: no se puede calcular permanencia/ocupación física sin salidas ni un contrato aprobado. UI/API lo declaran indisponible, nunca cero; no se inventa un porcentaje de entradas/aforo. No bloquea el desarrollo independiente de C30, que ya tiene C29/C07 técnicos terminados. Preview035 aún sin reconstruir; hacerlo al cierre de sesión conservando datos/túnel.
+
+## Inicio C30: contrato mínimo de privacidad
+
+Con C29/C07 técnicos cerrados se inicia C30. Alcance concreto en CENTERS_SHARED_PROGRESS.md: socio elige rutinas/fechas; compartir solo nombres y conteos agregados de sesiones registradas, no cargas/series/notas/fotos/medidas/perfil. Desactivado por defecto, consentimiento por centro/afiliación/cuenta actual, revocación y revalidación al leer. No se abre vigilancia de todo el entrenamiento ni se confunde sesión guardada con rendimiento.
+
+## 16octubre, C30: implementación cerrada con privacidad comprobada
+
+Schema038: progress_shares con RLS, privilegios por columna, propietario vinculado actual, versión optimista, auditoría e idempotencia. La cuenta, centro, rol, afiliación y permiso se revalidan antes de leer JSON bajo locks cuenta→centro. Una concesión de A no sirve en B ni pasa al nuevo dueño al revincular. Revocar funciona en pausa/inactivo y con JSON ilegible; repetir una concesión antigua no la reactiva. Se reutilizan lector estricto y componentes existentes; la proyección no copia datos a SQL/S ni cuenta entrenamiento activo.
+
+API/SQL enfocada3/3: selección permitida/no datos privados, permiso por actor, socio/centro ajeno, revocación concurrente con account-busy reintentable, idempotencia, RLS directo sin escritura de staff, pausa/rol/vínculo, rollback de auditoría y archivo ilegible503. Dominio/authz/OpenAPI9/9. UI SharedProgress+Members+MyCenters+pt-BR20/20: confirmación, sincronización antes de conceder, reintento estable, revocación sin sincronizar, respuesta/contexto/confirmación obsoletos y proyección solo lectura. Build correcto;2098cadenas y18×2708claves. No suites generales ni nueva prueba de restore/revisión visual; aplazadas según instrucción vigente. Logs externos centers-shared-progress-*.log.
+
+C30 pasa a done técnico por sus criterios (solo partes compartidas, aislamiento entre centros y exclusión de datos privados). Alcance deliberado: nombres elegidos y conteos por rutina/día/semana/último registro, no certificación de ejercicios ni fuerza. Consentimiento hasta revocación para un intervalo fijo de fechas, no acceso automático a sesiones futuras. Próximo trabajo: revisar C33 con contrato de admisiones C31+C32 ya disponible; el KPI de presencia física pendiente en C32 no es entrada del cálculo de inactividad. La preview035 se conserva hasta reconstrucción final, sin interrumpir el túnel en cada commit.

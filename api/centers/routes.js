@@ -1,3 +1,4 @@
+import {progressSelectors,ownProgressShare,changeProgressShare,readSharedProgress} from './services/shared-progress.js';
 import {previewClassSeriesCancellation,cancelClassSeries,previewClassSeries,createClassSeries,classSeriesPageOptions,getClassSeries,listClassSeries} from './services/class-series.js';
 import { CentersError } from './errors.js';
 import {notificationMode} from './notification-config.js';
@@ -158,6 +159,17 @@ export function centersRoutes({ config, database, json, readSession, readBody, a
     'POST /api/centers/classes/series/cancel':mutate(false,(context,body)=>cancelClassSeries(context,body,{platform:isPlatformUser(config,context.user)})),
     'POST /api/centers/classes/series/preview':mutate(false,(context,body)=>previewClassSeries(context,body,{platform:isPlatformUser(config,context.user)})),
     'POST /api/centers/classes/series/create':mutate(false,(context,body)=>createClassSeries(context,body,{platform:isPlatformUser(config,context.user)})),
+    'GET /api/centers/own/training/progress/share':async(req,res)=>{
+      const user=guard(req,res);if(!user)return;const sv=user.sv||0,params=new URL(req.url,'http://x').searchParams,centerId=params.get('centerId');if(!recordId(centerId))return json(res,404,{error:'not found',code:'not-found'});
+      const checkSession=()=>{if(!current(req,user,sv))throw new CentersError(401,'not-signed-in','not signed in')};
+      try{progressSelectors(params,{own:true});const result=await ownProgressShare({database,user,checkSession},centerId);checkSession();return json(res,200,result)}catch(e){return failure(res,e)}
+    },
+    'POST /api/centers/own/training/progress/share':mutate(false,changeProgressShare),
+    'GET /api/centers/training/progress':async(req,res)=>{
+      const user=guard(req,res);if(!user)return;const sv=user.sv||0,params=new URL(req.url,'http://x').searchParams,centerId=params.get('centerId');if(!recordId(centerId))return json(res,404,{error:'not found',code:'not-found'});
+      const checkSession=()=>{if(!current(req,user,sv))throw new CentersError(401,'not-signed-in','not signed in')};
+      try{const {memberId}=progressSelectors(params),result=await readSharedProgress({database,user,checkSession,accountLocks,readOwnTraining,lookupAccount},centerId,memberId,{platform:isPlatformUser(config,user)});checkSession();return json(res,200,result)}catch(e){return failure(res,e)}
+    },
     'GET /api/centers/classes':readClasses(false),
     'GET /api/centers/own/classes':readClasses(true),
     'GET /api/centers/classes/roster':readClasses(false,true),

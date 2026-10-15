@@ -1,3 +1,4 @@
+import SharedProgress from './SharedProgress.jsx'
 import {useEffect,useRef,useState} from 'react'
 import {Navigate,useNavigate,useSearchParams} from 'react-router-dom'
 import {Section,Row,Button} from '../../components/ui.jsx'
@@ -34,6 +35,7 @@ function Membership({centerId,ownerUid}) {
     <Section title={t('Subscriptions')}><div className="centers-form">{info.subscriptions.map(row=><div key={row.id}><ContractSummary contract={row}/><Row title={t('Billing period (months)')} value={row.intervalMonths}/><Row title={t('Billing day')} value={row.billingDay}/><Row title={t('Tax policy')} value={row.priceIncludesTax==null?t('Not configured'):t(row.priceIncludesTax?'Tax included':'Tax excluded')}/>{row.taxBasisPoints!=null&&<Row title={t('Tax rate (%)')} value={minorToPrice(String(row.taxBasisPoints))}/>}</div>)}{!info.subscriptions.length&&<p>{t('Your center has no assigned fee.')}</p>}{info.subscriptionsTruncated&&<p className="small muted">{t('Showing up to 100 contracts.')}</p>}</div></Section>
     <Receipts centerId={centerId} memberId={info.member.id} ownerUid={ownerUid} own canPay={info.center.state==='active'} revision={revision} changed={()=>setRevision(value=>value+1)}/><Payments centerId={centerId} memberId={info.member.id} ownerUid={ownerUid} own revision={revision}/><OwnNotifications centerId={centerId} ownerUid={ownerUid} active={info.center.state==='active'}/>
     <TrainingProposals centerId={centerId} ownerUid={ownerUid} own active={info.center.state==='active'&&info.member.state==='active'}/>
+    <SharedProgress centerId={centerId} ownerUid={ownerUid} own centerName={info.center.name}/>
     <FreezeRequests centerId={centerId} ownerUid={ownerUid} own today={info.today} active={info.center.state==='active'} canRequest={info.member.state==='active'} changed={()=>setRevision(value=>value+1)}/>
     <Classes centerId={centerId} ownerUid={ownerUid} own/>
     <OwnAccess centerId={centerId} ownerUid={ownerUid} active={info.center.state==='active'&&info.member.state==='active'} timezone={info.center.timezone}/>

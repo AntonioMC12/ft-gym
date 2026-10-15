@@ -1,8 +1,24 @@
 # Desarrollo del módulo de centros
 
-Entrega actual: infraestructura, aislamiento SQL, centros, responsables, staff, socios, invitaciones, contratos, recibos/pagos manuales, deuda, portal propio, automatización/avisos opt-in, Stripe exclusivamente test, propuestas de entrenamiento aceptadas por el socio, acceso QR online y métricas contractuales/financieras. Rama: `codex/centers-module`. Módulo apagado por defecto; cuentas y entrenamiento siguen en JSON. Schema actual021. Hay criterios visuales y operativos pendientes: consultar [CENTERS_PROGRESS.md](CENTERS_PROGRESS.md) antes de continuar, sin declarar completas todas estas fases.
+Entrega actual: infraestructura, aislamiento SQL, centros, responsables, staff, socios, invitaciones, contratos, recibos/pagos manuales, deuda, portal propio, automatización/avisos opt-in, Stripe exclusivamente test, propuestas de entrenamiento aceptadas por el socio, acceso QR online, métricas contractuales/financieras e importación revisada de socios por CSV. Rama: `codex/centers-module`. Módulo apagado por defecto; cuentas y entrenamiento siguen en JSON. Schema actual023. Hay criterios visuales y operativos pendientes: consultar [CENTERS_PROGRESS.md](CENTERS_PROGRESS.md) antes de continuar, sin declarar completas todas estas fases.
 
 Con `CENTERS_ENABLED=1`, las cuentas enumeradas en `CENTERS_SUPERADMIN_UIDS` pueden crear centros desde Ajustes → Gestionar centros. Deben existir y estar habilitadas; `user.admin` no concede este permiso. El asistente permite draft sin responsable; asignar una cuenta existente habilitada lo activa. Responsables gestionan configuración y trainers de sus centros, sin administración técnica global. El estado y permisos administrativos nunca se exportan con entrenamiento.
+
+## Arranque recomendado de la preview actual
+
+Con PowerShell7, Docker Desktop y Git, desde openGym:
+
+```powershell
+pwsh -File scripts/Start-CentersPreview.ps1
+pwsh -File scripts/Start-CentersPreview.ps1 -Share
+pwsh -File scripts/Start-CentersPreview.ps1 -Local
+```
+
+Sin flags conserva el túnel si ya está activo; -Share lo crea si hace falta y ajusta el origen HTTPS, -Local lo detiene y vuelve a localhost5178. Construye las imágenes del checkout actual por defecto; -NoBuild reanuda imágenes existentes y muestra su revisión real. No confundir esa revisión con la rama seleccionada si se omite construir.
+
+El script solo inicializa/migra el PostgreSQL marcado test con sus credenciales ficticias, crea las identidades de preview si faltan y conserva datos existentes. No ejecuta la suite ni carga .env productivo. Inicialización opt-in en el targetcenters-preview, ausente del targetdefault. El volumen SQL compartido no se borra; conserva db.json/entrenamiento/carrier bajo ../informes. No recrea un centro de ejemplo por haber sido renombrado/desactivado. Rechaza contenedores legacy sin el bind persistente: primero preservar su directorio temporal según la guía. No ejecuta push, cobros ni envíos de mensajes.
+
+Configuración de sesión fuera de Git en ../informes/centers-preview-share.env; URL del túnel leída de logs desde el arranque actual y no de un hostname anterior. No se relaja CSRF para aceptar cualquier origen. Para producción usar los overlays normales y el procedimiento correspondiente, sin estas cuentas/carrier.
 
 ## Configuración de desarrollo
 

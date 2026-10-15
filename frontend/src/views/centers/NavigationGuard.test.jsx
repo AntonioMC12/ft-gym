@@ -9,7 +9,7 @@ import Guard,{useCenterNavigation,useUnsavedCenterForm} from './NavigationGuard.
 globalThis.IS_REACT_ACT_ENVIRONMENT=true
 let root,host,leave
 function Form({dirty,busy}){useUnsavedCenterForm(dirty,busy);const go=useCenterNavigation();return <button onClick={()=>go(leave)}>Leave</button>}
-beforeEach(()=>{vi.clearAllMocks();leave=vi.fn();host=document.createElement('div');document.body.append(host);root=createRoot(host)})
+beforeEach(()=>{vi.clearAllMocks();history.replaceState(null,'',location.href);leave=vi.fn();host=document.createElement('div');document.body.append(host);root=createRoot(host)})
 afterEach(()=>{act(()=>root.unmount());host.remove()})
 const render=(dirty,busy=false,contextKey='one')=>act(()=>root.render(<Guard contextKey={contextKey}><Form dirty={dirty} busy={busy}/></Guard>))
 it('leaves clean forms directly and confirms before discarding unsaved changes',()=>{
@@ -23,4 +23,7 @@ it('drops confirmations after unmount and protects browser reload with beforeunl
 })
 it('ignores a confirmation after changing route without unmounting the navigation provider',()=>{
   render('draft');act(()=>host.querySelector('button').click());const confirm=confirmSheet.mock.calls[0][0].onConfirm;render('draft',false,'two');act(()=>confirm());expect(leave).not.toHaveBeenCalled()
+})
+it('waits for the confirmation sheet history entry to rewind before navigating once',()=>{
+  render('draft');act(()=>host.querySelector('button').click());history.replaceState({openGymSheet:true},'',location.href);act(()=>confirmSheet.mock.calls[0][0].onConfirm());expect(leave).not.toHaveBeenCalled();history.replaceState({idx:2},'',location.href);act(()=>window.dispatchEvent(new PopStateEvent('popstate')));expect(leave).toHaveBeenCalledOnce();act(()=>window.dispatchEvent(new PopStateEvent('popstate')));expect(leave).toHaveBeenCalledOnce()
 })

@@ -32,14 +32,15 @@ else{
   if(!users.every(user=>existing.users?.some(row=>row.id===user.id)))throw new Error('saved data lacks fictional preview identities');
 }
 const db=createCentersDatabase({enabled:true,databaseUrl:urls.app});
+const lookup=uid=>JSON.parse(fs.readFileSync(path.join(directory,'db.json'),'utf8')).users.find(user=>user.id===uid);
 try {
   await db.status();
-  const existing=await db.platformTransaction(users[0].id,client=>client.query(`SELECT c.id FROM centers.centers c WHERE c.name='Centro de pruebas' AND c.state='active'
-    AND EXISTS(SELECT 1 FROM centers.role_assignments r WHERE r.center_id=c.id AND r.account_uid='preview_manager' AND r.role='manager' AND r.revoked_at IS NULL)
+  const existing=await db.platformTransaction(users[0].id,client=>client.query(`SELECT c.id FROM centers.centers c WHERE
+    EXISTS(SELECT 1 FROM centers.role_assignments r WHERE r.center_id=c.id AND r.account_uid='preview_manager' AND r.role='manager')
     ORDER BY c.created_at DESC LIMIT 1`));
-  if(!existing.rows.length)await createCenter({database:db,accountLocks:createAccountLocks(uid=>users.find(u=>u.id===uid)),lookupAccount:uid=>users.find(u=>u.id===uid),user:users[0],checkSession:()=>{}},
+  if(!existing.rows.length)await createCenter({database:db,accountLocks:createAccountLocks(lookup),lookupAccount:lookup,user:users[0],checkSession:()=>{}},
     {name:'Centro de pruebas',capacity:120,managerUid:'preview_manager',requestId:'preview_'+randomUUID(),openingHours:{1:[['08:00','22:00']],2:[['08:00','22:00']],3:[['08:00','22:00']],4:[['08:00','22:00']],5:[['08:00','22:00']]}});
 }finally{await db.close();}
 Object.assign(process.env,{DATA_DIR:directory,CENTERS_ENABLED:'1',CENTERS_DATABASE_URL:urls.app,CENTERS_SUPERADMIN_UIDS:'preview_platform',
   PASSWORD_LOGIN:'1',FIRST_USER_ADMIN:'0',INVITE_ONLY:'1',ALLOW_GUEST:'0',COACH_DISABLED:'1',MEDIA_UPLOADS:'0',DEFAULT_LANG:'es',ORIGIN:origin,RP_ID:new URL(origin).hostname,PORT:'3000'});
-await import('../../server.js');
+if(process.env.CENTERS_PREVIEW_INIT_ONLY!=='1')await import('../../server.js');

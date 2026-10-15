@@ -90,7 +90,7 @@ VOLUME ["/coach-auth"]
 # ---------------------------------------------------------------------------------------------
 # Fictional local preview only. Production/default never inherits its test carrier.
 FROM base AS centers-preview
-COPY test/centers-integration/preview.mjs test/centers-integration/preview-origin.mjs test/centers-integration/stripe-preview.mjs test/centers-integration/stripe-http-preload.mjs test/centers-integration/helpers.mjs ./test/centers-integration/
+COPY test/centers-integration/preview.mjs test/centers-integration/preview-init.mjs test/centers-integration/preview-origin.mjs test/centers-integration/stripe-preview.mjs test/centers-integration/stripe-http-preload.mjs test/centers-integration/helpers.mjs ./test/centers-integration/
 RUN rm -rf /usr/local/lib/node_modules/npm /usr/local/bin/npm /usr/local/bin/npx
 CMD ["node", "test/centers-integration/stripe-preview.mjs"]
 

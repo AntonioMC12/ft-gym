@@ -81,7 +81,7 @@ export function updateRefundCapability({database,user,checkSession},raw) {
   return database.platformTransaction(user.id,async client=>{
     await client.query("SELECT pg_advisory_xact_lock(hashtext('ft-gym-center:' || $1))",[centerId]);
     const replay=await commandReplay(client,centerId,user.id,operation,requestId,hash);if(replay)return replay;
-    const {rows}=await client.query("SELECT version,extra_capabilities FROM centers.role_assignments WHERE center_id=$1 AND id=$2 AND role='manager' AND revoked_at IS NULL AND valid_from<=CURRENT_TIMESTAMP AND (valid_until IS NULL OR valid_until>CURRENT_TIMESTAMP) FOR UPDATE",[centerId,assignmentId]);
+    const {rows}=await client.query("SELECT version,extra_capabilities FROM centers.role_assignments WHERE center_id=$1 AND id=$2 AND role='manager' AND revoked_at IS NULL AND valid_from<=statement_timestamp() AND (valid_until IS NULL OR valid_until>statement_timestamp()) FOR UPDATE",[centerId,assignmentId]);
     if(!rows.length)missing();if(rows[0].version!==version)conflict('version-conflict');
     const extras=rows[0].extra_capabilities.filter(c=>c!==capability);if(allowed)extras.push(capability);checkSession();
     await client.query('UPDATE centers.role_assignments SET extra_capabilities=$3,version=version+1 WHERE center_id=$1 AND id=$2',[centerId,assignmentId,extras]);

@@ -142,10 +142,7 @@ function Content({ user }) {
   const [listed, setListed] = useState([]), [creating, setCreating] = useState(false), [detail, setDetail] = useState(null), [error, setError] = useState(null), [refreshKey, setRefreshKey] = useState(0)
   const query=params.get('q')||'',[draft,setDraft]=useState(query),[cursor,setCursor]=useState(null),[listLoading,setListLoading]=useState(false),listLife=useRef(0),listPending=useRef(false)
   const listRoute='/centers'+(query?'?'+new URLSearchParams({q:query}):'')
-  const back=parent=>{
-    const index=globalThis.history?.state?.idx||0
-    requestNavigation(()=>{if(onSheetEntry()&&index>0)nav(-2);else navBack(parent,nav)})
-  }
+  const back=parent=>requestNavigation(()=>navBack(parent,nav))
   const importId=params.get('importId')||null
   const onImport=id=>{const next=new URLSearchParams(params);if(id)next.set('importId',id);else next.delete('importId');setParams(next,{replace:true})}
   const metricPeriod=params.has('from')||params.has('to')?{from:params.get('from')||'',to:params.get('to')||''}:null

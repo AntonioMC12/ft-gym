@@ -21,7 +21,7 @@ async function lockedCenter(client,id,version) {
 }
 async function eligibleManagers(client,centerId,lookupAccount) {
   const { rows } = await client.query(`SELECT account_uid FROM centers.role_assignments WHERE center_id=$1 AND role='manager'
-    AND revoked_at IS NULL AND valid_from<=CURRENT_TIMESTAMP AND (valid_until IS NULL OR valid_until>CURRENT_TIMESTAMP)`,[centerId]);
+    AND revoked_at IS NULL AND valid_from<=statement_timestamp() AND (valid_until IS NULL OR valid_until>statement_timestamp())`,[centerId]);
   return rows.filter(r=>{ const account=lookupAccount(r.account_uid);return account && !account.disabled; });
 }
 function requireAccount(lookup,uid) {

@@ -4,6 +4,8 @@
 
 ## Punto de reanudación
 
+- C40 seguimiento en progreso: schema023 corrige vigencia de roles después de esperar locks; CENTERS_ROLE_VALIDITY.md documenta reproducción y pruebas. Nuevo Start-CentersPreview.ps1 para reanudar/compartir/localizar la fixture preservando datos; cerrar su smoke de operación y guardar evidencia. No se considera cerrado C40 (retención/mantenimiento/operación productiva pendientes).
+
 - C36 implementado automáticamente en schema022: importación CSV con revisión, errores por línea, política skip, job durable/actor/centro, confirmación atómica e idempotente y recuperación por URL. Ver CENTERS_MEMBER_IMPORT.md; falta revisión visual por la restricción guardada. UI solicitada implementada en49cca1e6, también pendiente de revisión visual; no repetir lo ya probado.
 
 - Navegación directa: añadir Inicio y Centros como destinos explícitos accesibles desde ficha/pestañas/formularios, manteniendo Atrás cronológico separado. Reutilizar UI/Router, conservar búsqueda del listado y proteger cambios sin guardar según el patrón existente. Feedback registrado para la próxima iteración; no cambia la preview activa.
@@ -85,7 +87,7 @@ Estados permitidos: `todo`, `in_progress`, `done`, `blocked`. Una tarea done nec
 | C37 | F12 | Solicitud de congelación | todo |
 | C38 | F12 | Bonos/promociones | todo |
 | C39 | F12 | Facturas y fiscalidad | todo |
-| C40 | F13 | Operación y reversión | todo |
+| C40 | F13 | Operación y reversión | in_progress |
 | C41 | F13 | Activación gradual | todo |
 | C42 | F13 | Aceptación/documentación | todo |
 
@@ -506,3 +508,11 @@ No guardar credenciales, bodies privados, volcados de socios, IBAN, tarjetas o r
 - Restore0221/1 (`centers-c36-recovery.log`) con importación pendiente/completada no vacías, la completada no se reaplica y la pendiente se termina tras restaurar; JSON byte a byte, ledger/Stripe/propuestas/QR también conservados. Bases tmpfs aisladas reiniciadas; volumen compartido conservado.
 - UI38/38 en4archivos (`frontend/centers-c36-ui-focused.log`). General API697:670pass/27fallos previos; frontend5234:5180pass/54fallos previos en los mismos15archivos. Identidades comparadas sin regresiones nuevas. Build correcto,2016cadenas presentes,18locales/2591claves. Sin revisión visual por denegación guardada; C36 sigue in_progress.
 - Guía CENTERS_MEMBER_IMPORT.md detalla contrato, plantilla, límites/duplicados, atomicidad/privacidad y límites actuales. No importación de deuda/contratos ni cuentas, no push/merge/producción. Continúa la autorización vigente hasta20%restante, sin apagado.
+
+## 15 octubre — C40 vigencia de roles y C23 historial de confirmaciones
+
+- Reproducidos dos casos de autorización con PostgreSQL real: transacción que espera mientras su rol caduca y otra cuyo rol se activa durante la espera. Ambos fallaban antes (centers-role-time-before.log0/2). Migración023 inmutable aplicada solo en test y lecturas JS asociadas usan statement_timestamp en la decisión posterior al bloqueo, en lugar del instante del BEGIN.
+- Has_role/lock_my_roles, invariante de responsable activo, protección de cuentas y concesión can_refund conservan firmas/grants/propietarios/search_path y fronteras de privilegios. Referencia y alcance en CENTERS_ROLE_VALIDITY.md. Tercer caso directo verifica RLS sin fichas privadas ni permiso de devolución tras caducar;3/3 específicos. Unitarias seleccionadas19/19, SQL completo50/50, restore0231/1 con todos los escenarios C36/C31/C29/Stripe/ledger/JSON anteriores. No datos reales ni alteraciones del reloj.
+- C23: al confirmar un descarte, NavigationGuard espera el popstate que Modals usa para retirar su entrada antes de navegar. Evita dos history.go simultáneos y saltos de pantallas. Listener retirado al cambiar contexto/desmontar; revalidación de borrador/cuenta/ruta después del cierre. Selección UI40/40 y general5235:5181pass/54previos en los mismos15archivos. Comparación de identidades sin regresiones.
+- API general final697:670pass/27fallos previos, mismas identidades. Sin nuevas dependencias/contratos de entrenamiento ni cambios personales. C40 siguein_progress: esta entrega no resuelve retención de jobs, alertas/mantenimiento o operación productiva.
+- Operación local: script Start-CentersPreview.ps1 (PowerShell7), bootstrap test-only aislado, reconstrucción/etiquetas de código, healthchecks y origen público/local coherente. Detecta contenedor legacy sin bind persistente y exige preservación previa; no elimina volúmenes ni sustituye cuentas existentes. Guarda configuración/logs fuera de Git. AST verificado; smoke operativo y estado final de preview se registran al terminar.

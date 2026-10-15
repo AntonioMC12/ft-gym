@@ -25,8 +25,8 @@ export async function requireCenter(client, uid, centerId, capability, { lock = 
   const { rows: centers } = await client.query('SELECT id, name, state, version FROM centers.centers WHERE id = $1', [centerId]);
   if (!centers.length) throw new CentersError(404, 'not-found', 'not found');
   const { rows: assignments } = await client.query(`SELECT id, role, extra_capabilities FROM centers.role_assignments
-    WHERE account_uid = $1 AND center_id = $2 AND revoked_at IS NULL AND valid_from <= CURRENT_TIMESTAMP
-    AND (valid_until IS NULL OR valid_until > CURRENT_TIMESTAMP)`, [uid, centerId]);
+    WHERE account_uid = $1 AND center_id = $2 AND revoked_at IS NULL AND valid_from <= statement_timestamp()
+    AND (valid_until IS NULL OR valid_until > statement_timestamp())`, [uid, centerId]);
   const { rows: members } = await client.query('SELECT id FROM centers.members WHERE account_uid = $1 AND center_id = $2', [uid, centerId]);
   if (!assignments.length && !members.length) throw new CentersError(404, 'not-found', 'not found');
   const capabilities = roleCapabilities(assignments, members.length > 0);

@@ -1,6 +1,6 @@
 # Desarrollo del módulo de centros
 
-Entrega actual: infraestructura, aislamiento SQL, centros, responsables, staff, socios sin cuenta y baja/pausa/reanudación por fecha. Superadmin gestiona también socios globalmente. Rama: `codex/centers-module`. Apagado por defecto; cuentas y entrenamiento siguen en JSON. Invitaciones y cobros pendientes. Consultar CENTERS_PROGRESS para evidencia y siguiente tarea.
+Entrega actual: infraestructura, aislamiento SQL, centros, responsables, staff, socios, invitaciones, contratos, recibos/pagos manuales, deuda, portal propio, automatización/avisos opt-in, Stripe exclusivamente test, propuestas de entrenamiento aceptadas por el socio, acceso QR online y métricas contractuales/financieras. Rama: `codex/centers-module`. Módulo apagado por defecto; cuentas y entrenamiento siguen en JSON. Schema actual021. Hay criterios visuales y operativos pendientes: consultar [CENTERS_PROGRESS.md](CENTERS_PROGRESS.md) antes de continuar, sin declarar completas todas estas fases.
 
 Con `CENTERS_ENABLED=1`, las cuentas enumeradas en `CENTERS_SUPERADMIN_UIDS` pueden crear centros desde Ajustes → Gestionar centros. Deben existir y estar habilitadas; `user.admin` no concede este permiso. El asistente permite draft sin responsable; asignar una cuenta existente habilitada lo activa. Responsables gestionan configuración y trainers de sus centros, sin administración técnica global. El estado y permisos administrativos nunca se exportan con entrenamiento.
 
@@ -106,3 +106,48 @@ CSV de deuda requiere data.export concedido explícitamente, tiene máximo5000 f
 Schema012 permite lectura únicamente de filas propias por sesión + centro; precios solo si están contratados. own/* no acepta memberId/accountUid ni override de plataforma. Cuenta con roles staff también obtiene un DTO propio restringido, sin motivos/referencias internas. No conceder capacidad de emitir/pagar/devolver por el hecho de estar afiliado.
 
 Mis centros y Gestionar centros son destinos distintos en Cuenta. Recibos/pagos usan componentes existentes con transporte own y controles de mutación ocultos. Historias ended/inactive permanecen legibles y toda consulta administrativa/financiera es efímera en memoria, con Cache-Control no-store, ajena a S y exportaciones personales.
+
+## Reanudar la preview ficticia instalada (checkpoint del 15 de octubre)
+
+La preview de esta sesión usa el contenedor existente `ft-gym-centers-preview`, PostgreSQL del proyecto `ft-gym-centers-tests` y Vite. No es el overlay de una instalación real ni la demo del usuario. Los comandos siguientes reanudan estos recursos ya preparados; no crean una cuenta de producción, no migran una instalación real y no permiten saltarse las restricciones guardadas del navegador de herramientas.
+
+Desde `openGym/`, con Docker Desktop arrancado:
+
+```powershell
+# Solo si docker no está en PATH en esta instalación Windows:
+$env:Path = 'C:/Users/Usuario/AppData/Local/Programs/DockerDesktop/resources/bin;' + $env:Path
+
+docker compose -f compose.centers.test.yml up -d --wait centers-test-db
+docker start ft-gym-centers-preview
+docker logs --tail 5 ft-gym-centers-preview
+```
+
+`docker start` conserva el directorio temporal del contenedor y sus archivos personales. El entrypoint comprueba la base marcada test, reutiliza los centros ficticios y prepara sus tres identidades conocidas. No elimina el volumen. Si el contenedor ya no existe, no sustituirlo por uno que monte `api/data` o use `.env`: preparar de nuevo la fixture aislada leyendo `api/test/centers-integration/stripe-preview.mjs` y `preview.mjs`.
+
+Para Vite, en otra terminal desde `openGym/frontend/`:
+
+```powershell
+$env:API_TARGET = 'http://127.0.0.1:3011'
+$env:API_ORIGIN = 'http://localhost:5178'
+npm run dev -- --host 127.0.0.1 --port 5178 --strictPort
+```
+
+Abrir manualmente `http://localhost:5178/#/centers` en el navegador autorizado del usuario. `--strictPort` evita que Vite elija silenciosamente otro puerto incompatible con el origen de sesión. Si5178 está ocupado, comprobar su proceso y reutilizarlo si corresponde; no matar otros procesos automáticamente ni probar distintos orígenes para eludir una restricción.
+
+Identidades exclusivamente ficticias de la fixture:
+
+| Nombre de acceso | Alcance |
+|---|---|
+| Plataforma Centros | Allowlist de superadmin, gestión global y métricas globales. |
+| Responsable Pruebas | Centros asignados, socios, contratos, gestión financiera y recepción según sus capacidades vigentes. |
+| Entrenador Pruebas | Ámbito operativo/propuestas según asignación vigente; no obtiene gestión financiera ni recepción por ser entrenador. |
+
+Contraseña ficticia de estas cuentas: `Centros-Pruebas-2026!`. La fixture conserva las asignaciones SQL existentes: el nombre de una cuenta no le concede roles por sí mismo. Socio propio requiere vínculo mediante invitación; no existe una cuenta de socio genérica con acceso a todas las afiliaciones.
+
+Stripe utiliza el carrier local simulado, perfiles fake y datos fuera del repositorio en `../informes/centers-stripe-preview`. No hay claves reales, red de pagos ni jobs/email externos activados. No introducir credenciales reales en esta fixture ni abrir sus enlaces fake para intentar pagar. Reiniciar API renueva sesiones y descarta QR pendientes; volver a entrar y emitir un QR nuevo cuando proceda.
+
+Antes de recrear o eliminar el contenedor, copiar íntegramente su directorio `/tmp/ft-gym-centers-preview-*` a un snapshot fuera de Git y conservar el carrier. Si contiene `state-preview_*.json`, restaurar esos archivos en el directorio temporal del contenedor nuevo antes de usar la preview. No publicar snapshots, bases de cuentas o secretos de sesión. Los últimos snapshots y su ruta están en `../informes/centers-c32-preview-*` y `centers-c32-preview-snapshot-path.txt`.
+
+La imagen actual incluye C32 (`e967704c`), esquema021. `docker start` no recompila cambios posteriores: ante un nuevo commit de API, construir la imagen test y actualizar conscientemente la fixture preservando su estado. Para detener sin borrar: parar Vite con Ctrl+C, `docker stop ft-gym-centers-preview` y `docker compose -f compose.centers.test.yml stop centers-test-db`. Nunca usar `down -v` sobre esta base compartida.
+
+Contratos de las entregas recientes: [Stripe](CENTERS_STRIPE_IMPLEMENTATION.md), [propuestas/aceptación](CENTERS_TRAINING_DELIVERY.md), [QR y recepción](CENTERS_ACCESS.md) y [métricas](CENTERS_METRICS.md). Las comprobaciones automáticas no sustituyen la revisión visual pendiente ni habilitan pagos productivos.

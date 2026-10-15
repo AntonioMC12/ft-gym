@@ -2,16 +2,29 @@
 
 Última actualización: 15 de octubre de 2026.
 
-## Punto de reanudación
+## Punto de reanudación — continuación del 15 de octubre,23:42
 
-- Repositorio openGym, rama codex/centers-module. Los cambios Docker/web/demo previos del usuario siguen fuera de los commits del módulo. Consultar Git al reanudar; no hacer reset ni inferir autorización de esta guía.
-- Estado funcional: C00–C26 figuran done en el tablero. C27/C29/C31/C32/C34/C36/C37 tienen código y pruebas, pero siguen in_progress por alcance, validaciones específicas y revisión visual pendiente. No confundir esa revisión pendiente con funciones aún sin implementar.
-- CSV C36: plantilla socio.csv de ocho columnas, cabecera de condiciones multilínea, fechas españolas, revisión/duplicados/confirmación e historial privado de origen implementados en schema028. El archivo real se ha validado localmente (una fila válida), sin importarlo. Ver [CENTERS_MEMBER_IMPORT.md](CENTERS_MEMBER_IMPORT.md).
-- C34: clases individuales, reservas/espera FIFO/cancelación, asistencia, sala y profesor opcionales sin solapamientos; series semanales finitas implementadas en035; quedan catálogo de salas, avisos y aceptación visual. C37: política explícita, solicitudes propias y aprobación con historial. Ver [CENTERS_CLASSES.md](CENTERS_CLASSES.md) y [CENTERS_FREEZE_REQUESTS.md](CENTERS_FREEZE_REQUESTS.md); no repetir sus núcleos ya implementados.
-- C40: schema029 añade rotación del mantenimiento y aislamiento de fallos por centro; un centro con error no impide limpiar otros. Los observadores no reciben datos privados y sus fallos no terminan los workers. Worker apagado por defecto, sin cobros ni correo habilitados. SQL64/64, restore0291/1 y API focal19/19; API general710:683pass/27fallos previos, mismas identidades que el baseline, sin fallos nuevos. Preview actualizada con salas y schema031 al cierre. Ver [CENTERS_MAINTENANCE.md](CENTERS_MAINTENANCE.md).
-- UI solicitada: campos compartidos distinguibles, TimeField, listado inicial de responsables, accesos Inicio/Centros con protección de formularios, pestañas desplazables separadas y botones de intervalos ya implementados. Revisión visual pendiente por denegación guardada del navegador; no sortearla mediante otra URL/controlador ni afirmar una inspección visual por pasar tests.
-- Preview actual: API/WEB409f825c-dirty, schema035, healthy y reanudación verificada, misma URL pública; dirty procede de los cambios Docker/web previos. CI usa centers-ci-db/ft_gym_ci_centers_test, nunca la base persistente de preview. Recovery usa dos tmpfs independientes. Usar Start-CentersPreview.ps1 para reconstruir conservando datos y túnel; no usar down -v.
-- Siguiente trabajo: cerrar evidencia/operación de C40 y revisar alcance pendiente en las guías específicas. C30/C33/C35/C38 continúan sujetos a los gates de sus dependencias. C28 necesita proceso/formato bancario; C39 requisitos fiscales validados; C41/C42 requieren activación/aceptación explícitas. No habilitar producción, importar datos reales o realizar cargos por esta continuación de desarrollo.
+- Rama codex/centers-module; cambios Docker/web/demo previos del usuario preservados y fuera de los commits del módulo.
+- Prioridad vigente: cerrar implementación contra criterios concretos, comprobaciones enfocadas de seguridad/integridad y compilación. Suites generales y revisión visual completa aplazadas por instrucción expresa del usuario. No repetir lo ya verificado ni ampliar opcionalmente.
+- C29/C31/C34/C36/C37/C40: implementación y criterios técnicos acreditados; pasan a done técnico. La aceptación visual, hardware, infraestructura y operación real NO se declaran verificadas: se registran abajo como gates de validación diferida y no se confunden con código por implementar.
+- C27: implementación test con fixture HTTP terminada; blocked por ensayo sandbox real pendiente (requiere credenciales/cuenta y autorización específica). No repetir adaptador/webhooks/UI.
+- Trabajo activo C32: faltan agregados de visitas. La ocupación instantánea no se puede inferir de entradas sin salidas; registrar límite funcional/decisión pendiente de forma explícita. Ninguna métrica se obtiene de /api/activity.
+- Preview anterior:409f825c-dirty/schema035, datos y túnel conservados. Reconstruir al cerrar cambios; dirty corresponde a archivos previos del usuario. CI usa centers-ci-db/ft_gym_ci_centers_test, nunca PostgreSQL persistente de preview.
+- Siguiente paso tras C32: C30 (progreso expresamente compartido), apoyado en C29 técnico terminado y aislamiento C07. C35 depende del gate externo de C27. C28 necesita proceso bancario; C39 requisitos fiscales; C41/C42 activación/aceptación reales.
+- Uso inicial:0%principal,45%semanal consumidos tras renovación natural. Continuar hasta aproximadamente95%principal (o límite que se agote primero), sin créditos de reset. Al terminar guardar/documentar y apagar sin forzar aplicaciones, autorizado por el mensaje vigente.
+
+### Cierre técnico y validación diferida
+
+| Tarea | Evidencia existente que cierra implementación | Validación aplazada o externa |
+|---|---|---|
+| C29 | Entrega/aceptación/acuse; convergencia entre dispositivos, borrados y sesión conservada; SQL/RLS y restore020 con entrega pendiente | Revisión visual escritorio/móvil; no concede acceso a progreso privado |
+| C31 | Caducidad real, un uso, concurrencia/reinicio, centro/horario/deuda y dispositivo actuales; RLS y restore021 con visita | Hardware/recepción reales y revisión visual, antes de activar C41 |
+| C34 | Última plaza/FIFO/plan/centro; asistencia/rectificación; series/cancelación atómicas; SQL77 y restore035 | Revisión visual/aceptación; catálogo de salas y avisos no son criterios necesarios de cierre C34, quedan fuera de este alcance |
+| C36 | Preview/errores/duplicados, confirmación idempotente, límites/caducidad, plantilla socio.csv y origen privado, restore028 | Revisión visual; archivo real no importado |
+| C37 | Política explícita, solicitud/decisión, fechas/límites, efecto financiero y deuda anterior, RLS/concurrencia/restore034 | Revisión visual; política comercial real no activada |
+| C40 | Restore desde cero, referencias/hashes/RLS, fallos observables, limpieza/rotación/rollback y reanudación de preview con7archivos conservados | Retención de backups, infraestructura, secretos y recuperación productivos pertenecen a C41; no se autorizan implícitamente |
+
+El estado done de estas filas acredita exclusivamente el alcance técnico de la tabla del roadmap. No cierra los gates de aceptación/activación ni declara verificación visual, sandbox externo o producción. Antes de entregas reales se deben ejecutar las validaciones aplazadas. Si aparece un criterio técnico no cubierto, reabrir su tarea con el motivo preciso.
 
 ## Puntos de reanudación anteriores (histórico; no usar como estado actual)
 
@@ -99,20 +112,20 @@ Estados permitidos: `todo`, `in_progress`, `done`, `blocked`. Una tarea done nec
 | C24 | F7 | Piloto MVP y restauración | done |
 | C25 | F8 | Jobs y outbox | done |
 | C26 | F8 | Email y avisos | done |
-| C27 | F9 | Stripe | in_progress |
+| C27 | F9 | Stripe | blocked |
 | C28 | F9 | SEPA | todo |
-| C29 | F10 | Propuestas de rutinas | in_progress |
+| C29 | F10 | Propuestas de rutinas | done |
 | C30 | F10 | Progreso compartido | todo |
-| C31 | F11 | QR y visitas | in_progress |
+| C31 | F11 | QR y visitas | done |
 | C32 | F11 | KPI | in_progress |
 | C33 | F11 | Riesgo de baja | todo |
-| C34 | F12 | Clases y reservas | in_progress |
+| C34 | F12 | Clases y reservas | done |
 | C35 | F12 | Alta pública | todo |
-| C36 | F12 | CSV | in_progress |
-| C37 | F12 | Solicitud de congelación | in_progress |
+| C36 | F12 | CSV | done |
+| C37 | F12 | Solicitud de congelación | done |
 | C38 | F12 | Bonos/promociones | todo |
 | C39 | F12 | Facturas y fiscalidad | todo |
-| C40 | F13 | Operación y reversión | in_progress |
+| C40 | F13 | Operación y reversión | done |
 | C41 | F13 | Activación gradual | todo |
 | C42 | F13 | Aceptación/documentación | todo |
 
@@ -696,3 +709,7 @@ Resultado final: SQL77/77; restore0351/1 con datos de clases/reservas/profesores
 Preview reconstruida y reanudada NoBuild: API/WEB reales409f825c-dirty, rama codex/centers-module, ambos running/healthy. SQL available=true/schema035. Imágenes API sha256:8f18707930e82355cb60ab88025f7e92f61f8e42727e9daf348ebbd8af9fce43 y WEB sha256:ccd1ca3c9ec249f0b320ce7919468c73caad4f5d7fd974265ad1a6f6a69c2f96. La reanudación conserva por SHA256 los7archivos de preview existentes. Túnel original sigue levantado: https://flashing-bearing-civic-tamil.trycloudflare.com/#/centers. Solo se detienen CI y los dos tmpfs de recovery; API/WEB/DBpersistente/túnel quedan en marcha. Dirty identifica cambios previos Docker/web del usuario, intactos y fuera de estos commits. Logs finales en informes/centers-class-replay-* y centers-final-session-preview*.log.
 
 Próxima sesión: comenzar por este cierre y la cabecera actual; no reimplementar profesores/rectificaciones/series. C34/C40 siguen in_progress, sin cerrar revisión visual/aceptación o dependencias de C30/C33/C35/C38. Catálogo de salas, avisos externos y edición masiva de términos quedan fuera de lo entregado. La autorización siempre viene del mensaje vigente del usuario.
+
+## Nueva continuación: cierre técnico frente a validación
+
+Auditoría breve de criterios de C29/C31/C34/C36/C37/C40 contra código y evidencia ya registrada: se cierran sus implementaciones sin volver a ejecutar suites. No se equiparan las validaciones diferidas con funcionalidad faltante. C27 se marca blocked por ensayo sandbox real; C32 queda activo por agregados de visitas faltantes. La autorización del usuario aplaza suites generales y revisión visual, conserva seguridad/integridad y exige cierre por tarea, actualización inmediata del registro y apagado final sin forzar.

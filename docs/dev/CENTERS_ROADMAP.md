@@ -298,6 +298,19 @@ C35 debe añadir rutas públicas explícitas antes del guard de autenticación g
 
 C40 y la activación del MVP pueden ejecutarse antes de las ampliaciones. C42 no significa que las funciones futuras estén hechas: registrar el alcance aceptado. Para cerrar el módulo completo CU-01..CU-16, todas las C00..C42 deben estar cerradas con las decisiones y validaciones correspondientes.
 
+## Estado de ejecución de las tareas avanzadas
+
+Actualizado15octubre2026,23:42. Detalle/evidencia y bloqueos en CENTERS_PROGRESS.md; el historial anterior no sustituye el estado vigente.
+
+| Tareas | Estado técnico | Lo que falta |
+|---|---|---|
+| C29,C31,C34,C36,C37,C40 | done | Validación visual/hardware/operación diferida; gates de activación siguen pendientes |
+| C27 | blocked | Ensayo con cuenta sandbox real y autorización/credenciales; implementación con HTTP ficticio terminada |
+| C32 | in_progress | Agregados de visitas; ocupación física sin salidas requiere definición/datos, no inferir desde entradas |
+| C30,C33,C35,C38 | todo | Iniciar solo al disponer de los contratos técnicos necesarios; no confundir implementación local con gate de producción |
+
+Instrucción vigente del usuario: comprobaciones enfocadas esenciales y compilación; aplazar suites generales/revisión visual completa. done acredita criterios técnicos probados, no aceptación visual o activación real. No abrir ampliaciones opcionales de una tarea ya cerrada sin una necesidad del alcance.
+
 ## 7. Contratos, layout y evolución del esquema
 
 Layout propuesto (crear al llegar a la tarea, no generar carpetas vacías en masa):

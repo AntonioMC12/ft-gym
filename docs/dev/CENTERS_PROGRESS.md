@@ -8,9 +8,9 @@
 - Prioridad vigente: cerrar implementación contra criterios concretos, comprobaciones enfocadas de seguridad/integridad y compilación. Suites generales y revisión visual completa aplazadas por instrucción expresa del usuario. No repetir lo ya verificado ni ampliar opcionalmente.
 - C29/C31/C34/C36/C37/C40: implementación y criterios técnicos acreditados; pasan a done técnico. La aceptación visual, hardware, infraestructura y operación real NO se declaran verificadas: se registran abajo como gates de validación diferida y no se confunden con código por implementar.
 - C27: implementación test con fixture HTTP terminada; blocked por ensayo sandbox real pendiente (requiere credenciales/cuenta y autorización específica). No repetir adaptador/webhooks/UI.
-- Trabajo activo C32: faltan agregados de visitas. La ocupación instantánea no se puede inferir de entradas sin salidas; registrar límite funcional/decisión pendiente de forma explícita. Ninguna métrica se obtiene de /api/activity.
+- C32: agregados de visitas implementados y comprobados en schema037. blocked solo por ocupación física: no se registran salidas; hace falta un contrato de presencia verificable o aceptar excluir ese KPI. Ninguna métrica viene de /api/activity. No rehacer los agregados.
 - Preview anterior:409f825c-dirty/schema035, datos y túnel conservados. Reconstruir al cerrar cambios; dirty corresponde a archivos previos del usuario. CI usa centers-ci-db/ft_gym_ci_centers_test, nunca PostgreSQL persistente de preview.
-- Siguiente paso tras C32: C30 (progreso expresamente compartido), apoyado en C29 técnico terminado y aislamiento C07. C35 depende del gate externo de C27. C28 necesita proceso bancario; C39 requisitos fiscales; C41/C42 activación/aceptación reales.
+- Trabajo siguiente independiente: C30 (progreso expresamente compartido), apoyado en C29 técnico terminado y aislamiento C07. C35 depende del gate externo de C27. C28 necesita proceso bancario; C39 requisitos fiscales; C41/C42 activación/aceptación reales.
 - Uso inicial:0%principal,45%semanal consumidos tras renovación natural. Continuar hasta aproximadamente95%principal (o límite que se agote primero), sin créditos de reset. Al terminar guardar/documentar y apagar sin forzar aplicaciones, autorizado por el mensaje vigente.
 
 ### Cierre técnico y validación diferida
@@ -117,7 +117,7 @@ Estados permitidos: `todo`, `in_progress`, `done`, `blocked`. Una tarea done nec
 | C29 | F10 | Propuestas de rutinas | done |
 | C30 | F10 | Progreso compartido | todo |
 | C31 | F11 | QR y visitas | done |
-| C32 | F11 | KPI | in_progress |
+| C32 | F11 | KPI | blocked |
 | C33 | F11 | Riesgo de baja | todo |
 | C34 | F12 | Clases y reservas | done |
 | C35 | F12 | Alta pública | todo |
@@ -713,3 +713,11 @@ Próxima sesión: comenzar por este cierre y la cabecera actual; no reimplementa
 ## Nueva continuación: cierre técnico frente a validación
 
 Auditoría breve de criterios de C29/C31/C34/C36/C37/C40 contra código y evidencia ya registrada: se cierran sus implementaciones sin volver a ejecutar suites. No se equiparan las validaciones diferidas con funcionalidad faltante. C27 se marca blocked por ensayo sandbox real; C32 queda activo por agregados de visitas faltantes. La autorización del usuario aplaza suites generales y revisión visual, conserva seguridad/integridad y exige cierre por tarea, actualización inmediata del registro y apagado final sin forzar.
+
+## 15octubre,23:52: C32, visitas terminadas y bloqueo de ocupación explicitado
+
+Implementados conteos exactos por período, afiliaciones visitantes, socio/día, centro/día y detalle diario/24horas locales. Contadores sin IDs/QR ni datos económicos nuevos; misma captura MVCC que finanzas y mismos permisos. Repetir QR/escaneo rechazado no suma entrada. DST mantiene ambos instantes en su hora civil. UI/tokens existentes y18locales.
+
+036 añade índice centro/instante; al probar global se detectó que la RLS intencionadamente requiere centro seleccionado y devolvía cero. Se conserva036aplicada y se añade037: función STABLE de agregados con alcance/rol explícitos, search_path fijo, sin EXECUTE público ni acceso runtime global a filas crudas. No se relaja la RLS del dispositivo/socio. SQL métricas6/6 incluye entradas API reales, global/local/rol/cruces, SQL directo a función rechazado y ambos instantes de una hora repetida; histórico ficticio nuevo sembrado solo en CI/tmpfs comprobado. Dominio/OpenAPI5/5, UI+pt-BR10/10, build e i18n2083cadenas/18×2691claves. No suites generales, restore o revisión visual, aplazados por instrucción del usuario.
+
+C32 pasa de in_progress a blocked con trabajo posible terminado: no se puede calcular permanencia/ocupación física sin salidas ni un contrato aprobado. UI/API lo declaran indisponible, nunca cero; no se inventa un porcentaje de entradas/aforo. No bloquea el desarrollo independiente de C30, que ya tiene C29/C07 técnicos terminados. Preview035 aún sin reconstruir; hacerlo al cierre de sesión conservando datos/túnel.

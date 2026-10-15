@@ -29,3 +29,8 @@ it('uses the global scope explicitly and drops responses for a center/account th
 it('rejects an incomplete date selection without issuing a different report',async()=>{
   await render();await fill(host.querySelectorAll('input')[0],'');await act(async()=>button('Apply').click());expect(centerMetrics).toHaveBeenCalledOnce();expect(host.textContent).toContain('Metrics error')
 })
+
+it('shows bounded admission counts and explicitly explains why they are not live occupancy',async()=>{
+  centerMetrics.mockResolvedValue({...structuredClone(report),attendance:{definitionVersion:1,admissions:'3',visitingMemberships:'1',memberDays:'2',centerDaysWithVisits:'2',days:[{date:'2026-10-14',admissions:'2',memberships:'1'},{date:'2026-10-15',admissions:'1',memberships:'1'}],hours:[{hour:2,admissions:'2'},{hour:3,admissions:'0'},{hour:10,admissions:'1'}],liveOccupancy:{available:false,reason:'exits-not-recorded'}}});
+  await render();expect(host.textContent).toContain('Validated admissions');expect(host.textContent).toContain('Live occupancy is unavailable because exits are not recorded.');expect(host.textContent).toContain('02:00');expect(host.textContent).not.toContain('03:00');expect(host.textContent).toContain('2026-10-14');expect(host.textContent).not.toContain('exits-not-recorded');
+})

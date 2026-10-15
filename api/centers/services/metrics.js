@@ -41,7 +41,7 @@ const query=`WITH capture AS(SELECT statement_timestamp() AS at),centers AS(
   SELECT count(DISTINCT (h.center_id,h.member_id)) FILTER(WHERE h.action='activate')::text AS activations,
     count(DISTINCT (h.center_id,h.member_id)) FILTER(WHERE h.action='end')::text AS terminations
   FROM centers.membership_changes h JOIN centers c ON c.id=h.center_id CROSS JOIN bounds b WHERE h.canceled_at IS NULL AND h.effective_on BETWEEN b.period_from AND b.period_to AND h.effective_on<=c.today
-),logged AS(
+),visit_metrics AS(SELECT centers.visit_metrics($1,b.period_from,b.period_to) AS attendance FROM bounds b),logged AS(
   INSERT INTO centers.business_audit(center_id,actor_uid,action,target_id)
     SELECT c.id,$4,'metrics.global.read',c.id FROM centers c WHERE $5::boolean RETURNING id
 )
@@ -54,12 +54,13 @@ SELECT capture.at AS captured_at,b.period_from::text,b.period_to::text,b.latest_
   (SELECT count(*) FILTER(WHERE state='preactive')::text FROM member_rows) AS preactive_members,
   (SELECT count(*)::text FROM centers.subscriptions s JOIN member_rows m ON m.center_id=s.center_id AND m.id=s.member_id WHERE s.canceled_at IS NULL AND s.starts_on<=m.today AND (s.ends_on IS NULL OR s.ends_on>m.today) AND m.state<>'ended') AS subscriptions,
   (SELECT count(*)::text FROM member_rows m WHERE m.joined_on BETWEEN b.period_from AND b.period_to AND m.joined_on<=m.today) AS registered_members,
+  visit_metrics.attendance,
   events.activations,events.terminations,receipt_flow.count AS receipts_issued,receipt_flow.total::text AS receipt_total_minor,
   collection_flow.total::text AS collections_minor,refund_flow.total::text AS refunds_minor,(collection_flow.total-refund_flow.total)::text AS net_collections_minor,
   (SELECT coalesce(sum(balance) FILTER(WHERE balance>0),0)::text FROM balances) AS outstanding_minor,
   (SELECT coalesce(sum(balance) FILTER(WHERE balance>0 AND due_on<today-grace_days),0)::text FROM balances) AS overdue_minor,
   (SELECT count(DISTINCT center_id)::text FROM balances WHERE balance>0 AND grace_days IS NULL) AS incomplete_policies
-FROM capture CROSS JOIN bounds b CROSS JOIN events CROSS JOIN receipt_flow CROSS JOIN collection_flow CROSS JOIN refund_flow`;
+FROM capture CROSS JOIN bounds b CROSS JOIN events CROSS JOIN receipt_flow CROSS JOIN collection_flow CROSS JOIN refund_flow CROSS JOIN visit_metrics`;
 
 export function centerMetrics(database,uid,centerId,options,{platform=false}={}){
   return businessTransaction(database,uid,centerId,'billing.read',async client=>metricsDto((await client.query(query,[centerId,options.from,options.to,uid,false])).rows[0]),{platform,allowInactive:true});

@@ -1,6 +1,6 @@
 # C32: métricas contractuales y financieras, definición1
 
-Esta entrega cubre agregados por centro y globales, según la parte independiente permitida por F11. C32 permanece en progreso: no incluye ocupación, salidas, tasas de retención ni métricas derivadas de `/api/activity`. No necesita una nueva migración; consulta las tablas existentes con schema021.
+Esta entrega cubre agregados por centro y globales, según la parte independiente permitida por F11. C32 queda bloqueada por la definición/datos de ocupación física: incorpora ahora agregados de visitas validadas; no incluye ocupación instantánea, salidas, tasas de retención ni métricas derivadas de `/api/activity`. No necesita una nueva migración; consulta las tablas existentes con schema021.
 
 ## Acceso y consistencia
 
@@ -49,3 +49,13 @@ Los campos actuales y los movimientos del período tienen secciones diferentes; 
 - Selección UI/rutas/locales:28/28 en3archivos. Formato exacto y neto negativo, flags globales explícitos, período en historial, respuestas tardías y ausencia de persistencia personal.
 - Build y locales pasan:18idiomas/2565claves,1991cadenas fuente presentes. Suite SQL completa43/43 y restore0211/1, con métricas recomputadas e iguales tras restaurar. API general690:663pasan/27fallos previos; frontend5215:5161pasan/54fallos previos en los mismos15archivos. Evidencia y comandos en CENTERS_PROGRESS.md.
 - Pendiente la parte de visitas/ocupación y sus denominadores, más la revisión visual bloqueada por preferencia guardada del navegador. No inferir ocupación instantánea de entradas sin salidas ni declarar completo C32 con esta entrega parcial.
+
+## Agregados de admisiones (schema036/037)
+
+attendance añade conteos enteros exactos del período: admissions (visitas validadas), visitingMemberships (pares centro/socio distintos), memberDays (centro/socio/día civil distinto) y centerDaysWithVisits (centro/día con alguna entrada). No se usa el número de socios actuales como denominador histórico ni se calcula una tasa sobre días de apertura desconocidos. Un mismo socio que entra dos veces suma dos entradas y una afiliación visitante; una cuenta en dos centros cuenta dos afiliaciones.
+
+Days devuelve hasta366fechas locales con entradas y afiliaciones distintas por día. Hours contiene24bins civiles, agregados de todos los días del período; en el cambio de hora se suman ambas apariciones de una hora repetida. Las fechas/horas usan la zona actual del centro al consultar (no existe snapshot de zona para cada visita). Global agrupa cada centro según su calendario y corta su futuro local; no aplica la zona del dispositivo. No hay IDs de socios, cuentas, visitas, dispositivos ni QR en el informe.
+
+036 añade índice centro/instante.037 permite agregados globales mediante una función STABLE SECURITY DEFINER de retorno exclusivamente agregado; comprueba plataforma para global o centro seleccionado+gestión vigente para local, período acotado, search_path fijo y sin EXECUTE público. Se conserva la RLS que impide al runtime leer visitas crudas en contexto global. La función usa la misma instantánea MVCC/captura de la consulta financiera. Las migraciones aplicadas permanecen inmutables.
+
+La UI reutiliza Section/Row y desplegables nativos existentes; muestra conteos, detalle diario/horario y límite de ocupación. liveOccupancy.available=false con reason=exits-not-recorded es un estado explícito, nunca cero personas. Las entradas no prueban permanencia ni entrenamiento. Para cerrar ocupación física hace falta un contrato de salidas/presencia verificable o aceptar expresamente excluir ese KPI del alcance; no se inventa ni se abre esa ampliación durante el cierre. C32 pasa a blocked con esta dependencia concreta, mientras C30 puede avanzar de forma independiente.

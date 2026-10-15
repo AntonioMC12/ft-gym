@@ -1,3 +1,4 @@
+import pg from 'pg';
 import {test} from 'node:test';
 import assert from 'node:assert/strict';
 import {randomBytes} from 'node:crypto';
@@ -8,7 +9,7 @@ async function fixture(t){
   const {app,migrator}=await isolatedDatabase(),db=createCentersDatabase({enabled:true,databaseUrl:app});t.after(async()=>{await db.close();await migrator.end()});
   const p='mt_'+randomBytes(5).toString('hex'),ids=Object.fromEntries(['root','manager','other','alice','trainer','technical'].map(role=>[role,p+'_'+role]));
   const h=await startHttp(t,{app,superadminUids:[ids.root],users:Object.entries(ids).map(([role,id])=>({id,name:id,...(role==='technical'?{admin:true}:{})}))});
-  const req=async(route,uid,body)=>{const r=await fetch(h.base+route,{headers:h.headers(uid),...(body?{method:'POST',body:JSON.stringify(body)}:{})});return {status:r.status,body:await r.json()}};
+  const req=async(route,uid,body,extraHeaders={})=>{const r=await fetch(h.base+route,{headers:{...h.headers(uid),...extraHeaders},...(body?{method:'POST',body:JSON.stringify(body)}:{})});return {status:r.status,body:await r.json()}};
   const center=(await req('/api/platform/centers/create',ids.root,{name:p,managerUid:ids.manager,timezone:'UTC',requestId:p+'_center'})).body.center.id,other=(await req('/api/platform/centers/create',ids.root,{name:p+'_other',managerUid:ids.other,timezone:'UTC',requestId:p+'_other'})).body.center.id;
   assert.equal((await req('/api/centers/staff/assign',ids.manager,{centerId:center,version:1,accountUid:ids.trainer})).status,200);
   const today=new Date().toISOString().slice(0,10),yesterday=new Date(Date.parse(today+'T12:00:00Z')-86400000).toISOString().slice(0,10);
@@ -98,4 +99,42 @@ test('metric periods and receipt dates follow the center calendar across opposit
     }
     assert.ok(localDays[0]<localDays[1],'the test covers different business days, rather than two names for the same date');
   }finally{await db.platformTransaction(ids.root,client=>client.query("UPDATE centers.centers SET timezone='UTC' WHERE id=$1",[center]),center)}
+});
+
+test('visit metrics count only admitted visits, retain own-center isolation and never infer live occupancy',async t=>{
+  const f=await fixture(t),{req,ids,center,p,today,yesterday}=f;
+  const baseline=(await req('/api/platform/centers/metrics',ids.root)).body.attendance;
+  await f.db.platformTransaction(ids.root,client=>client.query('UPDATE centers.centers SET opening_hours=$2,version=version+1 WHERE id=$1',[center,Object.fromEntries(Array.from({length:7},(_,i)=>[i,[['00:00','24:00']]]))]),center);
+  assert.equal((await req('/api/centers/access/policy',ids.manager,{centerId:center,version:0,policy:{enabled:true,requireSubscription:false,denyOverdue:false,graceDays:0},requestId:p+'_visit_policy'})).status,200);
+  const reception=(await req('/api/centers/access/devices/create',ids.manager,{centerId:center,name:'Fictional metrics reception',requestId:p+'_reception'})).body;
+  const scan=(token,suffix)=>req('/api/centers/access/consume',ids.manager,{centerId:center,deviceId:reception.device.id,token,requestId:p+'_visit_'+suffix},{'X-Center-Device-Key':reception.credential});
+  for(let n=0;n<2;n++){const token=(await req('/api/centers/own/access/token',ids.alice,{centerId:center,requestId:p+'_token_'+n})).body.token;assert.ok(token);assert.equal((await scan(token,n)).body.admitted,true);assert.equal((await scan(token,n)).body.admitted,false)}
+  assert.equal((await scan('gqr1_'+'x'.repeat(43),'unknown')).body.admitted,false);
+  const report=(await req('/api/centers/metrics?'+new URLSearchParams({centerId:center,from:today,to:today}),ids.manager)).body,a=report.attendance;
+  assert.equal(a.admissions,'2');assert.equal(a.visitingMemberships,'1');assert.equal(a.memberDays,'1');assert.equal(a.centerDaysWithVisits,'1');assert.deepEqual(a.days,[{date:today,admissions:'2',memberships:'1'}]);assert.equal(a.hours.length,24);assert.equal(a.hours.reduce((sum,hour)=>sum+BigInt(hour.admissions),0n),2n);assert.deepEqual(a.liveOccupancy,{available:false,reason:'exits-not-recorded'});
+  assert.ok(!JSON.stringify(a).includes(f.a.member.id));assert.ok(!JSON.stringify(a).includes(ids.alice));assert.ok(!JSON.stringify(a).includes(reception.credential));
+  const past=(await req('/api/centers/metrics?'+new URLSearchParams({centerId:center,from:yesterday,to:yesterday}),ids.manager)).body;assert.equal(past.attendance.admissions,'0');assert.deepEqual(past.attendance.days,[]);
+  const foreign=await req('/api/centers/metrics?centerId='+center,ids.other);assert.equal(foreign.status,404);
+  const empty=(await req('/api/centers/metrics?centerId='+f.other,ids.other)).body;assert.equal(empty.attendance.admissions,'0');
+  await assert.rejects(f.db.transaction({uid:ids.manager,centerId:center},client=>client.query('SELECT centers.visit_metrics(NULL,$1,$2)',[today,today])),{code:'42501'});
+  await assert.rejects(f.db.transaction({uid:ids.trainer,centerId:center},client=>client.query('SELECT centers.visit_metrics($1,$2,$3)',[center,today,today])),{code:'42501'});
+  await assert.rejects(f.db.transaction({uid:ids.manager,centerId:f.other},client=>client.query('SELECT centers.visit_metrics($1,$2,$3)',[center,today,today])),{code:'42501'});
+  const raw=(await f.db.platformTransaction(ids.root,client=>client.query('SELECT id FROM centers.access_visits WHERE center_id=$1',[center]))).rows;assert.deepEqual(raw,[],'global metrics do not broaden runtime RLS to raw visit identities');
+  const global=(await req('/api/platform/centers/metrics',ids.root)).body.attendance;assert.equal(BigInt(global.admissions)-BigInt(baseline.admissions),2n);assert.equal(BigInt(global.visitingMemberships)-BigInt(baseline.visitingMemberships),1n);
+});
+test('admission date/hour aggregates use local civil dates and keep both occurrences of a repeated hour',async t=>{
+  const f=await fixture(t),{center,ids,p,req}=f;
+  await f.db.platformTransaction(ids.root,client=>client.query("UPDATE centers.centers SET timezone='Europe/Madrid',version=version+1 WHERE id=$1",[center]),center);
+  const device=(await req('/api/centers/access/devices/create',ids.manager,{centerId:center,name:'Fictional historical reception',requestId:p+'_historical_device'})).body.device;
+  const url=new URL(f.app);assert.equal(url.hostname,'centers-ci-db');assert.equal(url.pathname,'/ft_gym_ci_centers_test');url.username='centers_bootstrap';url.password='fictional-bootstrap-test-only';
+  const seed=new pg.Client({connectionString:url.href});await seed.connect();t.after(()=>seed.end());assert.equal((await seed.query('SELECT kind FROM centers.environment WHERE singleton')).rows[0].kind,'test');
+  await seed.query('BEGIN');try{await seed.query("SET LOCAL session_replication_role='replica'");
+    for(const instant of ['2025-10-25T22:30:00Z','2025-10-26T00:30:00Z','2025-10-26T01:30:00Z']){const key=randomBytes(16).toString('hex'),token='at_'+key;
+      await seed.query("INSERT INTO centers.access_tokens(id,center_id,member_id,account_uid,token_hash,issued_at,expires_at,consumed_at,consumed_device_id) VALUES($1,$2,$3,$4,$5,$6::timestamptz-interval '1 second',$6::timestamptz+interval '44 seconds',$6,$7)",[token,center,f.a.member.id,ids.alice,randomBytes(32).toString('hex'),instant,device.id]);
+      await seed.query('INSERT INTO centers.access_visits(id,center_id,member_id,account_uid,token_id,device_id,operator_uid,visited_at) VALUES($1,$2,$3,$4,$5,$6,$7,$8)',['av_'+key,center,f.a.member.id,ids.alice,token,device.id,ids.manager,instant]);
+    }await seed.query('COMMIT');
+  }catch(e){await seed.query('ROLLBACK');throw e}
+  const report=(await req('/api/centers/metrics?'+new URLSearchParams({centerId:center,from:'2025-10-26',to:'2025-10-26'}),ids.manager)).body.attendance;
+  assert.equal(report.admissions,'3');assert.equal(report.visitingMemberships,'1');assert.equal(report.memberDays,'1');assert.deepEqual(report.days,[{date:'2025-10-26',admissions:'3',memberships:'1'}]);assert.equal(report.hours[0].admissions,'1');assert.equal(report.hours[2].admissions,'2');
+  assert.equal((await req('/api/centers/metrics?'+new URLSearchParams({centerId:center,from:'2025-10-25',to:'2025-10-25'}),ids.manager)).body.attendance.admissions,'0');
 });

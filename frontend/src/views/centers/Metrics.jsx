@@ -35,6 +35,14 @@ export default function Metrics({centerId,ownerUid,global=false,timezone='UTC',p
       {[['members','Members'],['active','Active memberships'],['frozen','Frozen memberships'],['ended','Ended memberships'],['preactive','Pending activation'],['subscriptions','Current contracts']].map(([key,label])=><Row key={key} title={t(label)} value={report.current[key]}/>)}
       {money('outstanding','Outstanding balance',report.current.outstandingMinor)}{money('overdue','Overdue balance',report.current.overdueMinor)}
     </Section>
+    {report.attendance&&<Section title={t('Visit metrics')}><div className="centers-form">
+      {[['admissions','Validated admissions'],['visitingMemberships','Visiting center memberships'],['memberDays','Membership visit days'],['centerDaysWithVisits','Days with visits per center']].map(([key,label])=><Row key={key} title={t(label)} value={report.attendance[key]}/>)}
+      <p className="small muted">{t('Live occupancy is unavailable because exits are not recorded.')}</p>
+      {report.attendance.admissions==='0'?<p>{t('No admissions in this period.')}</p>:<>
+        <details><summary>{t('Admissions by date')}</summary>{report.attendance.days.map(day=><Row key={day.date} title={day.date} value={day.admissions} subtitle={t('Visiting center memberships')+': '+day.memberships}/>)}</details>
+        <details><summary>{t('Admissions by local hour')}</summary>{report.attendance.hours.filter(hour=>hour.admissions!=='0').map(hour=><Row key={hour.hour} title={String(hour.hour).padStart(2,'0')+':00'} value={hour.admissions}/>)}</details>
+      </>}
+    </div></Section>}
     <Section title={t('Contract and payment metrics')}><div className="centers-form">
       <Row title={t('Reporting period')} value={report.period.from+' → '+report.period.to}/>
       {[['registeredMembers','New member records'],['activations','Membership activations'],['terminations','Membership terminations'],['receiptsIssued','Issued receipts']].map(([key,label])=><Row key={key} title={t(label)} value={report.period[key]}/>)}

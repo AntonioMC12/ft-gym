@@ -1,3 +1,4 @@
+import {visitMetricStrings} from './visit-metrics.js'
 const keys=['Center metrics','Global center metrics','Business dates use each center’s time zone.','Snapshot time','Current membership totals','Centers','Active memberships','Frozen memberships','Ended memberships','Current contracts','Contract and payment metrics','Reporting period','New member records','Membership activations','Membership terminations','Issued receipts','Receipt total','Registered collections','Registered refunds','Net registered collections','Check the reporting period (up to 366 days).','Apply']
 const words={
  es:'Métricas del centro|Métricas globales de centros|Las fechas de negocio usan la zona horaria de cada centro.|Fecha de la consulta|Totales actuales de afiliación|Centros|Afiliaciones activas|Afiliaciones en pausa|Afiliaciones finalizadas|Contratos vigentes|Métricas contractuales y de pagos|Período del informe|Nuevas fichas de socio|Activaciones de afiliación|Bajas de afiliación|Recibos emitidos|Total de recibos|Cobros registrados|Devoluciones registradas|Cobros netos registrados|Revisa el período del informe (hasta 366 días).|Aplicar',
@@ -19,4 +20,4 @@ const words={
  zh:'中心指标|全部中心指标|业务日期使用各中心的时区。|查询时间|当前会员汇总|中心|有效会员资格|暂停的会员资格|已结束的会员资格|有效合同|合同与付款指标|报告期间|新增会员档案|会员资格激活|会员资格终止|已开具收据|收据总额|已登记收款|已登记退款|已登记净收款|请检查报告期间（最多 366 天）。|应用',
  'zh-TW':'中心指標|全部中心指標|業務日期使用各中心的時區。|查詢時間|目前會員彙總|中心|有效會員資格|暫停的會員資格|已結束的會員資格|有效合約|合約與付款指標|報告期間|新增會員檔案|會員資格啟用|會員資格終止|已開立收據|收據總額|已登記收款|已登記退款|已登記淨收款|請檢查報告期間（最多 366 天）。|套用'
 }
-export function metricsStrings(lang){const values=words[lang]?.split('|');if(!values||values.length!==keys.length)throw new Error('incomplete metrics translations: '+lang);return Object.fromEntries(keys.map((key,i)=>[key,values[i]]))}
+export function metricsStrings(lang){const values=words[lang]?.split('|');if(!values||values.length!==keys.length)throw new Error('incomplete metrics translations: '+lang);return {...Object.fromEntries(keys.map((key,i)=>[key,values[i]])),...visitMetricStrings(lang)}}

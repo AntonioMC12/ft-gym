@@ -653,7 +653,7 @@ paths:
       tags: [centers]
       operationId: getCenterContractFinancialMetrics
       summary: Read exact contractual and registered financial metrics for one center
-      description: Requires current billing.read or explicit platform allowlist; inactive-center history is readable. One SQL snapshot and captured instant, center-local business dates, definitionVersion1 and EUR. Counts/money are integer strings. Current outstanding/overdue stock is separate from selected-period flows. Unsupported debt policy with a positive balance makes overdueMinor null and overduePolicyComplete false. Does not return member identities, training, visits or inferred occupancy. Default period is local month start through today.
+      description: Requires current billing.read or explicit platform allowlist; inactive-center history is readable. One SQL snapshot and captured instant, center-local business dates, definitionVersion1 and EUR. Counts/money are integer strings. Current outstanding/overdue stock is separate from selected-period flows. Unsupported debt policy with a positive balance makes overdueMinor null and overduePolicyComplete false. Returns aggregate admission counts and at most366daily/24hour bins, never visit/member identities or training. Local repeated hours combine both occurrences; no live occupancy is inferred because exits are not recorded. Default period is local month start through today.
       parameters:
         - { name: centerId, in: query, required: true, schema: { type: string } }
         - { name: from, in: query, schema: { type: string, format: date } }
@@ -5700,7 +5700,7 @@ components:
     CenterMetrics:
       type: object
       additionalProperties: false
-      required: [definitionVersion, currency, capturedAt, dateBasis, centerCount, period, current]
+      required: [definitionVersion, currency, capturedAt, dateBasis, centerCount, period, current, attendance]
       properties:
         definitionVersion: { type: integer, const: 1 }
         currency: { type: string, const: EUR }
@@ -5725,6 +5725,46 @@ components:
               type: string
               pattern: '^(0|-?[1-9][0-9]*)$'
               description: Registered collections minus refunds in EUR cents. May be negative; not profit or a bank settlement.
+        attendance:
+          type: object
+          additionalProperties: false
+          description: Bounded validated admissions in the same statement snapshot/period. Uniqueness is by center-membership, never a global account identity. Days use the center zone at query time; repeated civil hours combine occurrences. No exits or presence duration are available.
+          required: [definitionVersion, admissions, visitingMemberships, memberDays, centerDaysWithVisits, days, hours, liveOccupancy]
+          properties:
+            definitionVersion: { type: integer, const: 1 }
+            admissions: { $ref: '#/components/schemas/ExactAggregate' }
+            visitingMemberships: { $ref: '#/components/schemas/ExactAggregate' }
+            memberDays: { $ref: '#/components/schemas/ExactAggregate' }
+            centerDaysWithVisits: { $ref: '#/components/schemas/ExactAggregate' }
+            days:
+              type: array
+              maxItems: 366
+              items:
+                type: object
+                additionalProperties: false
+                required: [date, admissions, memberships]
+                properties:
+                  date: { type: string, format: date }
+                  admissions: { $ref: '#/components/schemas/ExactAggregate' }
+                  memberships: { $ref: '#/components/schemas/ExactAggregate' }
+            hours:
+              type: array
+              minItems: 24
+              maxItems: 24
+              items:
+                type: object
+                additionalProperties: false
+                required: [hour, admissions]
+                properties:
+                  hour: { type: integer, minimum: 0, maximum: 23 }
+                  admissions: { $ref: '#/components/schemas/ExactAggregate' }
+            liveOccupancy:
+              type: object
+              additionalProperties: false
+              required: [available, reason]
+              properties:
+                available: { type: boolean, const: false }
+                reason: { type: string, const: exits-not-recorded }
         current:
           type: object
           additionalProperties: false

@@ -69,12 +69,17 @@ test('instructors come from current center staff, cover the class and cannot tea
   // A role that ends before class finish cannot authorize teaching that class.
   await f.db.platformTransaction(f.ids.root,client=>client.query('UPDATE centers.role_assignments SET valid_until=$2,version=version+1 WHERE id=$1',[teacher.id,winner.startsAt]),f.center);
   assert.equal((await f.create('teacher_ends',{instructorAssignmentId:teacher.id,startTime:'12:00',endTime:'13:00'})).body.code,'class-instructor-unavailable');
+  assert.equal((await f.roster(winner)).body.event.instructorNeedsReview,true);
+  assert.equal((await f.own('alice')).body.classes.find(row=>row.id===winner.id).instructorNeedsReview,undefined);
   const cancel=await f.req('/api/centers/classes/cancel',f.ids.manager,{centerId:f.center,id:winner.id,version:winner.version,reason:'Fictional teaching cancellation',requestId:f.p+'_teacher_cancel'});assert.equal(cancel.status,200);
   // Historical label stays intact after current staff authority changes.
   assert.equal((await f.roster(winner)).body.event.instructorName,teacher.name);
+  assert.equal((await f.roster(winner)).body.event.instructorNeedsReview,false,'canceled commitments do not require an instructor review');
+  const validDual=await f.create('teacher_dual_valid',{instructorAssignmentId:dual,startTime:'12:00',endTime:'13:00'});assert.equal(validDual.status,200);assert.equal((await f.roster(validDual.body.event)).body.event.instructorNeedsReview,false);
   const disabled=await f.req('/api/admin/user/disable',f.ids.technical,{id:f.ids.trainer,disabled:true});assert.equal(disabled.status,200,JSON.stringify(disabled));
   assert.ok(!(await f.req(path,f.ids.manager)).body.instructors.some(row=>row.id===teacher.id||row.id===dual));
   assert.equal((await f.create('disabled_teacher',{instructorAssignmentId:dual,startTime:'12:00',endTime:'13:00'})).body.code,'class-instructor-unavailable');
+  assert.equal((await f.roster(validDual.body.event)).body.event.instructorNeedsReview,true,'disabled JSON identity is reviewed even with a covering SQL role');
   const original=winner.name.endsWith('teacher_a')?'teacher_a':'teacher_b';const replay=await f.create(original,{instructorAssignmentId:teacher.id});assert.equal(replay.status,200);assert.equal(replay.body.event.id,winner.id);assert.equal(replay.body.event.instructorName,teacher.name);
 });
 

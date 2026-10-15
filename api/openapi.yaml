@@ -170,7 +170,7 @@ paths:
       tags: [centers]
       operationId: listCenterClasses
       summary: Read selected-center class schedules and seat counts
-      description: Current classes.read or explicit platform allowlist. Optional paired from/to civil dates, at most93days; defaults seven days before today through thirty days after today in center zone. Includes canceled history. Ascending timestamp/id scoped cursor,30rows per page. No member names in this list.
+      description: Current classes.read or explicit platform allowlist. Optional paired from/to civil dates, at most93days; defaults seven days before today through thirty days after today in center zone. Includes canceled history. Ascending timestamp/id scoped cursor,30rows per page. No member names in this list. Management projections add instructorNeedsReview for non-ended scheduled classes with an unavailable assignment/disabled identity, without editing commitments; own/trainer projections omit this administrative flag.
       parameters:
         - { name: centerId, in: query, required: true, schema: { type: string } }
         - { name: from, in: query, schema: { type: string, format: date } }
@@ -201,7 +201,7 @@ paths:
       tags: [centers]
       operationId: getCenterClassRoster
       summary: Read a management-only paginated class roster
-      description: classes.manage or explicit platform allowlist; trainers cannot read other members' reservations. Fifty rows by immutable FIFO order per page, including terminal states. Exposes name/number and reservation facts, excluding email/phone/documents. Cursor tied to center/class/actor. Server attendanceOpen/noShowOpen/canCancelClass flags avoid using device clock for authority.
+      description: classes.manage or explicit platform allowlist; trainers cannot read other members' reservations. Fifty rows by immutable FIFO order per page, including terminal states. Exposes name/number and reservation facts, excluding email/phone/documents. Cursor tied to center/class/actor. Server attendanceOpen/noShowOpen/canCancelClass flags avoid using device clock for authority. instructorNeedsReview flags a still-pending scheduled commitment whose role or JSON identity no longer covers it; canceled/finished events do not require this review.
       parameters:
         - { name: centerId, in: query, required: true, schema: { type: string } }
         - { name: id, in: query, required: true, schema: { type: string } }

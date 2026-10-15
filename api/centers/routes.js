@@ -52,7 +52,7 @@ export function centersRoutes({ config, database, json, readSession, readBody, a
   const readClasses=(own,detail=false)=>async(req,res)=>{
     const user=guard(req,res);if(!user)return;const sv=user.sv||0,params=new URL(req.url,'http://x').searchParams,centerId=params.get('centerId');
     if(!recordId(centerId))return json(res,404,{error:'not found',code:'not-found'});
-    try{const options=classListOptions(params,{detail}),result=await (detail?classRoster:listClasses)(database,user.id,centerId,options,{own,platform:!own&&isPlatformUser(config,user)});
+    try{const options=classListOptions(params,{detail}),result=await (detail?classRoster:listClasses)(database,user.id,centerId,options,{own,platform:!own&&isPlatformUser(config,user),lookupAccount});
       if(!current(req,user,sv))return json(res,401,{error:'not signed in'});return json(res,200,result)}catch(error){return failure(res,error)}
   };
   const readFreezes=own=>async(req,res)=>{

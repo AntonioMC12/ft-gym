@@ -11,6 +11,15 @@ const missing=()=>{throw new CentersError(404,'not-found','not found')};
 const reservationDto=row=>({id:row.id,classId:row.class_id,memberId:row.member_id,state:row.effective_state||row.state,originalState:row.state,attendanceRevision:row.attendance_revision||0,version:row.version,reason:row.reason,queueOrder:String(row.queue_order)});
 const classDto=row=>({id:row.id,name:row.name,date:row.class_on,startsAt:new Date(row.starts_at).toISOString(),endsAt:new Date(row.ends_at).toISOString(),timezone:row.timezone,
   capacity:row.capacity,waitlistCapacity:row.waitlist_capacity,cancelBeforeMinutes:row.cancel_before_minutes,booked:row.booked_count,waiting:row.waiting_count,state:row.state,version:row.version,cancelReason:row.cancel_reason,room:row.room||null,instructorName:row.instructor_name||null});
+async function instructorReviewFlags(client,centerId,events,lookupAccount){
+  const ids=events.filter(row=>row.instructor_uid&&row.state==='scheduled').map(row=>row.id);if(!ids.length)return new Map();
+  const {rows}=await client.query(`SELECT c.id,c.instructor_uid,c.ends_at>clock_timestamp() AS pending,
+    EXISTS(SELECT 1 FROM centers.role_assignments r WHERE r.center_id=c.center_id AND r.id=c.instructor_assignment_id
+      AND r.account_uid=c.instructor_uid AND r.revoked_at IS NULL AND r.valid_from<=clock_timestamp()
+      AND (r.valid_until IS NULL OR r.valid_until>=c.ends_at)) AS available
+    FROM centers.classes c WHERE c.center_id=$1 AND c.id=ANY($2::text[])`,[centerId,ids]);
+  return new Map(rows.map(row=>{const account=lookupAccount?.(row.instructor_uid);return [row.id,row.pending&&(!row.available||!account||!!account.disabled)]}));
+}
 async function ownMember(client,centerId,uid){const {rows}=await client.query('SELECT id FROM centers.members WHERE center_id=$1 AND account_uid=$2',[centerId,uid]);return rows[0]?.id||missing()}
 async function eventRecord(client,centerId,id){const {rows}=await client.query('SELECT *,class_on::text FROM centers.classes WHERE center_id=$1 AND id=$2',[centerId,id]);return rows[0]||missing()}
 async function reservationRecord(client,centerId,id){const {rows}=await client.query('SELECT * FROM centers.class_reservation_profiles WHERE center_id=$1 AND id=$2',[centerId,id]);return rows[0]||missing()}
@@ -27,7 +36,7 @@ export function classListOptions(params,{detail=false}={}){
   if(from){membershipDate(from);membershipDate(to);if(to<from||Date.parse(to)-Date.parse(from)>93*86400000)throw new CentersError(400,'invalid-input','bounded class date range required')}
   return {from,to,cursor:params.get('cursor')||null};
 }
-export function listClasses(database,uid,centerId,options,{platform=false,own=false}={}){
+export function listClasses(database,uid,centerId,options,{platform=false,own=false,lookupAccount}={}){
   return businessTransaction(database,uid,centerId,own?'classes.own.read':'classes.read',async(client,context)=>{
     const {rows:[clock]}=await client.query("SELECT timezone,(statement_timestamp() AT TIME ZONE timezone)::date::text AS today,((statement_timestamp() AT TIME ZONE timezone)::date-7)::text AS from_on,((statement_timestamp() AT TIME ZONE timezone)::date+30)::text AS to_on FROM centers.centers WHERE id=$1",[centerId]);
     const from=options.from||clock.from_on,to=options.to||clock.to_on,scope=cursorScope({kind:'classes',uid,centerId,from,to,own}),after=readCursor(options.cursor,scope),memberId=own?await ownMember(client,centerId,uid):null;
@@ -39,11 +48,11 @@ export function listClasses(database,uid,centerId,options,{platform=false,own=fa
         FROM centers.class_reservation_profiles r WHERE $8::boolean AND r.center_id=c.center_id AND r.class_id=c.id AND r.member_id=$6 AND r.actor_uid=$7 ORDER BY r.queue_order DESC LIMIT 1)own_row ON true
       WHERE c.center_id=$1 AND c.class_on BETWEEN $2::date AND $3::date
       AND ($4::timestamptz IS NULL OR (c.starts_at,c.id)>($4::timestamptz,$5)) ORDER BY c.starts_at,c.id LIMIT 31`,[centerId,from,to,after?.at||null,after?.id||null,memberId,uid,own]);
-    const page=rows.slice(0,30),classes=page.map(row=>({...classDto(row),...(own?{eligible:row.eligible,bookingOpen:row.booking_open,canCancel:row.can_cancel,ownReservation:row.own_reservation?reservationDto(row.own_reservation):null}:{})}));
+    const page=rows.slice(0,30),manage=!own&&context.capabilities.includes('classes.manage'),reviews=manage?await instructorReviewFlags(client,centerId,page,lookupAccount):new Map(),classes=page.map(row=>({...classDto(row),...(manage?{instructorNeedsReview:reviews.get(row.id)||false}:{}),...(own?{eligible:row.eligible,bookingOpen:row.booking_open,canCancel:row.can_cancel,ownReservation:row.own_reservation?reservationDto(row.own_reservation):null}:{})}));
     return {center:{id:centerId,name:context.center.name,state:context.center.state,timezone:clock.timezone},today:clock.today,from,to,classes,nextCursor:rows.length>30?nextCursor(scope,page.at(-1)):null};
   },{platform,allowInactive:true});
 }
-export function classRoster(database,uid,centerId,options,{platform=false}={}){
+export function classRoster(database,uid,centerId,options,{platform=false,lookupAccount}={}){
   return businessTransaction(database,uid,centerId,'classes.manage',async client=>{
     const event=await eventRecord(client,centerId,options.id),scope=cursorScope({kind:'class-roster',uid,centerId,id:event.id});let after='0';
     if(options.cursor){try{const value=JSON.parse(Buffer.from(options.cursor,'base64url').toString('utf8'));if(value.scope!==scope||typeof value.after!=='string'||! /^[1-9][0-9]{0,18}$/.test(value.after)||BigInt(value.after)>9223372036854775807n)throw new Error();after=value.after}catch{throw new CentersError(400,'invalid-input','invalid class roster cursor')}}
@@ -51,7 +60,8 @@ export function classRoster(database,uid,centerId,options,{platform=false}={}){
       WHERE r.center_id=$1 AND r.class_id=$2 AND r.queue_order>$3::bigint ORDER BY r.queue_order LIMIT 51`,[centerId,event.id,after]);
     const page=rows.slice(0,50),{rows:plans}=await client.query('SELECT plan_id FROM centers.class_plans WHERE center_id=$1 AND class_id=$2 ORDER BY plan_id',[centerId,event.id]);
     const {rows:[clock]}=await client.query('SELECT clock_timestamp()>=$1::timestamptz AS started,clock_timestamp()>=$2::timestamptz AS ended',[event.starts_at,event.ends_at]);
-    return {event:{...classDto(event),eligiblePlanIds:plans.map(row=>row.plan_id),attendanceOpen:clock.started,noShowOpen:clock.ended,canCancelClass:event.state==='scheduled'&&!clock.started},reservations:page.map(row=>({...reservationDto(row),name:row.name,number:row.member_number})),nextCursor:rows.length>50?Buffer.from(JSON.stringify({scope,after:String(page.at(-1).queue_order)})).toString('base64url'):null};
+    const reviews=await instructorReviewFlags(client,centerId,[event],lookupAccount);
+    return {event:{...classDto(event),instructorNeedsReview:reviews.get(event.id)||false,eligiblePlanIds:plans.map(row=>row.plan_id),attendanceOpen:clock.started,noShowOpen:clock.ended,canCancelClass:event.state==='scheduled'&&!clock.started},reservations:page.map(row=>({...reservationDto(row),name:row.name,number:row.member_number})),nextCursor:rows.length>50?Buffer.from(JSON.stringify({scope,after:String(page.at(-1).queue_order)})).toString('base64url'):null};
   },{platform,allowInactive:true});
 }
 export function classInstructorOptions(params){

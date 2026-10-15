@@ -22,6 +22,11 @@ function Sheets(){return useUI(s=>s.sheets).map(sheet=><section key={sheet.id} d
 beforeEach(()=>{vi.clearAllMocks();centerClassInstructors.mockResolvedValue({instructors:[{id:'role_teacher',name:'Teacher One',role:'trainer'}],nextCursor:null});useStore.getState().user={id:'alice'};useUI.getState().closeAll();bindUI(useUI);centerClasses.mockResolvedValue(page);centerClassRoster.mockResolvedValue(roster);centerPlans.mockResolvedValue({plans:[{id:'p1',name:'Allowed fee',archived:false}],nextCursor:null});centerCommand.mockResolvedValue({});host=document.createElement('div');document.body.append(host);root=createRoot(host)})
 afterEach(()=>{act(()=>{root.unmount();useUI.getState().closeAll()});host.remove()})
 const render=(extra={})=>act(async()=>{root.render(<><Classes centerId="a" ownerUid="alice" own {...extra}/><Sheets/></>);await Promise.resolve()})
+it('shows instructor review warnings only from the management projection',async()=>{
+  centerClasses.mockResolvedValue({...page,classes:[{...event,instructorName:'Teacher One',instructorNeedsReview:true}]});await render({own:false,canManage:true});
+  expect(host.textContent).toContain('Review the instructor assignment before this class.');
+  centerClassRoster.mockResolvedValue({...roster,event:{...roster.event,instructorName:'Teacher One',instructorNeedsReview:true}});await click('Class roster');expect(host.textContent).toContain('Review the instructor assignment before this class.');
+})
 it('shows room labels in own and management schedules as plain text',async()=>{
   centerClasses.mockResolvedValue({...page,classes:[{...event,room:'Sala <script>private()</script>'}]});await render();
   expect(host.textContent).toContain('Sala <script>private()</script>');expect(host.querySelector('script')).toBeNull();

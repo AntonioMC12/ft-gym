@@ -85,4 +85,26 @@ const attendanceWords={
   "zh-TW": "更正出勤|出勤歷史|原始出勤|目前出勤|出勤已處於此狀態。"
 }
 for(const [lang,value] of Object.entries(attendanceWords))words[lang]+='|'+value
+keys.push('Review the instructor assignment before this class.','No attendance corrections recorded.')
+const reviewWords={
+  "es": "Revisa la asignación del profesor antes de esta clase.|No hay rectificaciones de asistencia registradas.",
+  "de": "Prüfe die Kursleitung vor diesem Kurs.|Keine Teilnahmekorrekturen erfasst.",
+  "fr": "Vérifiez l’affectation du professeur avant ce cours.|Aucune rectification de présence enregistrée.",
+  "it": "Verifica l’assegnazione dell’istruttore prima del corso.|Nessuna rettifica di presenza registrata.",
+  "pt": "Revê a atribuição do professor antes desta aula.|Não há retificações de presença registadas.",
+  "pt-BR": "Revise a atribuição do professor antes desta aula.|Não há retificações de presença registradas.",
+  "pl": "Sprawdź przypisanie instruktora przed tymi zajęciami.|Brak zapisanych korekt obecności.",
+  "hu": "Ellenőrizd az oktatói beosztást az óra előtt.|Nincs rögzített jelenléti javítás.",
+  "tr": "Bu dersten önce eğitmen atamasını gözden geçirin.|Kayıtlı katılım düzeltmesi yok.",
+  "ru": "Проверьте назначение преподавателя до занятия.|Исправления посещения не зарегистрированы.",
+  "uk": "Перевірте призначення викладача до заняття.|Виправлень відвідування не зареєстровано.",
+  "ar": "راجع تعيين المدرب قبل هذه الحصة.|لا توجد تصحيحات حضور مسجلة.",
+  "hi": "इस कक्षा से पहले प्रशिक्षक की नियुक्ति की समीक्षा करें।|कोई उपस्थिति सुधार दर्ज नहीं है।",
+  "bn": "এই ক্লাসের আগে প্রশিক্ষকের নিয়োগ পর্যালোচনা করুন।|কোনো উপস্থিতি সংশোধন নথিভুক্ত হয়নি।",
+  "th": "ตรวจสอบการมอบหมายผู้สอนก่อนคลาสนี้|ยังไม่มีการบันทึกการแก้ไขการเข้าร่วม",
+  "ko": "이 수업 전에 강사 배정을 검토하세요.|기록된 출석 정정이 없습니다.",
+  "zh": "请在此课程开始前检查教练任职情况。|尚无出勤更正记录。",
+  "zh-TW": "請在此課程開始前檢查教練任職情況。|尚無出勤更正紀錄。"
+}
+for(const [lang,value] of Object.entries(reviewWords))words[lang]+='|'+value
 export function classStrings(lang){const values=words[lang]?.split('|');if(values?.length!==keys.length)throw new Error('incomplete class translations: '+lang);return Object.fromEntries(keys.map((key,index)=>[key,values[index]]))}

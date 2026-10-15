@@ -650,3 +650,9 @@ La UI de revisión conserva entradas y clave al fallar, exige confirmación sepa
 Dominio6/6, UI focal15/15, SQL de clases8/8 y completo67/67. Restore0341/1 con historial no vacío y replay tras restaurar; ajuste de paréntesis en la fecha de la fixture, sin editar la migración aplicada ni fechas reales. API general713:686pass/27fallos previos, mismas identidades; UI5262:5208pass/54fallos previos en15archivos, mismas identidades. Build correcto;2060cadenas y18locales×2662claves. Logs externos centers-attendance-corrections-*.log. Sin inspección visual nueva; C34 continúa in_progress. Preview031 aún estable mientras avanza esta tanda; reconstruir antes de terminar la sesión.
 
 Uso consultado:44%consumido de ventana principal (56%disponible); la petición vigente es continuar hasta dejar5%. No usar resets ni apagar equipo por instrucciones de sesiones anteriores.
+
+## 15 de octubre: C34, avisos de profesor pendiente y estados vacíos
+
+Sin migración: se añade proyección administrativa instructorNeedsReview para compromisos no terminados cuyo rol/identidad haya dejado de cubrir la clase. Consulta batched de la página, sin N+1 ni directorio global. Propio/trainer sin gestión no reciben el flag; el cliente también limita el aviso al modo gestor. No se cancelan compromisos ni se reescribe el profesor. Estado vacío de historial de asistencia explicado.
+
+SQL de clases8/8 y regresión específica1/1: vigencia recortada, cuenta JSON deshabilitada con otro rol todavía válido, clase cancelada y privacidad de proyección propia. UI16/16, build y comprobaciones i18n2062cadenas/18×2664claves. Sin schema nuevo ni cambios de escritura, no se repite restore; la comparación general/SQL completa se integra con la siguiente ampliación de C34 antes de cerrar la tanda. No se marca C34 done ni se afirma revisión visual.

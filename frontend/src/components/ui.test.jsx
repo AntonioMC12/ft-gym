@@ -41,7 +41,7 @@ it('selection, navigation and search controls do not submit their containing for
 
 it('scrollable sections keep selection visible inside their control and observe resize without scrolling the page',()=>{
   const options=[{value:'first',label:'First'},{value:'last',label:'Last long section'}]
-  const show=value=>act(()=>root.render(<Segmented scrollable label="Sections" options={options} value={value} onChange={()=>{}}/>))
+  const show=value=>act(()=>root.render(<Segmented scrollable label="Sections" options={options.map(option=>({...option}))} value={value} onChange={()=>{}}/>))
   show('first')
   const control=host.querySelector('.seg'),last=host.querySelectorAll('button')[1]
   Object.defineProperties(control,{clientWidth:{configurable:true,value:200},scrollWidth:{configurable:true,value:400}})
@@ -51,6 +51,7 @@ it('scrollable sections keep selection visible inside their control and observe 
   show('last')
   expect(control.dataset.overflow).toBe('true');expect(control.scrollLeft).toBe(180)
   expect(last.getAttribute('aria-pressed')).toBe('true');expect(pageScroll).not.toHaveBeenCalled()
+  control.scrollLeft=0;show('last');expect(control.scrollLeft).toBe(0,'an unrelated render must not override manual horizontal scrolling')
   box.mockRestore();item.mockRestore();pageScroll.mockRestore()
 })
 

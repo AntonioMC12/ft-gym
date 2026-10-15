@@ -12,7 +12,7 @@ Las revisiones vigentes, recibos, contratos, pagos, solicitudes de congelación 
 
 ## Proceso
 
-- `CENTERS_MAINTENANCE_ENABLED=1` activa un worker independiente; desactivado por defecto y sin resolver conexiones si el módulo está apagado. La preview ficticia lo activa explícitamente. No depende de `CENTERS_JOBS_ENABLED` y no habilita cobros ni correo.
+- `CENTERS_MAINTENANCE_ENABLED=1` activa un worker independiente; desactivado por defecto y sin resolver conexiones si el módulo está apagado. La preview comparte la base ficticia con los tests: por defecto también lo mantiene apagado para evitar competir con sus fixtures. Solo para probar el worker sin suites SQL simultáneas, definir `CENTERS_PREVIEW_MAINTENANCE_ENABLED=1` al iniciar/recrear la preview. No depende de `CENTERS_JOBS_ENABLED` y no habilita cobros ni correo.
 - Intervalo de 60 segundos, sin solapamiento dentro del proceso; detener el servidor espera el trabajo en curso antes de cerrar el pool. Reutiliza `startCentersWorker`.
 - Descubre como máximo cuatro centros por tick y elimina el contenido de hasta cien jobs por centro/transacción. Descubrimiento acotado e indexado; cada centro adquiere su lock antes de las filas. Múltiples procesos pueden trabajar a la vez sin duplicar transiciones ni borrar cargas vigentes.
 - Funciones SQL estrechas con `SECURITY DEFINER`, `search_path=pg_catalog`, sin EXECUTE público y contexto de plataforma validado. La operación concreta exige coincidencia con el centro seleccionado y rechaza límites nulos o fuera de rango. No se concede BYPASSRLS al runtime ni permiso general de DELETE.

@@ -3,6 +3,7 @@
 import { memberStrings } from './members.js'
 import { centersUsabilityStrings } from './centers-usability.js'
 import { freezeRequestStrings } from './freeze-requests.js'
+import { classStrings } from './classes.js'
 const keys = [
   'Manage centers','Center name','Tax ID','Center address','Contact email','Phone','Time zone','Center capacity','Billing day','Opening hours',
   'From','To','Search by name or account ID','New center','Center manager','A draft stays inactive until a manager is assigned.',
@@ -33,5 +34,5 @@ const translations = {
 export function centersStrings(language) {
   const values = translations[language]
   if (!values || values.length !== keys.length) throw new Error('incomplete centers translations: ' + language)
-  return { ...Object.fromEntries(keys.map((key, i) => [key, values[i]])), ...memberStrings(language), ...centersUsabilityStrings(language), ...freezeRequestStrings(language) }
+  return { ...Object.fromEntries(keys.map((key, i) => [key, values[i]])), ...memberStrings(language), ...centersUsabilityStrings(language), ...freezeRequestStrings(language), ...classStrings(language) }
 }

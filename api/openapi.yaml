@@ -165,6 +165,132 @@ security:
   - bearerAuth: []
 
 paths:
+  /api/centers/classes:
+    get:
+      tags: [centers]
+      operationId: listCenterClasses
+      summary: Read selected-center class schedules and seat counts
+      description: Current classes.read or explicit platform allowlist. Optional paired from/to civil dates, at most93days; defaults seven days before today through thirty days after today in center zone. Includes canceled history. Ascending timestamp/id scoped cursor,30rows per page. No member names in this list.
+      parameters:
+        - { name: centerId, in: query, required: true, schema: { type: string } }
+        - { name: from, in: query, schema: { type: string, format: date } }
+        - { name: to, in: query, schema: { type: string, format: date } }
+        - { name: cursor, in: query, schema: { type: string } }
+      responses:
+        '200': { description: Center metadata, server today/from/to, classes and nextCursor. }
+        '400': { description: Invalid date range, selectors or scoped cursor. }
+        '403': { description: Current classes.read required. }
+        '404': { description: Center unavailable. }
+  /api/centers/own/classes:
+    get:
+      tags: [centers]
+      operationId: listOwnCenterClasses
+      summary: Read schedules with only one's own reservation and eligibility
+      description: Same date range and30row cursor contract. Member identity derives strictly from current session, including managers who are members. No memberId/account selectors. Returns current own reservation state/version, server booking/cancellation flags and class-date contract eligibility. Does not expose other attendees or allowed plan catalog.
+      parameters:
+        - { name: centerId, in: query, required: true, schema: { type: string } }
+        - { name: from, in: query, schema: { type: string, format: date } }
+        - { name: to, in: query, schema: { type: string, format: date } }
+        - { name: cursor, in: query, schema: { type: string } }
+      responses:
+        '200': { description: Schedules, counts and own reservation projections only. }
+        '400': { description: Invalid selectors, bounds or cursor. }
+        '404': { description: Own center membership unavailable. }
+  /api/centers/classes/roster:
+    get:
+      tags: [centers]
+      operationId: getCenterClassRoster
+      summary: Read a management-only paginated class roster
+      description: classes.manage or explicit platform allowlist; trainers cannot read other members' reservations. Fifty rows by immutable FIFO order per page, including terminal states. Exposes name/number and reservation facts, excluding email/phone/documents. Cursor tied to center/class/actor. Server attendanceOpen/noShowOpen/canCancelClass flags avoid using device clock for authority.
+      parameters:
+        - { name: centerId, in: query, required: true, schema: { type: string } }
+        - { name: id, in: query, required: true, schema: { type: string } }
+        - { name: cursor, in: query, schema: { type: string } }
+      responses:
+        '200': { description: Event with eligiblePlanIds and server flags, reservations, nextCursor. }
+        '400': { description: Invalid selectors or roster cursor. }
+        '403': { description: Current management capability required. }
+        '404': { description: Center or class unavailable. }
+  /api/centers/classes/create:
+    post:
+      tags: [centers]
+      operationId: createCenterClass
+      summary: Schedule a single class with explicit capacity, waitlist and cancellation rules
+      description: classes.manage or explicit platform allowlist in active center. fields requires name, date, startTime/endTime HH:mm, capacity1..1000, waitlistCapacity0..1000, cancelBeforeMinutes0..10080 and1..50unique eligiblePlanIds from this center's unarchived catalog. Uses center zone, same civil day, optional end24:00, at most12civil/13absolute hours. Nonexistent times reject; repeated times require explicit disambiguation, either earlier/later for both or object start/end with independent choices. No implicit fees, fines or recurrence. Stable requestId; stored class identity replays current state.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties: false
+              required: [centerId, fields, requestId]
+              properties:
+                centerId: { type: string }
+                requestId: { type: string, minLength: 8, maxLength: 128 }
+                fields:
+                  type: object
+                  additionalProperties: false
+                  required: [name, date, startTime, endTime, capacity, waitlistCapacity, cancelBeforeMinutes, eligiblePlanIds]
+                  properties:
+                    name: { type: string, minLength: 1, maxLength: 120 }
+                    date: { type: string, format: date }
+                    startTime: { type: string, description: 'HH:mm, excluding24:00.' }
+                    endTime: { type: string, description: 'HH:mm, including24:00.' }
+                    disambiguation: { description: 'null, earlier/later, or object {start,end} with earlier/later/null per endpoint.' }
+                    capacity: { type: integer, minimum: 1, maximum: 1000 }
+                    waitlistCapacity: { type: integer, minimum: 0, maximum: 1000 }
+                    cancelBeforeMinutes: { type: integer, minimum: 0, maximum: 10080 }
+                    eligiblePlanIds: { type: array, minItems: 1, maxItems: 50, uniqueItems: true, items: { type: string } }
+      responses:
+        '200': { description: Scheduled class with immutable terms and zero counters. }
+        '400': { description: Invalid explicit schedule or limits. }
+        '403': { description: Management capability required. }
+        '409': { description: class-time-ambiguous, class-time-missing, class-plan-required, class-closed or idempotency-conflict. }
+  /api/centers/own/classes/reserve:
+    post:
+      tags: [centers]
+      operationId: reserveOwnCenterClass
+      summary: Reserve a place or enter the bounded FIFO waiting list
+      description: Requires centerId, id (class) and requestId; no member/account selector. Active center and a linked membership/contract eligible for the class's civil date required. Validates scheduled freezes/ends and allowed plan at booking. Locks center before seats; SQL trigger enforces counters and capacity. Same requestId returns current reservation state, including after cancellation, never recreates a seat. One active reservation per member/class. No payment, fine or attendance inferred.
+      responses:
+        '200': { description: Current reservation, booked or waiting on creation. }
+        '400': { description: Invalid or unexpected command fields. }
+        '404': { description: Own membership or class unavailable. }
+        '409': { description: class-ineligible, class-full, class-already-booked, class-closed, center-inactive or idempotency-conflict. }
+  /api/centers/own/classes/cancel:
+    post:
+      tags: [centers]
+      operationId: cancelOwnCenterClassReservation
+      summary: Cancel one's own reservation and advance the waiting list atomically
+      description: Requires centerId, id (reservation), version and requestId. Current linked owner, active center, scheduled class and current cancellation deadline required. Narrow SQL function cancels and promotes the oldest still-eligible waiter in the same transaction; no-longer-eligible rows become ineligible without leaking their identity to the caller. Identity, membership at class date, center and plan are rechecked. Terminal replay retains canceled state. No financial changes.
+      responses:
+        '200': { description: Own current canceled reservation. }
+        '400': { description: Invalid or unexpected command fields. }
+        '404': { description: Own reservation unavailable. }
+        '409': { description: Deadline, state, version, inactive center or idempotency conflict. }
+  /api/centers/classes/cancel:
+    post:
+      tags: [centers]
+      operationId: cancelCenterClass
+      summary: Cancel a future class and all its active reservations
+      description: classes.manage or explicit platform allowlist. Requires centerId, id (class), version, reason and requestId. Class must not have started. Allowed in inactive center to release scheduled commitments. Updates class, booked/waiting reservations and counters atomically; no automatic refund or external notification.
+      responses:
+        '200': { description: Canceled class and zero booked/waiting counters. }
+        '400': { description: Invalid command or missing reason. }
+        '403': { description: Management capability required. }
+        '409': { description: class-closed, version-conflict or idempotency-conflict. }
+  /api/centers/classes/attendance:
+    post:
+      tags: [centers]
+      operationId: recordCenterClassAttendance
+      summary: Record explicit attendance or no-show without creating a penalty
+      description: classes.manage or explicit platform allowlist. Requires centerId, id (reservation), version, state attended/no-show and requestId. Attended only after class starts; no-show only after it ends, using database clock. Only booked reservations transition; terminal facts cannot be overwritten. Historical recording permitted in inactive center. Attendance is separate from center QR visits and grants no door access or financial authority.
+      responses:
+        '200': { description: Current terminal reservation fact, idempotent on retry. }
+        '400': { description: Invalid command or attendance state. }
+        '403': { description: Management capability required. }
+        '409': { description: class-not-ended, class-reservation-ended, version-conflict or idempotency-conflict. }
   /api/centers/freezes:
     get:
       tags: [centers]

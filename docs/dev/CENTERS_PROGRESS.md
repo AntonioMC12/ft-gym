@@ -4,6 +4,8 @@
 
 ## Punto de reanudación
 
+- Checkpoint de esta continuación: C34 con núcleo de clases/reservas implementado en schema026, C37 en schema024 y retención CSV en schema025. Ver CENTERS_CLASSES.md, CENTERS_FREEZE_REQUESTS.md y CENTERS_MAINTENANCE.md. Las mejoras de pestañas/horarios y explicación CSV ya están implementadas; no repetirlas. Pendiente revisión visual permitida y límites de alcance documentados. No iniciar C30/C33/C38 por dar implícitamente cerradas las validaciones previas.
+
 - Continuación autorizada por el usuario: mejoras visuales de pestañas/horarios y explicación CSV implementadas; C37 en progreso con política explícita desactivada inicialmente, solicitudes propias y aprobación mediante el historial existente. Ver CENTERS_FREEZE_REQUESTS.md. Schema024 aplicado exclusivamente a entornos ficticios con guard. Evidencia automática cerrada; pendientes actualización de preview y revisión visual permitida. No marcar C37 ni las tareas previas pendientes como cerradas por pasar pruebas automáticas.
 
 - Feedback pendiente del 15 de octubre: corregir centers-tabs-scroll con pestañas de ancho por contenido, separación, etiquetas completas y selección inequívoca; desplazamiento horizontal visible y pestaña activa a la vista en móvil. Horario: «Añadir tramo» secundario con más tras los intervalos y quitar como acción terciaria compacta con nombre accesible y objetivo táctil de 44px. Reutilizar componentes/tokens, conservar semántica y validar visualmente ambos temas/tamaños. Captura del usuario confirma que el diseño actual sigue siendo insuficiente; solo se documenta en esta petición.
@@ -89,10 +91,10 @@ Estados permitidos: `todo`, `in_progress`, `done`, `blocked`. Una tarea done nec
 | C31 | F11 | QR y visitas | in_progress |
 | C32 | F11 | KPI | in_progress |
 | C33 | F11 | Riesgo de baja | todo |
-| C34 | F12 | Clases y reservas | todo |
+| C34 | F12 | Clases y reservas | in_progress |
 | C35 | F12 | Alta pública | todo |
 | C36 | F12 | CSV | in_progress |
-| C37 | F12 | Solicitud de congelación | todo |
+| C37 | F12 | Solicitud de congelación | in_progress |
 | C38 | F12 | Bonos/promociones | todo |
 | C39 | F12 | Facturas y fiscalidad | todo |
 | C40 | F13 | Operación y reversión | in_progress |
@@ -553,3 +555,15 @@ Evidencia: SQL completo55/55, incluyendo C37 actual4/4 y mantenimiento con205fix
 Incidencia de ensayo: una reejecución del restore reutilizó el origen de ensayo ya poblado y falló el alta/vínculo. Se recrearon exclusivamente recovery-source-db/recovery-target-db, tras comprobar proyecto ft-gym-centers-recovery y almacenamiento tmpfs. Simulacro desde cero pasa; la preview y su volumen persistente no se borraron.
 
 Checkpoint previo de preview: de2b430a en la misma URL pública y rama codex/centers-module. Siguiente paso operativo: publicar el checkpoint025 de desarrollo conservando túnel/cuentas/datos, y continuar C34 con condiciones explícitas; revisión visual bloqueada sigue pendiente.
+
+## C34: núcleo de clases y reservas (15 octubre)
+
+Schema026: clases individuales con zona/fecha/horas, límites expresos de aforo/espera/cancelación y cuotas admitidas del centro. Protección SQL de plazas y contadores; lista FIFO con revalidación de baja/congelación/contrato al promover. Replay devuelve estado actual sin resucitar una reserva cancelada. Asistencia/ausencia son hechos explícitos y terminales, sin cargos ni inferencia desde QR. Ver CENTERS_CLASSES.md para límites: no series recurrentes, profesor/sala, avisos externos ni rectificación de hechos en esta entrega; C34 sigue in_progress.
+
+Interfaz: nueva pestaña Clases según classes.read, gestión según classes.manage y vista propia en Mi centro. Reutiliza UI/TimeField/SelectRow/Check, guard e i18n; lista de cuotas paginada. Horas civiles DST inválidas rechazadas; elección independiente de primera/segunda aparición para inicio/fin. Datos de la vista anterior se retiran al cambiar modo, cuenta o centro. La prueba UI detectó un crash al abrir reservas con la antigua lista todavía montada; corregido antes de publicar. Segmented no reinstala su observador en cada tecla si las opciones no cambian.
+
+Evidencia: dominio nuevo3/3; focal SQL5/5 (concurrencia, FIFO, baja futura, privacidad/CSRF,32clases/51reservas, asistencia/ausencia); focal frontend59/59 incluye controles compartidos y navegación. OpenAPI+authz+dominio10/10. Build correcto;2047strings y18locales con2641claves. SQL completo60/60 (centers-classes-all-sql.log), restore0261/1 con clase/contador/reserva y replay no vacíos, además de los módulos anteriores (centers-classes-recovery.log).
+
+Generales: API702=675 pasan y mismos27fallos previos. UI5253=5198 pasan/55fallos en las mismas15suites;54son los previos y uno adicional fue timeout5s en backup-media (límite de entradas de archivo) bajo concurrencia de suites/build/DB. Repetido únicamente ese caso aislado: pasa en157ms. No se cambia código ajeno de backups ni se declara la suite general verde. Logs centers-classes-general-api.log / centers-classes-general-ui.log.
+
+Ajuste operativo C40: preview025 activaba mantenimiento mientras compartía DB con los tests. Evitar una carrera futura: desde este checkpoint la preview lo apaga por defecto; solo se activa con CENTERS_PREVIEW_MAINTENANCE_ENABLED=1 sin suites SQL simultáneas. La API continúa ocultando filas caducadas incluso apagado. Producción sigue opt-in por CENTERS_MAINTENANCE_ENABLED. Guía de operación actualizada; no se habilita facturación/correo ni se modifica el túnel.

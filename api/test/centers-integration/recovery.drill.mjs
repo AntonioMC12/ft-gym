@@ -64,6 +64,9 @@ test('C24: two-center pilot survives a coordinated JSON/PostgreSQL restore and r
     [expiredImportId,centers[0],hash('fictional expired CSV'),JSON.stringify([{record:1,line:2,fields:{name:'Expired personal payload',email:'expired@example.test'}}])]);
   const retentionDb=createCentersDatabase({enabled:true,databaseUrl:app});try{assert.equal((await maintenanceTick(retentionDb)).expired,1)}finally{await retentionDb.close()}
   const freezeDate=offset=>{const date=new Date(ownBefore.today+'T00:00:00Z');date.setUTCDate(date.getUTCDate()+offset);return date.toISOString().slice(0,10)};
+  const classPlans=(await req('/api/centers/plans?centerId='+centers[0],'pilot_manager_a')).body.plans;
+  const classCreated=await req('/api/centers/classes/create','pilot_manager_a',{centerId:centers[0],fields:{name:'Recovered fictional class',date:freezeDate(1),startTime:'10:00',endTime:'11:00',capacity:1,waitlistCapacity:1,cancelBeforeMinutes:0,eligiblePlanIds:[classPlans[0].id]},requestId:'pilot_class_create'});assert.equal(classCreated.status,200,JSON.stringify(classCreated));
+  const classCommand={centerId:centers[0],id:classCreated.body.event.id,requestId:'pilot_class_reservation'},classReserved=await req('/api/centers/own/classes/reserve','pilot_alice',classCommand);assert.equal(classReserved.status,200,JSON.stringify(classReserved));
   let freezeCommand,freezeResult;
   for(const [index,manager,uid] of [[0,'pilot_manager_a','pilot_alice'],[1,'pilot_manager_b','pilot_bob']]){
     const config={enabled:true,minDays:1,maxDays:15,noticeDays:0,maxDaysPerYear:30,billingEffect:'contract-proration'};
@@ -111,6 +114,9 @@ test('C24: two-center pilot survives a coordinated JSON/PostgreSQL restore and r
   assert.equal((await after('/api/centers/own/freezes?centerId='+centers[1],'pilot_bob')).body.requests[0].state,'pending','pending approval survives restore');
   const expiredImport=await after('/api/centers/members/imports/detail?'+new URLSearchParams({centerId:centers[0],id:expiredImportId}),'pilot_manager_a');
   assert.equal(expiredImport.body.state,'expired');assert.deepEqual(expiredImport.body.rows,[]);assert.ok(!JSON.stringify(expiredImport).includes('expired@example.test'),'restore does not resurrect cleared CSV content');
+  assert.deepEqual((await after('/api/centers/own/classes/reserve','pilot_alice',classCommand)).body,classReserved.body,'class reservation replays after restoring');
+  const restoredClass=(await after('/api/centers/own/classes?centerId='+centers[0],'pilot_alice')).body.classes.find(event=>event.id===classCommand.id);
+  assert.equal(restoredClass.booked,1);assert.equal(restoredClass.ownReservation.id,classReserved.body.reservation.id,'seat counters and owner survive restore');
   assert.deepEqual((await after(ownPath,'pilot_alice')).body,ownBefore);assert.deepEqual((await after('/api/data','pilot_alice')).body,personalBefore);
   const metricsAfter=await after(metricsPath,'pilot_manager_a');assert.equal(metricsAfter.status,200);assert.deepEqual(metricsAfter.body.current,metricsBefore.body.current);assert.deepEqual(metricsAfter.body.period,metricsBefore.body.period,'contract/financial aggregates recompute from the restored ledger without a cached personal-state projection');
   const restoredCsv=await after('/api/centers/members/imports/detail?'+new URLSearchParams({centerId:centers[0],id:csvPending.body.id}),'pilot_manager_a');assert.equal(restoredCsv.status,200);assert.equal(restoredCsv.body.reviewHash,csvPending.body.reviewHash);

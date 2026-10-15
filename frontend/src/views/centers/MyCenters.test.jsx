@@ -5,6 +5,7 @@ import {MemoryRouter} from 'react-router-dom'
 import {beforeEach,afterEach,it,expect,vi} from 'vitest'
 vi.mock('../../lib/i18n.js',()=>({t:key=>key}))
 vi.mock('./OwnNotifications.jsx',()=>({default:()=>null}))
+vi.mock('./Classes.jsx',()=>({default:()=>null}))
 vi.mock('./FreezeRequests.jsx',()=>({default:()=>null}))
 vi.mock('./OwnAccess.jsx',()=>({default:()=>null}))
 vi.mock('./TrainingProposals.jsx',()=>({default:({own,active})=><div data-own-training={own?'yes':'no'} data-active={String(active)}/>}))

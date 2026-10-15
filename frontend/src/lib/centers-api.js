@@ -133,6 +133,18 @@ export function freezeErrorKey(error){
   if(code==='freeze-pending')return 'Cancel the pending change before adding another.'
   return membersErrorKey(error)
 }
+export const centerClasses=(centerId,{own=false,...options}={})=>api('/api/centers/'+(own?'own/':'')+'classes?'+new URLSearchParams({centerId,...options}))
+export const centerClassRoster=(centerId,id,options={})=>api('/api/centers/classes/roster?'+new URLSearchParams({centerId,id,...options}))
+export function classesErrorKey(error){
+  const code=error?.data?.code||error?.code
+  if(code==='class-full')return 'This class is full.'
+  if(code==='class-ineligible')return 'Your membership or plan does not allow this class.'
+  if(code==='class-time-ambiguous')return 'Choose the first or second occurrence of this repeated hour.'
+  if(code==='class-time-missing'||code==='class-plan-required'||code==='invalid-input'||code==='invalid-state')return 'Check the class schedule, plans and limits.'
+  if(['class-closed','class-cancel-closed','class-not-ended','class-reservation-ended'].includes(code))return 'Booking or cancellation is closed.'
+  if(code==='class-already-booked')return 'Booked'
+  return centersErrorKey(error)
+}
 
 export function centersErrorKey(error) {
   const code = error?.data?.code || error?.code

@@ -1,0 +1,69 @@
+// @vitest-environment happy-dom
+import React,{act} from 'react'
+import {createRoot} from 'react-dom/client'
+import {beforeEach,afterEach,it,expect,vi} from 'vitest'
+vi.mock('../../lib/i18n.js',()=>({t:key=>key,dateLocale:()=> 'en-GB'}))
+vi.mock('../../lib/centers-api.js',()=>({centerClasses:vi.fn(),centerClassRoster:vi.fn(),centerPlans:vi.fn(),centerCommand:vi.fn(),classesErrorKey:error=>error?.code||'error'}))
+vi.mock('../../store/useStore.js',()=>{const state={user:{id:'alice'},S:{}};return {useStore:Object.assign(selector=>selector(state),{getState:()=>state})}})
+vi.mock('../../store/useCenters.js',()=>({useCenters:{getState:()=>({revokeOn:vi.fn()})}}))
+vi.mock('../../sheets.jsx',()=>({confirmSheet:vi.fn()}))
+import {centerClasses,centerClassRoster,centerPlans,centerCommand} from '../../lib/centers-api.js'
+import {useStore} from '../../store/useStore.js'
+import {useUI} from '../../store/useUI.js'
+import {bindUI} from '../../components/ui.jsx'
+import {confirmSheet} from '../../sheets.jsx'
+import Classes from './Classes.jsx'
+globalThis.IS_REACT_ACT_ENVIRONMENT=true
+const event={id:'cl_one',name:'Fictional class',date:'2026-10-20',startsAt:'2026-10-20T08:00:00Z',endsAt:'2026-10-20T09:00:00Z',timezone:'Europe/Madrid',capacity:1,waitlistCapacity:1,booked:0,waiting:0,state:'scheduled',version:1,eligible:true,bookingOpen:true,canCancel:true,ownReservation:null}
+const page={center:{id:'a',name:'Center A',state:'active',timezone:'Europe/Madrid'},today:'2026-10-15',from:'2026-10-08',to:'2026-11-14',classes:[event],nextCursor:null}
+const roster={event:{...event,attendanceOpen:false,noShowOpen:false,canCancelClass:true},reservations:[{id:'rb_one',memberId:'m1',name:'Fictional member',number:'M-000001',state:'booked',version:1}],nextCursor:null}
+let host,root
+function Sheets(){return useUI(s=>s.sheets).map(sheet=><section key={sheet.id} data-sheet>{sheet.render(()=>useUI.getState().closeSheet(sheet.id))}</section>)}
+beforeEach(()=>{vi.clearAllMocks();useStore.getState().user={id:'alice'};useUI.getState().closeAll();bindUI(useUI);centerClasses.mockResolvedValue(page);centerClassRoster.mockResolvedValue(roster);centerPlans.mockResolvedValue({plans:[{id:'p1',name:'Allowed fee',archived:false}],nextCursor:null});centerCommand.mockResolvedValue({});host=document.createElement('div');document.body.append(host);root=createRoot(host)})
+afterEach(()=>{act(()=>{root.unmount();useUI.getState().closeAll()});host.remove()})
+const render=(extra={})=>act(async()=>{root.render(<><Classes centerId="a" ownerUid="alice" own {...extra}/><Sheets/></>);await Promise.resolve()})
+const button=text=>[...host.querySelectorAll('button')].find(b=>b.textContent===text)
+const click=text=>act(async()=>{button(text).click();await Promise.resolve()})
+const rowClick=text=>act(async()=>{[...host.querySelectorAll('button.lrow')].find(b=>b.querySelector('.lrow-t')?.textContent===text).click();await Promise.resolve()})
+const fill=(element,value)=>act(()=>{Object.getOwnPropertyDescriptor(element.tagName==='TEXTAREA'?HTMLTextAreaElement.prototype:HTMLInputElement.prototype,'value').set.call(element,value);element.dispatchEvent(new Event('input',{bubbles:true}))})
+const field=label=>[...host.querySelectorAll('label.centers-field')].find(node=>node.querySelector('span')?.textContent===label)?.querySelector('input')
+async function completeEditor(){
+  fill(field('Class name'),'New class');fill(field('Date'),'2026-10-25');fill(field('From'),'02:15');fill(field('To'),'02:45');fill(field('Capacity'),'10');fill(field('Waiting list capacity'),'0');fill(field('Cancellation notice (minutes)'),'0');await act(async()=>host.querySelector('button[role=checkbox]').click())
+}
+it('reserves only the signed-in membership after confirmation and retains retry identity on failure',async()=>{
+  centerCommand.mockRejectedValueOnce(new Error('network')).mockResolvedValue({});await render();await click('Reserve place');expect(centerCommand).not.toHaveBeenCalled()
+  await act(async()=>confirmSheet.mock.calls[0][0].onConfirm());await click('Reserve place');await act(async()=>confirmSheet.mock.calls[1][0].onConfirm())
+  const [path,body]=centerCommand.mock.calls[0];expect(path).toBe('/api/centers/own/classes/reserve');expect(body).toMatchObject({centerId:'a',id:'cl_one'});expect(body).not.toHaveProperty('memberId');expect(centerCommand.mock.calls[1][1].requestId).toBe(body.requestId)
+})
+it('explains full or ineligible actions and uses waiting-list language when only the queue has space',async()=>{
+  centerClasses.mockResolvedValue({...page,classes:[{...event,booked:1}]});await render();expect(button('Join waiting list').disabled).toBe(false)
+  centerClasses.mockResolvedValue({...page,classes:[{...event,booked:1,waiting:1,eligible:false}]});await click('Reload centers');expect(button('Join waiting list').disabled).toBe(true)
+  expect(host.textContent).toContain('This class is full.');expect(host.textContent).toContain('Your membership or plan does not allow this class.')
+})
+it('invalidates an old confirmation and discards a delayed page when center/account changes',async()=>{
+  await render();await click('Reserve place');const old=confirmSheet.mock.calls[0][0].onConfirm
+  let release;centerClasses.mockReturnValueOnce(new Promise(resolve=>{release=resolve}));await render({centerId:'b'});centerClasses.mockResolvedValue({...page,classes:[{...event,name:'New account class'}]});useStore.getState().user={id:'bob'};await render({centerId:'c',ownerUid:'bob'})
+  await act(async()=>{await old();release({...page,classes:[{...event,name:'Private old page'}]})});expect(centerCommand).not.toHaveBeenCalled();expect(host.textContent).not.toContain('Private old page');expect(host.textContent).toContain('New account class')
+})
+it('keeps earlier rows and sends server date bounds with the cursor for the next page',async()=>{
+  centerClasses.mockResolvedValueOnce({...page,nextCursor:'next'}).mockResolvedValueOnce({...page,classes:[{...event,id:'two',name:'Second class'}]})
+  await render();await click('Show more');expect(centerClasses).toHaveBeenLastCalledWith('a',{own:true,from:page.from,to:page.to,cursor:'next'});expect(host.textContent).toContain(event.name);expect(host.textContent).toContain('Second class')
+})
+it('requires explicit capacities, cancellation terms and plans, and resolves repeated start/end hours separately',async()=>{
+  centerCommand.mockRejectedValueOnce({code:'class-time-ambiguous'}).mockResolvedValue({});await render({own:false,canManage:true});await click('New class')
+  expect(field('Capacity').value).toBe('');expect(field('Waiting list capacity').value).toBe('');expect(button('Create class').disabled).toBe(true)
+  await completeEditor();expect(host.querySelector('button[role=checkbox]').getAttribute('aria-label')).toBe('Allowed fee');await click('Create class')
+  expect(host.textContent).toContain('Choose the first or second occurrence of this repeated hour.')
+  await rowClick('From');await rowClick('First occurrence');await rowClick('To');await rowClick('Second occurrence');await click('Create class')
+  const body=centerCommand.mock.calls[1][1];expect(body.fields).toMatchObject({capacity:10,waitlistCapacity:0,cancelBeforeMinutes:0,eligiblePlanIds:['p1'],disambiguation:{start:'earlier',end:'later'}})
+  expect(body.requestId).not.toBe(centerCommand.mock.calls[0][1].requestId,'changed occurrence is a new command')
+})
+it('roster attendance uses server flags and a changed cancellation reason invalidates a confirmation',async()=>{
+  await render({own:false,canManage:true});await click('Class roster');expect(button('No-show').disabled).toBe(true);expect(button('Attended').disabled).toBe(true)
+  fill(host.querySelector('textarea'),'First reason');await click('Cancel class');fill(host.querySelector('textarea'),'Changed reason');await act(async()=>confirmSheet.mock.calls[0][0].onConfirm());expect(centerCommand).not.toHaveBeenCalled()
+  await click('Cancel');centerClassRoster.mockResolvedValue({...roster,event:{...roster.event,noShowOpen:true,attendanceOpen:true,canCancelClass:false}});await click('Reload centers');await click('No-show');await act(async()=>confirmSheet.mock.calls.at(-1)[0].onConfirm())
+  expect(centerCommand.mock.calls[0]).toEqual(['/api/centers/classes/attendance',expect.objectContaining({id:'rb_one',version:1,state:'no-show'})])
+})
+it('own cancellation stays disabled after the server deadline without changing the reservation',async()=>{
+  centerClasses.mockResolvedValue({...page,classes:[{...event,booked:1,canCancel:false,ownReservation:{id:'rb_one',state:'booked',version:2}}]});await render();expect(button('Cancel reservation').disabled).toBe(true);expect(host.textContent).toContain('Booking or cancellation is closed.');expect(centerCommand).not.toHaveBeenCalled()
+})

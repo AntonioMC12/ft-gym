@@ -15,6 +15,7 @@ import OwnNotifications from './OwnNotifications.jsx'
 import ConfigPending from './ConfigPending.jsx'
 import TrainingProposals from './TrainingProposals.jsx'
 import OwnAccess from './OwnAccess.jsx'
+import Classes from './Classes.jsx'
 import FreezeRequests from './FreezeRequests.jsx'
 import CenterNavigationGuard,{useCenterNavigation} from './NavigationGuard.jsx'
 import './centers.css'
@@ -34,6 +35,7 @@ function Membership({centerId,ownerUid}) {
     <Receipts centerId={centerId} memberId={info.member.id} ownerUid={ownerUid} own canPay={info.center.state==='active'} revision={revision} changed={()=>setRevision(value=>value+1)}/><Payments centerId={centerId} memberId={info.member.id} ownerUid={ownerUid} own revision={revision}/><OwnNotifications centerId={centerId} ownerUid={ownerUid} active={info.center.state==='active'}/>
     <TrainingProposals centerId={centerId} ownerUid={ownerUid} own active={info.center.state==='active'&&info.member.state==='active'}/>
     <FreezeRequests centerId={centerId} ownerUid={ownerUid} own today={info.today} active={info.center.state==='active'} canRequest={info.member.state==='active'} changed={()=>setRevision(value=>value+1)}/>
+    <Classes centerId={centerId} ownerUid={ownerUid} own/>
     <OwnAccess centerId={centerId} ownerUid={ownerUid} active={info.center.state==='active'&&info.member.state==='active'} timezone={info.center.timezone}/>
   </>
 }

@@ -30,6 +30,16 @@ fieldset.centers-fields{border:0;padding:0;min-width:0}
 .centers-freeze-request{border:1px solid var(--sep);border-radius:var(--r);padding:12px;margin:12px 0}
 .centers-freeze-request .lrow{padding-inline:0;flex-wrap:wrap;gap:8px}
 .centers-freeze-request .lrow-s{white-space:normal;overflow-wrap:anywhere}
+.centers-class-card,.centers-class-reservation{border:1px solid var(--sep);border-radius:var(--r);padding:14px;margin:14px 0}
+.centers-class-card{display:grid;gap:10px}
+.centers-class-card h3,.centers-class-card p{margin:0;overflow-wrap:anywhere}
+.centers-class-card>.btn,.centers-class-reservation .btn{min-height:44px;border:1px solid var(--sep);border-radius:var(--r);padding:10px 14px}
+.centers-class-card>.btn.plain{background:var(--surface-2)}
+.centers-class-plans{max-height:320px;overflow:auto;border:1px solid var(--sep);border-radius:var(--r);margin:12px 0}
+.centers-class-plans>div{display:flex;align-items:center;gap:12px;padding:10px 12px;border-bottom:1px solid var(--sep)}
+.centers-class-plans>div:last-child{border-bottom:0}
+.centers-class-plans>div>span{overflow-wrap:anywhere}
+.centers-class-reservation .lrow{flex-wrap:wrap;gap:8px;padding-inline:0}
 .centers-hour-row { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) auto; gap: 8px; align-items: center; margin: 8px 0; }
 .centers-list { display: grid; gap: 14px; }
 .centers-card { border: var(--hair) solid var(--sep); border-radius: 18px; background: var(--surface); padding: 20px; }

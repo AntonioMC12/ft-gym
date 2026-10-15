@@ -17,6 +17,7 @@ services:
       CENTERS_STRIPE_TEST_FIXTURE: /tmp/gym-centers-stripe-fixture-preview
       CENTERS_PREVIEW_ORIGIN: ${CENTERS_PREVIEW_ORIGIN:-http://localhost:5178}
       CENTERS_PREVIEW_DATA_DIR: /tmp/ft-gym-centers-preview-data
+      CENTERS_PREVIEW_MAINTENANCE_ENABLED: ${CENTERS_PREVIEW_MAINTENANCE_ENABLED:-0}
     volumes:
       - ../informes/centers-stripe-preview:/tmp/gym-centers-stripe-fixture-preview
       - ../informes/centers-preview-data:/tmp/ft-gym-centers-preview-data

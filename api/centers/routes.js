@@ -26,6 +26,7 @@ import {centerMetrics,globalMetrics} from './services/metrics.js';
 import {accountDirectoryPage} from './domain/account-directory.js';
 import {prepareMemberImport,getMemberImport,commitMemberImport} from './services/member-imports.js';
 import {configureFreezePolicy,freezePageOptions,listFreezeRequests,requestFreeze,decideFreeze} from './services/freeze-requests.js';
+import {classListOptions,listClasses,classRoster,createClass,reserveClass,cancelClassReservation,cancelClass,classAttendance} from './services/classes.js';
 
 // Inject the same session and response helpers used by the rest of node:http.
 export function centersRoutes({ config, database, json, readSession, readBody, accountLocks, lookupAccount, readOwnTraining, hasTrainingExercise, mintAccessCredential,
@@ -44,6 +45,12 @@ export function centersRoutes({ config, database, json, readSession, readBody, a
     return json(res, 503, { error: 'centers are temporarily unavailable', code: 'centers-unavailable' });
   };
   const current = (req, user, sv) => readSession(req) === user && (user.sv || 0) === sv;
+  const readClasses=(own,detail=false)=>async(req,res)=>{
+    const user=guard(req,res);if(!user)return;const sv=user.sv||0,params=new URL(req.url,'http://x').searchParams,centerId=params.get('centerId');
+    if(!recordId(centerId))return json(res,404,{error:'not found',code:'not-found'});
+    try{const options=classListOptions(params,{detail}),result=await (detail?classRoster:listClasses)(database,user.id,centerId,options,{own,platform:!own&&isPlatformUser(config,user)});
+      if(!current(req,user,sv))return json(res,401,{error:'not signed in'});return json(res,200,result)}catch(error){return failure(res,error)}
+  };
   const readFreezes=own=>async(req,res)=>{
     const user=guard(req,res);if(!user)return;const sv=user.sv||0,params=new URL(req.url,'http://x').searchParams,centerId=params.get('centerId');
     if(!recordId(centerId))return json(res,404,{error:'not found',code:'not-found'});
@@ -122,6 +129,14 @@ export function centersRoutes({ config, database, json, readSession, readBody, a
     'POST /api/centers/access/holds/release':mutate(false,(context,body)=>releaseAccessHold(context,body,{platform:isPlatformUser(config,context.user)})),
     'POST /api/centers/own/access/token':mutate(false,issueAccessToken),
     'POST /api/centers/access/consume':mutate(false,(context,body)=>consumeAccessToken(context,body,{platform:isPlatformUser(config,context.user)})),
+    'GET /api/centers/classes':readClasses(false),
+    'GET /api/centers/own/classes':readClasses(true),
+    'GET /api/centers/classes/roster':readClasses(false,true),
+    'POST /api/centers/classes/create':mutate(false,(context,body)=>createClass(context,body,{platform:isPlatformUser(config,context.user)})),
+    'POST /api/centers/classes/cancel':mutate(false,(context,body)=>cancelClass(context,body,{platform:isPlatformUser(config,context.user)})),
+    'POST /api/centers/classes/attendance':mutate(false,(context,body)=>classAttendance(context,body,{platform:isPlatformUser(config,context.user)})),
+    'POST /api/centers/own/classes/reserve':mutate(false,reserveClass),
+    'POST /api/centers/own/classes/cancel':mutate(false,cancelClassReservation),
     'GET /api/centers/freezes':readFreezes(false),
     'GET /api/centers/own/freezes':readFreezes(true),
     'POST /api/centers/freezes/policy':mutate(false,(context,body)=>configureFreezePolicy(context,body,{platform:isPlatformUser(config,context.user)})),

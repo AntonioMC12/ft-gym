@@ -119,6 +119,7 @@ export function Switch({ checked, onChange, disabled, ...accessibility }) {
 // options: [{ value, label, icon? }]  — the selected pill slides between cells.
 export function Segmented({ options, value, onChange, className = '', scrollable = false, label }) {
   const container = useRef(null)
+  const optionKey = JSON.stringify(options.map(option => [option.value, typeof option.label === 'string' ? option.label : null]))
   useEffect(() => {
     if (!scrollable) return
     const element = container.current
@@ -136,7 +137,7 @@ export function Segmented({ options, value, onChange, className = '', scrollable
     observer?.observe(element)
     for (const button of element.querySelectorAll('button')) observer?.observe(button)
     return () => observer?.disconnect()
-  }, [scrollable, value, options])
+  }, [scrollable, value, optionKey])
   const i = Math.max(0, options.findIndex(o => o.value === value))
   return (
     <div ref={container} role={label ? 'group' : undefined} aria-label={label} className={'seg ' + (scrollable ? 'seg-scrollable ' : '') + className} style={{ '--n': options.length, '--i': i }}>

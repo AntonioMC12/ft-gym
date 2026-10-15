@@ -9,6 +9,7 @@ vi.mock('./BillingAutomation.jsx',()=>({default:()=>null}))
 vi.mock('./NotificationSettings.jsx',()=>({default:()=>null}))
 vi.mock('./StripePayments.jsx',()=>({default:()=>null}))
 vi.mock('./AccessPanel.jsx',()=>({default:({centerId,canManage,canVerify})=><div data-access-panel={centerId} data-can-manage={String(canManage)} data-can-verify={String(canVerify)}>Reception panel</div>}))
+vi.mock('./Classes.jsx',()=>({default:({centerId,canManage})=><div data-classes-center={centerId} data-classes-manage={String(canManage)}>Class list</div>}))
 vi.mock('./Metrics.jsx',()=>({default:({centerId,global,period,onPeriod})=><div data-metrics={global?'global':centerId}><output data-period>{JSON.stringify(period)}</output><button onClick={()=>onPeriod({from:'2026-09-01',to:'2026-09-30'})}>Choose report period</button></div>}))
 vi.mock('../../store/useStore.js', () => {
   const state = { user: { id: 'platform' }, config: { centers: { enabled: true } }, S: {} }
@@ -105,6 +106,13 @@ it('an explicit platform administrator manages members without local assignments
   await render();await click('Center details');await click('Members')
   expect(button('New member')).toBeDefined()
   await click('New member');expect(host.textContent).toContain('Member name')
+})
+it('integrates classes as a readable section without granting management from the selected pane',async()=>{
+  useStore.getState().user={id:'trainer'}
+  useCenters.setState({ownerUid:'trainer',centers:[{...center,capabilities:['center.read','classes.read']}],platformCapabilities:[]})
+  await render();await click('Center details');await click('Classes')
+  expect(host.querySelector('[data-classes-center="one"]').getAttribute('data-classes-manage')).toBe('false')
+  expect(button('Save')).toBeUndefined();expect(button('Assign manager')).toBeUndefined()
 })
 it('the header Back returns to the previous route with its query and state',async()=>{
   const prior=history.state

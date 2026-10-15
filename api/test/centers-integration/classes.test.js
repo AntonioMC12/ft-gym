@@ -6,14 +6,16 @@ import {isolatedDatabase,startHttp} from './helpers.mjs';
 import {createCentersDatabase} from '../../centers/db.js';
 import {commandHash} from '../../centers/services/commands.js';
 const shift=(day,n)=>{const value=new Date(day+'T00:00:00Z');value.setUTCDate(value.getUTCDate()+n);return value.toISOString().slice(0,10)};
-async function fixture(t){
+async function fixture(t,{instructors=0}={}){
   const {app,migrator}=await isolatedDatabase(),db=createCentersDatabase({enabled:true,databaseUrl:app});t.after(async()=>{await db.close();await migrator.end()});
   const p='cls_'+randomBytes(5).toString('hex'),ids=Object.fromEntries(['root','manager','alice','bob','charlie','trainer','technical'].map(key=>[key,p+'_'+key]));
-  const h=await startHttp(t,{app,superadminUids:[ids.root],users:Object.entries(ids).map(([key,id])=>({id,name:id,...(key==='technical'?{admin:true}:{})}))});
+  const extra=Array.from({length:instructors},(_,index)=>({id:p+'_instructor_'+index,name:'Teacher '+index}));
+  const h=await startHttp(t,{app,superadminUids:[ids.root],users:[...Object.entries(ids).map(([key,id])=>({id,name:id,...(key==='technical'?{admin:true}:{})})),...extra]});
   const req=async(path,uid,body)=>{const response=await fetch(h.base+path,{headers:h.headers(uid),...(body?{method:'POST',body:JSON.stringify(body)}:{})});return {status:response.status,body:await response.json()}};
   const center=(await req('/api/platform/centers/create',ids.root,{name:p,managerUid:ids.manager,requestId:p+'_center'})).body.center.id;
   const other=(await req('/api/platform/centers/create',ids.root,{name:p+' other',managerUid:ids.root,requestId:p+'_other'})).body.center.id;
   assert.equal((await req('/api/centers/staff/assign',ids.manager,{centerId:center,version:1,accountUid:ids.trainer})).status,200);
+  if(extra.length)await db.platformTransaction(ids.root,async client=>{for(const [i,account] of extra.entries())await client.query("INSERT INTO centers.role_assignments(id,center_id,account_uid,role) VALUES($1,$2,$3,'trainer')",[p+'_role_'+i,center,account.id])},center);
   const plan=(await req('/api/centers/plans/create',ids.manager,{centerId:center,name:'Classes fee',priceMinor:'1000',currency:'EUR',intervalMonths:1,priceIncludesTax:true,taxBasisPoints:0,proration:'none',requestId:p+'_plan'})).body.plan;
   const members={};let today;
   const detail=key=>req('/api/centers/member?'+new URLSearchParams({centerId:center,id:members[key]}),ids.manager);
@@ -45,6 +47,43 @@ test('room scheduling serializes concurrent overlaps, preserves adjacent slots a
   const otherPlan=(await f.req('/api/centers/plans/create',f.ids.root,{centerId:f.other,name:'Other classes',priceMinor:'1000',currency:'EUR',intervalMonths:1,priceIncludesTax:true,taxBasisPoints:0,proration:'none',requestId:f.p+'_other_plan'})).body.plan;
   const other=await f.req('/api/centers/classes/create',f.ids.root,{centerId:f.other,fields:{name:'Other center',room:'Sala A',date:winner.date,startTime:'10:00',endTime:'11:00',capacity:1,waitlistCapacity:0,cancelBeforeMinutes:0,eligiblePlanIds:[otherPlan.id]},requestId:f.p+'_other_room'});assert.equal(other.status,200,JSON.stringify(other));
   await assert.rejects(f.db.transaction({uid:f.ids.manager,centerId:f.center},client=>client.query('UPDATE centers.classes SET room=$2,version=version+1 WHERE id=$1',[adjacent.body.event.id,'Sala moved'])),{code:'42501'});
+});
+
+test('instructors come from current center staff, cover the class and cannot teach overlapping same-center classes',async t=>{
+  const f=await fixture(t),path='/api/centers/classes/instructors?'+new URLSearchParams({centerId:f.center});
+  const directory=await f.req(path,f.ids.manager);assert.equal(directory.status,200,JSON.stringify(directory));
+  const teacher=directory.body.instructors.find(r=>r.role==='trainer');assert.ok(teacher);assert.equal(teacher.name,f.ids.trainer);
+  assert.ok(!JSON.stringify(directory.body).includes('accountUid'));assert.equal((await f.req(path,f.ids.trainer)).status,403);assert.equal((await f.req(path,f.ids.alice)).status,403);
+  assert.equal((await f.req(path+'&accountUid='+f.ids.root,f.ids.manager)).status,400);
+  const foreign=(await f.req('/api/centers/classes/instructors?centerId='+f.other,f.ids.root)).body.instructors[0];
+  assert.equal((await f.create('foreign_teacher',{instructorAssignmentId:foreign.id})).body.code,'class-instructor-unavailable');
+  const responses=await Promise.all([f.create('teacher_a',{instructorAssignmentId:teacher.id}),f.create('teacher_b',{instructorAssignmentId:teacher.id})]);
+  assert.equal(responses.filter(r=>r.status===200).length,1,JSON.stringify(responses));assert.equal(responses.find(r=>r.status!==200).body.code,'class-instructor-conflict');
+  const winner=responses.find(r=>r.status===200).body.event;assert.equal(winner.instructorName,teacher.name);assert.equal(winner.instructorUid,undefined);
+  const adjacent=await f.create('teacher_adjacent',{instructorAssignmentId:teacher.id,startTime:'11:00',endTime:'12:00'});assert.equal(adjacent.status,200);
+  const dual=f.p+'_dual_role';await f.db.platformTransaction(f.ids.root,client=>client.query("INSERT INTO centers.role_assignments(id,center_id,account_uid,role) VALUES($1,$2,$3,'manager')",[dual,f.center,f.ids.trainer]),f.center);
+  const dualDirectory=await f.req(path,f.ids.manager);assert.ok(dualDirectory.body.instructors.find(row=>row.id===dual),JSON.stringify(dualDirectory));
+  assert.equal((await f.create('same_account_two_roles',{instructorAssignmentId:dual})).body.code,'class-instructor-conflict');
+  assert.equal((await f.own('alice')).body.classes.find(r=>r.id===winner.id).instructorName,teacher.name);
+  // A role that ends before class finish cannot authorize teaching that class.
+  await f.db.platformTransaction(f.ids.root,client=>client.query('UPDATE centers.role_assignments SET valid_until=$2,version=version+1 WHERE id=$1',[teacher.id,winner.startsAt]),f.center);
+  assert.equal((await f.create('teacher_ends',{instructorAssignmentId:teacher.id,startTime:'12:00',endTime:'13:00'})).body.code,'class-instructor-unavailable');
+  const cancel=await f.req('/api/centers/classes/cancel',f.ids.manager,{centerId:f.center,id:winner.id,version:winner.version,reason:'Fictional teaching cancellation',requestId:f.p+'_teacher_cancel'});assert.equal(cancel.status,200);
+  // Historical label stays intact after current staff authority changes.
+  assert.equal((await f.roster(winner)).body.event.instructorName,teacher.name);
+  const disabled=await f.req('/api/admin/user/disable',f.ids.technical,{id:f.ids.trainer,disabled:true});assert.equal(disabled.status,200,JSON.stringify(disabled));
+  assert.ok(!(await f.req(path,f.ids.manager)).body.instructors.some(row=>row.id===teacher.id||row.id===dual));
+  assert.equal((await f.create('disabled_teacher',{instructorAssignmentId:dual,startTime:'12:00',endTime:'13:00'})).body.code,'class-instructor-unavailable');
+  const original=winner.name.endsWith('teacher_a')?'teacher_a':'teacher_b';const replay=await f.create(original,{instructorAssignmentId:teacher.id});assert.equal(replay.status,200);assert.equal(replay.body.event.id,winner.id);assert.equal(replay.body.event.instructorName,teacher.name);
+});
+
+test('instructor directory paginates actual staff without crossing actor or center scopes',async t=>{
+  const f=await fixture(t,{instructors:51}),url='/api/centers/classes/instructors?';
+  const first=await f.req(url+new URLSearchParams({centerId:f.center}),f.ids.manager);assert.equal(first.status,200);assert.equal(first.body.instructors.length,50);assert.ok(first.body.nextCursor);
+  const last=await f.req(url+new URLSearchParams({centerId:f.center,cursor:first.body.nextCursor}),f.ids.manager);assert.equal(last.body.instructors.length,3);assert.equal(last.body.nextCursor,null);
+  assert.equal(new Set([...first.body.instructors,...last.body.instructors].map(row=>row.id)).size,53);
+  assert.equal((await f.req(url+new URLSearchParams({centerId:f.other,cursor:first.body.nextCursor}),f.ids.root)).status,400);
+  assert.equal((await f.req(url+new URLSearchParams({centerId:f.center,cursor:first.body.nextCursor}),f.ids.root)).status,400);
 });
 
 test('one concurrent seat never oversells, FIFO promotion is atomic, and replay never resurrects a canceled reservation',async t=>{

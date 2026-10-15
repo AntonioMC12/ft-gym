@@ -1,7 +1,7 @@
 import {useEffect,useRef,useState} from 'react'
 import {Button,Section,Row,TextField,TextArea,NumberField,Check,SelectRow} from '../../components/ui.jsx'
 import TimeField from '../../components/TimeField.jsx'
-import {centerClasses,centerClassRoster,centerPlans,centerCommand,classesErrorKey} from '../../lib/centers-api.js'
+import {centerClassInstructors,centerClasses,centerClassRoster,centerPlans,centerCommand,classesErrorKey} from '../../lib/centers-api.js'
 import {classSchedule} from '../../lib/class-display.js'
 import {useStore} from '../../store/useStore.js'
 import {useCenters} from '../../store/useCenters.js'
@@ -11,10 +11,22 @@ import {confirmSheet} from '../../sheets.jsx'
 import {t,dateLocale} from '../../lib/i18n.js'
 
 const status=state=>({booked:'Booked',waiting:'Waiting list',canceled:'Canceled',ineligible:'Ineligible',attended:'Attended','no-show':'No-show'})[state]
-const initial=()=>({name:'',room:'',date:'',startTime:'',endTime:'',capacity:null,waitlistCapacity:null,cancelBeforeMinutes:null,eligiblePlanIds:[],disambiguation:null})
+const initial=()=>({name:'',room:'',instructorAssignmentId:'',date:'',startTime:'',endTime:'',capacity:null,waitlistCapacity:null,cancelBeforeMinutes:null,eligiblePlanIds:[],disambiguation:null})
 function ClassEditor({centerId,ownerUid,timezone,today,close,saved}){
   const [fields,setFields]=useState(initial),[plans,setPlans]=useState([]),[cursor,setCursor]=useState(null),[loading,setLoading]=useState(true),[error,setError]=useState(null),[busy,setBusy]=useState(false)
   const [planRevision,setPlanRevision]=useState(0)
+  const [instructors,setInstructors]=useState([]),[instructorCursor,setInstructorCursor]=useState(null),[instructorBusy,setInstructorBusy]=useState(true),[instructorError,setInstructorError]=useState(null),[instructorRevision,setInstructorRevision]=useState(0)
+  const instructorLife=useRef(0),instructorPending=useRef(false)
+  const instructorCurrent=epoch=>instructorLife.current===epoch&&useStore.getState().user?.id===ownerUid
+  useEffect(()=>{
+    const epoch=++instructorLife.current;instructorPending.current=true;setInstructorBusy(true);setInstructors([]);setInstructorCursor(null);setInstructorError(null)
+    centerClassInstructors(centerId).then(result=>{if(instructorCurrent(epoch)){setInstructors(result.instructors);setInstructorCursor(result.nextCursor)}}).catch(error=>{if(instructorCurrent(epoch)){setInstructorError(error);useCenters.getState().revokeOn(error)}}).finally(()=>{if(instructorCurrent(epoch)){instructorPending.current=false;setInstructorBusy(false)}})
+    return()=>{instructorLife.current++;instructorPending.current=false}
+  },[centerId,ownerUid,instructorRevision])
+  const moreInstructors=async()=>{
+    if(instructorPending.current||!instructorCursor)return;const epoch=instructorLife.current;instructorPending.current=true;setInstructorBusy(true);setInstructorError(null)
+    try{const result=await centerClassInstructors(centerId,{cursor:instructorCursor});if(instructorCurrent(epoch)){setInstructors(rows=>[...rows,...result.instructors]);setInstructorCursor(result.nextCursor)}}catch(error){if(instructorCurrent(epoch)){setInstructorError(error);useCenters.getState().revokeOn(error)}}finally{if(instructorCurrent(epoch)){instructorPending.current=false;setInstructorBusy(false)}}
+  }
   const life=useRef(0),pending=useRef(false),fetching=useRef(false),retry=useRef(null),current=epoch=>life.current===epoch&&useStore.getState().user?.id===ownerUid
   const fail=e=>{setError(e);useCenters.getState().revokeOn(e)}
   useUnsavedCenterForm(JSON.stringify(fields)!==JSON.stringify(initial())?JSON.stringify(fields):null,busy)
@@ -41,7 +53,12 @@ function ClassEditor({centerId,ownerUid,timezone,today,close,saved}){
       <label className="centers-field"><span>{t('From')}</span><TimeField disabled={busy} required aria-label={t('From')} value={fields.startTime} onChange={value=>update('startTime',value)}/></label>
       <label className="centers-field"><span>{t('To')}</span><TimeField disabled={busy} required allowEnd aria-label={t('To')} value={fields.endTime} onChange={value=>update('endTime',value)}/></label>
       {[['Capacity','capacity',1,1000],['Waiting list capacity','waitlistCapacity',0,1000],['Cancellation notice (minutes)','cancelBeforeMinutes',0,10080]].map(([label,key,min,max])=><label key={key} className="centers-field"><span>{t(label)}</span><NumberField className="field" required nullable decimal={false} min={min} max={max} aria-label={t(label)} value={fields[key]} onChange={value=>update(key,value)}/></label>)}
-    </div><h3>{t('Eligible plans')}</h3><div className="centers-class-plans">{plans.filter(plan=>!plan.archived).map(plan=><div key={plan.id}><Check label={plan.name} checked={fields.eligiblePlanIds.includes(plan.id)} onChange={checked=>update('eligiblePlanIds',checked?[...fields.eligiblePlanIds,plan.id]:fields.eligiblePlanIds.filter(id=>id!==plan.id))}/><span>{plan.name}</span></div>)}</div>
+    </div>
+    <SelectRow title={t('Class instructor (optional)')} value={fields.instructorAssignmentId} options={[{value:'',label:t('Not configured')},...instructors.map(row=>({value:row.id,label:row.name+' · '+t(row.role==='manager'?'Center manager':'Trainer')}))]} onChange={value=>update('instructorAssignmentId',value)} search/>
+    {instructorBusy&&<p role="status">{t('Loading…')}</p>}{!instructorBusy&&!instructors.length&&!instructorCursor&&!instructorError&&<p>{t('No eligible instructors.')}</p>}
+    {instructorCursor&&<Button type="button" disabled={instructorBusy} aria-label={t('Class instructor (optional)')+' · '+t('Show more')} onClick={moreInstructors}>{t('Show more')}</Button>}
+    {instructorError&&<><p role="alert">{t(classesErrorKey(instructorError))}</p><Button type="button" disabled={instructorBusy} onClick={()=>instructorCursor?moreInstructors():setInstructorRevision(value=>value+1)}>{t('Retry')}</Button></>}
+    <h3>{t('Eligible plans')}</h3><div className="centers-class-plans">{plans.filter(plan=>!plan.archived).map(plan=><div key={plan.id}><Check label={plan.name} checked={fields.eligiblePlanIds.includes(plan.id)} onChange={checked=>update('eligiblePlanIds',checked?[...fields.eligiblePlanIds,plan.id]:fields.eligiblePlanIds.filter(id=>id!==plan.id))}/><span>{plan.name}</span></div>)}</div>
     {loading&&<p role="status">{t('Loading…')}</p>}{cursor&&<Button type="button" ref={moreRef} disabled={loading} onClick={more}>{t('Show more')}</Button>}
     {!loading&&!plans.length&&<p>{t('No membership plans available')}</p>}
     {(ambiguous||Object.values(fields.disambiguation||{}).some(Boolean))&&<><p>{t('Choose the first or second occurrence of this repeated hour.')}</p>{['start','end'].map(part=><SelectRow key={part} title={t(part==='start'?'From':'To')} value={fields.disambiguation?.[part]||''} options={[{value:'',label:t('Not configured')},{value:'earlier',label:t('First occurrence')},{value:'later',label:t('Second occurrence')}]} onChange={value=>update('disambiguation',{...(fields.disambiguation||{}),[part]:value||null})}/>)}</>}
@@ -89,14 +106,14 @@ function Content({centerId,ownerUid,own=false,canManage=false}){
       {dataCenter&&dataCenter.state!=='active'&&<p role="status">{t('Inactive center')}</p>}
       <form onSubmit={e=>{e.preventDefault();setApplied(filters.from&&filters.to?{...filters}:null);setRevision(value=>value+1)}}><div className="centers-fields">{['from','to'].map(key=><label key={key} className="centers-field"><span>{t(key==='from'?'From':'To')}</span><TextField type="date" required disabled={busy} value={filters[key]} onChange={e=>setFilters(previous=>({...previous,[key]:e.target.value}))}/></label>)}</div><Button type="submit" disabled={busy}>{t('Apply')}</Button></form>
       {canManage&&!own&&<Button type="button" variant="primary" disabled={busy||!dataCenter||dataCenter.state!=='active'} onClick={()=>changeMode('create')}>{t('New class')}</Button>}
-      {data?.classes.map(event=>{const reservation=event.ownReservation,held=reservation&&['booked','waiting','attended'].includes(reservation.state),available=event.booked<event.capacity,eventActive=event.state==='scheduled',centerActive=data.center.state==='active';return <article key={event.id} className="centers-class-card"><h3>{event.name}</h3><p>{classSchedule(event,dateLocale())}</p>{event.room&&<p>{t('Class room')}: {event.room}</p>}<p className="small muted">{t('Capacity')}: {event.booked}/{event.capacity} · {t('Waiting list')}: {event.waiting}/{event.waitlistCapacity}</p>
+      {data?.classes.map(event=>{const reservation=event.ownReservation,held=reservation&&['booked','waiting','attended'].includes(reservation.state),available=event.booked<event.capacity,eventActive=event.state==='scheduled',centerActive=data.center.state==='active';return <article key={event.id} className="centers-class-card"><h3>{event.name}</h3><p>{classSchedule(event,dateLocale())}</p>{event.room&&<p>{t('Class room')}: {event.room}</p>}{event.instructorName&&<p>{t('Trainer')}: {event.instructorName}</p>}<p className="small muted">{t('Capacity')}: {event.booked}/{event.capacity} · {t('Waiting list')}: {event.waiting}/{event.waitlistCapacity}</p>
         {event.cancelReason&&<p>{t('Canceled')}: {event.cancelReason}</p>}{reservation&&<Row title={t(status(reservation.state))}/>}
         {own&&eventActive&&event.bookingOpen&&!held&&<><Button type="button" variant={available?'primary':'tinted'} disabled={busy||!centerActive||!event.eligible||!available&&event.waiting>=event.waitlistCapacity} onClick={()=>confirm(available?'Reserve place':'Join waiting list',event,'/api/centers/own/classes/reserve',{id:event.id})}>{t(available?'Reserve place':'Join waiting list')}</Button>{!event.eligible&&<p className="small muted">{t('Your membership or plan does not allow this class.')}</p>}{!available&&event.waiting>=event.waitlistCapacity&&<p>{t('This class is full.')}</p>}</>}
         {own&&eventActive&&reservation&&['booked','waiting'].includes(reservation.state)&&<><Button type="button" variant="tinted" disabled={busy||!centerActive||!event.canCancel} onClick={()=>confirm('Cancel reservation',event,'/api/centers/own/classes/cancel',{id:reservation.id,version:reservation.version})}>{t('Cancel reservation')}</Button>{!event.canCancel&&<p className="small muted">{t('Booking or cancellation is closed.')}</p>}</>}
         {canManage&&!own&&<Button type="button" disabled={busy} onClick={()=>changeMode('roster:'+event.id)}>{t('Class roster')}</Button>}
       </article>})}{data&&!data.classes.length&&<p>{t('No classes available.')}</p>}
     </>}
-    {mode.startsWith('roster:')&&data&&<><h3>{data.event.name}</h3><p>{classSchedule(data.event,dateLocale())}</p>{data.event.room&&<p>{t('Class room')}: {data.event.room}</p>}<Button type="button" disabled={busy} onClick={()=>navigate(()=>changeMode('list'))}>{t('Back')}</Button>
+    {mode.startsWith('roster:')&&data&&<><h3>{data.event.name}</h3><p>{classSchedule(data.event,dateLocale())}</p>{data.event.room&&<p>{t('Class room')}: {data.event.room}</p>}{data.event.instructorName&&<p>{t('Trainer')}: {data.event.instructorName}</p>}<Button type="button" disabled={busy} onClick={()=>navigate(()=>changeMode('list'))}>{t('Back')}</Button>
       {data.reservations.map(row=><div key={row.id} className="centers-class-reservation"><Row title={row.name} subtitle={row.number} value={t(status(row.state))}/>{row.state==='booked'&&<div className="centers-actions"><Button type="button" variant="tinted" disabled={busy||!!reason||!data.event.attendanceOpen} onClick={()=>confirm('Attended',data.event,'/api/centers/classes/attendance',{id:row.id,version:row.version,state:'attended'})}>{t('Attended')}</Button><Button type="button" variant="ghost" disabled={busy||!!reason||!data.event.noShowOpen} onClick={()=>confirm('No-show',data.event,'/api/centers/classes/attendance',{id:row.id,version:row.version,state:'no-show'})}>{t('No-show')}</Button></div>}</div>)}
       {!data.reservations.length&&<p>{t('No reservations available.')}</p>}
       {data.event.canCancelClass&&<form onSubmit={e=>{e.preventDefault();confirm('Cancel class',data.event,'/api/centers/classes/cancel',{id:data.event.id,version:data.event.version,reason:reason.trim()})}}><label className="centers-field"><span>{t('Reason')}</span><TextArea required maxLength={250} disabled={busy} value={reason} onChange={e=>setReason(e.target.value)}/></label><div className="centers-actions"><Button type="button" disabled={busy} onClick={()=>setReason('')}>{t('Cancel')}</Button><Button type="submit" variant="danger" disabled={busy||!reason.trim()}>{t('Cancel class')}</Button></div></form>}

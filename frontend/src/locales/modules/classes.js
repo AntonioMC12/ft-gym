@@ -41,4 +41,26 @@ const roomWords={
   "zh-TW": "教室|課程教室（選填）|該教室在此時間已有課程。"
 }
 for(const [lang,value] of Object.entries(roomWords))words[lang]+='|'+value
+keys.push('Class instructor (optional)','No eligible instructors.','The instructor assignment does not cover this class.','This instructor already has a class at that time.')
+const instructorWords={
+  "es": "Profesor de la clase (opcional)|No hay profesores disponibles.|La asignación del profesor no cubre esta clase.|El profesor ya tiene una clase en ese horario.",
+  "de": "Kursleitung (optional)|Keine Kursleitung verfügbar.|Die Zuweisung deckt diesen Kurs nicht ab.|Die Kursleitung hat zu dieser Zeit bereits einen Kurs.",
+  "fr": "Professeur du cours (facultatif)|Aucun professeur disponible.|L’affectation ne couvre pas ce cours.|Ce professeur a déjà un cours à cet horaire.",
+  "it": "Istruttore del corso (facoltativo)|Nessun istruttore disponibile.|L’assegnazione non copre questo corso.|Questo istruttore ha già un corso a quell’ora.",
+  "pt": "Professor da aula (opcional)|Não há professores disponíveis.|A atribuição do professor não cobre esta aula.|O professor já tem uma aula nesse horário.",
+  "pt-BR": "Professor da aula (opcional)|Não há professores disponíveis.|A atribuição do professor não cobre esta aula.|O professor já tem uma aula nesse horário.",
+  "pl": "Instruktor zajęć (opcjonalnie)|Brak dostępnych instruktorów.|Przypisanie instruktora nie obejmuje tych zajęć.|Ten instruktor ma już zajęcia w tym terminie.",
+  "hu": "Óra oktatója (opcionális)|Nincs elérhető oktató.|Az oktatói megbízás nem fedi le ezt az órát.|Az oktatónak már van órája ebben az időpontban.",
+  "tr": "Ders eğitmeni (isteğe bağlı)|Uygun eğitmen yok.|Eğitmen ataması bu dersi kapsamıyor.|Bu eğitmenin o saatte zaten bir dersi var.",
+  "ru": "Преподаватель занятия (необязательно)|Нет доступных преподавателей.|Назначение не охватывает это занятие.|У преподавателя уже есть занятие в это время.",
+  "uk": "Викладач заняття (необов’язково)|Немає доступних викладачів.|Призначення не охоплює це заняття.|Викладач уже має заняття в цей час.",
+  "ar": "مدرب الحصة (اختياري)|لا يوجد مدربون متاحون.|تعيين المدرب لا يغطي هذه الحصة.|لدى هذا المدرب حصة بالفعل في هذا الوقت.",
+  "hi": "कक्षा प्रशिक्षक (वैकल्पिक)|कोई योग्य प्रशिक्षक उपलब्ध नहीं है।|प्रशिक्षक की नियुक्ति इस कक्षा को कवर नहीं करती।|इस समय इस प्रशिक्षक की पहले से एक कक्षा है।",
+  "bn": "ক্লাসের প্রশিক্ষক (ঐচ্ছিক)|কোনো যোগ্য প্রশিক্ষক উপলব্ধ নেই।|প্রশিক্ষকের নিয়োগ এই ক্লাসের জন্য প্রযোজ্য নয়।|এই সময়ে এই প্রশিক্ষকের ইতিমধ্যে একটি ক্লাস আছে।",
+  "th": "ผู้สอนของคลาส (ไม่บังคับ)|ไม่มีผู้สอนที่พร้อมใช้งาน|การมอบหมายผู้สอนไม่ครอบคลุมคลาสนี้|ผู้สอนคนนี้มีคลาสอยู่แล้วในเวลานี้",
+  "ko": "수업 강사 (선택 사항)|선택 가능한 강사가 없습니다.|강사 배정이 이 수업을 포함하지 않습니다.|해당 시간에 이 강사는 이미 수업이 있습니다.",
+  "zh": "课程教练（可选）|没有可用的教练。|教练的任职期限不覆盖此课程。|该教练在此时间已有课程。",
+  "zh-TW": "課程教練（選填）|沒有可用的教練。|教練的任職期限不涵蓋此課程。|該教練在此時間已有課程。"
+}
+for(const [lang,value] of Object.entries(instructorWords))words[lang]+='|'+value
 export function classStrings(lang){const values=words[lang]?.split('|');if(values?.length!==keys.length)throw new Error('incomplete class translations: '+lang);return Object.fromEntries(keys.map((key,index)=>[key,values[index]]))}

@@ -1,7 +1,7 @@
 import { postgresUrl } from './config.js';
 import { CentersUnavailable } from './errors.js';
 
-export const SCHEMA_VERSION = '031';
+export const SCHEMA_VERSION = '033';
 
 // An application connection must never inherit the bootstrap/migrator's DDL or RLS bypass.
 async function requireApplicationRole(client) {

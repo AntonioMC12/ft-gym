@@ -26,7 +26,7 @@ import {centerMetrics,globalMetrics} from './services/metrics.js';
 import {accountDirectoryPage} from './domain/account-directory.js';
 import {prepareMemberImport,getMemberImport,commitMemberImport} from './services/member-imports.js';
 import {configureFreezePolicy,freezePageOptions,listFreezeRequests,requestFreeze,decideFreeze} from './services/freeze-requests.js';
-import {classListOptions,listClasses,classRoster,createClass,reserveClass,cancelClassReservation,cancelClass,classAttendance} from './services/classes.js';
+import {classInstructorOptions,classInstructors,classListOptions,listClasses,classRoster,createClass,reserveClass,cancelClassReservation,cancelClass,classAttendance} from './services/classes.js';
 
 // Inject the same session and response helpers used by the rest of node:http.
 export function centersRoutes({ config, database, json, readSession, readBody, accountLocks, lookupAccount, readOwnTraining, hasTrainingExercise, mintAccessCredential,
@@ -39,6 +39,8 @@ export function centersRoutes({ config, database, json, readSession, readBody, a
   };
   const failure = (res, error) => {
     if (error instanceof CentersError) return json(res, error.status, { error: error.message, code: error.code });
+    if(error.code==='23514'&&error.constraint==='class_instructor_available')return json(res,409,{error:'instructor assignment unavailable',code:'class-instructor-unavailable'});
+    if(error.code==='23514'&&error.constraint==='class_instructor_schedule')return json(res,409,{error:'instructor schedule conflict',code:'class-instructor-conflict'});
     if (error.code === '23514' && error.constraint === 'class_room_schedule') return json(res, 409, { error: 'class room schedule conflict', code: 'class-room-conflict' });
     if (error.code === '23505') return json(res, 409, { error: 'duplicate resource', code: 'duplicate' });
     if (error.code === '23P01') return json(res,409,{error:'subscription periods overlap',code:'subscription-overlap'});
@@ -130,6 +132,12 @@ export function centersRoutes({ config, database, json, readSession, readBody, a
     'POST /api/centers/access/holds/release':mutate(false,(context,body)=>releaseAccessHold(context,body,{platform:isPlatformUser(config,context.user)})),
     'POST /api/centers/own/access/token':mutate(false,issueAccessToken),
     'POST /api/centers/access/consume':mutate(false,(context,body)=>consumeAccessToken(context,body,{platform:isPlatformUser(config,context.user)})),
+    'GET /api/centers/classes/instructors':async(req,res)=>{
+      const user=guard(req,res);if(!user)return;const sv=user.sv||0,params=new URL(req.url,'http://x').searchParams,centerId=params.get('centerId');
+      if(!recordId(centerId))return json(res,404,{error:'not found',code:'not-found'});
+      try{const result=await classInstructors(database,user.id,centerId,classInstructorOptions(params),{platform:isPlatformUser(config,user),lookupAccount});
+        if(!current(req,user,sv))return json(res,401,{error:'not signed in'});return json(res,200,result)}catch(error){return failure(res,error)}
+    },
     'GET /api/centers/classes':readClasses(false),
     'GET /api/centers/own/classes':readClasses(true),
     'GET /api/centers/classes/roster':readClasses(false,true),

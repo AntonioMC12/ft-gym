@@ -3,11 +3,11 @@ import React,{act} from 'react'
 import {createRoot} from 'react-dom/client'
 import {beforeEach,afterEach,it,expect,vi} from 'vitest'
 vi.mock('../../lib/i18n.js',()=>({t:key=>key,dateLocale:()=> 'en-GB'}))
-vi.mock('../../lib/centers-api.js',()=>({centerClasses:vi.fn(),centerClassRoster:vi.fn(),centerPlans:vi.fn(),centerCommand:vi.fn(),classesErrorKey:error=>error?.code||'error'}))
+vi.mock('../../lib/centers-api.js',()=>({centerClassInstructors:vi.fn(),centerClasses:vi.fn(),centerClassRoster:vi.fn(),centerPlans:vi.fn(),centerCommand:vi.fn(),classesErrorKey:error=>error?.code||'error'}))
 vi.mock('../../store/useStore.js',()=>{const state={user:{id:'alice'},S:{}};return {useStore:Object.assign(selector=>selector(state),{getState:()=>state})}})
 vi.mock('../../store/useCenters.js',()=>({useCenters:{getState:()=>({revokeOn:vi.fn()})}}))
 vi.mock('../../sheets.jsx',()=>({confirmSheet:vi.fn()}))
-import {centerClasses,centerClassRoster,centerPlans,centerCommand} from '../../lib/centers-api.js'
+import {centerClassInstructors,centerClasses,centerClassRoster,centerPlans,centerCommand} from '../../lib/centers-api.js'
 import {useStore} from '../../store/useStore.js'
 import {useUI} from '../../store/useUI.js'
 import {bindUI} from '../../components/ui.jsx'
@@ -19,7 +19,7 @@ const page={center:{id:'a',name:'Center A',state:'active',timezone:'Europe/Madri
 const roster={event:{...event,attendanceOpen:false,noShowOpen:false,canCancelClass:true},reservations:[{id:'rb_one',memberId:'m1',name:'Fictional member',number:'M-000001',state:'booked',version:1}],nextCursor:null}
 let host,root
 function Sheets(){return useUI(s=>s.sheets).map(sheet=><section key={sheet.id} data-sheet>{sheet.render(()=>useUI.getState().closeSheet(sheet.id))}</section>)}
-beforeEach(()=>{vi.clearAllMocks();useStore.getState().user={id:'alice'};useUI.getState().closeAll();bindUI(useUI);centerClasses.mockResolvedValue(page);centerClassRoster.mockResolvedValue(roster);centerPlans.mockResolvedValue({plans:[{id:'p1',name:'Allowed fee',archived:false}],nextCursor:null});centerCommand.mockResolvedValue({});host=document.createElement('div');document.body.append(host);root=createRoot(host)})
+beforeEach(()=>{vi.clearAllMocks();centerClassInstructors.mockResolvedValue({instructors:[{id:'role_teacher',name:'Teacher One',role:'trainer'}],nextCursor:null});useStore.getState().user={id:'alice'};useUI.getState().closeAll();bindUI(useUI);centerClasses.mockResolvedValue(page);centerClassRoster.mockResolvedValue(roster);centerPlans.mockResolvedValue({plans:[{id:'p1',name:'Allowed fee',archived:false}],nextCursor:null});centerCommand.mockResolvedValue({});host=document.createElement('div');document.body.append(host);root=createRoot(host)})
 afterEach(()=>{act(()=>{root.unmount();useUI.getState().closeAll()});host.remove()})
 const render=(extra={})=>act(async()=>{root.render(<><Classes centerId="a" ownerUid="alice" own {...extra}/><Sheets/></>);await Promise.resolve()})
 it('shows room labels in own and management schedules as plain text',async()=>{
@@ -35,6 +35,19 @@ const field=label=>[...host.querySelectorAll('label.centers-field')].find(node=>
 async function completeEditor(){
   fill(field('Class name'),'New class');fill(field('Date'),'2026-10-25');fill(field('From'),'02:15');fill(field('To'),'02:45');fill(field('Capacity'),'10');fill(field('Waiting list capacity'),'0');fill(field('Cancellation notice (minutes)'),'0');await act(async()=>host.querySelector('button[role=checkbox]').click())
 }
+it('selects a real staff assignment, paginates the directory and submits only its identifier',async()=>{
+  centerClassInstructors.mockResolvedValueOnce({instructors:[{id:'role_teacher',name:'Teacher One',role:'trainer'}],nextCursor:'staff_page'}).mockResolvedValueOnce({instructors:[{id:'role_teacher_2',name:'Teacher Two',role:'trainer'}],nextCursor:null});
+  await render({own:false,canManage:true});await click('New class');
+  const more=[...host.querySelectorAll('button')].find(b=>b.getAttribute('aria-label')==='Class instructor (optional) · Show more');await act(async()=>{more.click();await Promise.resolve()});expect(centerClassInstructors).toHaveBeenLastCalledWith('a',{cursor:'staff_page'});
+  await rowClick('Class instructor (optional)');await rowClick('Teacher Two · Trainer');await completeEditor();await click('Create class');
+  expect(centerCommand.mock.calls[0][1].fields.instructorAssignmentId).toBe('role_teacher_2');expect(centerCommand.mock.calls[0][1].fields.instructorName).toBeUndefined();
+})
+it('allows classes without an instructor when the staff directory fails and does not apply stale directory responses',async()=>{
+  centerClassInstructors.mockRejectedValueOnce({code:'offline'});await render({own:false,canManage:true});await click('New class');expect(host.textContent).toContain('offline');await completeEditor();expect(button('Create class').disabled).toBe(false);
+  let release;centerClassInstructors.mockImplementationOnce(()=>new Promise(resolve=>release=resolve));await click('Retry');await render({centerId:'b',own:false,canManage:true});
+  await act(async()=>{release({instructors:[{id:'stale',name:'Old center teacher',role:'trainer'}],nextCursor:null});await Promise.resolve()});
+  expect(host.textContent).not.toContain('Old center teacher');
+})
 it('submits an optional room with the existing class command and keeps room conflicts reviewable',async()=>{
   centerCommand.mockRejectedValueOnce({code:'class-room-conflict'});await render({own:false,canManage:true});await click('New class');await completeEditor();
   fill(field('Class room (optional)'),'Sala A');await click('Create class');

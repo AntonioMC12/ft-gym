@@ -10,7 +10,7 @@ const conflict=code=>{throw new CentersError(409,code,'class or reservation chan
 const missing=()=>{throw new CentersError(404,'not-found','not found')};
 const reservationDto=row=>({id:row.id,classId:row.class_id,memberId:row.member_id,state:row.state,version:row.version,reason:row.reason,queueOrder:String(row.queue_order)});
 const classDto=row=>({id:row.id,name:row.name,date:row.class_on,startsAt:new Date(row.starts_at).toISOString(),endsAt:new Date(row.ends_at).toISOString(),timezone:row.timezone,
-  capacity:row.capacity,waitlistCapacity:row.waitlist_capacity,cancelBeforeMinutes:row.cancel_before_minutes,booked:row.booked_count,waiting:row.waiting_count,state:row.state,version:row.version,cancelReason:row.cancel_reason,room:row.room||null});
+  capacity:row.capacity,waitlistCapacity:row.waitlist_capacity,cancelBeforeMinutes:row.cancel_before_minutes,booked:row.booked_count,waiting:row.waiting_count,state:row.state,version:row.version,cancelReason:row.cancel_reason,room:row.room||null,instructorName:row.instructor_name||null});
 async function ownMember(client,centerId,uid){const {rows}=await client.query('SELECT id FROM centers.members WHERE center_id=$1 AND account_uid=$2',[centerId,uid]);return rows[0]?.id||missing()}
 async function eventRecord(client,centerId,id){const {rows}=await client.query('SELECT *,class_on::text FROM centers.classes WHERE center_id=$1 AND id=$2',[centerId,id]);return rows[0]||missing()}
 async function reservationRecord(client,centerId,id){const {rows}=await client.query('SELECT * FROM centers.class_reservations WHERE center_id=$1 AND id=$2',[centerId,id]);return rows[0]||missing()}
@@ -54,19 +54,42 @@ export function classRoster(database,uid,centerId,options,{platform=false}={}){
     return {event:{...classDto(event),eligiblePlanIds:plans.map(row=>row.plan_id),attendanceOpen:clock.started,noShowOpen:clock.ended,canCancelClass:event.state==='scheduled'&&!clock.started},reservations:page.map(row=>({...reservationDto(row),name:row.name,number:row.member_number})),nextCursor:rows.length>50?Buffer.from(JSON.stringify({scope,after:String(page.at(-1).queue_order)})).toString('base64url'):null};
   },{platform,allowInactive:true});
 }
-export function createClass({database,user,checkSession},raw,{platform=false}={}){
+export function classInstructorOptions(params){
+  if([...params.keys()].some(key=>!['centerId','cursor'].includes(key))||(params.get('cursor')||'').length>2000)throw new CentersError(400,'invalid-input','invalid instructor selectors');
+  return {cursor:params.get('cursor')||null};
+}
+export function classInstructors(database,uid,centerId,options,{platform=false,lookupAccount}={}){
+  const scope=cursorScope(['class-instructors',uid,centerId]),after=readCursor(options.cursor,scope);
+  return businessTransaction(database,uid,centerId,'classes.manage',async client=>{
+    const {rows}=await client.query(`SELECT id,account_uid,role,valid_from::text AS cursor_at FROM centers.role_assignments
+      WHERE center_id=$1 AND revoked_at IS NULL AND valid_from<=statement_timestamp() AND (valid_until IS NULL OR valid_until>statement_timestamp())
+      AND ($2::timestamptz IS NULL OR (valid_from,id)<($2::timestamptz,$3::text)) ORDER BY valid_from DESC,id DESC LIMIT 51`,[centerId,after?.at||null,after?.id||null]);
+    const page=rows.slice(0,50);return {instructors:page.flatMap(row=>{const account=lookupAccount(row.account_uid);return account&&!account.disabled?[{id:row.id,name:account.name,role:row.role}]:[]}),nextCursor:rows.length>50?nextCursor(scope,page.at(-1)):null};
+  },{platform});
+}
+export async function createClass({database,user,checkSession,lookupAccount,accountLocks},raw,{platform=false}={}){
   objectBody(raw,['centerId','fields','requestId']);const centerId=idField(raw.centerId),requestId=requestField(raw.requestId),operation='class.create';
-  return businessTransaction(database,user.id,centerId,'classes.manage',async client=>{
+  const assignmentId=raw.fields?.instructorAssignmentId;let instructorUid=null;
+  if(assignmentId){idField(assignmentId);instructorUid=await businessTransaction(database,user.id,centerId,'classes.manage',async client=>{const {rows}=await client.query('SELECT account_uid FROM centers.role_assignments WHERE center_id=$1 AND id=$2',[centerId,assignmentId]);return rows[0]?.account_uid||conflict('class-instructor-unavailable')},{platform})}
+  const execute=()=>businessTransaction(database,user.id,centerId,'classes.manage',async client=>{
     const {rows:[center]}=await client.query('SELECT timezone FROM centers.centers WHERE id=$1',[centerId]),fields=classFields(raw.fields,{timezone:center.timezone}),hash=commandHash(fields);
     const replay=await commandReplay(client,centerId,user.id,operation,requestId,hash);if(replay)return {event:classDto(await eventRecord(client,centerId,replay.id))};
     const {rows:[clock]}=await client.query('SELECT $1::timestamptz>clock_timestamp() AS future',[fields.startsAt]);if(!clock.future)conflict('class-closed');
     const {rows:plans}=await client.query('SELECT id FROM centers.membership_plans WHERE center_id=$1 AND id=ANY($2::text[]) AND archived_at IS NULL',[centerId,fields.eligiblePlanIds]);if(plans.length!==fields.eligiblePlanIds.length)conflict('class-plan-required');
+    let instructorName=null;
+    if(fields.instructorAssignmentId){
+      const {rows:[assignment]}=await client.query('SELECT account_uid FROM centers.role_assignments WHERE center_id=$1 AND id=$2',[centerId,fields.instructorAssignmentId]);
+      const account=assignment&&lookupAccount(assignment.account_uid);
+      if(!account||account.disabled||assignment.account_uid!==instructorUid)conflict('class-instructor-unavailable');
+      instructorName=textField(account.name,120,{required:true});if(/[\u0000-\u001f\u007f]/.test(instructorName))conflict('class-instructor-unavailable');
+    }
     const id='cl_'+commandHash([centerId,user.id,requestId]).slice(0,32);checkSession();
-    await client.query('INSERT INTO centers.classes(id,center_id,name,class_on,starts_at,ends_at,timezone,capacity,waitlist_capacity,cancel_before_minutes,actor_uid,room) VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12)',[id,centerId,fields.name,fields.date,fields.startsAt,fields.endsAt,fields.timezone,fields.capacity,fields.waitlistCapacity,fields.cancelBeforeMinutes,user.id,fields.room||null]);
+    await client.query('INSERT INTO centers.classes(id,center_id,name,class_on,starts_at,ends_at,timezone,capacity,waitlist_capacity,cancel_before_minutes,actor_uid,room,instructor_assignment_id,instructor_name) VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14)',[id,centerId,fields.name,fields.date,fields.startsAt,fields.endsAt,fields.timezone,fields.capacity,fields.waitlistCapacity,fields.cancelBeforeMinutes,user.id,fields.room||null,fields.instructorAssignmentId||null,instructorName]);
     await client.query('INSERT INTO centers.class_plans(center_id,class_id,plan_id) SELECT $1,$2,p FROM unnest($3::text[])p',[centerId,id,fields.eligiblePlanIds]);
     await businessAudit(client,centerId,user.id,'class.created',id,{startsAt:fields.startsAt,endsAt:fields.endsAt,capacity:fields.capacity,waitlistCapacity:fields.waitlistCapacity,cancelBeforeMinutes:fields.cancelBeforeMinutes});
     await rememberCommand(client,centerId,user.id,operation,requestId,hash,{id});checkSession();return {event:classDto(await eventRecord(client,centerId,id))};
   },{platform});
+  return instructorUid?accountLocks.withAccounts([user.id,instructorUid],execute):execute();
 }
 export function reserveClass({database,user,checkSession},raw){
   objectBody(raw,['centerId','id','requestId']);const centerId=idField(raw.centerId),id=idField(raw.id),requestId=requestField(raw.requestId),hash=commandHash({id}),operation='class.reserve';

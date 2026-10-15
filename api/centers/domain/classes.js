@@ -21,7 +21,8 @@ function instant(date,time,timezone,disambiguation){
   return candidates[disambiguation==='later'?candidates.length-1:0];
 }
 export function classFields(raw,{timezone}){
-  objectBody(raw,['name','room','date','startTime','endTime','disambiguation','capacity','waitlistCapacity','cancelBeforeMinutes','eligiblePlanIds']);
+  objectBody(raw,['name','room','instructorAssignmentId','date','startTime','endTime','disambiguation','capacity','waitlistCapacity','cancelBeforeMinutes','eligiblePlanIds']);
+  const instructorAssignmentId=raw.instructorAssignmentId==null||raw.instructorAssignmentId===''?null:idField(raw.instructorAssignmentId);
   const room=textField(raw.room,120);if(room&&/[\u0000-\u001f\u007f]/.test(room))invalid();
   const name=textField(raw.name,120,{required:true}),date=membershipDate(raw.date),start=minutes(raw.startTime),end=raw.endTime==='24:00'?1440:minutes(raw.endTime);
   if(start>=end||end-start>720)invalid();
@@ -33,5 +34,5 @@ export function classFields(raw,{timezone}){
   const next=new Date(date+'T00:00:00Z');next.setUTCDate(next.getUTCDate()+1);
   const startsAt=instant(date,raw.startTime,timezone,occurrence.start),endsAt=instant(end===1440?next.toISOString().slice(0,10):date,end===1440?'00:00':raw.endTime,timezone,occurrence.end);
   if(Date.parse(endsAt)<=Date.parse(startsAt)||Date.parse(endsAt)-Date.parse(startsAt)>13*3600000)invalid();
-  return {name,...(room?{room}:{}),date,startTime:raw.startTime,endTime:raw.endTime,timezone,startsAt,endsAt,capacity:raw.capacity,waitlistCapacity:raw.waitlistCapacity,cancelBeforeMinutes:raw.cancelBeforeMinutes,eligiblePlanIds};
+  return {name,...(room?{room}:{}),...(instructorAssignmentId?{instructorAssignmentId}:{}),date,startTime:raw.startTime,endTime:raw.endTime,timezone,startsAt,endsAt,capacity:raw.capacity,waitlistCapacity:raw.waitlistCapacity,cancelBeforeMinutes:raw.cancelBeforeMinutes,eligiblePlanIds};
 }

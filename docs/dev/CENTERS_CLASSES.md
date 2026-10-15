@@ -1,12 +1,12 @@
 # C34 — Clases y reservas
 
-Desarrollo inicial en schema026, con salas opcionales en schema030/031, rama `codex/centers-module`. C34 permanece en progreso hasta completar su evidencia y revisión visual permitida. No hay activación comercial ni operaciones sobre datos reales.
+Desarrollo inicial en schema026, con salas en schema030/031 y profesores en schema032/033, rama `codex/centers-module`. C34 permanece en progreso hasta completar su evidencia y revisión visual permitida. No hay activación comercial ni operaciones sobre datos reales.
 
 ## Alcance de esta entrega
 
 Clases individuales programadas, aforo, lista de espera FIFO, reserva/cancelación propia, cancelación administrativa de una clase futura y registro explícito de asistencia/ausencia. Se reutilizan PostgreSQL/RLS, permisos por centro, transacciones/idempotencia y React/UI actuales. No hay servicio, framework, almacén de identidad ni contabilidad nuevos.
 
-No se incorporan series recurrentes, asignación de profesor o catálogo de salas, avisos externos de clase, corrección posterior de hechos terminales ni penalizaciones económicas. La lista administrativa de reservas requiere gestión: un entrenador puede leer horarios y contadores, sin obtener el listado de socios de la clase. Estas limitaciones deben permanecer visibles al aceptar el alcance; no se anuncia el CU completo por haber implementado su núcleo de reservas.
+No se incorporan series recurrentes, catálogo de salas, avisos externos de clase, corrección posterior de hechos terminales ni penalizaciones económicas. La lista administrativa de reservas requiere gestión: un entrenador puede leer horarios y contadores, sin obtener el listado de socios de la clase. Estas limitaciones deben permanecer visibles al aceptar el alcance; no se anuncia el CU completo por haber implementado su núcleo de reservas.
 
 ## Condiciones explícitas
 
@@ -62,3 +62,15 @@ Una misma sala del mismo centro no admite dos clases programadas con intervalos 
 El servidor serializa creaciones con el lock de centro existente. Un trigger SQL adicional comprueba el solapamiento y devuelve una restricción nombrada, traducida por HTTP a409 class-room-conflict y por i18n a un mensaje específico. Se conserva RLS, sin extensión ni privilegio de escritura general: el permiso nuevo permite exclusivamente INSERT(room), no UPDATE(room). La prueba concurrente exige un éxito y un conflicto, no dos altas ni un error genérico.
 
 La sala aparece en horarios propios, gestión y cabecera de reservas. El editor reutiliza TextField y protección de formulario; un conflicto conserva los datos para corregir/reintentar. Se prueba texto HTML inerte, envío del campo, fechas adyacentes, solapamiento parcial, cancelación/liberación y separación entre centros. Restore conserva una sala no vacía. C34 permanece in_progress por revisión visual y el resto del alcance documentado.
+
+## Profesor opcional (schema032/033)
+
+La clase puede referenciar una asignación vigente de responsable o entrenador del mismo centro. El selector usa GET /api/centers/classes/instructors, paginación real de50roles por página y cursores ligados a actor/centro. Solo classes.manage/plataforma; los socios y entrenadores sin gestión no obtienen el directorio. La respuesta contiene id de asignación, nombre y rol, sin IDs de cuenta/contactos/credenciales ni acceso al directorio global de plataforma. Se omiten cuentas deshabilitadas; una página filtrada puede estar vacía y conservar nextCursor.
+
+Crear acepta instructorAssignmentId, nunca un nombre o uid declarado por el cliente. Bajo locks JSON de actor/profesor y luego lock SQL del centro se revalida cuenta existente/habilitada y asignación. La vigencia debe empezar ya y cubrir el final de la clase. La FK compuesta impide asignaciones de otro centro; el trigger bloquea la fila de rol antes de decidir con clock_timestamp. Se guarda nombre histórico y uid interno para comparar horarios; las proyecciones públicas de clase solo exponen instructorName.
+
+No puede haber dos clases programadas que se solapen para la misma cuenta dentro del centro, aunque se usen dos roles diferentes de esa cuenta. Se admiten horas contiguas; la cancelación libera el horario. No se afirma exclusión global entre distintos centros: sus horarios y permisos siguen separados. Profesor y nombre histórico son inmutables, como horario y sala. Una edición del nombre de cuenta o revocación posterior no reescribe la historia ni cancela silenciosamente clases: el responsable debe revisar las futuras afectadas y cancelarlas/recrearlas cuando corresponda. No se dan permisos de gestión o acceso a datos de socios por ser profesor.
+
+La comprobación inicial de la032 detectó que SELECT FOR SHARE sobre una asignación de responsable aplica políticas de escritura del invocador y la oculta al gestor. La033 encierra ese lock en el trigger SECURITY DEFINER con centro seleccionado/capacidad de gestión explícitos, search_path fijo y EXECUTE público revocado. No se ampliaron los permisos del runtime para editar responsables ni se modificó una migración ya aplicada en CI.
+
+El editor reutiliza SelectRow con búsqueda de opciones cargadas, carga de más páginas, estados vacíos/error/reintento y ausencia explícita de profesor. Un fallo del directorio no impide crear una clase sin profesor. Cambio de centro/cuenta desmonta el editor y descarta respuestas antiguas; no muestra personal del contexto anterior. Campos opcionales ausentes/vacíos preservan hashes anteriores. Repetir una creación ya confirmada conserva la clase y su nombre histórico aunque después cambie la vigencia o se deshabilite la cuenta.

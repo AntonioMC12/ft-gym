@@ -211,6 +211,20 @@ paths:
         '400': { description: Invalid selectors or roster cursor. }
         '403': { description: Current management capability required. }
         '404': { description: Center or class unavailable. }
+  /api/centers/classes/instructors:
+    get:
+      tags: [centers]
+      operationId: listCenterClassInstructors
+      summary: Page current center staff eligible for instructor selection
+      description: Current classes.manage or platform allowlist. Up to50 role assignments per page with only id/name/role, filtered to enabled JSON accounts and current SQL roles. No contacts, credentials or global account directory. Cursor bound to actor/center. Creating a class rechecks role coverage and enabled identity under account locks.
+      parameters:
+        - { name: centerId, in: query, required: true, schema: { type: string } }
+        - { name: cursor, in: query, schema: { type: string, maxLength: 2000 } }
+      responses:
+        '200': { description: instructors with assignment id/name/role and nextCursor; a filtered page may be empty with a nextCursor. }
+        '400': { description: Unexpected selector or invalid cursor. }
+        '403': { description: Management capability required. }
+        '404': { description: Selected center unavailable. }
   /api/centers/classes/create:
     post:
       tags: [centers]
@@ -235,6 +249,7 @@ paths:
                   properties:
                     name: { type: string, minLength: 1, maxLength: 120 }
                     date: { type: string, format: date }
+                    instructorAssignmentId: { type: [string, 'null'], description: Optional current same-center manager/trainer assignment. Must cover class end. The server stores instructorName and checks same-center overlaps by account, even across multiple roles. Omitted/empty preserves legacy command hashes. }
                     room: { type: [string, 'null'], maxLength: 120, description: Optional room label. Same-center room schedules cannot overlap; case and whitespace normalized. Cancel and recreate to change the room. }
                     startTime: { type: string, description: 'HH:mm, excluding24:00.' }
                     endTime: { type: string, description: 'HH:mm, including24:00.' }
@@ -247,7 +262,7 @@ paths:
         '200': { description: Scheduled class with immutable terms and zero counters. }
         '400': { description: Invalid explicit schedule or limits. }
         '403': { description: Management capability required. }
-        '409': { description: class-time-ambiguous, class-time-missing, class-plan-required, class-room-conflict, class-closed or idempotency-conflict. }
+        '409': { description: class-time-ambiguous, class-time-missing, class-plan-required, class-room-conflict, class-instructor-unavailable, class-instructor-conflict, class-closed or idempotency-conflict. }
   /api/centers/own/classes/reserve:
     post:
       tags: [centers]

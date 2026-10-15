@@ -139,6 +139,8 @@ export function classesErrorKey(error){
   const code=error?.data?.code||error?.code
   if(code==='class-full')return 'This class is full.'
   if(code==='class-ineligible')return 'Your membership or plan does not allow this class.'
+  if(code==='class-instructor-conflict')return 'This instructor already has a class at that time.'
+  if(code==='class-instructor-unavailable')return 'The instructor assignment does not cover this class.'
   if(code==='class-room-conflict')return 'This room already has a class at that time.'
   if(code==='class-time-ambiguous')return 'Choose the first or second occurrence of this repeated hour.'
   if(code==='class-time-missing'||code==='class-plan-required'||code==='invalid-input'||code==='invalid-state')return 'Check the class schedule, plans and limits.'
@@ -156,3 +158,5 @@ export function centersErrorKey(error) {
   if (error?.status === 403 || error?.status === 401) return 'You do not have access to this center.'
   return 'Centers are unavailable. Try again.'
 }
+
+export const centerClassInstructors=(centerId,options={})=>api('/api/centers/classes/instructors?'+new URLSearchParams({centerId,...options}))

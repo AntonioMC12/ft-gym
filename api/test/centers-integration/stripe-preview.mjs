@@ -6,7 +6,7 @@ import path from 'node:path';
 import {testUrls} from './helpers.mjs';
 import {createCentersDatabase} from '../../centers/db.js';
 import {previewOrigin} from './preview-origin.mjs';
-const urls=testUrls(),database=createCentersDatabase({enabled:true,databaseUrl:urls.app});let centers;
+const urls=testUrls(process.env,{allowPreview:true}),database=createCentersDatabase({enabled:true,databaseUrl:urls.app});let centers;
 try{
   await database.status();
   centers=await database.platformTransaction('preview_platform',async client=>{

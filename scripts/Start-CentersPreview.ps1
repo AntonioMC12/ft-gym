@@ -37,6 +37,9 @@ try{
     if($savedOrigin){$previewOrigin=$savedOrigin.Substring('CENTERS_PREVIEW_ORIGIN='.Length)}
   }
   $revision=(& git rev-parse HEAD).Trim();if($LASTEXITCODE -ne 0){throw 'Git revision unavailable.'}
+  $sourceChanges=& git status --porcelain --untracked-files=normal -- api frontend web .dockerignore
+  if($LASTEXITCODE -ne 0){throw 'Cannot determine preview source state.'}
+  if($sourceChanges){$revision+='-dirty'}
   $branch=(& git branch --show-current).Trim();if($LASTEXITCODE -ne 0){throw 'Git branch unavailable.'}
   function Write-PreviewEnvironment([string]$Origin){
     Set-Content -LiteralPath $runtimeFile -Value @("CENTERS_PREVIEW_ORIGIN=$Origin","CENTERS_PREVIEW_REVISION=$revision","CENTERS_PREVIEW_BRANCH=$branch") -Encoding utf8
@@ -67,5 +70,10 @@ try{
   }
   Write-Output "Preview: $previewOrigin/#/centers"
   Write-Output 'Fictional account: Plataforma Centros; password: Centros-Pruebas-2026!'
-  Invoke-PreviewDocker -Arguments @('image','inspect','ft-gym-centers-preview-api:local','--format','API revision={{index .Config.Labels "org.opencontainers.image.revision"}} branch={{index .Config.Labels "com.ftgym.branch"}}')
+  foreach($service in @('centers-preview-api','centers-preview-web')){
+    $containerId=& $dockerPath @composeArgs ps -q $service
+    if($LASTEXITCODE -ne 0 -or !$containerId){throw "Running container missing: $service"}
+    $format=$service+' revision={{index .Config.Labels "org.opencontainers.image.revision"}} branch={{index .Config.Labels "com.ftgym.branch"}} image={{.Image}} status={{.State.Status}}'
+    Invoke-PreviewDocker -Arguments @('inspect',([string]$containerId).Trim(),'--format',$format)
+  }
 }finally{Pop-Location}

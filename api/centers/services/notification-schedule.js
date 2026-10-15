@@ -5,8 +5,8 @@ const balance=`r.total_minor-coalesce((SELECT sum(a.amount_minor) FROM centers.p
 const contacts=`JOIN centers.members m ON (m.center_id,m.id)=(r.center_id,r.member_id)
   JOIN centers.notification_contacts n ON n.center_id=m.center_id AND n.member_id=m.id AND n.account_uid=m.account_uid AND n.enabled AND n.verified_at IS NOT NULL`;
 export async function noticeContext(client,centerId) {
-  const {rows}=await client.query(`SELECT p.*,c.policy,(CURRENT_TIMESTAMP AT TIME ZONE c.timezone)::date::text AS today,
-    ((CURRENT_TIMESTAMP AT TIME ZONE c.timezone)::date - mod((CURRENT_TIMESTAMP AT TIME ZONE c.timezone)::date-date '1970-01-01',p.debt_repeat_days))::text AS debt_window
+  const {rows}=await client.query(`SELECT p.*,c.policy,(statement_timestamp() AT TIME ZONE c.timezone)::date::text AS today,
+    ((statement_timestamp() AT TIME ZONE c.timezone)::date - mod((statement_timestamp() AT TIME ZONE c.timezone)::date-date '1970-01-01',p.debt_repeat_days))::text AS debt_window
     FROM centers.notification_policies p JOIN centers.centers c ON c.id=p.center_id WHERE p.center_id=$1 AND p.enabled AND c.state='active'`,[centerId]);return rows[0];
 }
 export async function scheduleReminders(client,centerId) {

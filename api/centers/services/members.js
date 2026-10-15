@@ -26,7 +26,7 @@ export async function createMember({database,user,checkSession},raw,{platform=fa
     if(number.length>40)throw conflict('member-number-exhausted');
     checkSession();
     const {rows}=await client.query(`INSERT INTO centers.members(id,center_id,member_number,name,email,phone,national_document,joined_on)
-      SELECT $1,$2,$3,$4,$5,$6,$7,(CURRENT_TIMESTAMP AT TIME ZONE c.timezone)::date FROM centers.centers c WHERE c.id=$2
+      SELECT $1,$2,$3,$4,$5,$6,$7,(statement_timestamp() AT TIME ZONE c.timezone)::date FROM centers.centers c WHERE c.id=$2
       RETURNING ${projection}`,[id,centerId,number,fields.name,fields.email,fields.phone,fields.nationalDocument]);
     const result={member:memberDto(rows[0],context.capabilities)};
     await audit(client,centerId,user.id,'member.created',id);

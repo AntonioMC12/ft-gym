@@ -1,6 +1,25 @@
 # Fully isolated, synthetic integration stack. No application data, .env or published ports.
 name: ft-gym-centers-tests
 services:
+  # CI never connects to the persistent database used by the local preview.
+  centers-ci-db:
+    image: postgres:18.6-alpine3.24
+    environment:
+      POSTGRES_USER: centers_bootstrap
+      POSTGRES_DB: ft_gym_ci_centers_test
+      POSTGRES_PASSWORD: fictional-bootstrap-test-only
+      CENTERS_APP_PASSWORD: fictional-runtime-test-only
+      CENTERS_MIGRATOR_PASSWORD: fictional-migrator-test-only
+      POSTGRES_INITDB_ARGS: --auth-host=scram-sha-256
+    tmpfs: [/var/lib/postgresql]
+    volumes:
+      - ./api/centers/docker/10-centers-roles.sh:/docker-entrypoint-initdb.d/10-centers-roles.sh:ro
+    networks: [test-internal]
+    healthcheck:
+      test: [CMD-SHELL, 'pg_isready -U centers_bootstrap -d ft_gym_ci_centers_test']
+      interval: 2s
+      timeout: 3s
+      retries: 15
   centers-test-db:
     image: postgres:18.6-alpine3.24
     environment:
@@ -55,13 +74,14 @@ services:
       - test/centers-integration/freeze-requests.test.js
       - test/centers-integration/maintenance.test.js
       - test/centers-integration/classes.test.js
+      - test/centers-integration/business-clock.test.js
     environment:
-      CENTERS_TEST_DATABASE_URL: postgresql://centers_app:fictional-runtime-test-only@centers-test-db/ft_gym_centers_test
-      CENTERS_TEST_MIGRATION_DATABASE_URL: postgresql://centers_migrator:fictional-migrator-test-only@centers-test-db/ft_gym_centers_test
+      CENTERS_TEST_DATABASE_URL: postgresql://centers_app:fictional-runtime-test-only@centers-ci-db/ft_gym_ci_centers_test
+      CENTERS_TEST_MIGRATION_DATABASE_URL: postgresql://centers_migrator:fictional-migrator-test-only@centers-ci-db/ft_gym_ci_centers_test
     volumes:
       - ./api/test/centers-integration:/app/test/centers-integration:ro
     depends_on:
-      centers-test-db:
+      centers-ci-db:
         condition: service_healthy
     networks: [test-internal]
     restart: "no"

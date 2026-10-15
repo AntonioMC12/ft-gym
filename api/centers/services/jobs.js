@@ -13,7 +13,7 @@ const settingsDto=row=>row?{enabled:row.enabled,fromOn:row.from_on,version:row.v
 
 export function automationStatus(database,uid,centerId,{platform=false,workerEnabled=false}={}) {
   return businessTransaction(database,uid,centerId,'billing.read',async client=>{
-    const {rows:clock}=await client.query("SELECT (CURRENT_TIMESTAMP AT TIME ZONE timezone)::date::text AS today FROM centers.centers WHERE id=$1",[centerId]);
+    const {rows:clock}=await client.query("SELECT (statement_timestamp() AT TIME ZONE timezone)::date::text AS today FROM centers.centers WHERE id=$1",[centerId]);
     const {rows}=await client.query('SELECT enabled,from_on::text,version FROM centers.billing_automation WHERE center_id=$1',[centerId]);
     const {rows:counts}=await client.query('SELECT state,count(*)::text AS count FROM centers.job_runs WHERE center_id=$1 GROUP BY state',[centerId]);
     const {rows:jobs}=await client.query(`SELECT id,subscription_id,period_start::text,state,attempts,error_code,receipt_id FROM centers.job_runs WHERE center_id=$1 ORDER BY created_at DESC,id DESC LIMIT 30`,[centerId]);
@@ -33,7 +33,7 @@ export function configureAutomation({database,user,checkSession},raw) {
     // An activation floor is stable across restarts and off/on cycles. Never silently
     // move it forward and lose outstanding periods, or backward and back-bill history.
     if(rows.length&&rows[0].from_on!==fromOn)throw new CentersError(409,'automation-date-locked','initial automation date is immutable');
-    const {rows:clock}=await client.query("SELECT (CURRENT_TIMESTAMP AT TIME ZONE timezone)::date::text AS today FROM centers.centers WHERE id=$1",[centerId]);
+    const {rows:clock}=await client.query("SELECT (statement_timestamp() AT TIME ZONE timezone)::date::text AS today FROM centers.centers WHERE id=$1",[centerId]);
     const age=(Date.parse(clock[0].today+'T00:00:00Z')-Date.parse(fromOn+'T00:00:00Z'))/86400000;
     if(!rows.length&&(age<0||age>366))throw new CentersError(400,'invalid-input','initial date must be within the last 366 civil days');
     checkSession();
@@ -71,7 +71,7 @@ export function pendingPeriods(row,fromOn,today,limit=3) {
 async function scanCenter(database,centerId) {
   return database.platformTransaction(SYSTEM_UID,async client=>{
     await lock(client,centerId);
-    const {rows:settings}=await client.query(`SELECT a.*,a.from_on::text,(CURRENT_TIMESTAMP AT TIME ZONE c.timezone)::date::text AS today
+    const {rows:settings}=await client.query(`SELECT a.*,a.from_on::text,(statement_timestamp() AT TIME ZONE c.timezone)::date::text AS today
       FROM centers.billing_automation a JOIN centers.centers c ON c.id=a.center_id WHERE a.center_id=$1 AND a.enabled AND c.state='active'`,[centerId]);
     if(!settings.length)return;const setting=settings[0];
     const {rows}=await client.query(`SELECT s.id,s.member_id,s.starts_on::text,s.ends_on::text,s.anchor_on::text,s.billing_day,v.interval_months,

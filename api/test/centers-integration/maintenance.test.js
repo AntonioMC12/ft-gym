@@ -11,7 +11,7 @@ test('expired CSV payloads are cleared in bounded concurrent batches, preserving
   const {app,migrator}=await isolatedDatabase(),db=createCentersDatabase({enabled:true,databaseUrl:app});t.after(async()=>{await db.close();await migrator.end()});
   // Only this fixed, explicitly fictional Compose database allows backdated fixture INSERTs.
   // No existing row's historical timestamps are rewritten and no runtime privilege is widened.
-  const url=new URL(app);assert.equal(url.hostname,'centers-test-db');assert.equal(url.pathname,'/ft_gym_centers_test');
+  const url=new URL(app);assert.equal(url.hostname,'centers-ci-db');assert.equal(url.pathname,'/ft_gym_ci_centers_test');
   url.username='centers_bootstrap';url.password='fictional-bootstrap-test-only';
   const fixture=new pg.Client({connectionString:url.href});await fixture.connect();t.after(()=>fixture.end());
   assert.equal((await fixture.query('SELECT kind FROM centers.environment WHERE singleton')).rows[0].kind,'test');

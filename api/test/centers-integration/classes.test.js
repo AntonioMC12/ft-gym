@@ -86,7 +86,7 @@ test('class lists and historical rosters paginate with scoped cursors, keeping c
   const foreign=await f.req('/api/centers/classes/roster?'+new URLSearchParams({centerId:f.center,id:events[1].id,cursor:roster.nextCursor}),f.ids.manager);assert.equal(foreign.status,400);
 });
 test('attendance and no-show are explicit immutable facts after the class, without a fine or QR inference',async t=>{
-  const f=await fixture(t),url=new URL(f.app);assert.equal(url.hostname,'centers-test-db');assert.equal(url.pathname,'/ft_gym_centers_test');url.username='centers_bootstrap';url.password='fictional-bootstrap-test-only';
+  const f=await fixture(t),url=new URL(f.app);assert.equal(url.hostname,'centers-ci-db');assert.equal(url.pathname,'/ft_gym_ci_centers_test');url.username='centers_bootstrap';url.password='fictional-bootstrap-test-only';
   const seed=new pg.Client({connectionString:url.href});await seed.connect();t.after(()=>seed.end());assert.equal((await seed.query('SELECT kind FROM centers.environment WHERE singleton')).rows[0].kind,'test');
   const classId='cl_'+commandHash(f.p+'_past').slice(0,32),rows=[];
   // New, explicitly past fictional rows only. Existing historical dates are never rewritten.

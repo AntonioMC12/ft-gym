@@ -9,7 +9,7 @@ import {commandHash} from './commands.js';
 // Also reusable inside the receipt transaction in C19: no nested connection, no HTTP fields trusted.
 export async function previewForContract(client,centerId,memberId,id,requestedStart) {
   const {rows}=await client.query(`SELECT s.*,s.starts_on::text AS starts_on,s.ends_on::text AS ends_on,s.anchor_on::text AS anchor_on,
-    (CURRENT_TIMESTAMP AT TIME ZONE s.timezone)::date::text AS local_today,m.state AS base_state,
+    (statement_timestamp() AT TIME ZONE s.timezone)::date::text AS local_today,m.state AS base_state,
     v.price_minor,v.currency,v.interval_months,v.price_includes_tax,v.tax_basis_points,v.proration
     FROM centers.subscriptions s JOIN centers.members m ON (m.center_id,m.id)=(s.center_id,s.member_id)
     JOIN centers.membership_plan_versions v ON (v.center_id,v.id)=(s.center_id,s.price_version_id)

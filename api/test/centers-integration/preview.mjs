@@ -11,7 +11,7 @@ import { createCenter } from '../../centers/services/centers.js';
 import { hashPassword } from '../../password.js';
 import {previewOrigin} from './preview-origin.mjs';
 
-const urls=testUrls();
+const urls=testUrls(process.env,{allowPreview:true});
 const migrator=new pg.Client({connectionString:urls.migration,connectionTimeoutMillis:3000});
 await migrator.connect();
 try {

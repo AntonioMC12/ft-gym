@@ -23,7 +23,7 @@ const filtered=' FROM debt WHERE ($2::date IS NULL OR due_on BETWEEN $2::date AN
 const projection="id,center_id,member_id,member_number,name,period_start::text,period_end::text,due_on::text,currency,total_minor,paid::text,refunded::text,balance::text,(due_on::timestamp AT TIME ZONE 'UTC')::text AS cursor_at";
 const dto=(row,today,policy)=>({id:row.id,centerId:row.center_id,memberId:row.member_id,memberNumber:row.member_number,memberName:row.name,periodStart:row.period_start,periodEnd:row.period_end,dueOn:row.due_on,currency:row.currency,totalMinor:row.total_minor,paidMinor:row.paid,refundedMinor:row.refunded,balanceMinor:row.balance,debt:debtState(row.balance,row.due_on,today,policy.graceDays)});
 async function policyContext(client,centerId,options) {
-  const {rows}=await client.query("SELECT policy,(CURRENT_TIMESTAMP AT TIME ZONE timezone)::date::text AS today FROM centers.centers WHERE id=$1",[centerId]);
+  const {rows}=await client.query("SELECT policy,(statement_timestamp() AT TIME ZONE timezone)::date::text AS today FROM centers.centers WHERE id=$1",[centerId]);
   const policy=debtPolicy(rows[0].policy),today=rows[0].today;
   let {from,to}=options;
   if(options.calendar&&!from){from=today.slice(0,7)+'-01';const date=new Date(from+'T00:00:00Z');date.setUTCMonth(date.getUTCMonth()+1);date.setUTCDate(0);to=date.toISOString().slice(0,10)}

@@ -64,10 +64,10 @@ SQL real:
 
 ```powershell
 docker compose -f compose.centers.test.yml run --build --rm centers-tests
-docker compose -f compose.centers.test.yml stop centers-test-db
+docker compose -f compose.centers.test.yml stop centers-ci-db
 ```
 
-Proyecto ft-gym-centers-tests, base ft_gym_centers_test y volumen propio, sin .env, datos de aplicación o puertos públicos. Los tests migran con el migrador y ejecutan transacciones/RLS con la cuenta limitada. Solo crean/borran tablas probe aleatorias; nunca truncan negocio.
+Proyecto ft-gym-centers-tests: la CI usa centers-ci-db/ft_gym_ci_centers_test en tmpfs, sin .env, datos de aplicación ni puertos públicos. La base persistente centers-test-db/ft_gym_centers_test queda exclusivamente para la preview existente y no se mueve ni se borra. Los tests migran con el migrador y ejecutan transacciones/RLS con la cuenta limitada. Las suites ordinarias rechazan las URLs de la preview; únicamente su bootstrap explícito puede aceptarlas. Reiniciar/recrear solo centers-ci-db prepara otra base efímera sin tocar el volumen de preview.
 
 No usar down -v en un stack compartido o productivo. Detener el stack no elimina datos ni afecta a la demo. Ejecutar dos veces debe comprobar migraciones existentes sin repetirlas.
 
@@ -217,3 +217,9 @@ docker compose --env-file ../informes/centers-preview-share.env -f compose.cente
 Si se crea un túnel nuevo, obtener su URL de los logs, actualizar CENTERS_PREVIEW_ORIGIN en ese archivo y recrear API con el mismo --env-file. No mantener el origen de un túnel anterior. Para dejar de compartir: `docker compose -f compose.centers.test.yml -f compose.centers.preview.yml stop centers-preview-tunnel`. Para volver al login local, levantar/recrear API sin --env-file y sin CENTERS_PREVIEW_ORIGIN definido.
 
 Desde esta entrega los datos JSON ficticios de API se conservan en `../informes/centers-preview-data`, montados en un directorio exclusivo de la fixture. Se copiaron del contenedor previo antes de recrearlo. El entrypoint conserva db.json existente si contiene las identidades de prueba, en lugar de regenerar contraseñas/passkeys al cambiar de origen. SQL continúa en su volumen test. No usar datos reales ni publicar estos archivos.
+
+## Identificar la revisión que se está ejecutando (actualización15octubre)
+
+Usar scripts/Start-CentersPreview.ps1 para construir/reanudar conservando el túnel existente, o -NoBuild para reanudar las imágenes ya construidas. El resultado muestra por separado API y WEB: revisión, rama, ID inmutable de imagen y estado del contenedor real. Una etiqueta :local puede cambiar sin que cambie el contenedor que estaba arrancado; inspeccionar la etiqueta por sí sola no demuestra qué código está corriendo.
+
+La revisión acaba en -dirty si el contexto de construcción tiene cambios sin commit. Puede deberse a los cambios de Docker/web que ya tenía el usuario: se conservan y no se incluyen en commits del módulo. NoBuild no recompila; si las imágenes no conocen el esquema actual, el bootstrap falla sin limpiar datos y debe reconstruirse con el comando normal. La base CI es independiente; no sustituir sus URLs por la base persistente de preview.

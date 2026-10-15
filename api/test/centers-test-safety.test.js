@@ -2,6 +2,13 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { testUrls } from './centers-integration/helpers.mjs';
 
+test('ordinary suites refuse the persistent preview URLs; only explicit preview bootstrap opts in',()=>{
+  const env={CENTERS_TEST_DATABASE_URL:'postgresql://centers_app:fictional@centers-test-db/ft_gym_centers_test',CENTERS_TEST_MIGRATION_DATABASE_URL:'postgresql://centers_migrator:fictional@centers-test-db/ft_gym_centers_test'};
+  assert.throws(()=>testUrls(env),/persistent preview/);
+  assert.equal(testUrls(env,{allowPreview:true}).app,env.CENTERS_TEST_DATABASE_URL);
+  assert.equal(testUrls({CENTERS_TEST_DATABASE_URL:env.CENTERS_TEST_DATABASE_URL.replace('centers-test-db/ft_gym_centers_test','centers-ci-db/ft_gym_ci_centers_test'),CENTERS_TEST_MIGRATION_DATABASE_URL:env.CENTERS_TEST_MIGRATION_DATABASE_URL.replace('centers-test-db/ft_gym_centers_test','centers-ci-db/ft_gym_ci_centers_test')}).app.includes('centers-ci-db'),true);
+});
+
 const env = {
   CENTERS_TEST_DATABASE_URL: 'postgresql://centers_app:fictional@localhost/ft_gym_centers_test',
   CENTERS_TEST_MIGRATION_DATABASE_URL: 'postgresql://centers_migrator:fictional@localhost/ft_gym_centers_test',

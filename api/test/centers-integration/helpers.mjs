@@ -10,12 +10,13 @@ import { fileURLToPath } from 'node:url';
 
 // No fallback to application credentials. A test suffix alone is insufficient: the SQL marker
 // and the separate app/migrator identities are also checked before test writes.
-export function testUrls(env = process.env) {
+export function testUrls(env = process.env,{allowPreview=false}={}) {
   const app = env.CENTERS_TEST_DATABASE_URL || '';
   const migration = env.CENTERS_TEST_MIGRATION_DATABASE_URL || '';
   const a = postgresUrl(app, 'CENTERS_TEST_DATABASE_URL');
   const m = postgresUrl(migration, 'CENTERS_TEST_MIGRATION_DATABASE_URL');
   const name = decodeURIComponent(a.pathname.slice(1));
+  if(a.hostname==='centers-test-db'&&name==='ft_gym_centers_test'&&!allowPreview)throw new Error('ordinary suites must not target the persistent preview database');
   if (!/^[a-z0-9_]+_centers_test(?:_[a-z0-9_]+)?$/.test(name) || a.search || m.search ||
       a.hostname !== m.hostname || (a.port || '5432') !== (m.port || '5432') || a.pathname !== m.pathname ||
       decodeURIComponent(a.username) !== 'centers_app' || decodeURIComponent(m.username) !== 'centers_migrator') {
@@ -63,8 +64,8 @@ export async function startHttp(t, { app, users, enabled = true, attached = fals
   };
 }
 
-export async function isolatedDatabase() {
-  const urls = testUrls();
+export async function isolatedDatabase(options={}) {
+  const urls = testUrls(process.env,options);
   const migrator = new pg.Client({ connectionString: urls.migration, connectionTimeoutMillis: 3000, statement_timeout: 5000 });
   try {
     await migrator.connect();

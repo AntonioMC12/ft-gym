@@ -164,10 +164,10 @@ function SeriesCancellation({centerId,ownerUid,id,close,changed}){
 }
 function Content({centerId,ownerUid,own=false,canManage=false}){
   const [mode,setMode]=useState('list'),[data,setData]=useState(null),[dataCenter,setDataCenter]=useState(null),[busy,setBusy]=useState(false),[error,setError]=useState(null),[revision,setRevision]=useState(0)
-  const [correctionId,setCorrectionId]=useState(null),[rosterParent,setRosterParent]=useState('list'),[seriesParent,setSeriesParent]=useState('series-list')
+  const [correctionId,setCorrectionId]=useState(null),[rosterParent,setRosterParent]=useState('list'),[seriesParent,setSeriesParent]=useState('series-list'),[editorParent,setEditorParent]=useState('list')
   const [filters,setFilters]=useState({from:'',to:''}),[applied,setApplied]=useState(null),[reason,setReason]=useState('')
   const life=useRef(0),pending=useRef(false),retry=useRef(null),latest=useRef(null),navigate=useCenterNavigation()
-  const changeMode=next=>{if(next.startsWith('roster:'))setRosterParent(mode);if(next.startsWith('series:')&&!mode.startsWith('roster:'))setSeriesParent(mode.startsWith('create')?'series-list':mode);setData(null);setMode(next)}
+  const changeMode=next=>{if(next==='create'||next==='create-series')setEditorParent(mode);if(next.startsWith('roster:'))setRosterParent(mode);if(next.startsWith('series:')&&!mode.startsWith('roster:'))setSeriesParent(mode.startsWith('create')?editorParent:mode);setData(null);setMode(next)}
   latest.current={data,reason,mode};const current=epoch=>life.current===epoch&&useStore.getState().user?.id===ownerUid
   const fail=e=>{setError(e);useCenters.getState().revokeOn(e)}
   useUnsavedCenterForm(reason?reason:null,busy)
@@ -197,7 +197,7 @@ function Content({centerId,ownerUid,own=false,canManage=false}){
   const moreRef=useAutoMore(more)
   if(mode.startsWith('series-cancel:')&&canManage&&!own)return <SeriesCancellation key={centerId+':'+ownerUid+':'+mode} centerId={centerId} ownerUid={ownerUid} id={mode.slice(14)} close={()=>{setData(null);setMode('series:'+mode.slice(14))}} changed={()=>{setData(null);setMode('series:'+mode.slice(14));setRevision(value=>value+1)}}/>
   if(correctionId&&canManage&&!own)return <AttendanceReview key={centerId+':'+ownerUid+':'+correctionId} centerId={centerId} ownerUid={ownerUid} id={correctionId} timezone={data?.event.timezone} close={()=>setCorrectionId(null)} changed={()=>{setCorrectionId(null);setRevision(value=>value+1)}}/>
-  if((mode==='create'||mode==='create-series')&&canManage&&!own)return <ClassEditor startSeries={mode==='create-series'} key={centerId+':'+ownerUid+':'+mode} centerId={centerId} ownerUid={ownerUid} timezone={dataCenter?.timezone} today={dataCenter?.today} close={()=>changeMode('list')} saved={result=>{changeMode(result?.seriesId?'series:'+result.seriesId:'list');setRevision(value=>value+1)}}/>
+  if((mode==='create'||mode==='create-series')&&canManage&&!own)return <ClassEditor startSeries={mode==='create-series'} key={centerId+':'+ownerUid+':'+mode} centerId={centerId} ownerUid={ownerUid} timezone={dataCenter?.timezone} today={dataCenter?.today} close={()=>changeMode(editorParent)} saved={result=>{changeMode(result?.seriesId?'series:'+result.seriesId:'list');setRevision(value=>value+1)}}/>
   return <Section title={t(mode.startsWith('roster:')?'Class roster':mode==='series-list'||mode.startsWith('series:')?'Class series':'Classes')}><div className="centers-form">
     <p className="small muted">{t('No automatic fees or penalties.')}</p>
     {(mode==='list'||mode.startsWith('series:'))&&<>

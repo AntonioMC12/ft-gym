@@ -124,3 +124,15 @@ test('a queued series cancellation rechecks the future set after the center lock
   const response=await waiting;assert.equal(response.status,409);assert.equal(response.body.code,'class-series-review-changed');
   const unchanged=(await cancellation(f,id)).body;assert.equal(unchanged.summary.classes,1);assert.ok(unchanged.classes.every(event=>event.state==='scheduled'),'the remaining future class is not partially canceled');
 });
+
+test('weekly instructors are checked on every date and completed creation survives a disabled identity without duplicate classes',async t=>{
+  const f=await fixture(t),input=source(f),directory=(await f.req('/api/centers/classes/instructors?centerId='+f.center,f.ids.manager)).body,teacher=directory.instructors.find(row=>row.role==='trainer');input.fields.instructorAssignmentId=teacher.id;
+  const initial=(await preview(f,input)).body;assert.equal(initial.summary.ready,3);
+  await f.db.platformTransaction(f.ids.root,client=>client.query('UPDATE centers.role_assignments SET valid_until=$2,version=version+1 WHERE id=$1',[teacher.id,shift(input.fields.date,8)+'T12:00:00Z']),f.center);
+  const partial=(await preview(f,input)).body;assert.equal(partial.summary.ready,2);assert.equal(partial.summary.errors,1);assert.equal(partial.rows[2].code,'class-instructor-unavailable');
+  assert.equal((await create(f,input,initial.reviewHash)).body.code,'class-series-review-changed');assert.deepEqual(await counts(f),{series:0,classes:0});
+  input.rule.excludedDates=[partial.rows[2].date];const bounded=(await preview(f,input)).body;assert.equal(bounded.summary.ready,2);const created=await create(f,input,bounded.reviewHash,'covered_teacher');assert.equal(created.status,200);assert.ok(created.body.classes.every(row=>row.instructorName===teacher.name));
+  assert.equal((await f.req('/api/admin/user/disable',f.ids.technical,{id:f.ids.trainer,disabled:true})).status,200);
+  const replay=await create(f,input,bounded.reviewHash,'covered_teacher');assert.equal(replay.status,200);assert.equal(replay.body.series.id,created.body.series.id);assert.ok(replay.body.classes.every(row=>row.instructorNeedsReview));assert.deepEqual(await counts(f),{series:1,classes:2});
+  const unavailable=(await preview(f,input)).body;assert.equal(unavailable.summary.errors,2);assert.equal((await create(f,input,unavailable.reviewHash,'disabled_new')).body.code,'class-series-invalid');
+});

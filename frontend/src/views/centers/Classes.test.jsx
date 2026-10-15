@@ -168,3 +168,10 @@ it('does not apply cancellation review or confirmations from a different selecte
   let release;centerCommand.mockImplementationOnce(()=>new Promise(resolve=>release=resolve));await openSeriesCancellation();await render({centerId:'b',own:false,canManage:true});await act(async()=>release(cancelReview()));expect(host.textContent).not.toContain('Past class');expect(host.querySelector('textarea')).toBeNull();
   centerCommand.mockResolvedValueOnce(cancelReview());await openSeriesCancellation();fill(host.querySelector('textarea'),'Valid reason');await click('Cancel future classes');await render({centerId:'b',own:false,canManage:true});await act(async()=>confirmSheet.mock.calls.at(-1)[0].onConfirm());expect(centerCommand).toHaveBeenCalledTimes(2);
 })
+
+it('returns a new series editor to its directory instead of the calendar',async()=>{
+  centerClassSeriesList.mockResolvedValue({series:[group('cs_one')],nextCursor:null});await render({own:false,canManage:true});await click('Class series');await click('Create weekly series');expect(button('Review class series')).toBeDefined();await click('Back');expect(host.textContent).toContain('Weekly cs_one');expect(button('New class')).toBeUndefined();
+})
+it('returns a saved weekly series to the calendar when creation started there',async()=>{
+  centerCommand.mockResolvedValueOnce(reviewSeriesPage()).mockResolvedValueOnce({series:{id:'cs_one'}});centerClassSeries.mockResolvedValue(seriesDetails());await weeklyEditor();await click('Review class series');await click('Create weekly series');await act(async()=>confirmSheet.mock.calls[0][0].onConfirm());await click('Back');expect(button('New class')).toBeDefined();expect(centerClassSeriesList).not.toHaveBeenCalled();
+})

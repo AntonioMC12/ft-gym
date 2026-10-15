@@ -107,7 +107,27 @@ Schema012 permite lectura únicamente de filas propias por sesión + centro; pre
 
 Mis centros y Gestionar centros son destinos distintos en Cuenta. Recibos/pagos usan componentes existentes con transporte own y controles de mutación ocultos. Historias ended/inactive permanecen legibles y toda consulta administrativa/financiera es efímera en memoria, con Cache-Control no-store, ajena a S y exportaciones personales.
 
-## Reanudar la preview ficticia instalada (checkpoint del 15 de octubre)
+## Preview de centros completamente en Docker (15 de octubre)
+
+La preview instalada se sirve ahora con imágenes `ft-gym-centers-preview-api:local` y `ft-gym-centers-preview-web:local`, más el PostgreSQL ficticio existente. No necesita Vite. Desde `openGym/`, con Docker Desktop arrancado:
+
+```powershell
+$env:CENTERS_PREVIEW_REVISION = (git rev-parse HEAD).Trim()
+$env:CENTERS_PREVIEW_BRANCH = (git branch --show-current).Trim()
+docker compose -f compose.centers.test.yml -f compose.centers.preview.yml up -d --build --wait centers-preview-api centers-preview-web
+```
+
+Abrir `http://localhost:5178/#/centers`. Usuario `Plataforma Centros`, contraseña ficticia `Centros-Pruebas-2026!`. Login, permisos globales, proxy y schema021 comprobados desde la red de contenedores; no se afirma una revisión visual. La demo8088 y su volumen son independientes. El frontend tiene una red adicional para publicar el puerto solo en loopback; API y SQL siguen en la red interna de pruebas, sin puerto público.
+
+El target `centers-preview` contiene los entrypoints ficticios y el carrier, sin montar código de tests desde Windows; el target `default` no los hereda. Las imágenes llevan etiquetas `org.opencontainers.image.revision` y `com.ftgym.branch`. El código de aplicación construido en esta entrega parte de72034ae8, con la configuración Docker de preview añadida localmente. Cambiar de rama sin reconstruir no cambia el código que ejecutan las imágenes.
+
+Este comando presupone la base test ya preparada y las asignaciones preview_manager existentes: el arranque falla cerrado ante una base nueva/sin esquema o que no sea test. No sustituir URLs por las de una instalación real. Carrier simulado persistido en `../informes/centers-stripe-preview`, jobs/email externos desactivados. Para detener conservando datos: `docker compose -f compose.centers.test.yml -f compose.centers.preview.yml stop centers-preview-web centers-preview-api centers-test-db`. No usar `down -v`.
+
+Antes de recrear API, preservar su directorio temporal y restaurar los archivos personales ficticios que existan, siguiendo las instrucciones siguientes. Snapshot previo a esta conversión: `../informes/centers-docker-preview-before-20261015`; no contenía state-preview_*.json. El arranque recrea las cuentas conocidas de la fixture; no usarla para cuentas o datos reales.
+
+## Referencia anterior: preview con API Docker y Vite
+
+Los comandos de esta sección documentan el montaje anterior. Con el frontend Docker actual, no arrancar Vite también en5178.
 
 La preview de esta sesión usa el contenedor existente `ft-gym-centers-preview`, PostgreSQL del proyecto `ft-gym-centers-tests` y Vite. No es el overlay de una instalación real ni la demo del usuario. Los comandos siguientes reanudan estos recursos ya preparados; no crean una cuenta de producción, no migran una instalación real y no permiten saltarse las restricciones guardadas del navegador de herramientas.
 
@@ -165,3 +185,19 @@ Esta lista organiza el trabajo que aún no puede declararse verificado visualmen
 7. **Evidencia.** Guardar fecha, cuentas ficticias utilizadas, resultados y capturas fuera de Git; registrar limitaciones en CENTERS_PROGRESS. No marcar `done` únicamente por haber abierto la pantalla. C27 necesita además su verificación externa de test y C32 las definiciones/denominadores pendientes de visitas/ocupación.
 
 Después de estas verificaciones y de cerrar sus criterios: C30 puede abordar una proyección de progreso con consentimiento específico y revocable, ajena a la aceptación de propuestas; C33 debe usar visitas físicas verificadas y umbrales explícitos. C28 sigue necesitando el formato y proceso bancario acordados, sin inventarlos desde una exportación CSV.
+
+## Compartir la preview de centros con un externo
+
+Overlay `compose.centers.preview.yml`, servicio opt-in `centers-preview-tunnel` (perfil share), Quick Tunnel de Cloudflare hacia Nginx. No comparte la demo8088 ni publica PostgreSQL. Referencia oficial: https://developers.cloudflare.com/tunnel/get-started/quick-tunnels/ . El hostname cambia al crear otro túnel y el enlace deja de servir al detenerlo.
+
+La API usa un único origen CSRF/WebAuthn. Con el túnel activo, usar su enlace HTTPS también para las pruebas locales, no localhost5178 para iniciar sesión. `CENTERS_PREVIEW_ORIGIN` admite únicamente localhost5178 o HTTPS de un hostname trycloudflare.com sin credenciales/path/query; no se amplía la política del servidor normal. RP_ID y retorno del carrier simulado siguen ese origen. Cookies Secure activas en HTTPS. No hay pagos reales.
+
+La configuración de esta sesión está fuera de Git, en `../informes/centers-preview-share.env`. Para reanudar sin perder el hostname mientras el túnel existente siga vivo:
+
+```powershell
+docker compose --env-file ../informes/centers-preview-share.env -f compose.centers.test.yml -f compose.centers.preview.yml --profile share up -d --wait centers-preview-api centers-preview-web centers-preview-tunnel
+```
+
+Si se crea un túnel nuevo, obtener su URL de los logs, actualizar CENTERS_PREVIEW_ORIGIN en ese archivo y recrear API con el mismo --env-file. No mantener el origen de un túnel anterior. Para dejar de compartir: `docker compose -f compose.centers.test.yml -f compose.centers.preview.yml stop centers-preview-tunnel`. Para volver al login local, levantar/recrear API sin --env-file y sin CENTERS_PREVIEW_ORIGIN definido.
+
+Desde esta entrega los datos JSON ficticios de API se conservan en `../informes/centers-preview-data`, montados en un directorio exclusivo de la fixture. Se copiaron del contenedor previo antes de recrearlo. El entrypoint conserva db.json existente si contiene las identidades de prueba, en lugar de regenerar contraseñas/passkeys al cambiar de origen. SQL continúa en su volumen test. No usar datos reales ni publicar estos archivos.

@@ -4,6 +4,16 @@
 
 ## Punto de reanudación
 
+- Navegación directa: añadir Inicio y Centros como destinos explícitos accesibles desde ficha/pestañas/formularios, manteniendo Atrás cronológico separado. Reutilizar UI/Router, conservar búsqueda del listado y proteger cambios sin guardar según el patrón existente. Feedback registrado para la próxima iteración; no cambia la preview activa.
+
+- Selección del responsable: petición de listado visible inicial de cuentas disponibles, filtrable por nombre/ID y con elección clara. Revisar AccountPicker (Centers.jsx), carga, error, vacío/sin coincidencias y paginación si corresponde, reutilizando listas/controles existentes. El usuario buscó demo, que pertenece a otra instalación; no inventar esa cuenta ni mezclar directorios. Registrar la ausencia de coincidencias de forma visible. Se incorpora a la próxima iteración junto a las mejoras visuales anteriores; preview sin cambios.
+
+- Selector horario: el usuario rechaza también el popup nativo blanco/azul de input type=time, no solo el campo cerrado. Buscar componente adecuado en toda la aplicación antes de crear un TimeField compartido con selección acorde a sus sheets/tokens. Mantener edición por teclado y accesibilidad, móvil/escritorio, ambos temas y cierre24:00. La apertura actual de NewCenter usa TextField type=time; no se ha cambiado la interfaz en esta petición de feedback.
+
+- Ampliación de esa revisión visual: horario de apertura, horas con valor que parecen texto estático, reloj oscuro poco visible y acciones Añadir/Quitar que parecen texto suelto. Mejorar identificación de campos/botones, etiquetas apertura/cierre, agrupación y alineación de intervalos, área pulsable y estados del interruptor. Reutilizar componentes compartidos y comprobar móvil/temas; registrado para la próxima iteración, sin modificar la preview en esta petición.
+
+- Prioridad visual para la próxima iteración, indicada el15octubre: mejorar identificación de inputs vacíos y otros controles. TextField ya existe en ui.jsx y NewCenter lo usa; .field/.input tienen background:var(--surface) y border:none, lo que puede fundirlos con la tarjeta del mismo fondo. Corregir mediante componente/variante compartida y tokens, no duplicar un input. Revisar contraste/borde, etiquetas, foco/error/deshabilitado, temas claro/oscuro y móvil/escritorio; conservar el estilo de la aplicación. En esta petición solo se registra el criterio, sin cambiar ni reconstruir la preview activa.
+
 - Trabajo actual autorizado (14 octubre, nueva continuación): seguir hasta el5% restante del uso consumible; monitorizar ventana primaria y semanal y conservar ese margen en la primera que alcance el umbral. Guardar el punto de continuación y apagar el ordenador al llegar. El usuario ha autorizado expresamente el apagado en su mensaje vigente. Sustituye los límites anteriores; no usar créditos para reiniciar el uso.
 - Rama: `codex/centers-module`, creada desde `53ef0baf`. F0-F3 verificadas en entorno ficticio. Commits: `75e1160d`, `433764a5`, `24cb5a42`.
 - Guía: [CENTERS_ROADMAP.md](CENTERS_ROADMAP.md). Instrucciones: [AGENTS.md](../../AGENTS.md).
@@ -459,3 +469,18 @@ No guardar credenciales, bodies privados, volcados de socios, IBAN, tarjetas o r
 - Commits del último hito: e967704c (C32), d06de083/351a0266 (guía local y aceptación manual). Sin staging de cambios previos del usuario; no push/merge. Última lectura de presupuesto al iniciar cierre:94%primario/93%semanal; se conserva margen para guardar y enviar el apagado autorizado al umbral95%. No se utilizaron créditos de reset.
 
 - Cierre final: umbral solicitado alcanzado,95%primario/93%semanal. API preview y PostgreSQL test detenidos antes del apagado, volúmenes y snapshots conservados. Se envía el apagado expresamente autorizado, sin forzar cierre de aplicaciones ni reiniciar límites. Para reanudar, consultar CENTERS_DEVELOPMENT.md; no asumir que los servicios siguen levantados.
+
+## 15 octubre — preview completa Docker solicitada por el usuario
+
+- Alcance nuevo: construir y levantar la preview de centros. No se reanuda la orden anterior de consumir cuota/apagar. API y frontend construidos desde codex/centers-module, aplicación72034ae8 con configuración Docker añadida localmente. Imágenes ft-gym-centers-preview-api:local y ft-gym-centers-preview-web:local con etiquetas de revisión/rama.
+- Nuevo target opt-in centers-preview en api/Dockerfile; incorpora solo entrypoints/helpers/carrier necesarios, sin afectar al target default. Overlay compose.centers.preview.yml reutiliza PostgreSQL test/schema021 y volumen existente. Web publicado solo127.0.0.1:5178; API/SQL sin puertos host. Red adicional exclusivamente web para publicación en Docker Desktop. Demo8088 y cambios previos del usuario conservados.
+- Estado anterior de /tmp de API copiado fuera de Git a ../informes/centers-docker-preview-before-20261015, sin archivos personales state-preview_*.json. Carrier ficticio conservado. Sin migraciones reales ni claves externas.
+- Construcción correcta (../informes/centers-docker-preview-build.log), compose válido,2/2 contratos de empaquetado. Tres contenedores saludables. Prueba desde la red interna atravesando Nginx: HTML200, config.centers.enabled, login de Plataforma Centros200, centers.manage y metrics.global.read presentes, estadoSQL200/schema021. Puerto publicado y listenerWindows5178 comprobados. No acceso de escritorio por HTTP ni revisión visual como alternativa a la restricción guardada del navegador.
+- Guía CENTERS_DEVELOPMENT actualizada con comando Docker de reanudación, etiquetas y credenciales ficticias. Recargar localhost:5178 y volver a iniciar sesión; las credenciales de la demo8088 no se mezclan con la preview.
+
+## 15 octubre — túnel externo de la preview solicitado por el usuario
+
+- Añadido servicio centers-preview-tunnel con perfil share hacia Nginx, solo red preview-web. Cloudflare registra conexiónQUIC mad05. URL actual en ../informes/centers-preview-share.env; cambia si se crea otro Quick Tunnel. No se envió mensaje a terceros: enlace entregado al usuario.
+- Fixture parametriza origen/RP_ID/retorno simulado con allowlist estricta localhost5178 o HTTPS trycloudflare.com. Servidor normal/CSRF sin modificación. Datos JSON completos copiados del contenedor detenido a ../informes/centers-preview-data y ahora persistidos por bind exclusivo ficticio; no se regeneran cuentas existentes. No datos reales ni email/cobros externos.
+- API reconstruida, API/web/SQL saludables. Verificación interna atravesando Nginx con Origin público: login superadmin200, capacidades vigentes, cookieSecure y origen ajeno403. Guardas de URL contrastadas (5casos inválidos), empaquetado2/2. No acceso al navegador ni consulta del enlace público por otra herramienta como alternativa a su denegación guardada.
+- Guía de compartir/parar/volver a localhost en CENTERS_DEVELOPMENT. Túnel temporal activo para que el usuario comparta el enlace; esta orden no autoriza futuros apagados ni reanuda el presupuesto anterior.

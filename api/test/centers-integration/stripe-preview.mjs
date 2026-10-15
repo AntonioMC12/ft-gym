@@ -5,6 +5,7 @@ import os from 'node:os';
 import path from 'node:path';
 import {testUrls} from './helpers.mjs';
 import {createCentersDatabase} from '../../centers/db.js';
+import {previewOrigin} from './preview-origin.mjs';
 const urls=testUrls(),database=createCentersDatabase({enabled:true,databaseUrl:urls.app});let centers;
 try{
   await database.status();
@@ -18,7 +19,7 @@ const directory=process.env.CENTERS_STRIPE_TEST_FIXTURE||fs.mkdtempSync(path.joi
 if(!fs.realpathSync(directory).startsWith(path.join(fs.realpathSync(os.tmpdir()),'gym-centers-stripe-fixture-')))throw new Error('preview carrier requires a named temporary fixture');
 const marker=path.join(directory,'fixture');if(fs.existsSync(marker)&&fs.readFileSync(marker,'utf8')!=='fictional-disposable-only')throw new Error('unexpected preview fixture marker');fs.writeFileSync(marker,'fictional-disposable-only');
 const state=path.join(directory,'provider.json');if(!fs.existsSync(state))fs.writeFileSync(state,JSON.stringify({sessions:{},keys:{},calls:[]}));
-const profiles=JSON.stringify([{id:'preview_stripe_sandbox',mode:'test',accountId:'acct_fictionalhttp1234',apiKey:'sk_test_fictional_http_fixture_never_sent',webhookSecrets:['whsec_fictional_preview_signature_key'],centerIds:centers,maxAmountMinor:'100000',dailyLimitMinor:'1000000',returnOrigin:'http://localhost:5178'}]);
+const profiles=JSON.stringify([{id:'preview_stripe_sandbox',mode:'test',accountId:'acct_fictionalhttp1234',apiKey:'sk_test_fictional_http_fixture_never_sent',webhookSecrets:['whsec_fictional_preview_signature_key'],centerIds:centers,maxAmountMinor:'100000',dailyLimitMinor:'1000000',returnOrigin:previewOrigin(process.env.CENTERS_PREVIEW_ORIGIN)}]);
 fs.writeFileSync(path.join(directory,'profiles.json'),profiles);
 Object.assign(process.env,{CENTERS_STRIPE_TEST_FIXTURE:directory,CENTERS_STRIPE_PROFILES_JSON:profiles,CENTERS_DATABASE_URL:urls.app,CENTERS_JOBS_ENABLED:'0',CENTERS_MAIL_PROFILES_JSON:'',CENTERS_NOTIFICATIONS_TEST_CAPTURE:'0'});
 await import('./stripe-http-preload.mjs');

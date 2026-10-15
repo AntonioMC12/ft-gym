@@ -10,6 +10,7 @@ import {applyMigrations,migrationFiles} from '../../centers/migrate.js';
 import {createHmac} from 'node:crypto';
 import {stripeProfiles,STRIPE_API_VERSION} from '../../centers/stripe-config.js';
 import {prepareStripeAttempt,receiveStripeWebhook} from '../../centers/services/stripe-foundation.js';
+import {maintenanceTick} from '../../centers/services/maintenance.js';
 import {drillUrl,backupClient,emptyRestoreTarget,pgTool,makeManifest,verifyManifest,logicalSnapshot,verifyRestoredIdentity,hash} from './recovery-support.mjs';
 
 test('C24: two-center pilot survives a coordinated JSON/PostgreSQL restore and rejects inconsistent candidates',async t=>{
@@ -57,6 +58,11 @@ test('C24: two-center pilot survives a coordinated JSON/PostgreSQL restore and r
   const csvCompletedReview=await req('/api/centers/members/imports/prepare','pilot_manager_a',{centerId:centers[0],csv:'name,email\nRestored CSV member,csv-completed@example.test',duplicatePolicy:'skip',requestId:'pilot_csv_completed'});assert.equal(csvCompletedReview.status,200);
   const csvCompletedCommand={centerId:centers[0],id:csvCompletedReview.body.id,reviewHash:csvCompletedReview.body.reviewHash},csvCompleted=await req('/api/centers/members/imports/commit','pilot_manager_a',csvCompletedCommand);assert.equal(csvCompleted.status,200);
   const csvPending=await req('/api/centers/members/imports/prepare','pilot_manager_a',{centerId:centers[0],csv:'name,email\nPending restored CSV,csv-pending@example.test',duplicatePolicy:'skip',requestId:'pilot_csv_pending'});assert.equal(csvPending.status,200);
+  const expiredImportId='mi_'+hash('pilot_expired_csv_review').slice(0,32);
+  await sourceBackup.query(`INSERT INTO centers.member_import_jobs(id,center_id,actor_uid,request_id,input_hash,records,created_at,expires_at)
+    VALUES($1,$2,'pilot_manager_a','pilot_expired_csv_review',$3,$4,statement_timestamp()-interval '25 hours',statement_timestamp()-interval '1 hour')`,
+    [expiredImportId,centers[0],hash('fictional expired CSV'),JSON.stringify([{record:1,line:2,fields:{name:'Expired personal payload',email:'expired@example.test'}}])]);
+  const retentionDb=createCentersDatabase({enabled:true,databaseUrl:app});try{assert.equal((await maintenanceTick(retentionDb)).expired,1)}finally{await retentionDb.close()}
   const freezeDate=offset=>{const date=new Date(ownBefore.today+'T00:00:00Z');date.setUTCDate(date.getUTCDate()+offset);return date.toISOString().slice(0,10)};
   let freezeCommand,freezeResult;
   for(const [index,manager,uid] of [[0,'pilot_manager_a','pilot_alice'],[1,'pilot_manager_b','pilot_bob']]){
@@ -103,6 +109,8 @@ test('C24: two-center pilot survives a coordinated JSON/PostgreSQL restore and r
   restored=await startHttp(t,{app:target,savedData:restoredData,superadminUids:['pilot_root']});const after=(...args)=>request(restored,...args);
   assert.deepEqual((await after('/api/centers/freezes/decide','pilot_manager_a',freezeCommand)).body,freezeResult,'approved freeze stays idempotent after restore');
   assert.equal((await after('/api/centers/own/freezes?centerId='+centers[1],'pilot_bob')).body.requests[0].state,'pending','pending approval survives restore');
+  const expiredImport=await after('/api/centers/members/imports/detail?'+new URLSearchParams({centerId:centers[0],id:expiredImportId}),'pilot_manager_a');
+  assert.equal(expiredImport.body.state,'expired');assert.deepEqual(expiredImport.body.rows,[]);assert.ok(!JSON.stringify(expiredImport).includes('expired@example.test'),'restore does not resurrect cleared CSV content');
   assert.deepEqual((await after(ownPath,'pilot_alice')).body,ownBefore);assert.deepEqual((await after('/api/data','pilot_alice')).body,personalBefore);
   const metricsAfter=await after(metricsPath,'pilot_manager_a');assert.equal(metricsAfter.status,200);assert.deepEqual(metricsAfter.body.current,metricsBefore.body.current);assert.deepEqual(metricsAfter.body.period,metricsBefore.body.period,'contract/financial aggregates recompute from the restored ledger without a cached personal-state projection');
   const restoredCsv=await after('/api/centers/members/imports/detail?'+new URLSearchParams({centerId:centers[0],id:csvPending.body.id}),'pilot_manager_a');assert.equal(restoredCsv.status,200);assert.equal(restoredCsv.body.reviewHash,csvPending.body.reviewHash);

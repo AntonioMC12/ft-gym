@@ -42,5 +42,6 @@ try {
     {name:'Centro de pruebas',capacity:120,managerUid:'preview_manager',requestId:'preview_'+randomUUID(),openingHours:{1:[['08:00','22:00']],2:[['08:00','22:00']],3:[['08:00','22:00']],4:[['08:00','22:00']],5:[['08:00','22:00']]}});
 }finally{await db.close();}
 Object.assign(process.env,{DATA_DIR:directory,CENTERS_ENABLED:'1',CENTERS_DATABASE_URL:urls.app,CENTERS_SUPERADMIN_UIDS:'preview_platform',
+  CENTERS_MAINTENANCE_ENABLED:'1',
   PASSWORD_LOGIN:'1',FIRST_USER_ADMIN:'0',INVITE_ONLY:'1',ALLOW_GUEST:'0',COACH_DISABLED:'1',MEDIA_UPLOADS:'0',DEFAULT_LANG:'es',ORIGIN:origin,RP_ID:new URL(origin).hostname,PORT:'3000'});
 if(process.env.CENTERS_PREVIEW_INIT_ONLY!=='1')await import('../../server.js');

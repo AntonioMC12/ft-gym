@@ -19,6 +19,7 @@ import { coachRoutes } from './coach/routes.js';
 import { centersConfig, publicCentersConfig } from './centers/config.js';
 import { createCentersDatabase } from './centers/db.js';
 import {startBillingWorker} from './centers/services/jobs.js';
+import {startMaintenanceWorker} from './centers/services/maintenance.js';
 import {startCentersWorker} from './centers/services/worker-lifecycle.js';
 import {stripeTick} from './centers/services/stripe-worker.js';
 import {notificationTick,createNotificationCapture} from './centers/services/notification-worker.js';
@@ -2783,7 +2784,11 @@ const CENTERS_WORKER=startBillingWorker(CENTERS_DATABASE,{enabled:CENTERS_CONFIG
 const CENTERS_STRIPE_WORKER=startCentersWorker(()=>stripeTick(CENTERS_DATABASE,CENTERS_CONFIG),{
   enabled:CENTERS_CONFIG.enabled&&CENTERS_CONFIG.jobsEnabled&&CENTERS_CONFIG.stripeProfiles.length>0,
   onError:()=>console.warn('centers reconciliation temporarily unavailable')});
-server.on('close', () => { Promise.all([CENTERS_WORKER.stop(),CENTERS_STRIPE_WORKER.stop()]).then(()=>CENTERS_DATABASE.close()).catch(() => {}); });
+const CENTERS_MAINTENANCE_WORKER=startMaintenanceWorker(CENTERS_DATABASE,{
+  enabled:CENTERS_CONFIG.enabled&&CENTERS_CONFIG.maintenanceEnabled,
+  onResult:result=>{if(result.expired)console.info('centers expired reviews cleared:',result.expired)},
+  onError:()=>console.warn('centers maintenance temporarily unavailable')});
+server.on('close', () => { Promise.all([CENTERS_WORKER.stop(),CENTERS_STRIPE_WORKER.stop(),CENTERS_MAINTENANCE_WORKER.stop()]).then(()=>CENTERS_DATABASE.close()).catch(() => {}); });
 // Node's default of 300 s for a whole request would answer 408 to a 40 MB video on a ~1 Mbit/s
 // uplink. Half an hour covers that; a stalled upload is cut much sooner by its own 60 s idle
 // timer in media.js, a client that never finishes its headers still meets headersTimeout, and

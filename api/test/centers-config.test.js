@@ -5,6 +5,8 @@ import { DEVELOPMENT_POLICY, ROLE_CAPABILITIES } from '../centers/domain/policie
 
 test('centers is opt-in and advertises no credentials or invented business capabilities', () => {
   assert.equal(centersConfig({}).enabled, false);
+  assert.equal(centersConfig({}).maintenanceEnabled, false);
+  assert.equal(centersConfig({CENTERS_MAINTENANCE_ENABLED:'1'}).maintenanceEnabled, true);
   assert.equal(publicCentersConfig(centersConfig({})), null);
   const cfg = centersConfig({ CENTERS_ENABLED: '1', CENTERS_DATABASE_URL: 'postgresql://app:secret@localhost/centers' });
   assert.deepEqual(publicCentersConfig(cfg), { enabled: true, stage: 'centers' });

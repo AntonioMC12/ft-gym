@@ -280,6 +280,7 @@ paths:
       tags: [centers]
       operationId: prepareCenterMemberCsvImport
       summary: Prepare an actor-owned member CSV review without creating members
+      x-retention: Expired reviews return no private rows. Optional bounded maintenance clears records and preserves expired replay metadata; completed results remain unchanged. Earlier backups need a separate retention policy.
       description: Current members.manage in an active selected center or explicit platform allowlist. UTF-8 CSV up to256KiB and200records, comma/semicolon with RFC4180 quoting, known name/email/phone/nationalDocument headers or documented Spanish aliases. Unknown identity/role/financial columns rejected. Explicit duplicatePolicy skip, matched using existing SQL email/document normalization. Names alone never establish identity. Invalid rows prevent completion. No accounts, roles, balances, contracts or payments created. A durable bounded job expires after24hours. Same actor/center/requestId replays; changed content conflicts.
       requestBody:
         required: true

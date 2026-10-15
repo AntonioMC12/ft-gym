@@ -33,6 +33,12 @@ it('recovers a job from its URL identity and cannot confirm invalid rows or an e
   centerMemberImport.mockResolvedValueOnce({...review,summary:{...review.summary,errors:1},rows:[{record:1,line:2,status:'error',error:'invalid-fields'}]});await render({jobId:review.id});expect(centerMemberImport).toHaveBeenCalledWith('center1',review.id);expect(button('Confirm import').disabled).toBe(true);expect(host.textContent).toContain('Fix invalid rows before importing.');
   centerMemberImport.mockResolvedValueOnce({...review,id:'expired',state:'expired'});await render({jobId:'expired'});expect(button('Confirm import').disabled).toBe(true);expect(host.textContent).toContain('Choose the CSV file again to start a new review.');expect(centerCommand).not.toHaveBeenCalled()
 })
+it('renders a physically expired review without private rows or a fabricated summary',async()=>{
+  centerMemberImport.mockResolvedValue({id:'expired',definitionVersion:1,state:'expired',rows:[]});await render({jobId:'expired'})
+  expect(host.textContent).toContain('Choose the CSV file again to start a new review.')
+  expect(button('Confirm import').disabled).toBe(true);expect(host.querySelector('.centers-import-summary')).toBeNull()
+  expect(host.querySelectorAll('.centers-import-rows .lrow')).toHaveLength(0)
+})
 it('rejects oversized or invalid UTF-8 files before calling the API',async()=>{
   await render();const read=vi.fn();await upload({name:'large.csv',size:256*1024+1,arrayBuffer:read});expect(read).not.toHaveBeenCalled();expect(host.querySelector('[role=alert]').textContent).toBe('invalid-member-csv');await upload({name:'bad.csv',size:1,arrayBuffer:async()=>new Uint8Array([255]).buffer});expect(centerCommand).not.toHaveBeenCalled();expect(button('Review import')).toBeUndefined()
 })

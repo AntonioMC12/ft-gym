@@ -27,6 +27,7 @@ const summary=rows=>({total:rows.length,ready:rows.filter(r=>r.status==='ready')
 async function dto(client,job){
   const {rows:[clock]}=await client.query('SELECT clock_timestamp()>=$1::timestamptz AS expired',[job.expires_at]);
   if(job.state==='completed')return {id:job.id,state:'completed',definitionVersion:1,result:job.result,completedAt:job.completed_at};
+  if(job.state==='expired'||clock.expired)return {id:job.id,state:'expired',definitionVersion:1,expiresAt:job.expires_at,rows:[]};
   const rows=await reviewed(client,job.center_id,job.records);
   return {id:job.id,state:clock.expired?'expired':'prepared',definitionVersion:1,duplicatePolicy:'skip',expiresAt:job.expires_at,
     reviewHash:commandHash(rows),summary:summary(rows),rows};

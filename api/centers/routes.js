@@ -16,6 +16,9 @@ import {generateReceipt,listReceipts,receiptListOptions} from './services/receip
 import {recordPayment,recordRefund,listPayments,updateRefundCapability} from './services/payments.js';
 import {listDebt,exportDebt,debtListOptions} from './services/debt.js';
 import {ownMembership,ownReceipts,ownPayments,ownPortalOptions} from './services/member-portal.js';
+import {stripeStatus,stripeListOptions,checkoutStripe,reconcileStripe} from './services/stripe-service.js';
+import {receiveStripeWebhook} from './services/stripe-foundation.js';
+import {readStripeBody} from './domain/stripe-webhook.js';
 
 // Inject the same session and response helpers used by the rest of node:http.
 export function centersRoutes({ config, database, json, readSession, readBody, accountLocks, lookupAccount,
@@ -46,6 +49,26 @@ export function centersRoutes({ config, database, json, readSession, readBody, a
     }catch(error){return failure(res,error);}
   };
   return {
+    'POST /api/centers/stripe/webhook': async(req,res)=>{
+      if(!config.enabled)return json(res,404,{error:'not found'});
+      const params=new URL(req.url,'http://x').searchParams,profileId=params.get('profileId');
+      if([...params.keys()].some(key=>key!=='profileId')||!recordId(profileId)||!config.stripeProfiles?.some(profile=>profile.id===profileId))return json(res,404,{error:'not found'});
+      if(req.headers['content-encoding']&&req.headers['content-encoding']!=='identity')return json(res,400,{error:'unsupported gateway encoding',code:'stripe-signature-invalid'});
+      try{const raw=await readStripeBody(req);return json(res,200,await receiveStripeWebhook({database,config},profileId,raw,req.headers['stripe-signature']))}catch(error){if(error.clientGone)return;return failure(res,error)}
+    },
+    'GET /api/centers/stripe': async(req,res)=>{
+      const user=guard(req,res);if(!user)return;const sv=user.sv||0,params=new URL(req.url,'http://x').searchParams,centerId=params.get('centerId');
+      if(!recordId(centerId))return json(res,404,{error:'not found',code:'not-found'});
+      try{const result=await stripeStatus(database,user.id,config,centerId,stripeListOptions(params),{platform:isPlatformUser(config,user)});if(!current(req,user,sv))return json(res,401,{error:'not signed in'});return json(res,200,result)}catch(error){return failure(res,error)}
+    },
+    'GET /api/centers/own/stripe': async(req,res)=>{
+      const user=guard(req,res);if(!user)return;const sv=user.sv||0,params=new URL(req.url,'http://x').searchParams,centerId=params.get('centerId');
+      if(!recordId(centerId))return json(res,404,{error:'not found',code:'not-found'});
+      try{const result=await stripeStatus(database,user.id,config,centerId,stripeListOptions(params,{own:true}),{own:true});if(!current(req,user,sv))return json(res,401,{error:'not signed in'});return json(res,200,result)}catch(error){return failure(res,error)}
+    },
+    'POST /api/centers/stripe/checkout': mutate(false,(context,body)=>checkoutStripe(context,body,{platform:isPlatformUser(config,context.user)})),
+    'POST /api/centers/own/stripe/checkout': mutate(false,(context,body)=>checkoutStripe(context,body,{own:true})),
+    'POST /api/centers/stripe/reconcile': mutate(false,(context,body)=>reconcileStripe(context,body,{platform:isPlatformUser(config,context.user)})),
     'GET /api/centers/notifications': async(req,res)=>{
       const user=guard(req,res);if(!user)return;const sv=user.sv||0,centerId=new URL(req.url,'http://x').searchParams.get('centerId');
       if(!recordId(centerId))return json(res,404,{error:'not found',code:'not-found'});

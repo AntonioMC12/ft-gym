@@ -7,6 +7,9 @@ import pg from 'pg';
 import {isolatedDatabase,startHttp} from './helpers.mjs';
 import {createCentersDatabase,SCHEMA_VERSION} from '../../centers/db.js';
 import {applyMigrations,migrationFiles} from '../../centers/migrate.js';
+import {createHmac} from 'node:crypto';
+import {stripeProfiles,STRIPE_API_VERSION} from '../../centers/stripe-config.js';
+import {prepareStripeAttempt,receiveStripeWebhook} from '../../centers/services/stripe-foundation.js';
 import {drillUrl,backupClient,emptyRestoreTarget,pgTool,makeManifest,verifyManifest,logicalSnapshot,verifyRestoredIdentity,hash} from './recovery-support.mjs';
 
 test('C24: two-center pilot survives a coordinated JSON/PostgreSQL restore and rejects inconsistent candidates',async t=>{
@@ -40,6 +43,13 @@ test('C24: two-center pilot survives a coordinated JSON/PostgreSQL restore and r
   assert.equal((await req('/api/platform/centers/reconciliation','pilot_root')).body.orphanedAccounts.length,0);
   const personalHash=hash(fs.readFileSync(path.join(source.dir,'state-pilot_alice.json')));
   await source.stop(); // Quiesce the single JSON identity/training writer before either backup.
+  const gatewayDb=createCentersDatabase({enabled:true,databaseUrl:app}),secret='whsec_fictional_recovery_signature_key';let gatewayAttempt;
+  try{
+    const config={enabled:true,stripeProfiles:stripeProfiles({CENTERS_STRIPE_PROFILES_JSON:JSON.stringify([{id:'pilot_gateway',mode:'test',accountId:'acct_fictionalpilot1234',apiKey:'sk_test_fictional_recovery_never_sent',webhookSecrets:[secret],centerIds:[centers[0]],maxAmountMinor:'3100',dailyLimitMinor:'10000',returnOrigin:'http://localhost:5178'}])})};
+    gatewayAttempt=(await prepareStripeAttempt({database:gatewayDb,config,user:{id:'pilot_manager_a'},checkSession:()=>{}},{centerId:centers[0],memberId:members[0],receiptId:receipts[0].id,requestId:'pilot_gateway_prepare',expectedBalanceMinor:'2300'})).attemptId;
+    const now=Math.floor(Date.now()/1000),event={id:'evt_pilot_gateway',api_version:STRIPE_API_VERSION,type:'checkout.session.completed',created:now,livemode:false,data:{object:{id:'cs_test_pilot_gateway',object:'checkout.session',mode:'payment',livemode:false,amount_total:2300,currency:'eur',payment_status:'paid',status:'complete',payment_intent:'pi_pilot_gateway',metadata:{attempt_id:gatewayAttempt,center_id:centers[0],receipt_id:receipts[0].id}}}},raw=Buffer.from(JSON.stringify(event));
+    await receiveStripeWebhook({database:gatewayDb,config},'pilot_gateway',raw,'t='+now+',v1='+createHmac('sha256',secret).update(String(now)+'.').update(raw).digest('hex'));
+  }finally{await gatewayDb.close()}
   const sourceSnapshot=await logicalSnapshot(sourceBackup),bundle=path.join(work,'bundle');fs.mkdirSync(bundle,{mode:0o700});fs.cpSync(source.dir,path.join(bundle,'json'),{recursive:true});
   fs.writeFileSync(path.join(bundle,'json','recovery-fixture'),'fictional-disposable-only',{mode:0o600});
   // Include extension definitions: a schema-only selection omits btree_gist even
@@ -65,6 +75,9 @@ test('C24: two-center pilot survives a coordinated JSON/PostgreSQL restore and r
   assert.equal((await after('/api/centers/own/membership?centerId='+centers[1],'pilot_alice')).status,404);
   assert.equal((await after('/api/centers/members?centerId='+centers[1],'pilot_manager_a')).status,404);
   const replay=await after('/api/centers/payments/record','pilot_manager_a',payments[0]);assert.equal(replay.status,200);assert.equal((await after('/api/centers/payments?'+new URLSearchParams({centerId:centers[0],memberId:members[0]}),'pilot_manager_a')).body.payments.length,1);
+  const gatewayHistory=(await after('/api/centers/own/stripe?centerId='+centers[0],'pilot_alice')).body;assert.equal(gatewayHistory.mode,'off','restoration does not configure an external provider');assert.equal(gatewayHistory.attempts[0].id,gatewayAttempt);assert.equal(gatewayHistory.attempts[0].state,'creating');assert.equal(gatewayHistory.hasReservation,true);
+  assert.equal((await after('/api/centers/payments/record','pilot_manager_a',{...payments[0],amountMinor:'1',allocations:[{receiptId:receipts[0].id,amountMinor:'1'}],requestId:'pilot_after_restore_reserved'})).body.code,'checkout-pending');
+  assert.equal((await targetBackup.query("SELECT count(*)::integer AS count FROM centers.stripe_inbox WHERE event_id='evt_pilot_gateway' AND state='pending'")).rows[0].count,1,'durable notification survives without prematurely applying a payment');
   assert.equal((await after('/api/admin/user/delete','pilot_root',{id:'pilot_alice'})).status,409);
   assert.equal((await after('/api/platform/centers/reconciliation','pilot_root')).body.orphanedAccounts.length,0);
   const runtime=createCentersDatabase({enabled:true,databaseUrl:target});t.after(()=>runtime.close());assert.deepEqual(await runtime.status(),{available:true,schemaVersion:SCHEMA_VERSION});

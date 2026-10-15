@@ -19,6 +19,8 @@ import { coachRoutes } from './coach/routes.js';
 import { centersConfig, publicCentersConfig } from './centers/config.js';
 import { createCentersDatabase } from './centers/db.js';
 import {startBillingWorker} from './centers/services/jobs.js';
+import {startCentersWorker} from './centers/services/worker-lifecycle.js';
+import {stripeTick} from './centers/services/stripe-worker.js';
 import {notificationTick,createNotificationCapture} from './centers/services/notification-worker.js';
 import {createCloudflareEmailTransport} from './centers/services/notification-cloudflare.js';
 import { centersRoutes } from './centers/routes.js';
@@ -667,7 +669,9 @@ const clearCookie = COOKIE === LEGACY_COOKIE
 const CSRF_EXEMPT = new Set([
   'POST /api/register/options', 'POST /api/register/verify',
   'POST /api/login/options', 'POST /api/login/verify',
-  'POST /api/pair/redeem'
+  'POST /api/pair/redeem',
+  // Raw signed provider payload; no session/Origin authority is accepted here.
+  'POST /api/centers/stripe/webhook'
 ]);
 const originsMatch = (a, b) => a.replace(/\/+$/, '') === b.replace(/\/+$/, '');
 function csrfOk(req, key) {
@@ -2764,7 +2768,10 @@ const CENTERS_MAIL=CENTERS_CONFIG.notificationTestCapture?createNotificationCapt
 const CENTERS_WORKER=startBillingWorker(CENTERS_DATABASE,{enabled:CENTERS_CONFIG.enabled&&CENTERS_CONFIG.jobsEnabled,
   afterTick:CENTERS_MAIL?()=>notificationTick(CENTERS_DATABASE,{transport:CENTERS_MAIL}):undefined,
   onError:()=>console.warn('centers jobs temporarily unavailable')});
-server.on('close', () => { CENTERS_WORKER.stop().then(()=>CENTERS_DATABASE.close()).catch(() => {}); });
+const CENTERS_STRIPE_WORKER=startCentersWorker(()=>stripeTick(CENTERS_DATABASE,CENTERS_CONFIG),{
+  enabled:CENTERS_CONFIG.enabled&&CENTERS_CONFIG.jobsEnabled&&CENTERS_CONFIG.stripeProfiles.length>0,
+  onError:()=>console.warn('centers reconciliation temporarily unavailable')});
+server.on('close', () => { Promise.all([CENTERS_WORKER.stop(),CENTERS_STRIPE_WORKER.stop()]).then(()=>CENTERS_DATABASE.close()).catch(() => {}); });
 // Node's default of 300 s for a whole request would answer 408 to a 40 MB video on a ~1 Mbit/s
 // uplink. Half an hour covers that; a stalled upload is cut much sooner by its own 60 s idle
 // timer in media.js, a client that never finishes its headers still meets headersTimeout, and

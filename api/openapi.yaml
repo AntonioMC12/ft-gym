@@ -165,6 +165,150 @@ security:
   - bearerAuth: []
 
 paths:
+  /api/centers/stripe/webhook:
+    post:
+      tags: [centers]
+      operationId: receiveCenterStripeWebhook
+      security: []
+      summary: Persist a raw signed sandbox Stripe notification
+      description: Exact raw body, at most64KiB, Stripe-Signature HMAC with300s tolerance, pinned API version, test mode and configured profile/center. This exact POST alone is exempt from CSRF and uses no session authority. Durable inbox precedes200. A signed success wakes reconciliation; it does not prove authoritative capture or mark a receipt paid. Unknown attempts are acknowledged and ignored. No card/customer payload is retained.
+      parameters:
+        - { name: profileId, in: query, required: true, schema: { type: string } }
+        - { name: Stripe-Signature, in: header, required: true, schema: { type: string, maxLength: 2048 } }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { type: object }
+      responses:
+        '200': { description: Persisted, duplicate, or ignored notification. }
+        '400': { description: Invalid raw signature, mode, version, timestamp or financial projection. }
+        '404': { description: Module or profile unavailable. }
+        '409': { description: Same event ID conflicts with its saved financial projection. }
+        '413': { description: Body exceeds64KiB. }
+        '503': { description: Isolated test ledger unavailable. }
+  /api/centers/stripe:
+    get:
+      tags: [centers]
+      operationId: listCenterStripeAttempts
+      summary: Read a bounded page of sandbox checkout attempts
+      description: Selected-center billing.read or explicit platform identity. Returns mode off outside isolated test SQL or without a private profile. No credentials, provider identities, card details or raw evidence. A current open Checkout URL is returned only to its initiating account. Status reads never contact Stripe or settle a receipt.
+      parameters:
+        - { name: centerId, in: query, required: true, schema: { type: string } }
+        - { name: memberId, in: query, schema: { type: string } }
+        - { name: receiptId, in: query, schema: { type: string } }
+        - { name: attemptId, in: query, schema: { type: string } }
+        - { name: limit, in: query, schema: { type: integer, minimum: 1, maximum: 100, default: 30 } }
+        - { name: cursor, in: query, schema: { type: string, maxLength: 1024 } }
+      responses:
+        '200': { description: Mode, workerEnabled, attempts and nextCursor. }
+        '400': { description: Invalid selectors or cursor from another query/account. }
+        '401': { description: No current session. }
+        '403': { description: Insufficient capability. }
+        '404': { description: No accessible center or resource. }
+        '503': { description: Ledger unavailable. }
+  /api/centers/own/stripe:
+    get:
+      tags: [centers]
+      operationId: listOwnCenterStripeAttempts
+      summary: Read only checkout attempts for the session account's current membership
+      description: Member is derived server-side. Member/account selectors are rejected, including for staff who also have a membership. DTO omits internal error codes, actor and provider identities. Historical attempts stay readable; URL requires the original initiating account and own audience. No network or ledger mutation.
+      parameters:
+        - { name: centerId, in: query, required: true, schema: { type: string } }
+        - { name: receiptId, in: query, schema: { type: string } }
+        - { name: attemptId, in: query, schema: { type: string } }
+        - { name: limit, in: query, schema: { type: integer, minimum: 1, maximum: 100, default: 30 } }
+        - { name: cursor, in: query, schema: { type: string, maxLength: 1024 } }
+      responses:
+        '200': { description: Own mode, workerEnabled, attempts and nextCursor. }
+        '400': { description: Foreign selectors or invalid page/cursor. }
+        '401': { description: No current session. }
+        '403': { description: Insufficient capability. }
+        '404': { description: No current membership, accessible attempt or receipt. }
+        '503': { description: Ledger unavailable. }
+  /api/centers/stripe/checkout:
+    post:
+      tags: [centers]
+      operationId: prepareCenterStripeCheckout
+      summary: Reserve a receipt and recoverably prepare a sandbox hosted checkout
+      description: Current payments.record or explicit platform identity. Server-owned integer balance, profile, EUR, limits, metadata and return origin. No live mode. Intent and stable request parameters commit before network. Response is freshly authorized after the network boundary. Provider timeout leaves a recoverable reservation. Paid requires authoritative captured evidence and atomic ledger reconciliation, never a return query parameter.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties: false
+              required: [centerId, memberId, receiptId, expectedBalanceMinor, requestId]
+              properties:
+                centerId: { type: string }
+                memberId: { type: string }
+                receiptId: { type: string }
+                expectedBalanceMinor: { type: string, pattern: '^[0-9]{1,15}$', description: Equality assertion against the current SQL balance; never a client-selected charge amount. }
+                requestId: { type: string, minLength: 8, maxLength: 128 }
+      responses:
+        '200': { description: Freshly authorized attempt page; creating/open/review/paid state. }
+        '400': { description: Invalid input; client amount/URL/profile fields are forbidden. }
+        '401': { description: No current session. }
+        '403': { description: Insufficient capability. }
+        '404': { description: Inaccessible member or receipt. }
+        '409': { description: Reservation pending, balance/limit conflict or inactive center. }
+        '429': { description: At most10 new attempts per actor and center per15minutes. }
+        '503': { description: Sandbox profile or isolated test ledger unavailable. }
+  /api/centers/own/stripe/checkout:
+    post:
+      tags: [centers]
+      operationId: prepareOwnCenterStripeCheckout
+      summary: Prepare checkout only for the session account's own outstanding receipt
+      description: Same sandbox protections as staff checkout. Current member identity comes from SQL/session; no member/account/amount/redirect selector is accepted. Own RLS permits preparation only, never payment insertion or gateway state updates. Hosted UI collects test card data outside the application.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties: false
+              required: [centerId, receiptId, expectedBalanceMinor, requestId]
+              properties:
+                centerId: { type: string }
+                receiptId: { type: string }
+                expectedBalanceMinor: { type: string, pattern: '^[0-9]{1,15}$', description: Fails409 if the authoritative balance changed since confirmation. }
+                requestId: { type: string, minLength: 8, maxLength: 128 }
+      responses:
+        '200': { description: Fresh own attempt DTO with a Checkout URL only while open. }
+        '400': { description: Invalid input or foreign identity/amount selector. }
+        '401': { description: No current session. }
+        '403': { description: Insufficient capability. }
+        '404': { description: No own membership or receipt. }
+        '409': { description: Pending reservation, no payable balance, limit or inactive center. }
+        '429': { description: Attempt preparation rate limit. }
+        '503': { description: Sandbox unavailable. }
+  /api/centers/stripe/reconcile:
+    post:
+      tags: [centers]
+      operationId: reconcileCenterStripeAttempt
+      summary: Queue an audited authoritative check of an existing attempt
+      description: Current payments.record or explicit platform identity, including inactive center history. Staff insert a scoped request; gateway state updates remain worker-only. Idempotent queue and lease recovery do not release money reservations or recreate unknown sessions after23hours. Paid stays terminal. No refunds or external funds transfer.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties: false
+              required: [centerId, id, requestId]
+              properties:
+                centerId: { type: string }
+                id: { type: string }
+                requestId: { type: string, minLength: 8, maxLength: 128 }
+      responses:
+        '200': { description: Fresh attempt page; an active claim can keep reconciliation queued. }
+        '400': { description: Invalid input. }
+        '401': { description: No current session. }
+        '403': { description: Insufficient capability. }
+        '404': { description: Attempt not accessible. }
+        '409': { description: Idempotency conflict. }
+        '503': { description: Sandbox or ledger unavailable. }
   /api/centers/notifications:
     get:
       tags: [centers]

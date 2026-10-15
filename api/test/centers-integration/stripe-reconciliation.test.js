@@ -69,3 +69,8 @@ test('bounded transient retries retain the reservation and a missing balance tra
   const reviewed=await f.attempt(id);assert.equal(reviewed.state,'review');assert.equal(reviewed.payment_id,null);
   await assert.rejects(f.prepare(bill),{code:'checkout-pending'});
 });
+
+test('a completed card checkout without captured money requires review instead of advertising an unusable open checkout',async t=>{
+  const f=await stripeFixture(t),bill=await f.bill(),{attemptId:id}=await f.prepare(bill);await f.run(id);const record=await f.attempt(id);f.sessions.get(record.session_id).status='complete';await f.ready(id);
+  assert.equal((await f.run(id)).state,'review');const reviewed=await f.attempt(id);assert.equal(reviewed.error_code,'stripe-payment-unconfirmed');assert.equal(reviewed.payment_id,null);assert.equal(reviewed.checkout_url,null);
+});

@@ -19,14 +19,16 @@ export function claimStripeAttempt(database,config,centerId,{attemptId=null}={})
     const {rows}=await client.query(`SELECT a.*,extract(epoch FROM a.expires_at)::bigint::text AS expires_at_seconds,
       extract(epoch FROM a.created_at)::text AS created_at_seconds FROM centers.stripe_attempts a
       WHERE a.center_id=$1 AND a.profile_id=$2 AND ($3::text IS NULL OR a.id=$3) AND (a.lease_until IS NULL OR a.lease_until<=now())
-      AND ((a.state IN ('creating','open') AND a.sync_next_at<=now()) OR EXISTS(SELECT 1 FROM centers.stripe_inbox i
+      AND (EXISTS(SELECT 1 FROM centers.stripe_reconcile_requests r WHERE r.center_id=a.center_id AND r.attempt_id=a.id)
+        OR ((a.state IN ('creating','open') OR a.reconcile_requested) AND a.sync_next_at<=now()) OR EXISTS(SELECT 1 FROM centers.stripe_inbox i
         WHERE i.center_id=a.center_id AND i.attempt_id=a.id AND ((i.state='pending' AND i.next_attempt_at<=now()) OR (i.state='processing' AND i.lease_until<=now()))))
       ORDER BY a.sync_next_at,a.id LIMIT 1 FOR UPDATE OF a SKIP LOCKED`,[centerId,profile.id,attemptId]);
     if(!rows.length)return null;const attempt=rows[0],token=randomBytes(16).toString('hex');
-    await client.query("UPDATE centers.stripe_attempts SET claim_token=$3,lease_until=now()+interval '90 seconds',sync_attempts=sync_attempts+1 WHERE center_id=$1 AND id=$2",[centerId,attempt.id,token]);
+    const {rowCount:requested}=await client.query('DELETE FROM centers.stripe_reconcile_requests WHERE center_id=$1 AND attempt_id=$2',[centerId,attempt.id]);
+    await client.query("UPDATE centers.stripe_attempts SET claim_token=$3,lease_until=now()+interval '90 seconds',reconcile_requested=true,sync_attempts=CASE WHEN $4 THEN 1 ELSE sync_attempts+1 END WHERE center_id=$1 AND id=$2",[centerId,attempt.id,token,!!requested]);
     const {rows:events}=await client.query(`UPDATE centers.stripe_inbox SET state='processing',claim_token=$3,lease_until=now()+interval '90 seconds',attempts=attempts+1
       WHERE center_id=$1 AND attempt_id=$2 AND ((state='pending' AND next_attempt_at<=now()) OR (state='processing' AND lease_until<=now())) RETURNING projection`,[centerId,attempt.id,token]);
-    return {...attempt,claim_token:token,sync_attempts:attempt.sync_attempts+1,eventProjections:events.map(row=>row.projection)};
+    return {...attempt,claim_token:token,sync_attempts:requested?1:attempt.sync_attempts+1,eventProjections:events.map(row=>row.projection)};
   },centerId);
 }
 
@@ -89,6 +91,7 @@ async function finishStripeClaim(database,claim,{evidence,url,error}) {
         }
       }else if(evidence.status==='expired'&&current.received_minor==null)state='expired';
       else if(current.received_minor!=null){state='review';code='stripe-evidence-regressed'}
+      else if(evidence.status==='complete'){state='review';code='stripe-payment-unconfirmed'}
       else if(!['expired','failed','review'].includes(state))state='open';
     }
     // Keep a valid captured-money projection even when it cannot be allocated.
@@ -98,7 +101,7 @@ async function finishStripeClaim(database,claim,{evidence,url,error}) {
       payment_id=CASE WHEN $3='paid' THEN reserved_payment_id ELSE payment_id END,payment_intent_id=coalesce(payment_intent_id,$6),
       received_minor=coalesce(received_minor,$7::bigint),settled_at=coalesce(settled_at,to_timestamp($8)),evidence=coalesce($9::jsonb,evidence),error_code=$10,
       claim_token=NULL,lease_until=NULL,sync_attempts=CASE WHEN $11 THEN sync_attempts ELSE 0 END,
-      sync_next_at=now()+CASE WHEN $11 THEN interval '5 minutes' ELSE interval '1 minute' END,updated_at=now()
+      reconcile_requested=$11,sync_next_at=now()+CASE WHEN $11 THEN interval '5 minutes' ELSE interval '1 minute' END,updated_at=now()
       WHERE center_id=$1 AND id=$2`,[current.center_id,current.id,state,!bindingConflict?evidence?.sessionId||null:null,state==='open'&&!error?url:null,intent,evidence?.receivedMinor||null,evidence?.settledAtSeconds??null,evidence?JSON.stringify(evidence):null,code,retry]);
     const inboxState=retry?'pending':error||state==='review'?'review':'done';
     await client.query("UPDATE centers.stripe_inbox SET state=$4,claim_token=NULL,lease_until=NULL,error_code=$5,next_attempt_at=now()+interval '5 minutes' WHERE center_id=$1 AND attempt_id=$2 AND claim_token=$3",[current.center_id,current.id,claim.claim_token,inboxState,code]);

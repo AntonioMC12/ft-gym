@@ -10,6 +10,7 @@ const project=value=>stripeSessionEvidence(value,attempt,{now:1800000100});
 test('authoritative capture projection contains only ledger evidence and uses the balance transaction timestamp',()=>{
   assert.deepEqual(project(session()),{sessionId:'cs_test_1',status:'complete',paymentStatus:'paid',paymentIntentId:'pi_1',receivedMinor:'1000',settledAtSeconds:1800000060});
   const pending=session();Object.assign(pending,{status:'open',payment_status:'unpaid',payment_intent:null});assert.equal(project(pending).receivedMinor,null);
+  const disabled=session();disabled.adaptive_pricing=null;assert.equal(project(disabled).receivedMinor,'1000');
   const missing=session();missing.payment_intent.latest_charge.balance_transaction=null;assert.throws(()=>project(missing),{code:'stripe-evidence-pending'});
 });
 test('every money, currency, identity, tax, capture, dispute and mode mismatch refuses automatic allocation',()=>{

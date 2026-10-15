@@ -28,15 +28,16 @@ export function testUrls(env = process.env) {
   return { app, migration };
 }
 
-export async function startHttp(t, { app, users, enabled = true, attached = false, superadminUids = [], savedData = null, notificationCapture = false }) {
+export async function startHttp(t, { app, users, enabled = true, attached = false, superadminUids = [], savedData = null, notificationCapture = false, stripeFixture = null }) {
   if(savedData&&(!fs.realpathSync(savedData).startsWith(path.join(fs.realpathSync(os.tmpdir()),'gym-centers-recovery-'))||fs.readFileSync(path.join(savedData,'recovery-fixture'),'utf8')!=='fictional-disposable-only'))throw new Error('only recovery fixture data may be reused');
   const dir = savedData || fs.mkdtempSync(path.join(os.tmpdir(), 'gym-centers-business-'));
   const secret = savedData?fs.readFileSync(path.join(dir,'secret'),'utf8'):randomBytes(32).toString('hex');
   if(!savedData){fs.writeFileSync(path.join(dir, 'secret'), secret);fs.writeFileSync(path.join(dir, 'db.json'), JSON.stringify({ users, creds: [], subs: [], invites: [] }));}
   if (attached) fs.writeFileSync(path.join(dir, 'centers-attached'), '1\n');
-  const child = spawn(process.execPath, ['server.js'], { cwd: fileURLToPath(new URL('../../', import.meta.url)), stdio: ['ignore','pipe','pipe'],
+  if(stripeFixture&&(!fs.realpathSync(stripeFixture).startsWith(path.join(fs.realpathSync(os.tmpdir()),'gym-centers-stripe-fixture-'))||fs.readFileSync(path.join(stripeFixture,'fixture'),'utf8')!=='fictional-disposable-only'))throw new Error('only explicit fictional Stripe fixture may replace the provider');
+  const child = spawn(process.execPath, [...(stripeFixture?['--import',new URL('./stripe-http-preload.mjs',import.meta.url).href]:[]),'server.js'], { cwd: fileURLToPath(new URL('../../', import.meta.url)), stdio: ['ignore','pipe','pipe'],
     env: { ...process.env, PORT: '0', DATA_DIR: dir, CENTERS_ENABLED: enabled ? '1' : '0', CENTERS_DATABASE_URL: app,
-      CENTERS_JOBS_ENABLED:'0',CENTERS_NOTIFICATIONS_TEST_CAPTURE:notificationCapture?'1':'0',CENTERS_MAIL_PROFILES_JSON:'',CENTERS_STRIPE_PROFILES_JSON:'',
+      NODE_OPTIONS:'',CENTERS_JOBS_ENABLED:'0',CENTERS_NOTIFICATIONS_TEST_CAPTURE:notificationCapture?'1':'0',CENTERS_MAIL_PROFILES_JSON:'',CENTERS_STRIPE_PROFILES_JSON:stripeFixture?fs.readFileSync(path.join(stripeFixture,'profiles.json'),'utf8'):'',CENTERS_STRIPE_TEST_FIXTURE:stripeFixture||'',
       CENTERS_SUPERADMIN_UIDS: superadminUids.join(','), COACH_DISABLED: '1', MEDIA_UPLOADS: '0' } });
   const stop=async()=>{
     if (child.exitCode == null && child.signalCode == null) await new Promise(resolve => { child.once('exit', resolve); child.kill(); });

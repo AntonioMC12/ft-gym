@@ -18,6 +18,7 @@ import DebtCalendar from './DebtCalendar.jsx'
 import BillingAutomation from './BillingAutomation.jsx'
 import NotificationSettings from './NotificationSettings.jsx'
 import ConfigPending from './ConfigPending.jsx'
+import StripePayments from './StripePayments.jsx'
 import {useAutoMore} from '../../lib/use-auto-more.js'
 
 const stateLabel = state => state === 'active' ? t('Active center') : state === 'inactive' ? t('Inactive center') : t('Draft center')
@@ -136,7 +137,7 @@ function CenterPanel({ center, platform, capabilities, close, refresh, ownerUid,
     </div>}
     {error && <p role="alert">{t(centersErrorKey(error))}</p>}
     </>}
-  </div></Section>{billingPane?<><DebtCalendar key={center.id} centerId={center.id} ownerUid={ownerUid} canExport={capabilities.includes('data.export')}/><BillingAutomation key={'automation:'+center.id} centerId={center.id} ownerUid={ownerUid} platform={platform} active={center.state==='active'}/><NotificationSettings key={'notifications:'+center.id} centerId={center.id} ownerUid={ownerUid} platform={platform} active={center.state==='active'}/></>:planPane?<MembershipPlans key={center.id} centerId={center.id} ownerUid={ownerUid}/>:memberPane?<Members key={center.id} centerId={center.id} ownerUid={ownerUid} capabilities={capabilities}/>:
+  </div></Section>{billingPane?<><DebtCalendar key={center.id} centerId={center.id} ownerUid={ownerUid} canExport={capabilities.includes('data.export')}/><StripePayments key={'stripe:'+center.id} centerId={center.id} ownerUid={ownerUid} canReconcile={capabilities.includes('payments.record')}/><BillingAutomation key={'automation:'+center.id} centerId={center.id} ownerUid={ownerUid} platform={platform} active={center.state==='active'}/><NotificationSettings key={'notifications:'+center.id} centerId={center.id} ownerUid={ownerUid} platform={platform} active={center.state==='active'}/></>:planPane?<MembershipPlans key={center.id} centerId={center.id} ownerUid={ownerUid}/>:memberPane?<Members key={center.id} centerId={center.id} ownerUid={ownerUid} capabilities={capabilities}/>:
     (platform||capabilities.includes('staff.manage'))&&<Invitations key={center.id} centerId={center.id} ownerUid={ownerUid} allowedKinds={platform?['manager','trainer']:['trainer']}/>}</>
 }
 

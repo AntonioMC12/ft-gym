@@ -1,13 +1,14 @@
 # Registro de ejecución: módulo de centros
 
-Última actualización: 14 de octubre de 2026.
+Última actualización: 15 de octubre de 2026.
 
 ## Punto de reanudación
 
 - Trabajo actual autorizado (14 octubre, nueva continuación): seguir hasta el5% restante del uso primario; guardar el punto de continuación y apagar el ordenador al llegar. El usuario ha autorizado expresamente el apagado en su mensaje vigente. Sustituye los límites anteriores; no usar créditos para reiniciar el uso.
 - Rama: `codex/centers-module`, creada desde `53ef0baf`. F0-F3 verificadas en entorno ficticio. Commits: `75e1160d`, `433764a5`, `24cb5a42`.
 - Guía: [CENTERS_ROADMAP.md](CENTERS_ROADMAP.md). Instrucciones: [AGENTS.md](../../AGENTS.md).
-- Siguiente tarea: continuar **C27 / F9** por [CENTERS_STRIPE_IMPLEMENTATION.md](CENTERS_STRIPE_IMPLEMENTATION.md). Base privada implementada y probada; faltan conciliación, rutas y UI. No habilitar Checkout antes de completar sus invariantes. Espera de configuración y paginación de plataforma corregidas.
+- C27: conciliación, HTTP, flujo propio y UI implementados en modo test; revisión visual pendiente por denegación guardada del navegador a localhost:5178. Ver [CENTERS_STRIPE_IMPLEMENTATION.md](CENTERS_STRIPE_IMPLEMENTATION.md). No repetir lo ya implementado ni eludir el bloqueo con otra superficie.
+- Siguiente trabajo independiente: C28 requiere formato/proceso bancario acordados antes de exportación efectiva; continuar C29/F10 mientras esa condición y la revisión visual estén pendientes. La dependencia de C29 es C24, ya cerrada.
 - Último hito cerrado: C26, avisos verificados, recordatorios agrupados y adaptador opcional desactivado con HTTP simulado.
 - Pruebas C18: 47 unitarias API, 66 frontend/controles, 3 OpenAPI y 10 SQL+HTTP reales pasan. Comparativa general y comprobación visual registradas abajo.
 
@@ -397,3 +398,14 @@ No guardar credenciales, bodies privados, volcados de socios, IBAN, tarjetas o r
 - Append compartido con el ledger manual, saldo/reserva y auditoría en la misma transacción. Duplicados y eventos antiguos no regresan paid. Dinero capturado con reserva competidora/saldo ocupado se conserva en review sin sobrepago. Errores transitorios acotados a8intentos; sin evidencia de fecha no se inventa una.
 - Pruebas:5/5 SQL de conciliación más foundation/pagos manuales (7escenarios en total en ejecuciones focalizadas) y9/9 unitarias de Stripe/dominio/pagos. Perdida de respuesta, dos workers, lease caducado, confirmación tardía, pago manual intermedio, dato autoritativo impagado, captura parcial, perfil cambiado y límite temporal comprobados sin red externa.
 - Continúa faltando el recorrido HTTP/UI y el flujo propio; C27 siguein_progress. El procesador todavía no se registra en el servidor. No hay claves externas configuradas ni cargos reales. Referencias primarias contrastadas: docs.stripe.com/api/checkout/sessions/retrieve, /api/payment_intents/object, /api/charges/object y /api/balance_transactions/object.
+
+## 15 octubre — C27 HTTP, socio e interfaz verificados automáticamente
+
+- Se añade migración019 (ya aplicada e inmutable), preparación own con RLS y cola de conciliación para staff sin ampliar su UPDATE sobre pagos de pasarela. Identidad propia derivada de sesión; recibos ajenos y selectores member/account rechazados incluso con doble rol. expectedBalanceMinor solo afirma igualdad con SQL y evita un importe distinto del confirmado.
+- Contrato OpenAPI completo, lector raw acotado, firma antes de JSON y única excepción CSRF para el POST webhook exacto. Provider/account/mode y captura se verifican fuera de transacción antes del append atómico. Workers de Stripe y recibos/email independientes, con parada que drena trabajo pendiente.
+- StripePayments reutiliza controles y confirmación del proyecto, se integra en recibos/área propia/panel financiero. Respuestas/callbacks antiguos se descartan, requestId se conserva en reintentos, enlace externo validado y solo por clic explícito. Reserva oculta pago manual. Ningún dato de tarjeta o permiso en S; 16 textos añadidos a 18 locales.
+- Evidencia: 25/25 SQL+HTTP reales en Compose; REST Stripe sustituido por carrier ficticio estricto (sin red a Stripe). 35/35 pruebas focalizadas UI y enlace; unitarias/contratos correctos; build correcto. API general 677:650pass/27fallos previos, mismas identidades de fallo. Frontend 5174:5120pass/54fallos previos, mismos archivos que baseline. 1948 cadenas presentes,18locales/2490claves sincronizadas.
+- Restore coordinado019:1/1 pasa y ahora incluye reserva Stripe y evento firmado pendiente no vacíos. Se conservan tras restaurar; el proveedor queda off y no se aplica un pago por esa recepción sola. RLS, entrenamiento byte a byte, hashes, idempotencia y denegación de pago manual bajo reserva comprobados.
+- Revisión visual pendiente: CUA deniega localhost:5178 por preferencia guardada, también tras la autorización general de la sesión. No se ha eludido por HTTP de escritorio, otro navegador ni controlador. C27 se mantiene in_progress; no atribuirle una captura visual o una cuenta sandbox real que no se han probado.
+- Preview explícita ficticia disponible mediante stripe-preview.mjs, con proveedor simulado, perfiles fake y jobs desactivados; estado del carrier en ../informes/centers-stripe-preview. Preview ordinaria no activa el simulador por defecto. No confundir con configuración real de Stripe. No abrir enlaces fake en Stripe para intentar completar un pago.
+- Siguiente rama independiente del roadmap: C29 (depende de C24). C28 aún necesita formato bancario y proceso acordados; no inventar condiciones de remesa ni exportar datos reales. Autorización vigente: seguir hasta 5% restante y apagar; no gastar créditos para reiniciar límites, ni push/merge/despliegue/cargos.

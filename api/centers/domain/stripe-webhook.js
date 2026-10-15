@@ -29,6 +29,7 @@ export function readStripeBody(req) {
   return new Promise((resolve,reject)=>{
     let size=0,over=false;const chunks=[];
     req.on('data',chunk=>{size+=chunk.length;if(over){if(size>131072)req.destroy();return}if(size>65536){over=true;chunks.length=0;reject(new CentersError(413,'stripe-body-too-large','gateway body too large'));return}chunks.push(chunk)});
-    req.on('end',()=>{if(!over)resolve(Buffer.concat(chunks))});req.on('error',()=>reject(new CentersError(400,'stripe-body-incomplete','incomplete gateway body')));
+    const incomplete=()=>{const error=new CentersError(400,'stripe-body-incomplete','incomplete gateway body');error.clientGone=true;reject(error)};
+    req.on('end',()=>{if(!over)resolve(Buffer.concat(chunks))});req.on('aborted',incomplete);req.on('error',incomplete);
   });
 }

@@ -35,6 +35,16 @@ export const centerPayments=(centerId,memberId,options={})=>api('/api/centers/pa
 export const ownCenterMembership=centerId=>api('/api/centers/own/membership?'+new URLSearchParams({centerId}))
 export const ownCenterReceipts=(centerId,options={})=>api('/api/centers/own/receipts?'+new URLSearchParams({centerId,...options}))
 export const ownCenterPayments=(centerId,options={})=>api('/api/centers/own/payments?'+new URLSearchParams({centerId,...options}))
+export const centerStripe=(centerId,options={})=>api('/api/centers/stripe?'+new URLSearchParams({centerId,...options}))
+export const ownCenterStripe=(centerId,options={})=>api('/api/centers/own/stripe?'+new URLSearchParams({centerId,...options}))
+export function stripeErrorKey(error){
+  const code=error?.data?.code||error?.code
+  if(code==='checkout-pending')return 'An active checkout reserves this receipt.'
+  if(code==='stripe-rate-limited')return 'Wait before preparing another checkout.'
+  if(code==='stripe-limit')return 'The test payment limit was reached.'
+  if(code==='stripe-unavailable')return 'Test payments are unavailable.'
+  return centersErrorKey(error)
+}
 export const centerDebt=(centerId,{calendar=false,...options}={})=>api('/api/centers/billing/'+(calendar?'calendar':'debts')+'?'+new URLSearchParams({centerId,...options}))
 export const centerDebtExport=(centerId,options={})=>api('/api/centers/billing/debts/export?'+new URLSearchParams({centerId,...options}))
 export function debtErrorKey(error) {
@@ -46,6 +56,7 @@ export function debtErrorKey(error) {
 }
 export function paymentsErrorKey(error) {
   const code=error?.data?.code||error?.code
+  if(code==='checkout-pending')return stripeErrorKey(error)
   if(code==='payment-exceeds-balance')return 'The payment exceeds the outstanding balance. Reload the receipts.'
   if(code==='refund-exceeds-payment')return 'The refund exceeds the available payment. Reload the payments.'
   if(code==='invalid-input'||error?.message==='invalid price')return 'Check the amount, date and payment details.'

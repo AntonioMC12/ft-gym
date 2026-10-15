@@ -5,6 +5,7 @@ import {beforeEach,afterEach,it,expect,vi} from 'vitest'
 vi.mock('../../lib/i18n.js',()=>({t:key=>key}))
 vi.mock('../../store/useStore.js',()=>({useStore:{getState:()=>({user:{id:'manager'}})}}))
 vi.mock('../../lib/centers-api.js',()=>({centerReceipts:vi.fn(),ownCenterReceipts:vi.fn(),receiptsErrorKey:()=> 'error'}))
+vi.mock('./StripePayments.jsx',()=>({default:()=>null}))
 vi.mock('../../store/useCenters.js',()=>({useCenters:{getState:()=>({revokeOn:vi.fn()})}}))
 import {centerReceipts,ownCenterReceipts} from '../../lib/centers-api.js'
 import Receipts from './Receipts.jsx'

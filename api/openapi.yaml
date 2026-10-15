@@ -1974,12 +1974,14 @@ paths:
       tags: [centers]
       operationId: getPlatformCenterAccounts
       summary: Search existing accounts
-      description: Platform only. Name prefix or exact uid, 2..128 characters, at most 20 matches. Returns id/name/disabled. Contact does not prove ownership.
+      description: Platform only. Initial account list with optional case-insensitive name/uid substring filter up to128characters. Paginated stable ordering, default30/max100 per page. Cursor bound to actor, filter, limit and directory snapshot; changed directory requires restarting the list. Returns only id/name/disabled and nextCursor. Disabled accounts are visible but cannot be assigned. Contact does not prove ownership.
       parameters:
         - name: query
           in: query
-          required: true
+          required: false
           schema: { type: string }
+        - { name: cursor, in: query, schema: { type: string } }
+        - { name: limit, in: query, schema: { type: integer, minimum: 1, maximum: 100, default: 30 } }
       responses:
         '200': { description: Authorized projection or committed audited change. }
         '400': { description: Invalid input or unexpected field. }

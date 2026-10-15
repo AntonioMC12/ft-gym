@@ -6,12 +6,14 @@ import { centersStrings } from './modules/centers.js'
 import {trainingStrings} from './modules/training.js'
 import {accessStrings} from './modules/access.js'
 import {metricsStrings} from './modules/metrics.js'
+import {centerUiStrings} from './modules/center-ui.js'
 
 export const PT_BR_OVERRIDES = {
   ...centersStrings('pt'),
   ...trainingStrings('pt-BR'),
   ...accessStrings('pt-BR'),
   ...metricsStrings('pt-BR'),
+  ...centerUiStrings('pt-BR'),
   'Request verification code': 'Solicitar código de verificação',
   'Check the verification code or request a new one.': 'Confira o código ou solicite outro.',
   'Sending notice': 'Enviando aviso',

@@ -23,6 +23,7 @@ import {proposeTraining,withdrawTraining,trainingListOptions,listTraining,getTra
 import {configureAccess,accessStatus,accessPageOptions,createAccessDevice,changeAccessDevice,issueAccessToken,consumeAccessToken,accessMember,setAccessHold,releaseAccessHold,accessVisits} from './services/access.js';
 import {metricsOptions} from './domain/metrics.js';
 import {centerMetrics,globalMetrics} from './services/metrics.js';
+import {accountDirectoryPage} from './domain/account-directory.js';
 
 // Inject the same session and response helpers used by the rest of node:http.
 export function centersRoutes({ config, database, json, readSession, readBody, accountLocks, lookupAccount, readOwnTraining, hasTrainingExercise, mintAccessCredential,
@@ -279,10 +280,7 @@ export function centersRoutes({ config, database, json, readSession, readBody, a
     'GET /api/platform/centers/accounts': async (req,res) => {
       const user=guard(req,res);if(!user)return;
       if(!isPlatformUser(config,user))return json(res,403,{error:'forbidden',code:'forbidden'});
-      const query=(new URL(req.url,'http://x').searchParams.get('query')||'').trim().toLowerCase();
-      if(query.length<2||query.length>128)return json(res,200,{accounts:[]});
-      const accounts=accountDirectory().filter(a=>a.id.toLowerCase()===query||a.name.toLowerCase().startsWith(query)).slice(0,20);
-      return json(res,200,{accounts});
+      try{return json(res,200,accountDirectoryPage(accountDirectory(),user.id,new URL(req.url,'http://x').searchParams))}catch(error){return failure(res,error)}
     },
     'GET /api/centers/staff': async (req,res) => {
       const user=guard(req,res);if(!user)return;const sv=user.sv||0;

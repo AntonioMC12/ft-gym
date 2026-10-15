@@ -39,7 +39,7 @@ export function notificationErrorKey(error){
   if(code==='price-notice-required')return 'Respect the configured price notice period.'
   return centersErrorKey(error)
 }
-export const centerAccounts = query => api('/api/platform/centers/accounts?query=' + encodeURIComponent(query))
+export const centerAccounts = (query='',options={}) => api('/api/platform/centers/accounts?' + new URLSearchParams({query,...options}))
 export const centerCommand = (path, body) => api(path, { method: 'POST', body: JSON.stringify(body) })
 export const centerMembers = (centerId, options = {}) => api('/api/centers/members?' + new URLSearchParams({centerId,...options}))
 export const centerMember = (centerId, id) => api('/api/centers/member?' + new URLSearchParams({centerId,id}))

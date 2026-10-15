@@ -12,10 +12,12 @@ import {useUI} from '../../store/useUI.js'
 import {useAutoMore} from '../../lib/use-auto-more.js'
 import {confirmSheet} from '../../sheets.jsx'
 import {t} from '../../lib/i18n.js'
+import {useUnsavedCenterForm} from './NavigationGuard.jsx'
 
 export default function AccessPanel({centerId,ownerUid,active=true,canManage=false,canVerify=false,timezone='UTC'}){
   const [data,setData]=useState(null),[draft,setDraft]=useState(null),[deviceName,setDeviceName]=useState(''),[paired,setPaired]=useState(null),[code,setCode]=useState(''),[result,setResult]=useState(null)
   const [visits,setVisits]=useState([]),[visitCursor,setVisitCursor]=useState(null),[busy,setBusy]=useState(false),[error,setError]=useState(null),[revision,setRevision]=useState(0)
+  useUnsavedCenterForm(draft&&data&&JSON.stringify(draft)!==JSON.stringify(data.policy)?JSON.stringify(draft):null,!!data&&busy)
   const life=useRef(0),pending=useRef(false),intent=useRef(null),scanIntent=useRef(null),camera=useRef(null)
   const current=epoch=>life.current===epoch&&useStore.getState().user?.id===ownerUid
   const failure=e=>{setError(e);if(['access-device-invalid','access-device-changed'].includes(e?.data?.code||e?.code))setPaired(null);useCenters.getState().revokeOn(e)}

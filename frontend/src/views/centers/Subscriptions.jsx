@@ -9,6 +9,7 @@ import {useCenters} from '../../store/useCenters.js'
 import {t} from '../../lib/i18n.js'
 import BillingPreview from './BillingPreview.jsx'
 import ContractSummary from './ContractSummary.jsx'
+import {useUnsavedCenterForm} from './NavigationGuard.jsx'
 
 export default function Subscriptions({centerId,member,ownerUid,changed,receiptCreated}) {
   const [info,setInfo]=useState(null),[plans,setPlans]=useState([]),[cursor,setCursor]=useState(null),[query,setQuery]=useState(''),[search,setSearch]=useState('')
@@ -16,6 +17,7 @@ export default function Subscriptions({centerId,member,ownerUid,changed,receiptC
   const [busy,setBusy]=useState(false),[error,setError]=useState(null),[requestId,setRequestId]=useState(()=>crypto.randomUUID())
   const life=useRef(0),planEpoch=useRef(0),pendingPlans=useRef(false),cancelIds=useRef(new Map()),prepared=useRef('')
   const current=epoch=>life.current===epoch&&useStore.getState().user?.id===ownerUid
+  useUnsavedCenterForm(priceVersionId||reason||discount!=='0'||info&&effectiveOn!==info.today?JSON.stringify([priceVersionId,effectiveOn,discount,reason]):null,busy)
   const fail=e=>{setError(e);useCenters.getState().revokeOn(e)}
   useEffect(()=>{
     const epoch=++life.current;setInfo(null);setError(null);setBusy(false);setRequestId(crypto.randomUUID())

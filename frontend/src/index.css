@@ -631,12 +631,22 @@ body.chips-dragging *{cursor:inherit}
 
 /* --- text field --- */
 .field,.input{
-  width:100%;background:var(--surface);border:none;border-radius:var(--r);
+  width:100%;background:var(--surface-2);border:1px solid var(--sep);border-radius:var(--r);
   padding:13px 15px;font-size:17px;letter-spacing:-.012em;outline:none;
   transition:box-shadow var(--fast);
 }
 .field::placeholder,.input::placeholder{color:var(--label-3)}
 .field:focus,.input:focus{box-shadow:inset 0 0 0 2px var(--acc)}
+.field:disabled,.input:disabled{opacity:.55;cursor:not-allowed}
+.field[aria-invalid=true],.input[aria-invalid=true]{border-color:var(--red)}
+.time-field{position:relative;min-width:0}
+.time-field>.field{padding-inline-end:48px;font-variant-numeric:tabular-nums}
+.time-field-picker{position:absolute;inset-inline-end:2px;top:2px;bottom:2px;min-width:44px;border:0;border-radius:var(--r-sm);background:transparent;color:var(--label-2);display:grid;place-items:center;cursor:pointer}
+.time-field-picker:hover{background:var(--surface-3);color:var(--label)}
+.time-field-picker:focus-visible{outline:2px solid var(--acc);outline-offset:-3px}
+.time-field-picker:disabled{opacity:.5;cursor:not-allowed}
+.time-field-actions{display:flex;gap:12px;margin-top:20px}
+.time-field-actions>.btn{flex:1;min-width:0}
 .field.area,textarea.input{min-height:92px;resize:vertical;line-height:1.42}
 .measure-date{display:block;margin-bottom:14px}
 .measure-date>span,.measure-field>span:first-child{display:block;color:var(--label-2);font-size:13px;margin:0 2px 6px}

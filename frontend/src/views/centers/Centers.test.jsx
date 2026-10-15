@@ -19,7 +19,7 @@ vi.mock('../../store/useStore.js', () => {
 vi.mock('../../lib/centers-api.js', () => ({ platformCenters: vi.fn(), centerDetail: vi.fn(), centerStaff: vi.fn(), centerCommand: vi.fn(), centersMe: vi.fn(), centerAccounts: vi.fn(), centerMembers: vi.fn().mockResolvedValue({members:[],nextCursor:null}), centerMember:vi.fn(), centerInvitations:vi.fn().mockResolvedValue({invites:[]}), invitationErrorKey:()=> 'error', membersErrorKey:()=> 'error', centersErrorKey: () => 'error' }))
 import { useStore } from '../../store/useStore.js'
 import { useCenters } from '../../store/useCenters.js'
-import { platformCenters, centerDetail, centerStaff, centerCommand, centersMe } from '../../lib/centers-api.js'
+import { platformCenters, centerDetail, centerStaff, centerCommand, centersMe, centerAccounts } from '../../lib/centers-api.js'
 import Centers from './Centers.jsx'
 import {confirmSheet} from '../../sheets.jsx'
 import {useUI} from '../../store/useUI.js'
@@ -34,6 +34,7 @@ beforeEach(() => {
   useCenters.setState({ ownerUid: 'platform', status: 'ready', centers: [], platformCapabilities: ['centers.manage'] })
   platformCenters.mockResolvedValue({ centers: [center] }); centerDetail.mockResolvedValue({ center }); centerStaff.mockResolvedValue({ staff: [] })
   centersMe.mockResolvedValue({ centers: [], platformCapabilities: ['centers.manage'] })
+  centerAccounts.mockResolvedValue({accounts:[],nextCursor:null})
   host = document.createElement('div'); document.body.append(host); root = createRoot(host)
 })
 afterEach(() => { act(() => root.unmount()); host.remove(); useCenters.getState().reset();vi.restoreAllMocks() })
@@ -136,10 +137,11 @@ it('a creation completed after leaving the wizard cannot navigate back into the 
   await click('New center');input(host.querySelector('input'),'Synthetic pending');await click('Next');await click('Next');await click('Create draft');await click('Leave workflow')
   await act(async()=>release({center:{...center,id:'new'}}));expect(host.querySelector('output').textContent).toBe('/home');expect(host.textContent).toContain('Personal Home');expect(centerDetail).not.toHaveBeenCalled()
 })
-it('a save completed after switching panes cannot refresh the current view or show an old toast',async()=>{
+it('a save completed after an external route change cannot refresh the current view or show an old toast',async()=>{
   let release;centerCommand.mockReturnValue(new Promise(resolve=>release=resolve));const toast=vi.spyOn(useUI.getState(),'toast').mockImplementation(()=>{})
   useCenters.setState({platformCapabilities:['centers.manage','members.read','members.manage']})
-  await render();await click('Center details');await click('Save');await click('Members');const reads=centerDetail.mock.calls.length
+  function ExternalPane(){const navigate=useNavigate();return <button onClick={()=>navigate('/centers?centerId=one&pane=members')}>External pane change</button>}
+  await act(async()=>{root.render(<MemoryRouter><Centers/><ExternalPane/></MemoryRouter>);await Promise.resolve()});await click('Center details');await click('Save');await click('External pane change');const reads=centerDetail.mock.calls.length
   await act(async()=>release({center}));expect(toast).not.toHaveBeenCalled();expect(centerDetail).toHaveBeenCalledTimes(reads);expect(button('New member')).toBeDefined()
 })
 it('a delayed deactivation confirmation is inert after changing the pane that opened it',async()=>{
@@ -174,4 +176,15 @@ it('preserves metric periods in router history and returns to the filtered list 
 })
 it('hides global metrics without the explicit global metrics capability',async()=>{
   await render();expect(button('Global center metrics')).toBeUndefined();expect(host.querySelector('[data-metrics]')).toBeNull()
+})
+
+it('offers direct Home navigation while protecting an unsaved new center',async()=>{
+  function Location(){return <output data-path>{useLocation().pathname}</output>}
+  await act(async()=>{root.render(<MemoryRouter><Centers/><Location/></MemoryRouter>);await Promise.resolve()});await click('New center');input(host.querySelector('input'),'Unsaved center');await click('Home');expect(host.querySelector('[data-path]').textContent).not.toBe('/home');expect(host.querySelector('input').value).toBe('Unsaved center');expect(confirmSheet.mock.calls.at(-1)[0].cancelText).toBe('Keep editing');
+  await act(async()=>confirmSheet.mock.calls.at(-1)[0].onConfirm());expect(host.querySelector('[data-path]').textContent).toBe('/home')
+})
+
+it('returns directly to Centers preserving its filter only after confirming edited details',async()=>{
+  function Location(){return <output data-path>{useLocation().search}</output>}
+  await act(async()=>{root.render(<MemoryRouter initialEntries={['/centers?centerId=one&q=Synthetic']}><Centers/><Location/></MemoryRouter>);await Promise.resolve()});input(host.querySelector('input'),'Changed details');await click('Centers');expect(host.querySelector('[data-path]').textContent).toContain('centerId=one');await act(async()=>confirmSheet.mock.calls.at(-1)[0].onConfirm());expect(host.querySelector('[data-path]').textContent).toBe('?q=Synthetic');expect(host.textContent).toContain('Synthetic center')
 })

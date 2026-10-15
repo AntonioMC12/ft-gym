@@ -8,6 +8,7 @@ import {useStore} from '../../store/useStore.js'
 import {useCenters} from '../../store/useCenters.js'
 import {useUI} from '../../store/useUI.js'
 import {t} from '../../lib/i18n.js'
+import {useCenterNavigation,useUnsavedCenterForm} from './NavigationGuard.jsx'
 
 const fieldsOf=plan=>({name:plan?.name||'',price:minorToPrice(plan?.priceMinor)||'0.00',intervalMonths:plan?.intervalMonths||1,
   taxPolicy:plan?.priceIncludesTax==null?'unset':plan.priceIncludesTax?'included':'excluded',taxRate:plan?.taxBasisPoints==null?'0.00':minorToPrice(String(plan.taxBasisPoints)),proration:plan?.proration||'unset'})
@@ -15,6 +16,8 @@ const conditions=plan=>minorToPrice(plan.priceMinor)+' '+plan.currency+' · '+t(
 function PlanEditor({centerId,ownerUid,detail,close,saved,duplicate=false}) {
   const plan=detail?.plan,[fields,setFields]=useState(()=>fieldsOf(plan)),[busy,setBusy]=useState(false),[error,setError]=useState(null),[requestId]=useState(()=>crypto.randomUUID())
   const live=useRef(true)
+  const requestNavigation=useCenterNavigation()
+  useUnsavedCenterForm(JSON.stringify(fields)!==JSON.stringify(fieldsOf(plan))?JSON.stringify(fields):null,busy)
   useEffect(()=>{live.current=true;return()=>{live.current=false}},[])
   const current=()=>live.current&&useStore.getState().user?.id===ownerUid
   const failure=e=>{if(current()){setError(e);useCenters.getState().revokeOn(e)}}
@@ -46,7 +49,7 @@ function PlanEditor({centerId,ownerUid,detail,close,saved,duplicate=false}) {
       <p className="small muted">{t('Tax and proration must be configured before calculating charges.')}</p>
     </>}
     {error&&<p role="alert">{t(plansErrorKey(error))}</p>}
-    <div className="centers-actions"><Button type="button" disabled={busy} onClick={close}>{t('Back')}</Button>{(!plan?.archived||duplicate)&&<Button type="submit" variant="primary" disabled={busy||!fields.name.trim()}>{t('Save')}</Button>}{plan&&!plan.archived&&!duplicate&&<Button type="button" disabled={busy} onClick={archive}>{t('Archive membership plan')}</Button>}</div>
+    <div className="centers-actions"><Button type="button" disabled={busy} onClick={()=>requestNavigation(close)}>{t('Back')}</Button>{(!plan?.archived||duplicate)&&<Button type="submit" variant="primary" disabled={busy||!fields.name.trim()}>{t('Save')}</Button>}{plan&&!plan.archived&&!duplicate&&<Button type="button" disabled={busy} onClick={archive}>{t('Archive membership plan')}</Button>}</div>
   </form></Section>{detail?.versions&&!duplicate&&<Section title={t('Version')}><div className="centers-form">{detail.versions.map(row=><Row key={row.priceVersionId} title={row.name} subtitle={conditions(row)} value={row.revision}/>)}</div></Section>}</>
 }
 export default function MembershipPlans({centerId,ownerUid}) {

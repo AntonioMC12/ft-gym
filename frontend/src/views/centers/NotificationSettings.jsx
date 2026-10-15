@@ -5,11 +5,13 @@ import {useStore} from '../../store/useStore.js'
 import {useCenters} from '../../store/useCenters.js'
 import {confirmSheet} from '../../sheets.jsx'
 import {t} from '../../lib/i18n.js'
+import {useUnsavedCenterForm} from './NavigationGuard.jsx'
 const empty={enabled:false,receipts:true,dueLeadDays:3,debtRepeatDays:7,priceNoticeDays:30,version:0}
 const fields=[['dueLeadDays','Due reminder lead (days)'],['debtRepeatDays','Debt reminder interval (days)'],['priceNoticeDays','Price notice lead (days)']]
 const states={pending:'Pending job',sending:'Sending notice',sent:'Sent notice',blocked:'Blocked job',uncertain:'Delivery needs review',skipped:'Skipped job'}
 export default function NotificationSettings({centerId,ownerUid,platform=false,active=true}) {
   const [data,setData]=useState(null),[draft,setDraft]=useState(empty),[error,setError]=useState(null),[busy,setBusy]=useState(false),[revision,setRevision]=useState(0)
+  useUnsavedCenterForm(data&&JSON.stringify(draft)!==JSON.stringify(data.policy||empty)?JSON.stringify(draft):null,!!data&&busy)
   const life=useRef(0),pending=useRef(false),retry=useRef(null),current=epoch=>life.current===epoch&&useStore.getState().user?.id===ownerUid
   const fail=e=>{setError(e);useCenters.getState().revokeOn(e)}
   useEffect(()=>{

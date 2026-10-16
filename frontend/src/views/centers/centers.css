@@ -338,3 +338,38 @@ fieldset.centers-fields{border:0;padding:0;min-width:0}
 .centers-billing-details{border-top:1px solid var(--sep);margin-top:14px;padding-top:8px}
 .centers-billing-details>summary{cursor:pointer;padding-block:12px;min-height:44px}
 @media(max-width:550px){.centers-debt-summary{grid-template-columns:repeat(2,minmax(0,1fr))}.centers-debt-summary>article:last-child{grid-column:1/-1;grid-template-columns:1fr auto;align-items:center}.centers-debt-filter>.btn,.centers-debt-toolbar>.btn{width:100%}.centers-job-stats{grid-template-columns:repeat(2,minmax(0,1fr))}.centers-debt .seg>button{flex:1 1 160px}}
+
+/* Center profile: consultation first; deliberate, focused editing. */
+.centers-profile-heading{display:flex;align-items:center;justify-content:space-between;gap:14px;flex-wrap:wrap}
+.centers-workspace-content .centers-profile .centers-profile-heading h3{display:flex;align-items:center;gap:8px;margin:0;font-size:18px}
+.centers-profile-heading h3 svg{width:22px;height:22px;color:var(--label-2)}
+.centers-profile .btn{min-height:44px;width:auto;padding:10px 16px;border:1px solid var(--sep);border-radius:var(--r);white-space:normal}
+.centers-profile-data{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px;margin:18px 0 0}
+.centers-profile-data>div{min-width:0;padding:14px 16px;border:1px solid var(--sep);border-radius:var(--r);background:var(--surface-2)}
+.centers-profile-data dt{font-size:13px;color:var(--label-2);margin-bottom:6px}
+.centers-profile-data dd{font-size:15px;margin:0;line-height:1.5;overflow-wrap:anywhere}
+.centers-profile-hours-heading{border-top:1px solid var(--sep);padding-top:22px;margin-top:24px}
+.centers-profile-week{margin-top:14px;display:grid;gap:8px}
+.centers-profile-day{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:14px 16px;min-height:54px;background:var(--surface-2);border:1px solid var(--sep);border-radius:var(--r)}
+.centers-profile-day strong{font-size:14px;font-weight:600}
+.centers-profile-day>div{min-width:0;display:flex;justify-content:flex-end;gap:8px;flex-wrap:wrap;font-size:14px;font-variant-numeric:tabular-nums}
+.centers-profile-day>div>span{padding:5px 10px;border-radius:8px;background:var(--surface);border:1px solid var(--sep);white-space:nowrap}
+.centers-profile-day.is-closed{background:transparent;border-style:dashed}
+.centers-profile-day.is-closed>div>span{background:transparent;border-color:transparent}
+.centers-profile-editor>.centers-fields{margin-top:18px}
+.centers-profile-editor .centers-hours{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px}
+.centers-profile-editor .centers-hours>h3{display:none}
+.centers-profile-editor .centers-hour-day{margin:0;min-width:0;align-self:start;background:var(--surface-2)}
+.centers-profile-editor .centers-hour-row{grid-template-columns:minmax(0,1fr) minmax(0,1fr) 44px;gap:8px}
+.centers-profile .centers-hour-footer>.btn{display:inline-flex;align-items:center;gap:8px}
+.centers-profile .centers-hour-remove{padding:10px;color:var(--label-2);background:transparent}
+.centers-profile .centers-hour-remove:hover{color:var(--red)}
+.centers-profile-management{margin-top:24px;border:1px solid var(--sep);border-radius:var(--r);background:var(--surface-2);overflow:hidden}
+.centers-profile-management>summary{cursor:pointer;min-height:54px;padding:16px;font-weight:600}
+.centers-profile-management>summary svg{width:20px;height:20px;vertical-align:middle;margin-inline:6px 8px;color:var(--label-2)}
+.centers-profile-management-body{padding:0 16px 16px;border-top:1px solid var(--sep)}
+.centers-profile-management-body>div+div{border-top:1px solid var(--sep);margin-top:20px;padding-top:6px}
+@media(max-width:1100px){.centers-profile-editor .centers-hours{grid-template-columns:minmax(0,1fr)}}
+@media(max-width:550px){.centers-profile-data{grid-template-columns:minmax(0,1fr);gap:8px}.centers-profile-heading>.btn{width:100%}.centers-profile-day{padding:12px}.centers-profile-day>div{gap:4px}.centers-profile-day>div>span{padding:4px 6px}.centers-profile-editor .centers-form-actions>.btn{width:100%}}
+
+@media(max-width:550px){.centers-profile-editor .centers-hour-row{grid-template-columns:minmax(0,1fr) minmax(0,1fr)}.centers-profile-editor .centers-hour-remove{grid-column:1/-1;justify-self:end}}

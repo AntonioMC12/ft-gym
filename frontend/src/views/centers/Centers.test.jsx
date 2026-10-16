@@ -66,7 +66,7 @@ it('creates a draft through all wizard steps using one stable request id', async
 
 it('editing the first opening interval preserves the remaining intervals', async () => {
   centerCommand.mockResolvedValue({ center })
-  await render(); await click('Center details')
+  await render(); await click('Center details');await click('Edit opening hours')
   input(host.querySelector('input[aria-label="Monday From"]'), '09:00')
   await click('Save')
   expect(centerCommand.mock.calls[0][1].openingHours[1]).toEqual([['09:00', '12:00'], ['16:00', '22:00']])
@@ -147,15 +147,15 @@ it('center selection and panes enter router history, so Back restores the previo
   await act(async()=>{root.render(<MemoryRouter initialEntries={['/centers']}><Centers/><Location/></MemoryRouter>);await Promise.resolve()})
   await click('Center details');expect(host.querySelector('output').textContent).toBe('/centers?centerId=one')
   await click('Members');expect(host.querySelector('output').textContent).toBe('/centers?centerId=one&pane=members')
-  await act(async()=>host.querySelector('button[aria-label="Back"]').click());expect(host.querySelector('output').textContent).toBe('/centers?centerId=one');expect(host.querySelector('input').value).toBe(center.name)
+  await act(async()=>host.querySelector('button[aria-label="Back"]').click());expect(host.querySelector('output').textContent).toBe('/centers?centerId=one');expect(host.querySelector('.centers-profile-data dd').textContent).toBe(center.name)
   expect(useStore.getState().S).toEqual({});history.replaceState(previous,'',location.href)
 })
 it('switching the URL center discards the previous center response and clears private form state',async()=>{
   let release;centerDetail.mockImplementation(id=>id==='one'?new Promise(resolve=>release=resolve):Promise.resolve({center:{...center,id:'two',name:'Second synthetic center'}}))
   function SwitchCenter(){const navigate=useNavigate();return <button onClick={()=>navigate('/centers?centerId=two')}>Select second</button>}
   await act(async()=>{root.render(<MemoryRouter initialEntries={['/centers?centerId=one']}><Centers/><SwitchCenter/></MemoryRouter>);await Promise.resolve()})
-  await click('Select second');expect(host.querySelector('input').value).toBe('Second synthetic center')
-  await act(async()=>release({center:{...center,name:'Old private center'}}));expect(host.textContent).not.toContain('Old private center');expect(host.querySelector('input').value).toBe('Second synthetic center')
+  await click('Select second');expect(host.querySelector('.centers-profile-data dd').textContent).toBe('Second synthetic center')
+  await act(async()=>release({center:{...center,name:'Old private center'}}));expect(host.textContent).not.toContain('Old private center');expect(host.querySelector('.centers-profile-data dd').textContent).toBe('Second synthetic center')
 })
 it('a creation completed after leaving the wizard cannot navigate back into the old workflow',async()=>{
   let release;centerCommand.mockReturnValue(new Promise(resolve=>release=resolve))
@@ -169,7 +169,7 @@ it('a save completed after an external route change cannot refresh the current v
   let release;centerCommand.mockReturnValue(new Promise(resolve=>release=resolve));const toast=vi.spyOn(useUI.getState(),'toast').mockImplementation(()=>{})
   useCenters.setState({platformCapabilities:['centers.manage','members.read','members.manage']})
   function ExternalPane(){const navigate=useNavigate();return <button onClick={()=>navigate('/centers?centerId=one&pane=members')}>External pane change</button>}
-  await act(async()=>{root.render(<MemoryRouter><Centers/><ExternalPane/></MemoryRouter>);await Promise.resolve()});await click('Center details');await click('Save');await click('External pane change');const reads=centerDetail.mock.calls.length
+  await act(async()=>{root.render(<MemoryRouter><Centers/><ExternalPane/></MemoryRouter>);await Promise.resolve()});await click('Center details');await click('Edit center');input(host.querySelector('input'),'Edited pending');await click('Save');await click('External pane change');const reads=centerDetail.mock.calls.length
   await act(async()=>release({center}));expect(toast).not.toHaveBeenCalled();expect(centerDetail).toHaveBeenCalledTimes(reads);expect(button('New member')).toBeDefined()
 })
 it('a delayed deactivation confirmation is inert after changing the pane that opened it',async()=>{
@@ -214,14 +214,14 @@ it('offers direct Home navigation while protecting an unsaved new center',async(
 
 it('returns directly to Centers preserving its filter only after confirming edited details',async()=>{
   function Location(){return <output data-path>{useLocation().search}</output>}
-  await act(async()=>{root.render(<MemoryRouter initialEntries={['/centers?centerId=one&q=Synthetic']}><Centers/><Location/></MemoryRouter>);await Promise.resolve()});input(host.querySelector('input'),'Changed details');await click('Centers');expect(host.querySelector('[data-path]').textContent).toContain('centerId=one');await act(async()=>confirmSheet.mock.calls.at(-1)[0].onConfirm());expect(host.querySelector('[data-path]').textContent).toBe('?q=Synthetic');expect(host.textContent).toContain('Synthetic center')
+  await act(async()=>{root.render(<MemoryRouter initialEntries={['/centers?centerId=one&q=Synthetic']}><Centers/><Location/></MemoryRouter>);await Promise.resolve()});await click('Edit center');input(host.querySelector('input'),'Changed details');await click('Centers');expect(host.querySelector('[data-path]').textContent).toContain('centerId=one');await act(async()=>confirmSheet.mock.calls.at(-1)[0].onConfirm());expect(host.querySelector('[data-path]').textContent).toBe('?q=Synthetic');expect(host.textContent).toContain('Synthetic center')
 })
 
 it('discarding edited details clears the hidden draft and browsing plan lists does not ask for a nonexistent save',async()=>{
- useCenters.setState({platformCapabilities:['centers.manage','plans.manage','members.read']});await render();await click('Center details');input(host.querySelector('input'),'Unsaved name');expect(host.querySelector('form .centers-unsaved-indicator').textContent).toBe('Unsaved changes');await click('Membership plans');expect(confirmSheet).toHaveBeenCalledOnce();await act(async()=>{confirmSheet.mock.calls[0][0].onConfirm();await Promise.resolve()});expect(host.textContent).toContain('Existing plan list');expect(host.querySelector('.centers-unsaved-indicator')).toBeNull();await click('Members');expect(confirmSheet).toHaveBeenCalledOnce();await click('Center details');expect(host.querySelector('input').value).toBe(center.name);expect(host.querySelector('.centers-unsaved-indicator')).toBeNull();
+ useCenters.setState({platformCapabilities:['centers.manage','plans.manage','members.read']});await render();await click('Center details');await click('Edit center');input(host.querySelector('input'),'Unsaved name');expect(host.querySelector('form .centers-unsaved-indicator').textContent).toBe('Unsaved changes');await click('Membership plans');expect(confirmSheet).toHaveBeenCalledOnce();await act(async()=>{confirmSheet.mock.calls[0][0].onConfirm();await Promise.resolve()});expect(host.textContent).toContain('Existing plan list');expect(host.querySelector('.centers-unsaved-indicator')).toBeNull();await click('Members');expect(confirmSheet).toHaveBeenCalledOnce();await click('Center details');expect(host.querySelector('.centers-profile-data dd').textContent).toBe(center.name);expect(host.querySelector('.centers-unsaved-indicator')).toBeNull();
 })
 it('the local save action sends edited center fields through the existing save handler',async()=>{
- centerCommand.mockResolvedValue({center});await render();await click('Center details');input(host.querySelector('input'),'Saved via bar');await act(async()=>{host.querySelector('form[aria-label="Center details"] button[type=submit]').click();await Promise.resolve()});expect(centerCommand).toHaveBeenCalledWith('/api/platform/centers/update',expect.objectContaining({centerId:'one',version:1,name:'Saved via bar'}));
+ centerCommand.mockResolvedValue({center});await render();await click('Center details');await click('Edit center');input(host.querySelector('input'),'Saved via bar');await act(async()=>{host.querySelector('form[aria-label="Center details"] button[type=submit]').click();await Promise.resolve()});expect(centerCommand).toHaveBeenCalledWith('/api/platform/centers/update',expect.objectContaining({centerId:'one',version:1,name:'Saved via bar'}));
 })
 it('shares center navigation across areas while preserving permissions and the selected destination',async()=>{
  useCenters.setState({platformCapabilities:['centers.manage','plans.manage','members.read','classes.read','access.manage']});await render();await click('Center details');
@@ -232,4 +232,39 @@ it('shares center navigation across areas while preserving permissions and the s
 })
 it('offers passes separately from membership plans',async()=>{
  useCenters.setState({platformCapabilities:['centers.manage','plans.manage']});await render();await click('Center details');const menu=()=>host.querySelector('.centers-center-workspace>.centers-workspace>.centers-workspace-nav');expect(menu().textContent).toContain('Visit passes');await click('Membership plans');expect(host.textContent).toContain('Existing plan list');expect(host.querySelector('.centers-pass-management')).toBeNull();await click('Visit passes');expect(host.querySelector('.centers-pass-management')).not.toBeNull();expect(host.textContent).not.toContain('Existing plan list');
+})
+
+it('opens focused editors and cancels a clean form without a confirmation',async()=>{
+ await render();await click('Center details')
+ expect(host.querySelector('form[aria-label="Center details"]')).toBeNull()
+ expect(host.querySelectorAll('.centers-profile-day')).toHaveLength(7)
+ expect(host.querySelector('.centers-profile-day').textContent).toContain('08:00')
+ expect(host.querySelector('.centers-profile-day').textContent).toContain('16:00')
+ expect(host.querySelectorAll('.centers-profile-day.is-closed')).toHaveLength(6)
+ await click('Edit center');expect(host.querySelector('input').value).toBe(center.name)
+ expect(host.querySelector('.centers-hours')).toBeNull();expect(button('Save').disabled).toBe(true)
+ await click('Cancel');expect(confirmSheet).not.toHaveBeenCalled()
+ await click('Edit opening hours');expect(host.querySelector('input[aria-label="Monday From"]')).not.toBeNull()
+ expect(host.querySelector('form[aria-label="Center details"] input[required]:not([aria-label])')).toBeNull()
+ await click('Cancel');expect(confirmSheet).not.toHaveBeenCalled();expect(centerCommand).not.toHaveBeenCalled()
+})
+it('confirms cancellation only for actual changes and restores saved values',async()=>{
+ await render();await click('Center details');await click('Edit center')
+ input(host.querySelector('input'),'Unsaved edit');await click('Cancel')
+ expect(host.querySelector('input').value).toBe('Unsaved edit')
+ expect(confirmSheet).toHaveBeenCalledOnce()
+ await act(async()=>confirmSheet.mock.calls[0][0].onConfirm())
+ expect(host.querySelector('.centers-profile-data dd').textContent).toBe(center.name)
+ expect(host.querySelector('form[aria-label="Center details"]')).toBeNull()
+ expect(host.querySelector('.centers-unsaved-indicator')).toBeNull()
+ await click('Edit center');expect(host.querySelector('input').value).toBe(center.name)
+ expect(centerCommand).not.toHaveBeenCalled()
+})
+it('does not offer either editor to a read-only center role',async()=>{
+ useStore.getState().user={id:'trainer'}
+ useCenters.setState({ownerUid:'trainer',centers:[{...center,capabilities:['center.read']}],platformCapabilities:[]})
+ await render();await click('Center details')
+ expect(button('Edit center')).toBeUndefined();expect(button('Edit opening hours')).toBeUndefined()
+ expect(host.querySelector('.centers-profile-data dd').textContent).toBe(center.name)
+ expect(host.querySelector('.centers-profile-day').textContent).toContain('22:00')
 })

@@ -35,16 +35,16 @@ const fieldsOf = center => ({ name: center?.name || '', taxId: center?.taxId || 
   contactEmail: center?.contactEmail || '', phone: center?.phone || '', timezone: center?.timezone || 'Europe/Madrid',
   capacity: center?.capacity ?? null, billingDay: center?.billingDay || 1, openingHours: center?.openingHours || {} })
 
-function Fields({ value, change, disabled=false }) {
+function Fields({ value, change, disabled=false, mode='all' }) {
   const field = (key, label, type = 'text') => <label className="centers-field"><span>{label}</span>
     <TextField type={type} value={value[key]} onChange={e => change({ ...value, [key]: e.target.value })} required={key === 'name'} />
   </label>
   return <fieldset disabled={disabled} className="centers-fields">
-    {field('name', t('Center name'))}{field('taxId', t('Tax ID'))}{field('address', t('Center address'))}
+    {mode!=='hours'&&<>{field('name', t('Center name'))}{field('taxId', t('Tax ID'))}{field('address', t('Center address'))}
     {field('contactEmail', t('Contact email'), 'email')}{field('phone', t('Phone'))}{field('timezone', t('Time zone'))}
     <label className="centers-field"><span>{t('Center capacity')}</span><NumberField className="field" nullable decimal={false} value={value.capacity} onChange={capacity => change({ ...value, capacity })} /></label>
-    <label className="centers-field"><span>{t('Billing day')}</span><NumberField className="field" decimal={false} value={value.billingDay} onChange={billingDay => change({ ...value, billingDay })} /></label>
-    <div className="centers-hours"><h3>{t('Opening hours')}</h3>{[1, 2, 3, 4, 5, 6, 0].map(day => {
+    <label className="centers-field"><span>{t('Billing day')}</span><NumberField className="field" decimal={false} value={value.billingDay} onChange={billingDay => change({ ...value, billingDay })} /></label></>}
+    {mode!=='details'&&<div className="centers-hours"><h3>{t('Opening hours')}</h3>{[1, 2, 3, 4, 5, 6, 0].map(day => {
       const interval = value.openingHours[day]?.[0]
       const names = [t('Sunday'), t('Monday'), t('Tuesday'), t('Wednesday'), t('Thursday'), t('Friday'), t('Saturday')]
       const set = next => change({ ...value, openingHours: { ...value.openingHours, [day]: next } })
@@ -56,7 +56,7 @@ function Fields({ value, change, disabled=false }) {
           <Button variant="ghost" className="centers-hour-remove" type="button" title={t('Remove')+': '+names[day]+' '+(index+1)} aria-label={t('Remove')+': '+names[day]+' '+(index+1)} onClick={() => set(value.openingHours[day].filter((_,i) => i !== index))}><Icon name="trash"/></Button>
         </div>)}{interval && value.openingHours[day].length < 4 && value.openingHours[day].at(-1)[1] !== "24:00" && <div className="centers-hour-footer"><Button variant="tinted" type="button" onClick={() => set([...value.openingHours[day], [value.openingHours[day].at(-1)[1], '24:00']])}><Icon name="plus"/>{t('Add time interval')}</Button></div>}
       </div>
-    })}</div>
+    })}</div>}
   </fieldset>
 }
 
@@ -98,21 +98,27 @@ function CenterPanel({ center, platform, capabilities, close, refresh, ownerUid,
   const canAccess=capabilities.includes('access.manage'),accessPane=canAccess&&pane==='access'
   const metricsPane=canBilling&&pane==='metrics'
   const canClasses=capabilities.includes('classes.read'),classesPane=canClasses&&pane==='classes'
+  const [editing,setEditing]=useState(null)
+  const requestNavigation=useCenterNavigation()
+  const canEdit=platform||capabilities.includes('center.update')
   const [fields, setFields] = useState(() => fieldsOf(center)), [staff, setStaff] = useState([]), [manager, setManager] = useState(null)
   const [trainerUid, setTrainerUid] = useState(''), [replaceId, setReplaceId] = useState(null)
   const [busy, setBusy] = useState(false), [error, setError] = useState(null)
   const detailsPane=!memberPane&&!planPane&&!passesPane&&!billingPane&&!accessPane&&!metricsPane&&!classesPane
   const fieldsDirty=JSON.stringify(fields)!==JSON.stringify(fieldsOf(center))
-  const saveForm=useUnsavedCenterForm(detailsPane&&(fieldsDirty||manager||trainerUid||replaceId)?JSON.stringify([fields,manager?.id,trainerUid,replaceId]):null,busy,{saveable:fieldsDirty&&!manager&&!trainerUid&&!replaceId})
+  const saveForm=useUnsavedCenterForm(detailsPane&&editing&&fieldsDirty?JSON.stringify(fields):null,busy&&!!editing)
+  useUnsavedCenterForm(detailsPane&&(manager||trainerUid||replaceId)?JSON.stringify([manager?.id,trainerUid,replaceId]):null,busy&&!editing,{saveable:false})
+  useEffect(()=>{if(editing)saveForm.current?.querySelector('input')?.focus()},[editing])
+  const cancelEdit=()=>requestNavigation(()=>{setFields(fieldsOf(center));setEditing(null);setError(null)},{form:saveForm})
   const life=useRef(0),pending=useRef(false),permissionKey=capabilities.join('|')
   const current=epoch=>life.current===epoch&&useStore.getState().user?.id===ownerUid
   useEffect(()=>{life.current++;pending.current=false;setBusy(false);setError(null);return()=>{life.current++;pending.current=false}},[center.id,center.version,ownerUid,pane,permissionKey])
-  useEffect(() => { setFields(fieldsOf(center));setManager(null);setTrainerUid('');setReplaceId(null) }, [center,pane])
+  useEffect(() => { setEditing(null);setFields(fieldsOf(center));setManager(null);setTrainerUid('');setReplaceId(null) }, [center,pane,permissionKey])
   useEffect(() => { let current = true; setStaff([]); if (platform || capabilities.includes('staff.manage')) centerStaff(center.id).then(r => { if (current) setStaff(r.staff) }).catch(e => { if (current) setError(e) }); return () => { current = false } }, [center, platform, capabilities])
   const perform = async (path, body, epoch=life.current) => {
     if(!current(epoch)||pending.current)return;pending.current=true
     setBusy(true); setError(null)
-    try { await centerCommand(path, body); if (!current(epoch)) return; useUI.getState().toast(t('Saved')); refresh(); setManager(null); setTrainerUid(''); setReplaceId(null) }
+    try { await centerCommand(path, body); if (!current(epoch)) return; useUI.getState().toast(t('Saved')); setEditing(null); refresh(); setManager(null); setTrainerUid(''); setReplaceId(null) }
     catch (e) { if(current(epoch)){setError(e);useCenters.getState().revokeOn(e)} }
     finally { if(current(epoch)){pending.current=false;setBusy(false)} }
   }
@@ -126,8 +132,17 @@ function CenterPanel({ center, platform, capabilities, close, refresh, ownerUid,
   return <article className="centers-center-workspace">
     <header className="centers-center-header"><div><h2>{center.name}</h2><span className="centers-member-status">{stateLabel(center.state)}</span></div><Button type="button" icon="chevronLeft" onClick={close}>{t('Back')}</Button></header>
     <CenterWorkspace label={center.name} options={sections} value={selectedPane} onChange={setPane}>
-    {detailsPane&&<Section title={t('Center details')}><div className="centers-form">
-    {(platform || capabilities.includes('center.update')) && <form ref={saveForm} aria-label={t('Center details')} onSubmit={e => { e.preventDefault(); perform(updatePath, { ...fields, centerId: center.id, version: center.version }) }}><Fields value={fields} change={setFields} disabled={busy}/><Button type="submit" variant="primary" disabled={busy}>{t('Save')}</Button></form>}
+    {detailsPane&&<Section className="centers-profile" title={t('Center details')}><div className="centers-form">
+    {canEdit&&editing?<form ref={saveForm} className="centers-profile-editor" aria-label={t('Center details')} onSubmit={e => { e.preventDefault(); perform(updatePath, { ...fields, centerId: center.id, version: center.version }) }}>
+      <h3>{t(editing==='hours'?'Edit opening hours':'Edit center')}</h3><Fields value={fields} change={setFields} disabled={busy} mode={editing}/>
+      <div className="centers-form-actions" data-center-form-actions><Button type="submit" variant="primary" disabled={busy||!fieldsDirty}>{t(busy?'Saving…':'Save')}</Button><Button type="button" disabled={busy} onClick={cancelEdit}>{t('Cancel')}</Button></div>
+    </form>:<>
+      <div className="centers-profile-heading"><h3>{t('Center details')}</h3>{canEdit&&<Button type="button" variant="tinted" icon="pencil" onClick={()=>setEditing('details')}>{t('Edit center')}</Button>}</div>
+      <dl className="centers-profile-data">{[['name','Center name'],['taxId','Tax ID'],['address','Center address'],['contactEmail','Contact email'],['phone','Phone'],['timezone','Time zone'],['capacity','Center capacity'],['billingDay','Billing day']].map(([key,label])=><div key={key}><dt>{t(label)}</dt><dd>{fields[key]===null||fields[key]===''?'—':fields[key]}</dd></div>)}</dl>
+      <div className="centers-profile-heading centers-profile-hours-heading"><h3><Icon name="clock"/>{t('Opening hours')}</h3>{canEdit&&<Button type="button" icon="pencil" onClick={()=>setEditing('hours')}>{t('Edit opening hours')}</Button>}</div>
+      <div className="centers-profile-week">{[1,2,3,4,5,6,0].map(day=><div className={'centers-profile-day'+(fields.openingHours[day]?.length?'':' is-closed')} key={day}><strong>{t(['Sunday','Monday','Tuesday','Wednesday','Thursday','Friday','Saturday'][day])}</strong><div>{fields.openingHours[day]?.length?fields.openingHours[day].map((pair,i)=><span key={i}>{pair[0]} <span className="muted">–</span> {pair[1]}</span>):<span className="muted">{t('Closed')}</span>}</div></div>)}</div>
+    </>}
+    {!editing&&(staff.length>0||platform||capabilities.includes('staff.manage'))&&<details className="centers-profile-management"><summary><Icon name="gear"/>{t('Center staff')}</summary><div className="centers-profile-management-body">
     {staff.length > 0 && <div><h3>{t('Center staff')}</h3>{staff.map(role => <div key={role.id} className="centers-staff-row"><div><strong>{role.role === 'manager' ? t('Center manager') : t('Trainer')}</strong><div className="small muted">{role.accountUid}</div></div>
       {role.revoked ? <span className="muted small">{t('Revoked role')}</span> : (platform || role.role === 'trainer') && <div className="centers-actions">{platform && role.role==='manager' && <Button onClick={() => setReplaceId(role.id)}>{t('Replace')}</Button>}<Button disabled={busy} onClick={() => perform(platform ? '/api/platform/centers/revoke-role' : '/api/centers/staff/revoke', { centerId: center.id, version: center.version, assignmentId: role.id })}>{t('Revoke role')}</Button></div>}
       {platform&&!role.revoked&&role.role==='manager'&&<><RefundGrant centerId={center.id} role={role} ownerUid={ownerUid} saved={refresh}/><RefundGrant centerId={center.id} role={role} ownerUid={ownerUid} saved={refresh} capability="data.export"/></>}
@@ -137,6 +152,7 @@ function CenterPanel({ center, platform, capabilities, close, refresh, ownerUid,
       {center.state !== 'inactive' && <div className="centers-actions"><Button variant="danger" disabled={busy} onClick={deactivate}>{t('Deactivate center')}</Button></div>}
       {center.state === 'inactive' && <Button disabled={busy} onClick={() => perform(updatePath, { ...fields, centerId: center.id, version: center.version, state: 'active' })}>{t('Activate center')}</Button>}
     </div>}
+    </div></details>}
     {error && <p role="alert">{t(centersErrorKey(error))}</p>}
     </div></Section>}
     {passesPane?<PassManagement centerId={center.id} ownerUid={ownerUid} capabilities={capabilities} active={center.state==='active'}/>:classesPane?<Classes centerId={center.id} ownerUid={ownerUid} canManage={capabilities.includes('classes.manage')}/>:metricsPane?<><Metrics key={'metrics:'+center.id} centerId={center.id} ownerUid={ownerUid} timezone={center.timezone} canViewMembers={canMembers} onNavigate={value=>{if(value==='billing'||value==='members'&&canMembers)setPane(value)}} period={metricPeriod} onPeriod={setMetricPeriod}/>{capabilities.includes('members.manage')&&<Retention centerId={center.id} ownerUid={ownerUid}/>}</>:accessPane?<AccessPanel key={'access:'+center.id} centerId={center.id} ownerUid={ownerUid} active={center.state==='active'} canManage={capabilities.includes('access.manage')} canVerify={capabilities.includes('access.verify')} timezone={center.timezone}/>:billingPane?<><DebtCalendar key={center.id} centerId={center.id} ownerUid={ownerUid} canExport={capabilities.includes('data.export')}/><StripePayments key={'stripe:'+center.id} centerId={center.id} ownerUid={ownerUid} canReconcile={capabilities.includes('payments.record')}/><BillingAutomation key={'automation:'+center.id} centerId={center.id} ownerUid={ownerUid} platform={platform} active={center.state==='active'}/><NotificationSettings key={'notifications:'+center.id} centerId={center.id} ownerUid={ownerUid} platform={platform} active={center.state==='active'}/></>:planPane?<><MembershipPlans key={center.id} centerId={center.id} ownerUid={ownerUid}/></>:memberPane?<Members platform={platform} key={center.id} centerId={center.id} ownerUid={ownerUid} capabilities={capabilities} active={center.state==='active'} centerState={center.state} onDetails={()=>setPane('details')} onPlans={()=>setPane('plans')} importId={importId} onImport={onImport}/>:

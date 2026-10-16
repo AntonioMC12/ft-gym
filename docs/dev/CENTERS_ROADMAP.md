@@ -494,3 +494,6 @@ C49: prueba de dashboard visual de métricas a partir del DTO existente, con ind
 
 
 C50: mejora visual de Deuda y calendario, automatización de recibos y avisos. Saldos legibles, recibos con identidad/estado y agenda por vencimiento, contadores y estados del servidor claros. Ayuda contextual accesible reutilizada, con reglas reales de deuda/gracia, pagos/devoluciones, automatización y avisos. Preservar filtros/cursor/permisos/idempotencia y no efectuar operaciones económicas como parte del rediseño. Implementación y UI19/19 terminadas; revisión visual escritorio/móvil/temas pendiente, in_progress. Evidencia en CENTERS_PROGRESS.md.
+
+
+C51: Datos del centro en consulta con fichas y horario semanal compacto. Editar centro y Editar horario abren editores independientes reutilizando Fields y controles existentes, con cancelación protegida y permisos actuales. Gestión de personal desplegable; adaptación escritorio/móvil. No modificar contratos API ni reglas horarias. Implementación y UI37/37 terminadas; revisión visual real pendiente, in_progress. Evidencia en CENTERS_PROGRESS.md.

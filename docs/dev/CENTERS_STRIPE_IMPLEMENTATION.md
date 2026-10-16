@@ -1,6 +1,6 @@
 # C27: Stripe sandbox integrado
 
-Estado vigente16octubre: implementación y pruebas automáticas terminadas; C27 mantiene pendiente el ensayo de sandbox externo. La revisión visual se aplaza a la validación final acordada. Ver [guía de prueba paso a paso](CENTERS_STRIPE_TEST_GUIDE.md). El alta administrativa y efectivo no dependen de C27; el alta pública C35 queda aplazada.
+Estado vigente16octubre: **Stripe y pagos con tarjeta aplazados expresamente por el usuario; todo se cobra en mano/efectivo y se registra manualmente.** C27 queda todo/fuera de esta entrega. Conservar la implementación y pruebas existentes como referencia, sin configurar claves, ejecutar sandbox ni activar pasarela. Su validación no bloquea el alcance actual. La [guía de prueba](CENTERS_STRIPE_TEST_GUIDE.md) queda reservada para una futura reactivación del alcance.
 
 La denegación guardada del navegador no debe eludirse con otra herramienta. Las pruebas HTTP aisladas y de componentes sí están verificadas.
 

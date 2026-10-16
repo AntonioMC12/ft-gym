@@ -10,12 +10,13 @@ Integrar los CU-01 a CU-16 del documento funcional de centros respetando la apli
 
 ## Alcance vigente acordado el16octubre2026
 
-- C27: preparar y seguir CENTERS_STRIPE_TEST_GUIDE.md para ensayo externo de sandbox. Guía preparada; el ensayo no está ejecutado ni se declara validado. No condiciona el alta/pago administrativo en efectivo.
+- Cobro actual exclusivamente en mano/efectivo. El responsable registra manualmente importes recibidos; no implementar ni activar tarjeta, Stripe u otros cobros online por ahora.
+- C27: aplazado expresamente, todo/fuera del alcance actual. Código y CENTERS_STRIPE_TEST_GUIDE.md conservados como referencia futura. No configurar claves ni ejecutar ensayo externo; su validación no bloquea esta entrega.
 - C28 SEPA y C39 facturas/fiscalidad: aplazados expresamente, fuera de la entrega actual. SEPA es domiciliación bancaria, distinta de la factura fiscal; ambos quedan para más adelante por decisión del usuario. Conservar recibos y registro de pagos/deuda existentes.
 - C32: cerrar el alcance técnico actual de métricas contractuales, financieras y admisiones registradas. Ocupación física e integración con tarjeta NFC/cerradura electrónica aplazadas. Investigar fabricante/controlador/API/eventos cuando se retome; no inventar entradas/salidas ni dar por conectada la cerradura. Las entradas reales por NFC no aparecen todavía en el historial QR ni alimentan retención.
 - C35: alta pública online fuera del alcance actual. El responsable da de alta socios manualmente (C13/C15/C17) y registra efectivo (C20), ya implementado. No exigir Stripe, una cuenta personal del socio ni pago online para ese recorrido. Asignar una suscripción a un socio pendiente puede activarlo en su fecha efectiva antes de registrar el pago; no afirmar activación automática solo después de cobrar.
 - C41/C42: pendientes para la validación/cierre final al terminar, sin bloquear desarrollo local por adelantado. La activación productiva no se ejecuta en esta petición.
-- Aplazado no significa implementado: C28/C35/C39 conservan estado todo con alcance futuro explícito. C32 pasa a done solo para el alcance actual; la parte de ocupación queda documentada como futura.
+- Aplazado no significa implementado: C27/C28/C35/C39 conservan estado todo con alcance futuro explícito. C32 pasa a done solo para el alcance actual; la parte de ocupación queda documentada como futura.
 
 Arquitectura objetivo:
 
@@ -314,7 +315,7 @@ Actualizado16octubre2026. Detalle/evidencia y bloqueos en CENTERS_PROGRESS.md; e
 | Tareas | Estado técnico | Lo que falta |
 |---|---|---|
 | C29,C30,C31,C33,C34,C36,C37,C40 | done | Validación visual/hardware/operación diferida; gates de activación siguen pendientes |
-| C27 | blocked | Ensayo con cuenta sandbox real y autorización/credenciales; implementación con HTTP ficticio terminada |
+| C27 | todo | Stripe/tarjeta aplazados por el usuario; solo efectivo, sin ensayo sandbox requerido para esta entrega |
 | C32 | done | Alcance actual: contratos/finanzas y admisiones,037; ocupación física e integración NFC/cerradura aplazadas |
 | C33 | done | Regla opt-in de admisiones y revisión humana,039; validación general/visual diferida |
 | C38 | done | Catálogo inmutable, financiación en ledger y consumo QR explícito,041; recuperación1/1 y validación visual/general diferida |

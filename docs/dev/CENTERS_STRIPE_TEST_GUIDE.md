@@ -2,6 +2,8 @@
 
 Actualizado: 16 octubre 2026. Guía contrastada con el código de la rama `codex/centers-module`, esquema041, y documentación oficial de Stripe. **Esta guía no implica que se haya ejecutado ya una prueba contra una cuenta externa.**
 
+> **Aplazado por decisión posterior del usuario (16octubre2026): todo se cobra en efectivo.** No ejecutar esta guía, configurar claves ni activar Stripe en la entrega actual. Se conserva como referencia para cuando se retome expresamente el pago con tarjeta. No es un bloqueo del alta o cobro manual.
+
 ## 1. Qué vas a probar
 
 La preview actual usa un proveedor ficticio (`stripe-preview.mjs` / `stripe-http-preload.mjs`). Sirve para ensayar pantallas, pero no contacta con Stripe. Cambiar solamente una clave en esa preview no acredita una integración real.

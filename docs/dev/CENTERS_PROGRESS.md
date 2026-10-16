@@ -5,8 +5,8 @@
 ## Punto de reanudación — decisiones del16octubre
 
 - Rama codex/centers-module, schema041. Cambios previos Docker/web/demo del usuario conservados. Última preview verificada:a1566365-dirty, API/web healthy y7archivos conservados; no se comprueba ni se modifica su ejecución en esta petición documental.
-- Petición actual: guía práctica de C27 y actualización del alcance. No se han configurado claves, contactado un sandbox para crear pagos, desplegado servicios ni repetido el apagado solicitado para la ejecución anterior.
-- C27: implementación con fixture terminada; ensayo externo pendiente. Guía nueva CENTERS_STRIPE_TEST_GUIDE.md, contrastada con código y documentación oficial. La preview habitual simula Stripe; no basta con cambiar claves.
+- Alcance vigente: todo se cobra en mano, exclusivamente en efectivo, y se registra manualmente por el responsable. No implementar ni activar pagos con tarjeta/Stripe por ahora. Esta petición actualiza documentación; no cambia servicios ni repite el apagado de otra sesión.
+- C27: aplazado expresamente, todo/fuera de la entrega actual. Conservar código/fixture y guía como referencia futura, sin configurar claves, ensayar sandbox ni activar cobros. La validación Stripe no bloquea el cierre del alcance en efectivo.
 - C28/C39: aplazados expresamente, estado todo/fuera del alcance actual. No se emitirán facturas fiscales por ahora; conservar recibos, pagos manuales y deuda. SEPA es domiciliación bancaria y también se aplaza.
 - C32: done técnico del alcance actual (contratos/finanzas/admisiones registradas). Ocupación física y conexión NFC/cerradura quedan para más adelante; no existen datos de entrada/salida de ese hardware en la app. Retención actual solo usa visitas QR registradas, no todas las entradas NFC del gimnasio.
 - C35: alta pública aplazada, todo/fuera del alcance. Alta administrativa de socios y cobros en efectivo ya implementados en C13/C15/C17/C20. No requieren Stripe ni cuenta personal vinculada; asignar cuota puede activar antes de registrar pago. Ver pasos en CENTERS_DELIVERY_STATUS.md.
@@ -113,7 +113,7 @@ Estados permitidos: `todo`, `in_progress`, `done`, `blocked`. Una tarea done nec
 | C24 | F7 | Piloto MVP y restauración | done |
 | C25 | F8 | Jobs y outbox | done |
 | C26 | F8 | Email y avisos | done |
-| C27 | F9 | Stripe | blocked |
+| C27 | F9 | Stripe | todo |
 | C28 | F9 | SEPA | todo |
 | C29 | F10 | Propuestas de rutinas | done |
 | C30 | F10 | Progreso compartido | done |
@@ -778,3 +778,9 @@ Se aplazan SEPA (C28), facturas/fiscalidad (C39), ocupación física/conexión c
 Guía CENTERS_STRIPE_TEST_GUIDE.md: sandbox de cuenta real, destino Snapshot/versionado, perfil privado por centro, override temporal que elimina el carrier ficticio y permite egress, worker Stripe manual, Checkout de1EUR, confirmación autoritativa, duplicados/cancelación/aislamiento, diagnóstico y restauración de API simulada. No se ejecutó el ensayo externo ni se alteraron datos/servicios. Estado anterior de cierres y apagado conservado como histórico, no como instrucciones activas de esta petición.
 
 Verificación documental: el ejemplo Compose valida con config --quiet y credenciales exclusivamente ficticias en archivos temporales propios eliminados después; no se recrean contenedores. Perfil de ejemplo aceptado por stripeProfiles, versión comparada con STRIPE_API_VERSION, enlaces locales existentes y etiquetas contrastadas con traducción española. Sin compilación/suites por tratarse únicamente de documentación. No se ejecuta stripeTick, no se configura un webhook externo ni se envía ninguna clave.
+
+## 16octubre — decisión final de cobro exclusivamente en efectivo
+
+El usuario aclara «no se va a implementar el pago con tarjeta por ahora» y «todo en mano». El único método operativo del alcance actual es efectivo, recibido fuera de la app y registrado manualmente. C27 pasa de blocked a todo/aplazado, igual que SEPA y facturación; no se requiere ensayo sandbox para cerrar esta entrega. Se conserva la implementación previa de Stripe sin borrarla ni activarla, y la guía queda señalada como referencia futura. No desarrollar otros métodos de pago por iniciativa propia. Alta manual, cuotas, recibos internos, pagos parciales/totales, deuda y auditoría siguen dentro del alcance. Crear recibo no equivale a facturar ni a haber cobrado. C41/C42 se validan al terminar el alcance acordado.
+
+Actualizados cabecera, tablero, roadmap, matriz y notas de Stripe. Cambio exclusivamente documental; comprobación de diff/consistencia, sin suites, despliegue, configuración de pasarelas ni operaciones económicas.

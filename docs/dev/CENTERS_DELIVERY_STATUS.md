@@ -1,6 +1,6 @@
 # Estado de entrega y aceptación — 16 octubre 2026
 
-Punto de entrada junto con [CENTERS_PROGRESS.md](CENTERS_PROGRESS.md). Rama `codex/centers-module`, esquema041. Alcance actualizado por las decisiones del usuario del16octubre: alta y pagos manuales; SEPA, facturas, alta pública y ocupación/NFC aplazados. C41/C42 se validan al terminar. Esta matriz separa implementación técnica, validación pendiente y funciones futuras. No constituye aceptación del módulo completo ni autorización de producción. No iniciar de nuevo una función entregada por tener revisión visual pendiente.
+Punto de entrada junto con [CENTERS_PROGRESS.md](CENTERS_PROGRESS.md). Rama `codex/centers-module`, esquema041. Alcance actualizado por las decisiones del usuario del16octubre: alta manual y cobro exclusivamente en efectivo; Stripe/tarjeta, SEPA, facturas, alta pública y ocupación/NFC aplazados. C41/C42 se validan al terminar. Esta matriz separa implementación técnica, validación pendiente y funciones futuras. No constituye aceptación del módulo completo ni autorización de producción. No iniciar de nuevo una función entregada por tener revisión visual pendiente.
 
 ## Trazabilidad de los casos de uso
 
@@ -9,8 +9,8 @@ Punto de entrada junto con [CENTERS_PROGRESS.md](CENTERS_PROGRESS.md). Rama `cod
 | 01 | Centros | C10/C12; creación idempotente, borrador/activación, configuración y plataforma explícita | Revisión visual/operación real |
 | 02 | Responsables y staff | C11/C12/C15; roles por centro, vínculo e invitaciones, vigencia tras locks | Bootstrap/afiliaciones reales supervisados |
 | 03 | Cuotas | C16–C18/C26; versiones inmutables, cálculo exacto, calendario y avisos configurables | Condiciones comerciales reales; entrega externa/visual |
-| 04 | Recibos y cobros | C19–C21/C25; ledger, generación, jobs/outbox. C27 adaptador HTTP test implementado | C27 ensayo sandbox real pendiente; C28 SEPA aplazado y fuera del alcance actual |
-| 05 | Pago y deuda | C20–C22/C25/C26; pagos parciales, aplicaciones, devoluciones, deuda, portal propio y avisos | Operación bancaria/condiciones y validación visual. Recibo no equivale a factura |
+| 04 | Recibos y cobros | C19–C21/C25; ledger, generación, jobs/outbox. C27 adaptador HTTP test implementado | C27 Stripe/tarjeta y C28 SEPA aplazados, fuera del alcance actual; registro de efectivo disponible |
+| 05 | Pago y deuda | C20–C22/C25/C26; pagos parciales, aplicaciones, devoluciones, deuda, portal propio y avisos | Validación final del registro de efectivo; ninguna operación bancaria requerida en este alcance. Recibo no equivale a factura |
 | 06 | Socios/afiliación | C13–C15/C17; administración, invitaciones, historial y cambios fechados | Alta pública C35 aplazada; alta manual y efectivo disponibles sin Stripe |
 | 07 | KPI | C32 contractual/financiero y visitas agregadas,036/037. Ver [métricas](CENTERS_METRICS.md) | Ocupación física e integración con NFC/cerradura aplazadas; las admisiones actuales no incluyen eventos de ese hardware |
 | 08 | QR | C31; token opaco45s, un uso, dispositivo/roles/vínculo actuales, historial y bloqueo manual. Ver [acceso](CENTERS_ACCESS.md) | Recepción/hardware y revisión visual reales |
@@ -23,13 +23,13 @@ Punto de entrada junto con [CENTERS_PROGRESS.md](CENTERS_PROGRESS.md). Rama `cod
 | 15 | Bonos/promociones | C38; catálogo inmutable, compra confirmada, financiación en ledger, caducidad y consumo QR,040/041. Ver [bonos](CENTERS_PASSES.md) | Revisión visual y condiciones reales; promociones gratuitas de visitas, sin motor adicional de cupones |
 | 16 | Auditoría/facturación | C06/C20 y auditoría transversal implementados; recibos exactos | C39 facturas PDF/fiscalidad aplazadas; el usuario no facturará por la aplicación por ahora |
 
-En esta ejecución se cerraron técnicamente C30/C33/C38 y el agregado de visitas de C32; se acreditó el cierre técnico de implementaciones anteriores cuyas comprobaciones visuales estaban mezcladas con el trabajo de código. C27 conserva su validación externa pendiente. C32 se cierra posteriormente por el alcance reducido acordado, sin declarar disponible ocupación física.
+En esta ejecución se cerraron técnicamente C30/C33/C38 y el agregado de visitas de C32; se acreditó el cierre técnico de implementaciones anteriores cuyas comprobaciones visuales estaban mezcladas con el trabajo de código. C27 conserva código/fixture previos, pero su ensayo externo está aplazado y fuera de esta entrega. C32 se cierra posteriormente por el alcance reducido acordado, sin declarar disponible ocupación física.
 
 ## Qué queda pendiente y qué se ha aplazado
 
 | Tarea | Estado vigente | Siguiente paso |
 |---|---|---|
-| C27 | Ensayo externo de sandbox pendiente; código/fixture implementados | Seguir [guía de Stripe](CENTERS_STRIPE_TEST_GUIDE.md), configurar cuenta de prueba y registrar evidencia. No impide alta/efectivo |
+| C27 | todo, Stripe/tarjeta aplazados fuera del alcance actual | Conservar código/fixture y [guía](CENTERS_STRIPE_TEST_GUIDE.md) como referencia futura; no configurar ni probar la pasarela ahora |
 | C28 | todo, aplazado fuera del alcance actual | Retomar SEPA/domiciliaciones cuando se solicite; no confundirlo con emitir facturas |
 | C32 | done técnico para contratos/finanzas/admisiones registradas | Ocupación e integración NFC/cerradura futuras; estudiar fabricante/controlador/API y disponibilidad de entradas/salidas entonces |
 | C35 | todo, alta pública aplazada | Usar alta administrativa existente. No desarrollar ahora onboarding público ni exigir Stripe para altas manuales |
@@ -37,7 +37,7 @@ En esta ejecución se cerraron técnicamente C30/C33/C38 y el agregado de visita
 | C41 | todo, fase final | Validar configuración, políticas y activación al terminar el alcance; sin ejecutar despliegue productivo ahora |
 | C42 | todo, fase final | Aceptar el alcance acordado y sus pruebas al final; las funciones futuras excluidas no se declaran hechas |
 
-Las decisiones sustituyen la clasificación anterior de todos estos puntos como bloqueos. C28/C35/C39 se aplazan, no se implementan ni marcan done. C32 se cierra solo para las métricas ya acreditadas, sin ocupación física. No se exige resolver una API NFC o facturación para terminar la entrega actual. Antes de conectar el sistema NFC real, el historial y los avisos de inactividad únicamente reflejan las visitas QR registradas; no certifican toda la asistencia del gimnasio.
+Las decisiones sustituyen la clasificación anterior de todos estos puntos como bloqueos. C27/C28/C35/C39 se aplazan y no se marcan done del alcance completo. Conservar el código existente; no activar Stripe. El único cobro operativo actual es en efectivo, registrado manualmente. C32 se cierra solo para las métricas ya acreditadas, sin ocupación física. No se exige resolver una API NFC o facturación para terminar la entrega actual. Antes de conectar el sistema NFC real, el historial y los avisos de inactividad únicamente reflejan las visitas QR registradas; no certifican toda la asistencia del gimnasio.
 
 ## Cómo dar de alta un socio que paga en mano
 
@@ -59,4 +59,4 @@ Pruebas esenciales con PostgreSQL real aislado para permisos, aislamiento, diner
 
 Preview construida con `a1566365-dirty` en la rama de trabajo: API/web saludables, statusSQL041 y siete archivos JSON/secreto/entrenamiento idénticos antes/después por SHA256. El sufijo dirty conserva los cambios Docker/web previos del usuario; no indica cambios del módulo sin guardar. Mismo túnel mientras el contenedor siga vivo. Apagar el ordenador detiene la disponibilidad de la preview; reanudar con `scripts/Start-CentersPreview.ps1`. Un túnel recreado puede requerir otro hostname/origen.
 
-Validación aplazada por instrucción del usuario: suites generales, regresión exhaustiva y revisión visual completa. No eludir la denegación guardada del navegador mediante otro origen o herramienta. La siguiente sesión debe respetar el alcance reducido y preparar la validación final cuando corresponda; no reimplementar C30/C33/C38 ni tratar los aplazamientos como bloqueos del alta manual. El ensayo real C27 se prepara con CENTERS_STRIPE_TEST_GUIDE.md.
+Validación aplazada por instrucción del usuario: suites generales, regresión exhaustiva y revisión visual completa. No eludir la denegación guardada del navegador mediante otro origen o herramienta. La siguiente sesión debe respetar el alcance reducido y preparar la validación final cuando corresponda; no reimplementar C30/C33/C38 ni tratar los aplazamientos como bloqueos del alta manual. El ensayo real C27 queda aplazado; CENTERS_STRIPE_TEST_GUIDE.md es únicamente una referencia para cuando vuelva a autorizarse ese alcance.

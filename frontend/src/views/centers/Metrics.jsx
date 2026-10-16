@@ -49,8 +49,7 @@ export default function Metrics({centerId,ownerUid,global=false,timezone='UTC',p
       {stat('Overdue balance',amount(report.current.overdueMinor),'var(--red)',t('Current membership totals'))}
     </div>
     {onNavigate&&<div className="centers-metrics-links">{canViewMembers&&<Button variant="tinted" onClick={()=>onNavigate('members')}>{t('Members')}</Button>}<Button variant="tinted" onClick={()=>onNavigate('billing')}>{t('Debt and calendar')}</Button></div>}
-    <div className="centers-metrics-columns">
-      <div className="centers-metrics-column">
+    <div className="centers-metrics-sections">
       <Section title={t('Current membership totals')}><div className="centers-form">
         <div className="centers-member-distribution">
           <div className="centers-member-donut" aria-hidden="true" style={{background:(()=>{let edge=0;return 'conic-gradient('+states.map(([key,,color])=>{const start=edge;edge+=share(report.current[key],report.current.members);return color+' '+start+'% '+edge+'%'}).join(',')+')'})()}}><div><strong>{report.current.members}</strong><span>{t('Members')}</span></div></div>
@@ -58,6 +57,16 @@ export default function Metrics({centerId,ownerUid,global=false,timezone='UTC',p
         </div>
         {global&&<Row title={t('Centers')} value={report.centerCount}/>}
         <Row title={t('Current contracts')} value={report.current.subscriptions}/>
+      </div></Section>
+      <Section className="centers-financial-panel" title={t('Contract and payment metrics')}><div className="centers-form">
+        <p className="small muted">{t('Reporting period')}: {report.period.from+' → '+report.period.to}</p>
+        <div className="centers-money-bars">{(()=>{
+          const items=[['receiptTotalMinor','Receipt total','var(--label-2)'],['collectionsMinor','Registered collections','var(--acc)'],['refundsMinor','Registered refunds','var(--red)']]
+          const max=items.reduce((n,[key])=>{const v=BigInt(report.period[key]||'0');return v>n?v:n},0n)
+          return items.map(([key,label,color])=><div key={key}><div><span>{t(label)}</span><strong>{amount(report.period[key])}</strong></div><div className="centers-metric-track" aria-hidden="true"><span style={{width:share(report.period[key],max.toString())+'%',background:color}}/></div></div>)
+        })()}</div>
+        {money('netCollectionsMinor','Net registered collections',report.period.netCollectionsMinor)}
+        <div className="centers-metric-mini-stats">{[['registeredMembers','New member records'],['activations','Membership activations'],['terminations','Membership terminations'],['receiptsIssued','Issued receipts']].map(([key,label])=><div key={key}><strong>{report.period[key]}</strong><span className="small muted">{t(label)}</span></div>)}</div>
       </div></Section>
     {report.attendance&&<Section title={t('Visit metrics')}><div className="centers-form">
       <div className="centers-metric-mini-stats">{[['admissions','Validated admissions'],['visitingMemberships','Visiting center memberships'],['memberDays','Membership visit days'],['centerDaysWithVisits','Days with visits per center']].map(([key,label])=><div key={key}><strong>{report.attendance[key]}</strong><span className="small muted">{t(label)}</span></div>)}</div>
@@ -70,19 +79,6 @@ export default function Metrics({centerId,ownerUid,global=false,timezone='UTC',p
         <details className="centers-metric-detail"><summary>{t('Admissions by date')}</summary>{report.attendance.days.map(day=><Row key={day.date} title={day.date} value={day.admissions} subtitle={t('Visiting center memberships')+': '+day.memberships}/>)}</details>
       </>}
     </div></Section>}
-      </div>
-      <div className="centers-metrics-column">
-      <Section title={t('Contract and payment metrics')}><div className="centers-form">
-        <p className="small muted">{t('Reporting period')}: {report.period.from+' → '+report.period.to}</p>
-        <div className="centers-money-bars">{(()=>{
-          const items=[['receiptTotalMinor','Receipt total','var(--label-2)'],['collectionsMinor','Registered collections','var(--acc)'],['refundsMinor','Registered refunds','var(--red)']]
-          const max=items.reduce((n,[key])=>{const v=BigInt(report.period[key]||'0');return v>n?v:n},0n)
-          return items.map(([key,label,color])=><div key={key}><div><span>{t(label)}</span><strong>{amount(report.period[key])}</strong></div><div className="centers-metric-track" aria-hidden="true"><span style={{width:share(report.period[key],max.toString())+'%',background:color}}/></div></div>)
-        })()}</div>
-        {money('netCollectionsMinor','Net registered collections',report.period.netCollectionsMinor)}
-        <div className="centers-metric-mini-stats">{[['registeredMembers','New member records'],['activations','Membership activations'],['terminations','Membership terminations'],['receiptsIssued','Issued receipts']].map(([key,label])=><div key={key}><strong>{report.period[key]}</strong><span className="small muted">{t(label)}</span></div>)}</div>
-      </div></Section>
-      </div>
     </div>
   </div>}
   </>

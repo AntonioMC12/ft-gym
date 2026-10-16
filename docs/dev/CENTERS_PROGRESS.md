@@ -1002,3 +1002,8 @@ Preview C49 actualizada: WEBed99eccf-dirty healthy tras build Docker correcto y 
 Feedback visual: el panel económico más alto dejaba un hueco bajo el resumen de socios y empujaba visitas a otra fila. Metrics usa ahora dos columnas con pilas verticales independientes: socios y visitas consecutivos a la izquierda; finanzas a la derecha. No se igualan alturas con relleno. En móvil se apilan con el mismo orden del DOM; gráficos internos y miniindicadores se ajustan al ancho de columna. Se eliminan márgenes de Section dentro de las pilas para conservar separación uniforme20px. Sin datos nuevos, cálculos ni backend afectados. Revisión visual del ajuste pendiente; actualización WEB en curso.
 
 Ajuste de huecos publicado en preview: WEBca31760c-dirty healthy, build Docker correcto y7/7 tests de métricas. API/datos/túnel conservados, sin migración ni push. Revisión visual del ajuste pendiente del usuario.
+
+
+## C49 — corrección definitiva de filas desiguales
+
+La siguiente captura confirma que las columnas independientes aún dejan una zona vacía bajo finanzas cuando socios+visitas son más altos. Se sustituye ese enfoque por secciones a ancho completo, sin columnas vecinas de alturas desiguales. En escritorio las tres barras financieras se distribuyen horizontalmente y los cuatro indicadores en una fila; en móvil usan una y dos columnas respectivamente. Se conservan datos/gráficos y se reduce la altura del bloque económico. La nota anterior de columnas independientes queda sustituida por esta distribución. Pendiente comprobación visual del usuario; build/actualización WEB en curso.

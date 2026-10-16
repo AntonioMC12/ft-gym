@@ -266,10 +266,9 @@ fieldset.centers-fields{border:0;padding:0;min-width:0}
 @media(max-width:1100px){.centers-metric-stats{grid-template-columns:repeat(2,minmax(0,1fr))}.centers-metric-panels{grid-template-columns:minmax(0,1fr)}}
 @media(max-width:500px){.centers-metric-stat{padding:14px}.centers-metric-stats{gap:10px}.centers-metric-mini-stats{grid-template-columns:repeat(2,minmax(0,1fr))}.centers-metrics-filter>.btn{width:100%}.centers-member-donut{margin-inline:auto}.centers-member-legend{min-width:0;flex-basis:100%}}
 
-/* Independent vertical stacks let visits follow members without a grid-row gap. */
-.centers-metrics-columns{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:20px;align-items:start}
-.centers-metrics-column{display:flex;flex-direction:column;gap:20px;min-width:0}
-.centers-metrics-column>.sect{margin:0;min-width:0}
-.centers-metrics-column .centers-metric-panels{grid-template-columns:minmax(0,1fr)}
-.centers-metrics-column .centers-metric-mini-stats{grid-template-columns:repeat(2,minmax(0,1fr))}
-@media(max-width:1100px){.centers-metrics-columns{grid-template-columns:minmax(0,1fr)}}
+/* Full-width sections avoid voids caused by unequal neighbouring panels. */
+.centers-metrics-sections{display:grid;grid-template-columns:minmax(0,1fr);gap:20px}
+.centers-metrics-sections>.sect{margin:0;min-width:0}
+.centers-financial-panel .centers-money-bars{grid-template-columns:repeat(3,minmax(0,1fr));gap:18px;margin-block:16px}
+.centers-financial-panel .centers-metric-mini-stats{grid-template-columns:repeat(4,minmax(0,1fr))}
+@media(max-width:700px){.centers-financial-panel .centers-money-bars{grid-template-columns:minmax(0,1fr)}.centers-financial-panel .centers-metric-mini-stats{grid-template-columns:repeat(2,minmax(0,1fr))}}

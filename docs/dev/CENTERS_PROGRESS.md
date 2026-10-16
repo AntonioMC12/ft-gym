@@ -4,7 +4,7 @@
 
 ## Punto de reanudación — decisiones del16octubre
 
-- Rama codex/centers-module, schema041. Cambios previos Docker/web/demo del usuario conservados. Aplicación compartida en https://dining-salt-volumes-adaptive.trycloudflare.com/#/centers, API/web healthy, túnel running y SQL available/schema041. Usar ese HTTPS tanto desde este ordenador como desde fuera; el origen de autenticación se ajustó a la URL pública. WEB dd2c9006-dirty con campos de bonos corregidos y diseño anterior conservado; API71545306-dirty conservada con vinculación por selector, schema041. Arranque normal preview.mjs:0 perfiles Stripe, jobs0 y7archivos conservados por SHA256.
+- Rama codex/centers-module, schema041. Cambios previos Docker/web/demo del usuario conservados. Aplicación compartida en https://dining-salt-volumes-adaptive.trycloudflare.com/#/centers, API/web healthy, túnel running y SQL available/schema041. Usar ese HTTPS tanto desde este ordenador como desde fuera; el origen de autenticación se ajustó a la URL pública. WEB 218f9853-dirty con ambos campos numéricos de bonos corregidos y diseño anterior conservado; API71545306-dirty conservada con vinculación por selector, schema041. Arranque normal preview.mjs:0 perfiles Stripe, jobs0 y7archivos conservados por SHA256.
 - Alcance vigente: todo se cobra en mano, exclusivamente en efectivo, y se registra manualmente por el responsable. No implementar ni activar pagos con tarjeta/Stripe por ahora. Petición actual: corregir aspecto nativo blanco de campos numéricos y espaciado del formulario de bonos; mantener preview compartida, datos y efectivo. Sin repetir el apagado de otra sesión.
 - C27: aplazado expresamente, todo/fuera de la entrega actual. Conservar código/fixture y guía como referencia futura, sin configurar claves, ensayar sandbox ni activar cobros. La validación Stripe no bloquea el cierre del alcance en efectivo.
 - C28/C39: aplazados expresamente, estado todo/fuera del alcance actual. No se emitirán facturas fiscales por ahora; conservar recibos, pagos manuales y deuda. SEPA es domiciliación bancaria y también se aplaza.
@@ -12,7 +12,7 @@
 - C35: alta pública aplazada, todo/fuera del alcance. Alta administrativa de socios y cobros en efectivo ya implementados en C13/C15/C17/C20. No requieren Stripe ni cuenta personal vinculada; asignar cuota puede activar antes de registrar pago. Ver pasos en CENTERS_DELIVERY_STATUS.md.
 - C41/C42: todo, validar al terminar el alcance acordado. No bloquear por adelantado tareas de desarrollo local con su aceptación/activación final ni marcar funciones futuras como implementadas.
 - C29/C30/C31/C33/C34/C36/C37/C38/C40: done técnico; criterios y evidencia en el historial. C30/C33/C38 no deben reimplementarse. Matriz vigente: CENTERS_DELIVERY_STATUS.md.
-- Comprobaciones: mantener esenciales de permisos, aislamiento y dinero; revisión visual y suites generales se reservan para la fase final acordada. Última corrección: campos numéricos de bonos con variante field y espaciado de formulario;6 pruebas focales y build correctos, WEB actualizada; pendiente aceptación visual. Siguen pendientes configuración explícita de cuota y validación de autofill con extensión real. Revisión visual pendiente, sin suites generales.
+- Comprobaciones: mantener esenciales de permisos, aislamiento y dinero; revisión visual y suites generales se reservan para la fase final acordada. Última corrección: se completa field en Días de validez, omitido anteriormente;7 pruebas focales y build Docker correctos, WEB actualizada; pendiente aceptación visual. Siguen pendientes configuración explícita de cuota y validación de autofill con extensión real. Revisión visual pendiente, sin suites generales.
 
 ### Cierre técnico y validación diferida
 
@@ -898,3 +898,5 @@ WEB actualizada a dd2c9006-dirty y healthy; API71545306-dirty y túnel conservad
 ## 16octubre — corrección pendiente de Días de validez
 
 La corrección dd2c9006 aplicó field únicamente a Entradas del bono; la sustitución inicial omitió Días de validez. La evidencia anterior que afirmaba ambos corregidos era incompleta. Se aplica ahora field al segundo NumberField. Regresión DOM comprueba los dos controles, escritura/foco/blur y conservación de valores15/365 y clase, sin afirmar revisión visual. Passes7/7 correcto. Sin cambios numéricos, económicos ni globales del control. Siguiente paso: build Docker y actualizar solo WEB, manteniendo datos/API/túnel.
+
+WEB218f9853-dirty actualizada y healthy, build Docker correcto, API/túnel conservados y /api/health público200. Siete archivos sin cambios/ausencias SHA256. Solo WEB recreada; pendientes comprobación visual del usuario y validaciones diferidas anteriores. Commit218f9853; cambios locales previos del usuario intactos.

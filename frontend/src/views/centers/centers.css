@@ -72,14 +72,6 @@ fieldset.centers-fields{border:0;padding:0;min-width:0}
   .centers-form { padding: 14px; }
 }
 
-/* The page keeps its own forms/permissions; this bar submits one real form. */
-.centers-page:has(~.centers-unsaved-bar){padding-bottom:160px}
-.centers-unsaved-bar{position:fixed;inset-inline:16px;bottom:calc(84px + var(--sab,0px));z-index:40;max-width:720px;margin-inline:auto;padding:14px 18px;display:flex;align-items:center;justify-content:space-between;gap:14px;background:var(--surface);color:var(--label);border:1px solid var(--acc);border-radius:var(--r);box-shadow:0 8px 28px #0004}
-.centers-unsaved-bar p{margin:4px 0 0}
-.centers-unsaved-bar>.btn{width:auto;flex-shrink:0;min-height:44px}
-body.no-tabbar .centers-unsaved-bar{bottom:calc(12px + var(--sab,0px))}
-@media(max-width:500px){.centers-unsaved-bar{inset-inline:12px;flex-wrap:wrap;padding:12px}.centers-unsaved-bar>.btn{width:100%;white-space:normal}}
-
 /* Member workspace: keep consultation separate from editing. */
 .centers-member-header{display:flex;flex-direction:column;align-items:flex-start;gap:16px;margin:24px 0}
 .centers-member-header>.btn{width:auto;min-height:44px;padding:8px 12px;border:1px solid var(--sep);border-radius:var(--r)}
@@ -179,3 +171,16 @@ body.no-tabbar .centers-unsaved-bar{bottom:calc(12px + var(--sab,0px))}
 .membership-access-screen { max-width:620px; margin:12vh auto; display:grid; gap:20px; }
 .membership-access-screen h1 { font-size:clamp(23px,4vw,32px); }
 .membership-grace-notice { border:1px solid var(--acc); }
+
+.centers-form-actions{display:flex;align-items:center;justify-content:flex-end;flex-wrap:wrap;gap:12px;margin-top:20px;padding-top:16px;border-top:1px solid var(--sep)}
+.centers-form-actions .btn{width:auto;min-height:44px;padding:12px 18px;white-space:normal;border:1px solid var(--sep);border-radius:var(--r)}
+.centers-form-actions .btn.plain{background:var(--surface-2)}
+.centers-form-actions .action-reason-trigger{width:44px;padding:10px}
+.centers-unsaved-indicator{display:block;font-size:12px;color:var(--label-2);margin:8px 0 0}
+.centers-form-actions>.centers-unsaved-indicator{flex:1 0 100%;order:-1;margin:0}
+.centers-field-error{color:var(--red);font-size:13px;line-height:1.4}
+.centers-page .centers-field-error[role=alert]{padding:0;margin:0}
+.centers-pass-editor{display:grid;gap:16px;margin:16px 0 24px}
+.centers-pass-editor .centers-form-actions{margin-top:4px}
+.centers-pass-preview{border:1px solid var(--sep);border-radius:var(--r);padding:10px 14px;background:var(--surface-2)}
+@media(max-width:600px){.centers-form-actions>.action-reason{flex:1 1 100%}.centers-form-actions>.btn{flex:1 1 100%}.centers-form-actions .action-reason>.btn{width:100%}}

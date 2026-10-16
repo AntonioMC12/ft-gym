@@ -2166,3 +2166,20 @@ button.wl-summary{width:100%;padding:0 0 10px;text-align:start;border-radius:var
 .home-center-choices { display:grid; gap:10px; border-top:1px solid var(--sep); padding-top:16px; }
 .home-center-choices .lrow { min-width:0; }
 @media(max-width:480px) { .home-center-shortcut-actions > button { flex:1 1 auto; } }
+
+/* Form variant of the existing sheet selector: visible without hover. */
+.lrow.select-field{display:grid;grid-template-columns:minmax(0,1fr) 24px;gap:5px 12px;width:100%;min-height:74px;padding:12px 16px;background:var(--surface-2);border:1px solid var(--sep);border-radius:var(--r);text-align:start}
+.select-field .lrow-m{grid-column:1;grid-row:1}
+.select-field .lrow-t{font-size:13px;color:var(--label-2)}
+.select-field .lrow-v{grid-column:1;grid-row:2;max-width:none;white-space:normal;text-align:start;color:var(--label);font-size:16px}
+.select-field .lrow-c{grid-column:2;grid-row:1 / span 2;color:var(--acc);opacity:1}
+.select-field:focus-visible{outline:2px solid var(--acc);outline-offset:3px}
+.select-field.has-selection{box-shadow:inset 3px 0 var(--acc)}
+.select-field[aria-invalid=true]{border-color:var(--red)}
+.select-field:disabled{opacity:.55;cursor:not-allowed}
+.action-reason{display:inline-flex;align-items:center;gap:6px;min-width:0;max-width:100%}
+.action-reason>.btn{flex:1;min-width:0}
+.action-reason-help{position:relative;display:inline-flex;flex-shrink:0}
+.action-reason-trigger.btn{width:44px;min-height:44px;padding:10px;color:var(--label-2);border:1px solid var(--sep);border-radius:var(--r);background:var(--surface-2)}
+.action-reason-trigger:focus-visible{outline:2px solid var(--acc);outline-offset:2px}
+.action-reason-tip{position:fixed;box-sizing:border-box;max-width:calc(100vw - 32px);padding:12px 14px;background:var(--surface-2);color:var(--label);border:1px solid var(--sep);border-radius:var(--r);box-shadow:0 6px 20px #0005;z-index:60;font-size:14px;line-height:1.5;white-space:normal;text-align:start}

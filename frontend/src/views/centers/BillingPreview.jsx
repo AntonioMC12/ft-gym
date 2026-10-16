@@ -1,5 +1,6 @@
-import {useEffect,useRef,useState} from 'react'
+import {useEffect,useId,useRef,useState} from 'react'
 import {Button,TextField} from '../../components/ui.jsx'
+import ActionReason from '../../components/ActionReason.jsx'
 import {centerCommand,centersErrorKey,receiptsErrorKey} from '../../lib/centers-api.js'
 import {minorToPrice} from '../../lib/membership-price.js'
 import {useStore} from '../../store/useStore.js'
@@ -7,48 +8,68 @@ import {useCenters} from '../../store/useCenters.js'
 import {useUI} from '../../store/useUI.js'
 import {confirmSheet} from '../../sheets.jsx'
 import {t} from '../../lib/i18n.js'
+import {useCenterNavigation,useUnsavedCenterForm} from './NavigationGuard.jsx'
+import {validCenterDate,focusCenterError} from './form-validation.js'
 import ChargeBreakdown from './ChargeBreakdown.jsx'
 
 export default function BillingPreview({centerId,memberId,contractId,ownerUid,canGenerate=false,today,onGenerated,policyMissing=false,onConfigure}) {
-  const [open,setOpen]=useState(false),[periodStart,setPeriodStart]=useState(''),[quote,setQuote]=useState(null),[busy,setBusy]=useState(false),[error,setError]=useState(null)
-  const life=useRef(0)
-  const [quoteHash,setQuoteHash]=useState(null),[dueOn,setDueOn]=useState(''),[outcome,setOutcome]=useState(null)
-  const intent=useRef(null),pending=useRef(false)
-  const current=epoch=>epoch===life.current&&useStore.getState().user?.id===ownerUid
-  useEffect(()=>{life.current++;setOpen(false);setPeriodStart('');setQuote(null);setQuoteHash(null);setDueOn('');setOutcome(null);setError(null);setBusy(false);intent.current=null;pending.current=false;return()=>{life.current++;pending.current=false}},[centerId,memberId,contractId,ownerUid,canGenerate])
-  const preview=async e=>{
-    e.preventDefault();if(pending.current)return;const epoch=life.current;pending.current=true;setBusy(true);setError(null);setQuote(null);setQuoteHash(null);setOutcome(null)
+ const prefix=useId(),navigate=useCenterNavigation()
+ const [open,setOpen]=useState(false),[periodStart,setPeriodStart]=useState(''),[quote,setQuote]=useState(null),[busy,setBusy]=useState(false),[saving,setSaving]=useState(false),[error,setError]=useState(null),[errors,setErrors]=useState({})
+ const [dueOn,setDueOn]=useState(today||''),[outcome,setOutcome]=useState(null)
+ const life=useRef(0),intent=useRef(null),pending=useRef(false),draft=useRef('')
+ const signature=JSON.stringify([periodStart,dueOn]);draft.current=signature
+ const form=useUnsavedCenterForm(open&&(periodStart||dueOn!==(today||''))?signature:null,busy)
+ const current=epoch=>epoch===life.current&&useStore.getState().user?.id===ownerUid
+ useEffect(()=>{life.current++;setOpen(false);setPeriodStart('');setQuote(null);setDueOn(today||'');setOutcome(null);setError(null);setErrors({});setBusy(false);setSaving(false);intent.current=null;pending.current=false;return()=>{life.current++;pending.current=false}},[centerId,memberId,contractId,ownerUid,canGenerate,today])
+ const reset=()=>{setOpen(false);setPeriodStart('');setDueOn(today||'');setQuote(null);setOutcome(null);setErrors({});setError(null);intent.current=null}
+ const update=(setter,value)=>{if(pending.current)return;setter(value);setQuote(null);setOutcome(null);setError(null);setErrors({});intent.current=null}
+ const validate=save=>{
+  const next={...(periodStart&&!validCenterDate(periodStart)?{periodStart:'Check the billing period.'}:{}),...(save&&(!validCenterDate(dueOn)||periodStart&&dueOn<periodStart)?{dueOn:'Choose a valid due date.'}:{})}
+  setErrors(next);focusCenterError(form.current,next);return !Object.keys(next).length
+ }
+ const prepare=async(save=false)=>{
+  if(pending.current||!validate(save))return
+  const epoch=life.current,version=signature;let confirmation;pending.current=true;setBusy(true);setSaving(save);setError(null);setOutcome(null)
+  try{
+   const review=intent.current?.signature===version?intent.current.review:quote?.signature===version?quote:{...await centerCommand('/api/centers/billing/preview',{centerId,memberId,id:contractId,...(periodStart?{periodStart}:{})}),signature:version}
+   if(!current(epoch)||draft.current!==version)return
+   setQuote(review)
+   if(!save)return
+   if(today&&review.quote.periodStart>today){setError({code:'future-period'});return}
+   if(dueOn<review.quote.periodStart){setErrors({dueOn:'Choose a valid due date.'});focusCenterError(form.current,{dueOn:true});return}
+   const body={centerId,memberId,subscriptionId:contractId,periodStart:review.quote.periodStart,dueOn,expectedQuoteHash:review.quoteHash}
+   confirmation=()=>confirmSheet({title:t('Create receipt'),message:minorToPrice(review.quote.totalMinor)+' '+review.quote.currency+' · '+review.quote.periodStart+' → '+review.quote.periodEnd+' · '+t('Due date')+': '+dueOn,confirmText:t('Create receipt'),onConfirm:async()=>{
+    if(!current(epoch)||pending.current||draft.current!==version)return
+    if(intent.current?.signature!==version)intent.current={signature:version,review,body:{...body,requestId:crypto.randomUUID()}}
+    const command=intent.current.body;pending.current=true;setBusy(true);setSaving(true);setError(null)
     try{
-      const result=await centerCommand('/api/centers/billing/preview',{centerId,memberId,id:contractId,...(periodStart?{periodStart}:{})})
-      if(current(epoch)){setQuote(result.quote);setQuoteHash(result.quoteHash);setPeriodStart(result.quote.periodStart);setDueOn(value=>value||((today||result.quote.periodStart)>result.quote.periodStart?today:result.quote.periodStart))}
-    }catch(e){if(current(epoch)){setError(e);useCenters.getState().revokeOn(e)}}finally{if(current(epoch)){pending.current=false;setBusy(false)}}
-  }
-  const generate=()=>{
-    if(!canGenerate||!quote||!quoteHash||!dueOn||pending.current)return
-    const epoch=life.current,body={centerId,memberId,subscriptionId:contractId,periodStart:quote.periodStart,dueOn,expectedQuoteHash:quoteHash},signature=JSON.stringify(body)
-    if(intent.current?.signature!==signature)intent.current={signature,body:{...body,requestId:crypto.randomUUID()}}
-    const command=intent.current.body
-    confirmSheet({title:t('Create receipt'),message:minorToPrice(quote.totalMinor)+' '+quote.currency+' · '+quote.periodStart+' → '+quote.periodEnd+' · '+t('Due date')+': '+dueOn,confirmText:t('Create receipt'),onConfirm:async()=>{
-      if(!current(epoch)||pending.current||intent.current?.body!==command)return;pending.current=true;setBusy(true);setError(null)
-      try{
-        const result=await centerCommand('/api/centers/receipts/generate',command)
-        if(current(epoch)){setOutcome(result);if(result.receipt)setQuote(result.receipt.snapshot);useUI.getState().toast(t(result.skipped?'No charge for this period.':result.alreadyExists?'Receipt already exists.':'Receipt created.'));onGenerated?.(result)}
-      }catch(e){if(current(epoch)){setError(e);if((e?.data?.code||e?.code)==='quote-changed'){setQuote(null);setQuoteHash(null)}useCenters.getState().revokeOn(e)}}finally{if(current(epoch)){pending.current=false;setBusy(false)}}
-    }})
-  }
-  const code=error?.data?.code||error?.code
-  const errorText=!error?null:canGenerate?receiptsErrorKey(error):code==='billing-policy-required'?'Tax and proration must be configured before calculating charges.':code==='invalid-input'?'Check the billing period.':centersErrorKey(error)
-  if(policyMissing||code==='billing-policy-required')return <div className="centers-import-notice" role="status"><p>{t('Tax and proration must be configured before calculating charges.')}</p><p className="small muted">{t('Configure the fee, then assign its new version to this member. Existing subscriptions keep their original terms.')}</p>{onConfigure&&<Button type="button" variant="tinted" onClick={onConfigure}>{t('Membership plans')}</Button>}</div>
-  return <div className="centers-selected centers-billing-preview"><Button type="button" aria-expanded={open} onClick={()=>setOpen(value=>!value)}>{t(open?'Close':'Preview charge')}</Button>{open&&<form onSubmit={preview}>
-    <label className="centers-field"><span>{t('Billing period start')}</span><TextField type="date" disabled={busy} value={periodStart} onChange={e=>{setPeriodStart(e.target.value);setQuote(null);setQuoteHash(null);setOutcome(null);intent.current=null}}/></label>
-    <Button type="submit" disabled={busy}>{t('Preview charge')}</Button>
-    {error&&<p role="alert">{t(errorText)}</p>}
-    {quote&&<ChargeBreakdown quote={quote}/>}
-    {!outcome?.receipt&&<p className="small muted">{t('Preview only. No receipt or payment is created.')}</p>}
-    {canGenerate&&quote&&<><label className="centers-field"><span>{t('Due date')}</span><TextField type="date" min={quote.periodStart} disabled={busy||!!outcome} value={dueOn} onChange={e=>{setDueOn(e.target.value);intent.current=null}}/></label>
-      <p className="small muted">{t('Creating a receipt does not record a payment.')}</p>
-      {today&&quote.periodStart>today&&<p className="small muted">{t('Future periods cannot be issued yet.')}</p>}
-      {outcome?<p role="status">{t(outcome.skipped?'No charge for this period.':outcome.alreadyExists?'Receipt already exists.':'Receipt created.')}</p>:<Button type="button" disabled={busy||!quoteHash||!dueOn||dueOn<quote.periodStart||!!today&&quote.periodStart>today} onClick={generate}>{t('Create receipt')}</Button>}
-    </>}
-  </form>}</div>
+     const result=await centerCommand('/api/centers/receipts/generate',command)
+     if(current(epoch)){intent.current=null;setOutcome(result);setOpen(false);setPeriodStart('');setDueOn(today||'');useUI.getState().toast(t(result.skipped?'No charge for this period.':result.alreadyExists?'Receipt already exists.':'Receipt created.'));onGenerated?.(result)}
+    }catch(e){if(current(epoch)){setError(e);if(e.status>=400&&e.status<500||(e.data?.code||e.code)==='quote-changed'){intent.current=null;setQuote(null)}useCenters.getState().revokeOn(e)}}finally{if(current(epoch)){pending.current=false;setBusy(false);setSaving(false)}}
+   }})
+  }catch(e){if(current(epoch)){setError(e);useCenters.getState().revokeOn(e)}}finally{if(current(epoch)){pending.current=false;setBusy(false);setSaving(false)}}
+  if(confirmation&&current(epoch)&&draft.current===version)confirmation()
+ }
+ const code=error?.data?.code||error?.code
+ const errorText=!error?null:code==='future-period'?'Future periods cannot be issued yet.':canGenerate?receiptsErrorKey(error):code==='billing-policy-required'?'Tax and proration must be configured before calculating charges.':code==='invalid-input'?'Check the billing period.':centersErrorKey(error)
+ if(policyMissing||code==='billing-policy-required')return <div className="centers-import-notice" role="status"><p>{t('Tax and proration must be configured before calculating charges.')}</p><p className="small muted">{t('Configure the fee, then assign its new version to this member. Existing subscriptions keep their original terms.')}</p>{onConfigure&&<Button type="button" variant="tinted" onClick={onConfigure}>{t('Membership plans')}</Button>}</div>
+ const unavailable=busy?t('Loading…'):canGenerate&&!validCenterDate(dueOn)?t('Choose a valid due date.'):periodStart&&(!validCenterDate(periodStart)||dueOn&&dueOn<periodStart)?t('Check the billing period.'):today&&(periodStart||quote?.quote.periodStart)>today?t('Future periods cannot be issued yet.'):null
+ const field=(key,label,value,setter,required=false)=><label className="centers-field"><span>{t(label)}</span><TextField type="date" data-error-field={key} required={required} disabled={busy} value={value} aria-invalid={!!errors[key]||undefined} aria-describedby={errors[key]?prefix+key:undefined} onChange={e=>update(setter,e.target.value)} onBlur={()=>{if(value&&!validCenterDate(value))setErrors(old=>({...old,[key]:key==='dueOn'?'Choose a valid due date.':'Check the billing period.'}))}}/>{errors[key]&&<small role="alert" className="centers-field-error" id={prefix+key}>{t(errors[key])}</small>}</label>
+ return <div className="centers-selected centers-billing-preview">
+  {!open&&<div className="centers-actions"><Button type="button" variant="tinted" aria-expanded={false} onClick={()=>setOpen(true)}>{t('Preview charge')}</Button>{canGenerate&&<Button type="button" variant="primary" onClick={()=>setOpen(true)}>{t('Create receipt')}</Button>}</div>}
+  {open&&<form ref={form} noValidate aria-busy={busy} onSubmit={e=>{e.preventDefault();prepare(canGenerate)}}>
+   {field('periodStart','Billing period start',periodStart,setPeriodStart)}
+   {canGenerate&&field('dueOn','Due date',dueOn,setDueOn,true)}
+   {error&&<p role="alert">{t(errorText)}</p>}
+   {quote&&<ChargeBreakdown quote={quote.quote}/>}
+   <p className="small muted">{t(canGenerate?'Creating a receipt does not record a payment.':'Preview only. No receipt or payment is created.')}</p>
+   <div className="centers-form-actions" data-center-form-actions>
+    <ActionReason reason={busy?t('Loading…'):null}><Button type="button" disabled={busy} onClick={()=>navigate(reset,{form})}>{t('Cancel')}</Button></ActionReason>
+    <ActionReason reason={busy?t('Loading…'):null}><Button type={canGenerate?'button':'submit'} variant="tinted" disabled={busy} onClick={canGenerate?()=>prepare(false):undefined}>{t('Preview charge')}</Button></ActionReason>
+    {canGenerate&&<ActionReason reason={unavailable}><Button type="submit" variant="primary" disabled={!!unavailable}>{t(saving?'Saving…':'Create receipt')}</Button></ActionReason>}
+   </div>
+  </form>}
+  {outcome?.receipt?.snapshot&&<ChargeBreakdown quote={outcome.receipt.snapshot}/>}
+  {outcome&&<p role="status">{t(outcome.skipped?'No charge for this period.':outcome.alreadyExists?'Receipt already exists.':'Receipt created.')}</p>}
+ </div>
 }

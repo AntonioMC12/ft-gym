@@ -10,6 +10,27 @@ export function passHistoryOptions(params){
  if(query.length>120||/[\u0000-\u001f\u007f]/.test(query)||!['all','active','exhausted','expired'].includes(status)||cursor?.length>2000||passId&&!/^[a-zA-Z0-9_-]{1,64}$/.test(passId))throw new CentersError(400,'invalid-input','invalid history filter');
  return {query,status,cursor,passId};
 }
+// Eligibility and its explanation share the authoritative SQL availability rule.
+export async function passDayAvailability(client,c,member){
+ const day=member.local_today,m=member.id;
+ const {rows:used}=await client.query('SELECT pass_id FROM centers.pass_consumptions WHERE center_id=$1 AND member_id=$2 AND used_on=$3 LIMIT 1',[c,m,day]);
+ const {rows}=await client.query(`SELECT b.id,p.name,b.starts_on::text,b.ends_on::text,p.credits,
+  (SELECT count(*)::int FROM centers.pass_consumptions u WHERE u.center_id=b.center_id AND u.pass_id=b.id) AS used,
+  EXISTS(SELECT 1 FROM centers.pass_revocations r WHERE r.center_id=b.center_id AND r.pass_id=b.id) AS revoked,
+  centers.pass_available(b.center_id,b.member_id,b.id,$3) AS available
+  FROM centers.pass_purchases b JOIN centers.pass_products p ON (p.center_id,p.id)=(b.center_id,b.product_id)
+  WHERE b.center_id=$1 AND b.member_id=$2 ORDER BY b.ends_on ASC NULLS LAST,b.created_at,b.id`,[c,m,day]);
+ const pass=rows.find(r=>r.available),remaining=rows.reduce((n,r)=>n+(r.available?r.credits-r.used:0),0);
+ let reason=null;
+ if(used.length)reason='used-today';
+ else if(member.state!=='active'||member.joined_on>day||member.ends_on&&member.ends_on<=day)reason='member-inactive';
+ else if(!pass){
+  // Prefer a non-revoked pass with remaining credits, then explain why it cannot run.
+  const relevant=rows.find(r=>!r.revoked&&r.credits>r.used&&r.ends_on>day)||rows.find(r=>!r.revoked&&r.credits>r.used)||rows.find(r=>!r.revoked)||rows[0];
+  reason=!relevant?'no-pass':relevant.revoked?'revoked':relevant.credits<=relevant.used?'exhausted':relevant.ends_on<=day?'expired':relevant.starts_on>day?'not-started':'payment-required';
+ }
+ return {hasPass:rows.length>0,remaining,reason,used:used[0]||null,pass};
+}
 export function registerPassDay({database,user,checkSession},raw,{platform=false}={}){
  objectBody(raw,['centerId','memberId','requestId']);const c=idField(raw.centerId),m=idField(raw.memberId),requestId=requestField(raw.requestId),operation='pass.day',hash=commandHash({memberId:m});
  return businessTransaction(database,user.id,c,'billing.manage',async client=>{
@@ -17,11 +38,11 @@ export function registerPassDay({database,user,checkSession},raw,{platform=false
   const member=await memberRecord(client,c,m),day=member.local_today;
   const {rows:contracts}=await client.query('SELECT id FROM centers.subscriptions WHERE center_id=$1 AND member_id=$2 AND canceled_at IS NULL LIMIT 1',[c,m]);
   if(contracts.length)throw new CentersError(409,'pass-only-required','daily use is only for pass-only members');
-  const {rows:used}=await client.query('SELECT id,pass_id FROM centers.pass_consumptions WHERE center_id=$1 AND member_id=$2 AND used_on=$3 LIMIT 1',[c,m,day]);
-  if(used.length){const result={alreadyUsed:true,usedOn:day,passId:used[0].pass_id};await rememberCommand(client,c,user.id,operation,requestId,hash,result);checkSession();return result}
-  if(member.state!=='active'||member.joined_on>day||member.ends_on&&member.ends_on<=day)throw new CentersError(409,'pass-member-inactive','inactive member');
-  const {rows}=await client.query('SELECT b.id,p.name FROM centers.pass_purchases b JOIN centers.pass_products p ON (p.center_id,p.id)=(b.center_id,b.product_id) WHERE b.center_id=$1 AND b.member_id=$2 AND centers.pass_available(b.center_id,b.member_id,b.id,$3) ORDER BY b.ends_on ASC NULLS LAST,b.created_at,b.id LIMIT 1',[c,m,day]);
-  if(!rows.length)throw new CentersError(409,'pass-unavailable','no usable pass');const pass=rows[0],id='pu_'+commandHash([c,m,day]).slice(0,32);checkSession();
+  const availability=await passDayAvailability(client,c,member);
+  if(availability.used){const result={alreadyUsed:true,usedOn:day,passId:availability.used.pass_id};await rememberCommand(client,c,user.id,operation,requestId,hash,result);checkSession();return result}
+  if(availability.reason==='member-inactive')throw new CentersError(409,'pass-member-inactive','inactive member');
+  if(availability.reason)throw new CentersError(409,'pass-unavailable','no usable pass');
+  const pass=availability.pass,id='pu_'+commandHash([c,m,day]).slice(0,32);checkSession();
   const {rows:consumed}=await client.query('INSERT INTO centers.pass_consumptions(id,center_id,member_id,pass_id,actor_uid,used_on) VALUES($1,$2,$3,$4,$5,$6) RETURNING used_on::text',[id,c,m,pass.id,user.id,day]);const usedOn=consumed[0].used_on;
   await businessAudit(client,c,user.id,operation,id,{memberId:m,passId:pass.id,usedOn});
   const {rows:balance}=await client.query('SELECT p.credits-(SELECT count(*)::int FROM centers.pass_consumptions u WHERE u.center_id=b.center_id AND u.pass_id=b.id) AS remaining FROM centers.pass_purchases b JOIN centers.pass_products p ON (p.center_id,p.id)=(b.center_id,b.product_id) WHERE b.center_id=$1 AND b.id=$2',[c,pass.id]);

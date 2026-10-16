@@ -1,3 +1,4 @@
+import {passDayAvailability} from './pass-days.js';
 import {CentersError} from '../errors.js';
 import {businessTransaction} from './context.js';
 import {memberRecord} from './member-records.js';
@@ -13,7 +14,7 @@ import {appendPayment,receiptBalance} from './payments.js';
 const fail=code=>{throw new CentersError(409,code,'renewal requires review')};
 export async function feeSummary(client,c,member){
  const {rows:contracts}=await client.query('SELECT s.*,s.starts_on::text,s.ends_on::text,s.anchor_on::text,v.name,v.interval_months FROM centers.subscriptions s JOIN centers.membership_plan_versions v ON (v.center_id,v.id)=(s.center_id,s.price_version_id) WHERE s.center_id=$1 AND s.member_id=$2 AND s.canceled_at IS NULL ORDER BY (s.starts_on<=$3) DESC,s.starts_on DESC,s.created_at DESC LIMIT 1',[c,member.id,member.local_today]);const last=contracts[0];
- if(!last){const {rows}=await client.query('SELECT count(*)::int AS n,coalesce(sum(CASE WHEN centers.pass_available(b.center_id,b.member_id,b.id,$3) THEN p.credits-(SELECT count(*) FROM centers.pass_consumptions u WHERE u.center_id=b.center_id AND u.pass_id=b.id) ELSE 0 END),0)::int AS remaining FROM centers.pass_purchases b JOIN centers.pass_products p ON (p.center_id,p.id)=(b.center_id,b.product_id) WHERE b.center_id=$1 AND b.member_id=$2',[c,member.id,member.local_today]);return {hasContract:false,passOnly:rows[0].n>0,passRemaining:rows[0].remaining,today:member.local_today,...feeAccess(member.local_today,null)}}
+ if(!last){const availability=await passDayAvailability(client,c,member);return {hasContract:false,passOnly:availability.hasPass,passRemaining:availability.remaining,passDayReason:availability.reason,today:member.local_today,...feeAccess(member.local_today,null)}}
  const {rows}=await client.query(`SELECT max(r.period_end)::text AS until FROM centers.receipts r WHERE r.center_id=$1 AND r.member_id=$2 AND r.subscription_id=$3 AND r.period_start<=$4 AND r.total_minor=coalesce((SELECT sum(a.amount_minor) FROM centers.payment_allocations a WHERE a.center_id=r.center_id AND a.receipt_id=r.id),0)-coalesce((SELECT sum(f.amount_minor) FROM centers.refunds f WHERE f.center_id=r.center_id AND f.receipt_id=r.id),0)`,[c,member.id,last.id,member.local_today]);
  const {rows:renewed}=await client.query('SELECT max(period_end)::text AS until FROM centers.renewals WHERE center_id=$1 AND member_id=$2 AND subscription_id=$3 AND period_start<=$4 AND receipt_id IS NULL',[c,member.id,last.id,member.local_today]);
  let end=[initialCoverage({anchorOn:last.anchor_on,intervalMonths:last.interval_months,billingDay:last.billing_day}),rows[0].until,renewed[0].until].filter(Boolean).sort().at(-1);

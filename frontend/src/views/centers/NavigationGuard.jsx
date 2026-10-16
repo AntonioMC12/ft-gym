@@ -1,5 +1,5 @@
 import {createContext,useContext,useEffect,useRef,useState,useCallback} from 'react'
-import {Button} from '../../components/ui.jsx'
+import {createPortal} from 'react-dom'
 import {confirmSheet} from '../../sheets.jsx'
 import {t} from '../../lib/i18n.js'
 import {onSheetEntry} from '../../lib/nav.js'
@@ -28,43 +28,25 @@ export default function CenterNavigationGuard({children,contextKey}){
     const done=()=>{waiting.current.delete(done);if(alive.current)action()}
     waiting.current.add(done);window.addEventListener('popstate',done,{once:true})
   }
-  const request=action=>{
+  const request=(action,options={})=>{
     if(!alive.current)return
-    const refs=[...entries.current],snapshot=refs.map(ref=>ref.current),origin=context.current
+    const refs=[...entries.current].filter(ref=>!options.form||ref.current.form===options.form),snapshot=refs.map(ref=>ref.current),origin=context.current
     if(snapshot.some(item=>item.busy))return
     if(!snapshot.some(item=>item.dirty)){action();return}
     confirmSheet({title:t('Discard changes?'),message:t('Your unsaved changes will be lost.'),confirmText:t('Discard'),cancelText:t('Keep editing'),danger:true,onConfirm:()=>afterClosingSheet(()=>{
-      if(!alive.current||context.current!==origin||entries.current.size!==refs.length||refs.some(ref=>!entries.current.has(ref)))return
-      if(refs.some((ref,i)=>ref.current!==snapshot[i])){request(action);return}
+      if(!alive.current||context.current!==origin||refs.some(ref=>!entries.current.has(ref)))return
+      if(refs.some((ref,i)=>ref.current!==snapshot[i])){request(action,options);return}
       action()
     })})
   }
-  const dirty=pending.filter(item=>item.value.dirty),target=dirty.find(item=>item.ref.current.saveable&&item.ref.current.form.current)?.ref.current
-  const submitButton=target?.form.current?.querySelector('button[type=submit]')
-  const [localSubmit,setLocalSubmit]=useState(null)
-  useEffect(()=>{
-    if(!submitButton)return
-    if(typeof IntersectionObserver==='function'){
-      const observer=new IntersectionObserver(records=>{
-        const record=records.find(item=>item.target===submitButton)
-        if(record)setLocalSubmit({button:submitButton,visible:record.isIntersecting&&record.intersectionRatio>=0.99})
-      },{threshold:1,rootMargin:'0px 0px -100px 0px'})
-      observer.observe(submitButton);return()=>observer.disconnect()
-    }
-    const update=()=>{const rect=submitButton.getBoundingClientRect();setLocalSubmit({button:submitButton,visible:rect.height>0&&rect.top>=0&&rect.bottom<=window.innerHeight-100})}
-    update();window.addEventListener('scroll',update,true);window.addEventListener('resize',update)
-    return()=>{window.removeEventListener('scroll',update,true);window.removeEventListener('resize',update)}
-  },[submitButton])
-  const localSaveVisible=localSubmit?.button===submitButton&&localSubmit?.visible
-  const save=()=>{
-    if(pending.some(item=>item.ref.current.busy)||!target?.dirty||!target.saveable)return
-    const form=target.form.current
-    if(form?.isConnected&&!form.querySelector('button[type=submit]')?.disabled){form.scrollIntoView?.({block:'center',behavior:'smooth'});form.requestSubmit()}
-  }
-  return <Context.Provider value={{entries:entries.current,request,report}}>{children}{dirty.length>0&&!localSaveVisible&&<aside className="centers-unsaved-bar" aria-label={t('Unsaved changes')}>
-    <div><strong role="status">{t('Unsaved changes')}</strong><p className="small muted">{t('Each form is saved separately.')}</p></div>
-    {target?.saveable&&target.form.current&&<Button variant="primary" disabled={pending.some(item=>item.value.busy)||!!target.form.current.querySelector('button[type=submit]')?.disabled} onClick={save}>{t('Save form')}{target.form.current.getAttribute('aria-label')?': '+target.form.current.getAttribute('aria-label'):''}</Button>}
-  </aside>}</Context.Provider>
+  const dirty=pending.filter(item=>item.value.dirty)
+  return <Context.Provider value={{entries:entries.current,request,report}}>{children}{dirty.map((item,index)=>{
+    const form=item.ref.current.form.current
+    if(!form?.isConnected)return null
+    const actions=form.querySelector('[data-center-form-actions]')||form
+    return createPortal(<small className="centers-unsaved-indicator" role="status">{t('Unsaved changes')}</small>,actions,'unsaved-'+index)
+  })}</Context.Provider>
+
 }
 export const useCenterNavigation=()=>useContext(Context)?.request||(action=>action())
 export function useUnsavedCenterForm(dirty,busy=false,{saveable=true}={}){

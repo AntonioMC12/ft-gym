@@ -2609,6 +2609,10 @@ paths:
         stable created_at/id keyset order. Cursor is bound to account, center and filters.
         Explicit superadmin accounts can administer members in every selected center;
         this global access is audited. Technical admin alone does not grant member access.
+        With billing.read, fee.passDayReason explains daily pass eligibility using the same
+        availability rules as passes/day: null, used-today, member-inactive, no-pass,
+        revoked, exhausted, expired, not-started or payment-required. Reasons are advisory;
+        commands recheck permissions, local business date and balance transactionally.
       parameters:
         - { name: centerId, in: query, required: true, schema: { type: string } }
         - { name: query, in: query, schema: { type: string, maxLength: 120 } }

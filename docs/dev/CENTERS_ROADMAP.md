@@ -475,3 +475,10 @@ C43: desde listado/búsqueda de socios, Renovar ejecuta una única transacción 
 C44: caducidad como último día cubierto,10días civiles de gracia inclusivos en zona del centro, backend/frontend y sesiones abiertas. Administradores y gestores de cuotas exentos; cuentas sin contrato mensual y exclusivas de bonos no se bloquean por cuota mensual ausente. Recuperación al renovar; acceso a estado y cierre de sesión disponible.
 
 C45: socios exclusivamente con bonos, Registrar día de uso consume una sesión por socio/fecha local, FEFO y antigüedad, atómico sin negativos; ledger compartido con admisiones QR y registro del actor. Historial por centro con estados, socio, saldo/consumos y cursor. Validar dinero, límites de fecha, RLS y concurrencia con PostgreSQL aislado antes de actualizar preview. Aceptación visual/producción siguen C41/C42.
+
+
+## F15 — C46 mejora UX de cuotas y bonos (16octubre)
+
+Guardar con campos válidos sin previsualización obligatoria; cálculo y validación del servidor reutilizados al guardar. Previsualizar secundario, Cancelar visible, progreso y bloqueo de duplicados. Confirmaciones económicas, permisos e idempotencia se conservan. Campos actuales después de cualquier edición; errores asociados y foco inicial. Indicador local de diferencias reales; confirmación al abandonar/cancelar solo si procede y beforeunload nativo. SelectRow compartido con variante de formulario y disabled efectivo. Ayuda accesible independiente para acciones deshabilitadas; el motivo del uso diario proviene de la misma disponibilidad SQL que el comando. Sin nuevas migraciones ni cambios de cobro.
+
+Estado: implementación y validación técnica focal terminadas. Falta revisión visual real escritorio/móvil/temas con teclado y toque; C46 continúa in_progress hasta acreditarla. Evidencia y estado operativo en CENTERS_PROGRESS.md. No amplía el alcance productivo de C41/C42.

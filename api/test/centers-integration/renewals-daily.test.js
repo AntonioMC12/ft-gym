@@ -35,6 +35,7 @@ async function gift(f,m,credits=1,days=30,suffix='one'){
 test('daily pass use is once per local day across actors and picks earliest expiry atomically',async t=>{
  const f=await fixture(t),m=await onlyPassMember(f),later=await gift(f,m,2,60,'later'),first=await gift(f,m,1,10,'first');
  const raw={centerId:f.center,memberId:m.id,requestId:f.p+'_day'};await assert.rejects(registerPassDay({database:f.db,user:{id:f.ids.manager},checkSession(){throw Error('stop-before-write')}},raw),/stop-before-write/);const results=await Promise.all([f.req('/api/centers/passes/day',f.ids.manager,raw),f.req('/api/centers/passes/day',f.ids.root,{...raw,requestId:f.p+'_root_day'})]);assert.ok(results.every(r=>r.status===200),JSON.stringify(results));assert.equal(results.filter(r=>!r.body.alreadyUsed).length,1);assert.ok(results.every(r=>r.body.passId===first.id));
+ const summary=(await f.req('/api/centers/members?centerId='+f.center,f.ids.manager)).body.members.find(r=>r.id===m.id).fee;assert.equal(summary.passDayReason,'used-today');assert.equal(summary.passRemaining,2);
  const history=await f.req('/api/centers/passes/history?'+new URLSearchParams({centerId:f.center,status:'exhausted',query:'pass person'}),f.ids.manager);assert.equal(history.status,200,JSON.stringify(history));assert.equal(history.body.passes.length,1);assert.equal(history.body.passes[0].remaining,0);assert.equal(history.body.passes[0].used,1);
  const uses=await f.req('/api/centers/passes/history?'+new URLSearchParams({centerId:f.center,passId:first.id}),f.ids.manager);assert.equal(uses.body.uses.length,1);assert.equal(uses.body.uses[0].usedOn,f.today);assert.ok([f.ids.manager,f.ids.root].includes(uses.body.uses[0].actorUid));
  const active=await f.req('/api/centers/passes/history?'+new URLSearchParams({centerId:f.center,status:'active'}),f.ids.manager);assert.ok(active.body.passes.some(p=>p.id===later.id));
@@ -46,6 +47,7 @@ test('expired passes cannot be manually consumed; inactive records are an explic
  const pass=await gift(f,m,1,1);const client=(await import('pg')).default;const {testUrls}=await import('./helpers.mjs');const connection=new client.Client({connectionString:testUrls().migration});await connection.connect();t.after(()=>connection.end());
  await historicalSeed(connection,['pass_purchases'],async()=>{assert.equal((await connection.query('UPDATE centers.pass_purchases SET starts_on=$2::date-2,ends_on=$2::date WHERE id=$1',[pass.id,f.today])).rowCount,1)});
  const expired=await f.req('/api/centers/passes/day',f.ids.manager,{centerId:f.center,memberId:m.id,requestId:f.p+'_expired'});assert.equal(expired.body.code,'pass-unavailable');
+ assert.equal((await f.req('/api/centers/members?centerId='+f.center,f.ids.manager)).body.members.find(r=>r.id===m.id).fee.passDayReason,'expired');
  const history=await f.req('/api/centers/passes/history?'+new URLSearchParams({centerId:f.center,status:'expired'}),f.ids.manager);assert.equal(history.body.passes[0].id,pass.id);
 });
 
@@ -84,6 +86,7 @@ test('pass-only accounts stay admitted to the application and unfunded passes ca
  const raw={centerId:f.center,memberId:m.id,productId:product.body.product.id,startsOn:f.today},q=await f.req('/api/centers/passes/preview',f.ids.manager,raw),pass=await f.req('/api/centers/passes/purchase',f.ids.manager,{...raw,quoteHash:q.body.quoteHash,requestId:f.p+'_paid_pass'});assert.equal(pass.status,200,JSON.stringify(pass));assert.equal(pass.body.pass.available,false);
  assert.equal((await f.req('/api/centers/app-access',uid)).body.blocked,false);assert.notEqual((await f.req('/api/data',uid)).status,403);
  const result=await f.req('/api/centers/passes/day',f.ids.manager,{centerId:f.center,memberId:m.id,requestId:f.p+'_unpaid_day'});assert.equal(result.body.code,'pass-unavailable');const stock=await f.req('/api/centers/passes?'+new URLSearchParams({centerId:f.center,memberId:m.id}),f.ids.manager);assert.equal(stock.body.passes[0].remaining,1);
+ assert.equal((await f.req('/api/centers/members?centerId='+f.center,f.ids.manager)).body.members.find(r=>r.id===m.id).fee.passDayReason,'payment-required');
 });
 test('pass history has real cursor pages bound to filters and does not hide previous purchases',async t=>{
  const f=await fixture(t),m=await onlyPassMember(f),first=await gift(f,m,1,30),product=(await f.req('/api/centers/passes/products?centerId='+f.center,f.ids.manager)).body.products[0];
@@ -91,4 +94,21 @@ test('pass history has real cursor pages bound to filters and does not hide prev
  const page=await f.req('/api/centers/passes/history?'+new URLSearchParams({centerId:f.center,query:'pass person'}),f.ids.manager);assert.equal(page.status,200,JSON.stringify(page));assert.equal(page.body.passes.length,30);assert.ok(page.body.nextCursor);
  const tail=await f.req('/api/centers/passes/history?'+new URLSearchParams({centerId:f.center,query:'pass person',cursor:page.body.nextCursor}),f.ids.manager);assert.equal(tail.body.passes.length,2);assert.ok(tail.body.passes.some(p=>p.id===first.id));
  assert.equal((await f.req('/api/centers/passes/history?'+new URLSearchParams({centerId:f.center,status:'expired',cursor:page.body.nextCursor}),f.ids.manager)).status,400);
+});
+
+test('daily eligibility explains exhausted, future and revoked passes using the same availability rules',async t=>{
+ const f=await fixture(t),m=await onlyPassMember(f),pass=await gift(f,m,1,10,'explanation');
+ const fee=async()=> (await f.req('/api/centers/members?centerId='+f.center,f.ids.manager)).body.members.find(r=>r.id===m.id).fee;
+ assert.equal((await fee()).passDayReason,null);
+ const {passDayAvailability}=await import('../../centers/services/pass-days.js');
+ const eligible=day=>f.db.transaction({uid:f.ids.manager,centerId:f.center},async client=>{const {memberRecord}=await import('../../centers/services/member-records.js');const member=await memberRecord(client,f.center,m.id);return passDayAvailability(client,f.center,{...member,local_today:day})});
+ assert.equal((await eligible(shift(f.today,-1))).reason,'member-inactive');
+ await f.req('/api/centers/passes/day',f.ids.manager,{centerId:f.center,memberId:m.id,requestId:f.p+'_consume_explanation'});
+ assert.equal((await eligible(shift(f.today,1))).reason,'exhausted');
+ const another=await gift(f,m,1,30,'future');
+ const pg=(await import('pg')).default,{testUrls}=await import('./helpers.mjs'),owner=new pg.Client({connectionString:testUrls().migration});await owner.connect();t.after(()=>owner.end());
+ await historicalSeed(owner,['pass_purchases'],()=>owner.query('UPDATE centers.pass_purchases SET starts_on=$2,ends_on=$3 WHERE id=$1',[another.id,shift(f.today,2),shift(f.today,32)]));
+ assert.equal((await eligible(shift(f.today,1))).reason,'not-started');
+ const revoked=await f.req('/api/centers/passes/revoke',f.ids.manager,{centerId:f.center,id:another.id,reason:'Fictional test',requestId:f.p+'_revoke_explanation'});assert.equal(revoked.status,200,JSON.stringify(revoked));
+ assert.equal((await eligible(shift(f.today,1))).reason,'exhausted');
 });

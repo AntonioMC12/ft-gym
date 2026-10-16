@@ -68,30 +68,30 @@ it('does not expose staff mutations without training.assign and invalidates old 
 })
 it('explains the account requirement before editing and leaves a clean profile without a discard warning',async()=>{
   const link=vi.fn();await render({own:false,member:{...member,accountLinked:false},canAssign:true,onLinkAccount:link});
-  expect(host.textContent).toContain('Link this member to an account before proposing routines.');expect(button('Propose routines')).toBeUndefined();expect(host.querySelector('input')).toBeNull();expect(host.querySelector('aside')).toBeNull();
+  expect(host.textContent).toContain('Link this member to an account before proposing routines.');expect(button('Propose routines')).toBeUndefined();expect(host.querySelector('input')).toBeNull();expect(host.querySelector('.centers-unsaved-indicator')).toBeNull();
   await click('Member details');expect(link).toHaveBeenCalledOnce();expect(confirmSheet).not.toHaveBeenCalled();expect(centerCommand).not.toHaveBeenCalled();
   const event=new Event('beforeunload',{cancelable:true});window.dispatchEvent(event);expect(event.defaultPrevented).toBe(false);
 })
-it('submits existing routines from the shared save action and clears the warning only after confirmed success',async()=>{
-  await render({own:false,member,canAssign:true});expect(host.querySelector('aside')).toBeNull();await click('Choose routine');
-  expect(host.querySelector('aside button').textContent).toContain('Save form: Training proposals');
-  await act(async()=>host.querySelector('aside button').click());expect(centerCommand).not.toHaveBeenCalled();await act(async()=>confirm().onConfirm());
+it('submits existing routines from the local save action and clears the warning only after confirmed success',async()=>{
+  await render({own:false,member,canAssign:true});expect(host.querySelector('.centers-unsaved-indicator')).toBeNull();await click('Choose routine');
+  expect(host.querySelector('form .centers-unsaved-indicator').textContent).toBe('Unsaved changes');
+  await act(async()=>host.querySelector('form[aria-label="Training proposals"] button[type=submit]').click());expect(centerCommand).not.toHaveBeenCalled();await act(async()=>confirm().onConfirm());
   expect(centerCommand).toHaveBeenCalledWith('/api/centers/training/propose',expect.objectContaining({memberId:member.id,bundle:expect.objectContaining({routines:[expect.objectContaining({id:'source',name:'Push'})]})}));
-  expect(host.querySelector('aside')).toBeNull();expect(useStore.getState().update).not.toHaveBeenCalled();
+  expect(host.querySelector('.centers-unsaved-indicator')).toBeNull();expect(useStore.getState().update).not.toHaveBeenCalled();
 })
 it('keeps failed proposals recoverable and cancels their draft so leaving no longer warns',async()=>{
   centerCommand.mockRejectedValueOnce({code:'training-account-required'});await render({own:false,member:{...member,accountLinked:undefined},canAssign:true});await click('Choose routine');await click('Propose routines');await act(async()=>confirm().onConfirm());
-  expect(host.textContent).toContain('Link this member to an account before proposing routines.');expect(host.querySelector('aside')).not.toBeNull();
+  expect(host.textContent).toContain('Link this member to an account before proposing routines.');const pending=new Event('beforeunload',{cancelable:true});window.dispatchEvent(pending);expect(pending.defaultPrevented).toBe(true);
   await click('Cancel');expect(confirm().title).toBe('Discard changes?');await act(async()=>confirm().onConfirm());
-  expect(host.querySelector('aside')).toBeNull();expect(button('Cancel')).toBeUndefined();
+  expect(host.querySelector('.centers-unsaved-indicator')).toBeNull();expect(button('Cancel')).toBeUndefined();
   const event=new Event('beforeunload',{cancelable:true});window.dispatchEvent(event);expect(event.defaultPrevented).toBe(false);expect(centerCommand).toHaveBeenCalledOnce();
 })
 it('does not carry another member draft across profile contexts',async()=>{
-  await render({own:false,member,canAssign:true});await click('Choose routine');expect(host.querySelector('aside')).not.toBeNull();
-  await render({own:false,member:{...member,id:'member2'},canAssign:true});expect(host.querySelector('aside')).toBeNull();expect(button('Propose routines').disabled).toBe(true);
+  await render({own:false,member,canAssign:true});await click('Choose routine');expect(host.querySelector('.centers-unsaved-indicator')).not.toBeNull();
+  await render({own:false,member:{...member,id:'member2'},canAssign:true});expect(host.querySelector('.centers-unsaved-indicator')).toBeNull();expect(button('Propose routines').disabled).toBe(true);
 })
 it('reviewing an existing proposal without editing is clean',async()=>{
-  await render({own:false,member,canAssign:true});await open();expect(host.querySelector('aside')).toBeNull();
+  await render({own:false,member,canAssign:true});await open();expect(host.querySelector('.centers-unsaved-indicator')).toBeNull();
   const event=new Event('beforeunload',{cancelable:true});window.dispatchEvent(event);expect(event.defaultPrevented).toBe(false);
 })
 it('distinguishes account, inactive member and unavailable proposal errors',async()=>{
@@ -103,5 +103,5 @@ it('distinguishes account, inactive member and unavailable proposal errors',asyn
 it('invalidates a captured offer confirmation when its draft is cancelled',async()=>{
   await render({own:false,member,canAssign:true});await click('Choose routine');await click('Propose routines');const offer=confirm();
   await click('Cancel');await act(async()=>confirm().onConfirm());await act(async()=>offer.onConfirm());
-  expect(centerCommand).not.toHaveBeenCalled();expect(host.querySelector('aside')).toBeNull();
+  expect(centerCommand).not.toHaveBeenCalled();expect(host.querySelector('.centers-unsaved-indicator')).toBeNull();
 })

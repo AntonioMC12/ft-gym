@@ -337,10 +337,10 @@ export function Section({ title, footer, children, className = '' }) {
   )
 }
 
-export function Row({ icon, iconTint, title, subtitle, value, accessory = 'none', onClick, danger, children, className = '' }) {
+export function Row({ icon, iconTint, title, subtitle, value, accessory = 'none', onClick, danger, children, disabled=false, className = '', ...rest }) {
   const Tag = onClick ? 'button' : 'div'
   return (
-    <Tag type={onClick ? 'button' : undefined} className={'lrow' + (onClick ? ' tap' : '') + (danger ? ' danger' : '') + ' ' + className} onClick={onClick}>
+    <Tag type={onClick ? 'button' : undefined} className={'lrow' + (onClick ? ' tap' : '') + (danger ? ' danger' : '') + ' ' + className} onClick={onClick} disabled={onClick?disabled:undefined} {...rest}>
       {icon && <span className="lrow-i" style={iconTint ? { '--tint': iconTint } : null}><Icon name={icon} /></span>}
       <span className="lrow-m">
         <span className="lrow-t">{title}</span>
@@ -349,6 +349,7 @@ export function Row({ icon, iconTint, title, subtitle, value, accessory = 'none'
       {children}
       {value != null && <span className="lrow-v">{value}</span>}
       {accessory === 'chevron' && <Icon name="chevronRight" className="lrow-c" />}
+      {accessory === 'dropdown' && <Icon name="chevronDown" className="lrow-c" />}
       {accessory === 'check' && <Icon name="check" className="lrow-k" />}
     </Tag>
   )
@@ -360,18 +361,21 @@ export function Row({ icon, iconTint, title, subtitle, value, accessory = 'none'
 // theme entirely — on dark mode it flashes a white sheet — and can't show more
 // than a bare label per option. This opens our own sheet with a checkmark on the
 // current value, which is also how iOS itself handles a long option list.
-export function SelectRow({ icon, iconTint, title, value, options, onChange, sheetTitle, stackedValue = false, search, onOpen }) {
+export function SelectRow({ icon, iconTint, title, value, options, onChange, sheetTitle, stackedValue = false, search, onOpen, disabled=false, variant, invalid=false, id, describedBy, ...rest }) {
+  const blocked=useRef(disabled);blocked.current=disabled
   const cur = options.find(o => o.value === value)
   const open = () => {
+    if(blocked.current)return
     const { openSheet } = require_ui()
     const h = openSheet(close => <SelectSheet title={sheetTitle || title} value={value} options={options}
-      onChange={onChange} search={search} close={close} />)
+      onChange={value=>{if(!blocked.current)onChange(value)}} search={search} close={close} />)
     onOpen?.(h)
     return h
   }
   return (
-    <Row icon={icon} iconTint={iconTint} title={title} value={cur ? cur.label : value} accessory="chevron" onClick={open}
-      className={stackedValue ? 'lrow-stack-value' : ''} />
+    <Row icon={icon} iconTint={iconTint} title={title} value={cur ? cur.label : value} accessory={variant==='field'?'dropdown':'chevron'} onClick={open}
+      disabled={disabled} id={id} aria-invalid={invalid||undefined} aria-describedby={describedBy} {...rest}
+      className={[stackedValue?'lrow-stack-value':'',variant==='field'?'select-field'+(value!==''&&value!=null?' has-selection':''):''].filter(Boolean).join(' ')} />
   )
 }
 

@@ -2654,7 +2654,7 @@ const routes = {
     },
     readOwnTraining: uid => { const value=readStateStrict(uid); if(value===UNREADABLE)throw new CentersError(503,'training-state-unavailable','personal training is unreadable'); return value; },
     accountLocks: CENTERS_ACCOUNT_LOCKS, lookupAccount: uid => db.users.find(u => u.id === uid),
-    accountIds: () => db.users.map(u => u.id), accountDirectory: () => db.users.map(u => ({id:u.id,name:String(u.name||''),disabled:!!u.disabled})) }),
+    accountIds: () => db.users.map(u => u.id), accountDirectory: () => db.users.map(u => ({id:u.id,name:String(u.name||''),email:u.email||null,disabled:!!u.disabled})) }),
 
   /* ---------- photos & videos ---------- */
   // Absent, not refusing, when MEDIA_UPLOADS=0: a 404 is what a server from before the feature

@@ -1,3 +1,4 @@
+import {accountLinkingStrings} from './account-linking.js'
 import {subscriptionLayoutStrings} from './subscription-layout.js'
 import {trainingGuidanceStrings} from './training-guidance.js'
 import {billingGuidanceStrings} from './billing-guidance.js'
@@ -27,4 +28,4 @@ const words={
  zh:'中心指标|全部中心指标|业务日期使用各中心的时区。|查询时间|当前会员汇总|中心|有效会员资格|暂停的会员资格|已结束的会员资格|有效合同|合同与付款指标|报告期间|新增会员档案|会员资格激活|会员资格终止|已开具收据|收据总额|已登记收款|已登记退款|已登记净收款|请检查报告期间（最多 366 天）。|应用',
  'zh-TW':'中心指標|全部中心指標|業務日期使用各中心的時區。|查詢時間|目前會員彙總|中心|有效會員資格|暫停的會員資格|已結束的會員資格|有效合約|合約與付款指標|報告期間|新增會員檔案|會員資格啟用|會員資格終止|已開立收據|收據總額|已登記收款|已登記退款|已登記淨收款|請檢查報告期間（最多 366 天）。|套用'
 }
-export function metricsStrings(lang){const values=words[lang]?.split('|');if(!values||values.length!==keys.length)throw new Error('incomplete metrics translations: '+lang);return {...Object.fromEntries(keys.map((key,i)=>[key,values[i]])),...visitMetricStrings(lang),...retentionStrings(lang),...passStrings(lang),...formSavingStrings(lang),...memberWorkspaceStrings(lang),...billingGuidanceStrings(lang),...trainingGuidanceStrings(lang),...subscriptionLayoutStrings(lang)}}
+export function metricsStrings(lang){const values=words[lang]?.split('|');if(!values||values.length!==keys.length)throw new Error('incomplete metrics translations: '+lang);return {...Object.fromEntries(keys.map((key,i)=>[key,values[i]])),...visitMetricStrings(lang),...retentionStrings(lang),...passStrings(lang),...formSavingStrings(lang),...memberWorkspaceStrings(lang),...billingGuidanceStrings(lang),...trainingGuidanceStrings(lang),...subscriptionLayoutStrings(lang),...accountLinkingStrings(lang)}}

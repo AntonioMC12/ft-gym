@@ -8,8 +8,8 @@ export function accountDirectoryPage(directory,uid,params){
   if([...params.keys()].some(key=>!['query','cursor','limit'].includes(key)))fail();
   const query=(params.get('query')||'').trim().toLowerCase(),limit=Number(params.get('limit')||30);
   if(query.length>128||!Number.isSafeInteger(limit)||limit<1||limit>100)fail();
-  const all=directory.map(a=>({id:a.id,name:a.name,disabled:!!a.disabled})).sort((a,b)=>a.name<b.name?-1:a.name>b.name?1:a.id<b.id?-1:a.id>b.id?1:0);
-  const rows=all.filter(a=>!query||a.id.toLowerCase().includes(query)||a.name.toLowerCase().includes(query));
+  const all=directory.map(a=>({id:a.id,name:a.name,email:typeof a.email==='string'?a.email:null,disabled:!!a.disabled})).sort((a,b)=>a.name<b.name?-1:a.name>b.name?1:a.id<b.id?-1:a.id>b.id?1:0);
+  const rows=all.filter(a=>!query||a.id.toLowerCase().includes(query)||a.name.toLowerCase().includes(query)||(a.email||'').toLowerCase().includes(query));
   const scope=createHash('sha256').update(JSON.stringify([uid,query,limit,all])).digest('hex');
   let offset=0;const cursor=params.get('cursor');
   if(cursor){

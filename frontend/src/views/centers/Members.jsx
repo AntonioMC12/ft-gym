@@ -23,7 +23,7 @@ import SourceRegistration from './SourceRegistration.jsx'
 const stateText=state=>state==='active'?t('Active member'):state==='frozen'?t('Frozen member'):state==='ended'?t('Ended member'):t('Pending activation')
 const fieldsOf=member=>({name:member?.name||'',email:member?.email||'',phone:member?.phone||'',nationalDocument:member?.nationalDocument||''})
 
-function MemberForm({centerId,member,lifecycle,ownerUid,close,saved,canBilling,capabilities,active,onPlans}) {
+function MemberForm({centerId,member,lifecycle,ownerUid,close,saved,canBilling,capabilities,active,onPlans,platform=false}) {
   const [fields,setFields]=useState(()=>fieldsOf(member)),[busy,setBusy]=useState(false),[error,setError]=useState(null)
   const [currentMember,setCurrentMember]=useState(member),[info,setInfo]=useState(lifecycle)
   const [requestId]=useState(()=>crypto.randomUUID())
@@ -68,7 +68,7 @@ function MemberForm({centerId,member,lifecycle,ownerUid,close,saved,canBilling,c
         </div></Section>}
         {pane==='details'&&<>{editingDetails?contactForm:<Section title={t('Member details')}><div className="centers-form"><Row title={t('Member name')} value={currentMember.name}/><Row title={t('Contact email')} value={currentMember.email||'—'}/><Row title={t('Phone')} value={currentMember.phone||'—'}/><Row title={t('National document')} value={currentMember.nationalDocument||'—'}/><Button variant="tinted" onClick={()=>setEditingDetails(true)}>{t('Edit contact details')}</Button></div></Section>}
           {currentMember.sourceRegistration&&<details className="centers-member-source"><summary>{t('Source registration (CSV)')}</summary><SourceRegistration value={currentMember.sourceRegistration}/></details>}
-          <Invitations centerId={centerId} ownerUid={ownerUid} memberId={currentMember.id} linked={currentMember.accountLinked}/>
+          <Invitations canSearchAccounts={platform} centerId={centerId} ownerUid={ownerUid} memberId={currentMember.id} linked={currentMember.accountLinked}/>
         </>}
         {pane==='access'&&<>{info?.today&&<><MembershipActions key={currentMember.version} centerId={centerId} member={currentMember} info={info} ownerUid={ownerUid} changed={result=>{setCurrentMember(result.member);setInfo({today:result.today,changes:result.changes})}}/><FreezeRequests centerId={centerId} ownerUid={ownerUid} memberId={currentMember.id} memberVersion={currentMember.version} today={info.today} active={active} changed={result=>{setCurrentMember(result.member);setInfo({today:result.today,changes:result.changes})}}/></>}
           {capabilities.includes('access.manage')&&<MemberAccess key={'access:'+currentMember.id} centerId={centerId} memberId={currentMember.id} ownerUid={ownerUid} canManage/>}
@@ -80,7 +80,7 @@ function MemberForm({centerId,member,lifecycle,ownerUid,close,saved,canBilling,c
   </article>
 }
 
-export default function Members({centerId,ownerUid,capabilities,active=true,centerState,onDetails,onPlans,importId,onImport}) {
+export default function Members({centerId,ownerUid,capabilities,active=true,centerState,onDetails,onPlans,importId,onImport,platform=false}) {
   const importReason=useId()
   const manage=capabilities.includes('members.manage')
   const permissionKey=capabilities.join('|')
@@ -108,7 +108,7 @@ export default function Members({centerId,ownerUid,capabilities,active=true,cent
     try{const result=await centerMember(centerId,member.id);if(current(id)&&detailEpoch.current===detail){setEditing(result.member);setLifecycle({today:result.today,changes:result.changes})}}catch(e){if(current(id)&&detailEpoch.current===detail)failure(e)}
   }
   if(manage&&(importing||importId))return <CsvImport key={centerId+':'+ownerUid} centerId={centerId} ownerUid={ownerUid} active={active} jobId={importId} onJob={onImport} close={()=>{setImporting(false);onImport?.(null)}} changed={()=>setRevision(r=>r+1)}/>
-  if(editing)return manage?<MemberForm key={editing.id||'new'} centerId={centerId} member={editing.id?editing:null} lifecycle={lifecycle} ownerUid={ownerUid} capabilities={capabilities} active={active} onPlans={onPlans} canBilling={capabilities.includes('billing.manage')} close={()=>{setEditing(null);setRevision(r=>r+1)}} saved={()=>{setEditing(null);setRevision(r=>r+1)}}/>:
+  if(editing)return manage?<MemberForm key={editing.id||'new'} centerId={centerId} member={editing.id?editing:null} lifecycle={lifecycle} ownerUid={ownerUid} capabilities={capabilities} active={active} platform={platform} onPlans={onPlans} canBilling={capabilities.includes('billing.manage')} close={()=>{setEditing(null);setRevision(r=>r+1)}} saved={()=>{setEditing(null);setRevision(r=>r+1)}}/>:
     <><Section title={t('Member details')}><Row title={editing.name} subtitle={stateText(editing.state)} value={editing.number}/><Button onClick={()=>setEditing(null)}>{t('Back')}</Button></Section>{capabilities.includes('training.shared.read')&&<SharedProgress centerId={centerId} member={editing} ownerUid={ownerUid}/>}{capabilities.includes('training.assign')&&<TrainingProposals key={'training:'+editing.id} centerId={centerId} member={editing} ownerUid={ownerUid} canAssign active={active}/>}</>
   return <Section title={t('Members')}><div className="centers-form">
     <div className="centers-actions"><SearchField aria-label={t('Search members')} placeholder={t('Search members')} value={query} onChange={e=>setQuery(e.target.value)} onClear={()=>setQuery('')}/>{manage&&<Button onClick={()=>{setLifecycle(null);setEditing({})}}>{t('New member')}</Button>}{manage&&<Button variant="tinted" disabled={!active} aria-describedby={!active?importReason:undefined} onClick={()=>setImporting(true)}>{t('Import members (CSV)')}</Button>}</div>

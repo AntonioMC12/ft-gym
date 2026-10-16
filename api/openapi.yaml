@@ -2753,7 +2753,7 @@ paths:
       tags: [centers]
       operationId: getPlatformCenterAccounts
       summary: Search existing accounts
-      description: Platform only. Initial account list with optional case-insensitive name/uid substring filter up to128characters. Paginated stable ordering, default30/max100 per page. Cursor bound to actor, filter, limit and directory snapshot; changed directory requires restarting the list. Returns only id/name/disabled and nextCursor. Disabled accounts are visible but cannot be assigned. Contact does not prove ownership.
+      description: Platform only. Initial account list with optional case-insensitive name/email/uid substring filter up to128characters. Paginated stable ordering, default30/max100 per page. Cursor bound to actor, filter, limit and directory snapshot; changed directory requires restarting the list. Returns only id/name/email/disabled and nextCursor. Email is nullable and exposed only to explicit platform superadmins. Disabled accounts are visible but cannot be assigned. Contact does not prove ownership.
       parameters:
         - name: query
           in: query

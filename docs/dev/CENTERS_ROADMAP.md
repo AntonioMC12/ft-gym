@@ -8,6 +8,15 @@ Estado: ejecución iniciada; consultar [CENTERS_PROGRESS.md](CENTERS_PROGRESS.md
 
 Integrar los CU-01 a CU-16 del documento funcional de centros respetando la aplicación personal de entrenamiento. Un usuario mantiene una identidad global y puede pertenecer a varios centros. Cada centro administra sus socios, staff, planes de cuota, suscripciones, recibos, cobros y operaciones con aislamiento efectivo en el backend.
 
+## Alcance vigente acordado el16octubre2026
+
+- C27: preparar y seguir CENTERS_STRIPE_TEST_GUIDE.md para ensayo externo de sandbox. Guía preparada; el ensayo no está ejecutado ni se declara validado. No condiciona el alta/pago administrativo en efectivo.
+- C28 SEPA y C39 facturas/fiscalidad: aplazados expresamente, fuera de la entrega actual. SEPA es domiciliación bancaria, distinta de la factura fiscal; ambos quedan para más adelante por decisión del usuario. Conservar recibos y registro de pagos/deuda existentes.
+- C32: cerrar el alcance técnico actual de métricas contractuales, financieras y admisiones registradas. Ocupación física e integración con tarjeta NFC/cerradura electrónica aplazadas. Investigar fabricante/controlador/API/eventos cuando se retome; no inventar entradas/salidas ni dar por conectada la cerradura. Las entradas reales por NFC no aparecen todavía en el historial QR ni alimentan retención.
+- C35: alta pública online fuera del alcance actual. El responsable da de alta socios manualmente (C13/C15/C17) y registra efectivo (C20), ya implementado. No exigir Stripe, una cuenta personal del socio ni pago online para ese recorrido. Asignar una suscripción a un socio pendiente puede activarlo en su fecha efectiva antes de registrar el pago; no afirmar activación automática solo después de cobrar.
+- C41/C42: pendientes para la validación/cierre final al terminar, sin bloquear desarrollo local por adelantado. La activación productiva no se ejecuta en esta petición.
+- Aplazado no significa implementado: C28/C35/C39 conservan estado todo con alcance futuro explícito. C32 pasa a done solo para el alcance actual; la parte de ocupación queda documentada como futura.
+
 Arquitectura objetivo:
 
 ```text
@@ -268,10 +277,10 @@ Esta rama no depende de Stripe/SEPA. Reusar parsePlan/mergePlan con adaptación 
 | ID | Tarea y entrega | Depende de | Criterio de cierre | Tamaño |
 |---|---|---|---|---|
 | C31 | QR dinámico, dispositivo de recepción y visitas verificadas | C24,C07 | Token caducable de un uso; consumo atómico; centro/horario/acceso actuales; captura reutilizada rechazada | L |
-| C32 | KPI de centro/globales: altas, bajas, ingresos y ocupación | C24,C21 | Definiciones y denominadores documentados; visitas solo después de C31; sin cruces de centro | M |
+| C32 | KPI de centro/globales: altas, bajas, ingresos y admisiones registradas; ocupación/NFC futuros | C24,C21 | Definiciones y denominadores documentados; visitas solo después de C31; sin cruces de centro | M |
 | C33 | Alertas de riesgo de baja y acciones de retención | C32 (contrato de admisiones),C31 | Inactividad basada en visitas físicas, umbrales configurables y ausencia de duplicados | M |
 
-C32 puede entregar métricas contractuales/financieras antes de QR, pero no marcar completo el KPI de ocupación sin C31. La presencia de /api/activity no es asistencia. Recepción valida online inicialmente; acceso offline no se improvisa. Reactivación por pago no anula suspensión manual de otra causa. Dispositivo no recibe información económica innecesaria.
+C32 está cerrado para el alcance actual de métricas contractuales/financieras y admisiones QR registradas. El KPI de ocupación y la integración NFC/cerradura quedan aplazados por decisión del16octubre; no se declaran disponibles. La presencia de /api/activity no es asistencia. Recepción valida online inicialmente; acceso offline no se improvisa. Reactivación por pago no anula suspensión manual de otra causa. Dispositivo no recibe información económica innecesaria.
 
 ### F12. Ampliaciones de negocio: CU-11 a CU-16
 
@@ -296,7 +305,7 @@ C35 debe añadir rutas públicas explícitas antes del guard de autenticación g
 | C41 | Activación gradual por centros y políticas/datos reales revisados | C40 + gate de las funciones que se activen | Bootstrap y afiliaciones supervisadas; no conversión masiva implícita; despliegue autorizado | M |
 | C42 | Aceptación de alcance completo y documentación operativa | C41 + tareas funcionales del alcance | Matriz CU/pruebas y limitaciones actualizada; todas las funciones reclamadas tienen evidencia | M |
 
-C40 y la activación del MVP pueden ejecutarse antes de las ampliaciones. C42 no significa que las funciones futuras estén hechas: registrar el alcance aceptado. Para cerrar el módulo completo CU-01..CU-16, todas las C00..C42 deben estar cerradas con las decisiones y validaciones correspondientes.
+C40 y la activación del MVP pueden ejecutarse antes de las ampliaciones. C42 no significa que las funciones futuras estén hechas: registrar el alcance aceptado. Para cerrar el alcance original completo CU-01..CU-16, todas las C00..C42 deben estar cerradas con las decisiones y validaciones correspondientes. La entrega actual aplica las exclusiones acordadas el16octubre; las funciones aplazadas no se presentan como hechas ni bloquean su aceptación por sí solas.
 
 ## Estado de ejecución de las tareas avanzadas
 
@@ -306,14 +315,14 @@ Actualizado16octubre2026. Detalle/evidencia y bloqueos en CENTERS_PROGRESS.md; e
 |---|---|---|
 | C29,C30,C31,C33,C34,C36,C37,C40 | done | Validación visual/hardware/operación diferida; gates de activación siguen pendientes |
 | C27 | blocked | Ensayo con cuenta sandbox real y autorización/credenciales; implementación con HTTP ficticio terminada |
-| C32 | blocked | Agregados de visitas terminados en037; ocupación física sin salidas requiere definición/datos o excluir ese KPI |
+| C32 | done | Alcance actual: contratos/finanzas y admisiones,037; ocupación física e integración NFC/cerradura aplazadas |
 | C33 | done | Regla opt-in de admisiones y revisión humana,039; validación general/visual diferida |
 | C38 | done | Catálogo inmutable, financiación en ledger y consumo QR explícito,041; recuperación1/1 y validación visual/general diferida |
-| C35 | blocked | Gate C27 pendiente; alta pública todavía sin implementar |
-| C28 | blocked | Falta formato/proceso bancario acordado |
-| C39 | blocked | Falta especificación fiscal validada |
-| C41 | blocked | Activación real excluida de esta sesión; políticas/datos/gates pendientes |
-| C42 | blocked | Matriz preparada en CENTERS_DELIVERY_STATUS.md; aceptación depende de C41 y alcance pendiente |
+| C35 | todo | Alta pública aplazada; alta manual y efectivo ya disponibles en C13/C17/C20, sin dependencia de Stripe |
+| C28 | todo | SEPA aplazado por el usuario, fuera de la entrega actual |
+| C39 | todo | Facturas/fiscalidad aplazadas por el usuario, fuera de la entrega actual |
+| C41 | todo | Validación/activación al cierre; no ejecutar producción en esta petición |
+| C42 | todo | Validar al terminar, sobre el alcance reducido acordado; matriz actualizada |
 
 Instrucción vigente del usuario: comprobaciones enfocadas esenciales y compilación; aplazar suites generales/revisión visual completa. done acredita criterios técnicos probados, no aceptación visual o activación real. No abrir ampliaciones opcionales de una tarea ya cerrada sin una necesidad del alcance.
 

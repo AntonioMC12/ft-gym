@@ -2,19 +2,17 @@
 
 Última actualización: 16 de octubre de 2026.
 
-## Punto de reanudación — continuación del16octubre
+## Punto de reanudación — decisiones del16octubre
 
-- Rama codex/centers-module; cambios Docker/web/demo previos del usuario preservados y fuera de los commits del módulo.
-- Prioridad vigente: cerrar implementación contra criterios concretos, comprobaciones enfocadas de seguridad/integridad y compilación. Suites generales y revisión visual completa aplazadas por instrucción expresa del usuario. No repetir lo ya verificado ni ampliar opcionalmente.
-- C29/C30/C31/C33/C34/C36/C37/C40: implementación y criterios técnicos acreditados; pasan a done técnico. La aceptación visual, hardware, infraestructura y operación real NO se declaran verificadas: se registran abajo como gates de validación diferida y no se confunden con código por implementar.
-- C27: implementación test con fixture HTTP terminada; blocked por ensayo sandbox real pendiente (requiere credenciales/cuenta y autorización específica). No repetir adaptador/webhooks/UI.
-- C32: agregados de visitas implementados y comprobados en schema037. blocked solo por ocupación física: no se registran salidas; hace falta un contrato de presencia verificable o aceptar excluir ese KPI. Ninguna métrica viene de /api/activity. No rehacer los agregados.
-- Preview actual:a1566365-dirty/schema041, API/web saludables. Siete archivos de cuentas/secreto/entrenamiento conservados por SHA256; mismo túnel al reconstruir. dirty corresponde a archivos previos del usuario. CI usa centers-ci-db/ft_gym_ci_centers_test, nunca PostgreSQL persistente de preview.
-- C38 terminada técnicamente en041: catálogo inmutable, bonos de pago/promociones, recibo del ledger y consumo QR explícito atómico. Recuperación con bono pagado y un crédito consumido1/1; preview actualizada conservando datos/túnel. Ver CENTERS_PASSES.md.
-- C33 terminada técnicamente en039: regla opt-in explícita sobre admisiones, episodios sin duplicados y gestiones append-only. No mensajes/cobros/cambios de acceso. Ver CENTERS_RETENTION.md.
-- Siguiente paso: resolver un bloqueo externo o la validación aplazada; no queda una implementación independiente abierta que pueda cerrarse con el alcance disponible. Matriz actual: CENTERS_DELIVERY_STATUS.md. C28/C35/C39/C41/C42 pasan a blocked con requisito de reanudación explícito, junto con C27/C32.
-- C30 terminada técnicamente en038: compartir por centro, rutinas/fechas explícitas y solo conteos de sesiones guardadas/nombres. Revocación, vínculo y roles actuales; sin cargas, fotos, notas, ejercicios o perfil. Ver CENTERS_SHARED_PROGRESS.md. C35 depende del gate externo de C27. C28 necesita proceso bancario; C39 requisitos fiscales; C41/C42 activación/aceptación reales.
-- Uso inicial:0%principal,45%semanal consumidos tras renovación natural. Continuar hasta aproximadamente95%principal (o límite que se agote primero), sin créditos de reset. Al terminar guardar/documentar y apagar sin forzar aplicaciones, autorizado por el mensaje vigente.
+- Rama codex/centers-module, schema041. Cambios previos Docker/web/demo del usuario conservados. Última preview verificada:a1566365-dirty, API/web healthy y7archivos conservados; no se comprueba ni se modifica su ejecución en esta petición documental.
+- Petición actual: guía práctica de C27 y actualización del alcance. No se han configurado claves, contactado un sandbox para crear pagos, desplegado servicios ni repetido el apagado solicitado para la ejecución anterior.
+- C27: implementación con fixture terminada; ensayo externo pendiente. Guía nueva CENTERS_STRIPE_TEST_GUIDE.md, contrastada con código y documentación oficial. La preview habitual simula Stripe; no basta con cambiar claves.
+- C28/C39: aplazados expresamente, estado todo/fuera del alcance actual. No se emitirán facturas fiscales por ahora; conservar recibos, pagos manuales y deuda. SEPA es domiciliación bancaria y también se aplaza.
+- C32: done técnico del alcance actual (contratos/finanzas/admisiones registradas). Ocupación física y conexión NFC/cerradura quedan para más adelante; no existen datos de entrada/salida de ese hardware en la app. Retención actual solo usa visitas QR registradas, no todas las entradas NFC del gimnasio.
+- C35: alta pública aplazada, todo/fuera del alcance. Alta administrativa de socios y cobros en efectivo ya implementados en C13/C15/C17/C20. No requieren Stripe ni cuenta personal vinculada; asignar cuota puede activar antes de registrar pago. Ver pasos en CENTERS_DELIVERY_STATUS.md.
+- C41/C42: todo, validar al terminar el alcance acordado. No bloquear por adelantado tareas de desarrollo local con su aceptación/activación final ni marcar funciones futuras como implementadas.
+- C29/C30/C31/C33/C34/C36/C37/C38/C40: done técnico; criterios y evidencia en el historial. C30/C33/C38 no deben reimplementarse. Matriz vigente: CENTERS_DELIVERY_STATUS.md.
+- Comprobaciones: mantener esenciales de permisos, aislamiento y dinero; revisión visual y suites generales se reservan para la fase final acordada. Esta actualización documental solo requiere verificar contratos/configuración/links; no una suite de aplicación.
 
 ### Cierre técnico y validación diferida
 
@@ -116,21 +114,21 @@ Estados permitidos: `todo`, `in_progress`, `done`, `blocked`. Una tarea done nec
 | C25 | F8 | Jobs y outbox | done |
 | C26 | F8 | Email y avisos | done |
 | C27 | F9 | Stripe | blocked |
-| C28 | F9 | SEPA | blocked |
+| C28 | F9 | SEPA | todo |
 | C29 | F10 | Propuestas de rutinas | done |
 | C30 | F10 | Progreso compartido | done |
 | C31 | F11 | QR y visitas | done |
-| C32 | F11 | KPI | blocked |
+| C32 | F11 | KPI | done |
 | C33 | F11 | Riesgo de baja | done |
 | C34 | F12 | Clases y reservas | done |
-| C35 | F12 | Alta pública | blocked |
+| C35 | F12 | Alta pública | todo |
 | C36 | F12 | CSV | done |
 | C37 | F12 | Solicitud de congelación | done |
 | C38 | F12 | Bonos/promociones | done |
-| C39 | F12 | Facturas y fiscalidad | blocked |
+| C39 | F12 | Facturas y fiscalidad | todo |
 | C40 | F13 | Operación y reversión | done |
-| C41 | F13 | Activación gradual | blocked |
-| C42 | F13 | Aceptación/documentación | blocked |
+| C41 | F13 | Activación gradual | todo |
+| C42 | F13 | Aceptación/documentación | todo |
 
 ## Gates de entrega
 
@@ -772,3 +770,11 @@ Se preparó CENTERS_DELIVERY_STATUS.md con matriz CU01–16, evidencia y límite
 Última medición:73%primario y57%semanal consumidos (aproximadamente27%primario disponible), sin usar créditos de restablecimiento. Se cierra antes del umbral5% porque no queda implementación independiente realizable dentro del alcance: los bloqueos concretos están en la matriz y el tablero. No se consumió el margen repitiendo suites aplazadas ni inventando requisitos bancarios/fiscales. CI y los dos PostgreSQL tmpfs de recuperación detenidos; preview y sus volúmenes preservados hasta el apagado del equipo. Cambios previos del usuario intactos y fuera de nuestros commits.
 
 Apagado normal autorizado: solicitud de Windows sin /f y con /t0, mediante un helper con breve espera para entregar el mensaje final. No forzar aplicaciones con trabajo sin guardar; Windows puede detener el apagado. Desde esta sesión no se puede confirmar que el equipo haya llegado a apagarse. Para reanudar, leer esta cabecera, CENTERS_DELIVERY_STATUS.md y el tablero; la preview se inicia con scripts/Start-CentersPreview.ps1 conservando los datos.
+
+## 16octubre — alcance aclarado por el usuario y guía C27
+
+Se aplazan SEPA (C28), facturas/fiscalidad (C39), ocupación física/conexión con NFC-cerradura (parte futura de C32) y alta pública online (C35). El usuario dará altas manualmente y puede recibir efectivo: se comprobó createMember, activación al asignar suscripción y formulario ManualMovement con método cash; esos recorridos ya existen y no necesitan Stripe. C41/C42 se validan al final, sin cerrar aceptación ahora. Tablero, roadmap y matriz actualizados: los aplazamientos no se registran como errores ni como funcionalidades terminadas.
+
+Guía CENTERS_STRIPE_TEST_GUIDE.md: sandbox de cuenta real, destino Snapshot/versionado, perfil privado por centro, override temporal que elimina el carrier ficticio y permite egress, worker Stripe manual, Checkout de1EUR, confirmación autoritativa, duplicados/cancelación/aislamiento, diagnóstico y restauración de API simulada. No se ejecutó el ensayo externo ni se alteraron datos/servicios. Estado anterior de cierres y apagado conservado como histórico, no como instrucciones activas de esta petición.
+
+Verificación documental: el ejemplo Compose valida con config --quiet y credenciales exclusivamente ficticias en archivos temporales propios eliminados después; no se recrean contenedores. Perfil de ejemplo aceptado por stripeProfiles, versión comparada con STRIPE_API_VERSION, enlaces locales existentes y etiquetas contrastadas con traducción española. Sin compilación/suites por tratarse únicamente de documentación. No se ejecuta stripeTick, no se configura un webhook externo ni se envía ninguna clave.

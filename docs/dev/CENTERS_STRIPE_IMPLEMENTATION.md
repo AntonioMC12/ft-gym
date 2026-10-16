@@ -1,10 +1,8 @@
 # C27: Stripe sandbox integrado
 
-Estado: implementación y pruebas automáticas terminadas; **C27 sigue in_progress**
-por la revisión visual pendiente. El navegador deniega localhost:5178 mediante una
-preferencia guardada, también después de la autorización general del usuario.
-No eludirla con otro navegador, HTTP de escritorio o un controlador alternativo.
-Las pruebas HTTP aisladas y de componentes sí están verificadas.
+Estado vigente16octubre: implementación y pruebas automáticas terminadas; C27 mantiene pendiente el ensayo de sandbox externo. La revisión visual se aplaza a la validación final acordada. Ver [guía de prueba paso a paso](CENTERS_STRIPE_TEST_GUIDE.md). El alta administrativa y efectivo no dependen de C27; el alta pública C35 queda aplazada.
+
+La denegación guardada del navegador no debe eludirse con otra herramienta. Las pruebas HTTP aisladas y de componentes sí están verificadas.
 
 No se ha configurado una cuenta externa ni creado una sesión real en Stripe.
 El adaptador REST se prueba con respuestas simuladas. No existe modo live.

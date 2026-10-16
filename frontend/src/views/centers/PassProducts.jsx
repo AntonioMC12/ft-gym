@@ -40,7 +40,7 @@ export default function PassProducts({centerId,ownerUid}){
       <label className="centers-field"><span>{t('Tax rate (%)')}</span><TextField required inputMode="decimal" disabled={busy} value={fields.taxRate} onChange={e=>update('taxRate',e.target.value)}/></label>
       <Button type="submit" variant="primary" disabled={busy||!fields.name.trim()||!fields.credits||!fields.validDays||fields.taxPolicy==='unset'}>{t('Save')}</Button><Button type="button" disabled={busy} onClick={()=>{setFields(initial);setEditor(false)}}>{t('Cancel')}</Button>
     </form>}
-    {!editor&&rows.map(p=><div key={p.id}><Row title={p.name} subtitle={passSummary(p)} value={p.archived?t('Archived plans'):t(p.kind==='promotion'?'Free promotion':'Paid pass')}/>{!p.archived&&<Button disabled={busy} onClick={()=>archive(p)}>{t('Archive pass product')}</Button>}</div>)}
+    {!editor&&rows.map(p=><div key={p.id} className={'centers-card'+(p.archived?' centers-card-archived':'')}><Row title={p.name} subtitle={passSummary(p)} value={p.archived?t('Archived plans'):t(p.kind==='promotion'?'Free promotion':'Paid pass')}/>{!p.archived&&<Button disabled={busy} onClick={()=>archive(p)}>{t('Archive pass product')}</Button>}</div>)}
     {!editor&&!busy&&!rows.length&&!error&&<p>{t('No passes available.')}</p>}{!editor&&cursor&&<Button ref={moreRef} disabled={busy} onClick={more}>{t('Show more')}</Button>}
     {busy&&<p role="status">{t('Loading…')}</p>}{error&&<p role="alert">{t(passesErrorKey(error))}</p>}
   </div></Section>

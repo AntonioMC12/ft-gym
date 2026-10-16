@@ -136,3 +136,30 @@ body.no-tabbar .centers-unsaved-bar{bottom:calc(12px + var(--sab,0px))}
 .centers-workspace:has(.centers-member-workspace)>.centers-workspace-nav>.centers-workspace-mobile-nav{display:block}
 @media(min-width:900px){.centers-list{grid-template-columns:repeat(2,minmax(0,1fr))}.centers-list>.sect{margin:0}}
 @media(max-width:767px){.centers-center-header{align-items:flex-start}.centers-workspace-content .centers-actions>.btn{max-width:100%;white-space:normal}}
+
+/* Shared depth for distinct records, using the application's theme tokens. */
+.centers-page .centers-card,.centers-page .centers-class-card,.centers-page .centers-class-reservation,.centers-page .centers-subscription-card,.centers-list>.sect>.sect-b{
+ background:var(--surface-2);border:1px solid var(--sep);border-radius:var(--r);box-shadow:0 6px 18px #0000001a,inset 0 1px 0 color-mix(in srgb,var(--label) 7%,transparent)
+}
+.centers-page .centers-card{margin:14px 0;padding:16px;min-width:0}
+.centers-page .centers-card>.lrow{padding:6px 0 14px;border:0;background:transparent}
+.centers-page .centers-card .lrow-t{font-weight:600;white-space:normal;overflow-wrap:anywhere}
+.centers-page .centers-card .lrow-s{margin-top:6px;white-space:normal;line-height:1.4}
+.centers-page .centers-card .lrow-v{color:var(--label);font-weight:600;font-variant-numeric:tabular-nums;white-space:normal}
+.centers-card-actions{display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap;border-top:1px solid var(--sep);padding-top:12px;margin-top:auto}
+.centers-card-actions>.btn{width:auto;min-height:44px;padding:10px 14px;border:1px solid var(--sep);border-radius:var(--r)}
+.centers-card-badge{display:inline-flex;align-items:center;padding:5px 10px;border:1px solid var(--sep);border-radius:99px;color:var(--label-2);background:var(--surface);font-size:13px}
+.centers-catalog-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,300px),1fr));gap:16px}
+.centers-page .centers-catalog-grid>.centers-card{margin:0;display:flex;flex-direction:column;gap:10px}
+.centers-plan-card>.centers-import-notice{margin:0 0 4px;background:var(--surface);line-height:1.45}
+.centers-catalog-toolbar{align-items:center;gap:14px;margin:0 0 22px}
+.centers-catalog-toolbar>.searchf{flex:1 1 240px;min-width:0}
+.centers-catalog-toolbar>.btn{width:auto;min-height:44px;padding:10px 16px}
+.centers-catalog-filter{display:flex;align-items:center;gap:12px;color:var(--label-2);font-size:14px}
+.centers-page .centers-entity-row{margin:10px 0;padding:14px 16px;border:1px solid var(--sep);border-radius:var(--r);background:var(--surface-2);box-shadow:0 3px 10px #00000012}
+.centers-page .centers-entity-row .lrow-t{font-weight:600}
+.centers-page .centers-card-archived{border-style:dashed;box-shadow:none}
+.centers-page .centers-subscription-history .centers-subscription-card{background:transparent;border:0;border-top:1px solid var(--sep);border-radius:0;box-shadow:none}
+.centers-page .centers-card:focus-within,.centers-page .centers-entity-row:focus-visible{outline:2px solid var(--acc);outline-offset:3px}
+@media(hover:hover){.centers-page .centers-card:has(button.lrow):hover,.centers-page button.centers-entity-row:hover{border-color:var(--acc-line);box-shadow:0 8px 22px #00000024}}
+@media(max-width:500px){.centers-catalog-grid{grid-template-columns:minmax(0,1fr)}.centers-catalog-toolbar>.searchf,.centers-catalog-toolbar>.btn{flex-basis:100%;width:100%}.centers-catalog-filter{justify-content:space-between;width:100%}.centers-page .centers-card>.lrow{flex-wrap:wrap;gap:8px}.centers-page .centers-card .lrow-v{max-width:100%}}

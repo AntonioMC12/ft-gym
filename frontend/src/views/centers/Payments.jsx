@@ -31,7 +31,7 @@ export default function Payments({centerId,memberId,ownerUid,revision=0,canRefun
     {!!selected.refunds.length&&<h3>{t('Refunds')}</h3>}{selected.refunds.map(row=><Row key={row.id} title={row.refundedOn} subtitle={row.reason} value={minorToPrice(row.amountMinor)+' '+selected.currency}/>)}{selected.refundsTruncated&&<p className="small muted">{t('Showing the latest 100 refunds.')}</p>}
     {!own&&<p className="small muted">{t('Manual record only. No money is transferred.')}</p>}<Button onClick={()=>{setSelected(null);setRefund(null)}}>{t('Back')}</Button>
   </div></Section>
-  return <Section title={t('Payments')}><div className="centers-form">{rows.map(row=><Row key={row.id} title={row.paidOn} subtitle={paymentMethod(row.method)} value={minorToPrice(row.amountMinor)+' '+row.currency} accessory="chevron" onClick={()=>setSelected(row)}/>)}
+  return <Section title={t('Payments')}><div className="centers-form">{rows.map(row=><Row className="centers-entity-row" key={row.id} title={row.paidOn} subtitle={paymentMethod(row.method)} value={minorToPrice(row.amountMinor)+' '+row.currency} accessory="chevron" onClick={()=>setSelected(row)}/>)}
     {!busy&&!rows.length&&!error&&<p className="muted">{t('No payments available')}</p>}{busy&&<p role="status">{t('Loading…')}</p>}{error&&<p role="alert">{t(paymentsErrorKey(error))}</p>}{cursor&&<Button ref={moreRef} disabled={busy} onClick={more}>{t('Show more')}</Button>}
   </div></Section>
 }

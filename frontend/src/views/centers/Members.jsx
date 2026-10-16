@@ -107,7 +107,7 @@ export default function Members({centerId,ownerUid,capabilities,active=true,cent
   return <Section title={t('Members')}><div className="centers-form">
     <div className="centers-actions"><SearchField aria-label={t('Search members')} placeholder={t('Search members')} value={query} onChange={e=>setQuery(e.target.value)} onClear={()=>setQuery('')}/>{manage&&<Button onClick={()=>{setLifecycle(null);setEditing({})}}>{t('New member')}</Button>}{manage&&<Button variant="tinted" disabled={!active} aria-describedby={!active?importReason:undefined} onClick={()=>setImporting(true)}>{t('Import members (CSV)')}</Button>}</div>
     {manage&&!active&&<div className="centers-import-notice"><p id={importReason}>{t(centerState==='draft'?'Assign a manager to activate this draft before importing members.':'Activate the center before importing members.')}</p>{onDetails&&<Button type="button" variant="tinted" onClick={onDetails}>{t('Center details')}</Button>}</div>}
-    {rows.map(member=><Row key={member.id} title={member.name} subtitle={stateText(member.state)} value={member.number} accessory="chevron" onClick={()=>open(member)}/>)}
+    {rows.map(member=><Row className="centers-entity-row" key={member.id} title={member.name} subtitle={stateText(member.state)} value={member.number} accessory="chevron" onClick={()=>open(member)}/>)}
     {!busy&&!rows.length&&!error&&<p className="muted">{t('No members available')}</p>}
     {busy&&<p role="status" className="muted">{t('Loading…')}</p>}
     {error&&<p role="alert">{t(membersErrorKey(error))}</p>}

@@ -58,7 +58,7 @@ export default function Invitations({centerId,ownerUid,memberId,linked=false,all
     </form>}
     {link&&<div className="centers-selected"><label className="centers-field"><span>{t('Invitation link')}</span><TextField readOnly value={link}/></label><Button onClick={()=>navigator.clipboard.writeText(link).catch(fail)}>{t('Copy link')}</Button></div>}
     {(link||missingLink)&&<p className="small muted">{t('The link is shown once. If lost, revoke and create another.')}</p>}
-    {invites.map(invite=><Row className="centers-change-row" key={invite.id} title={invite.accountUid} subtitle={kindText(invite.kind)} value={statusText(invite)}>
+    {invites.map(invite=><Row className="centers-change-row centers-entity-row" key={invite.id} title={invite.accountUid} subtitle={kindText(invite.kind)} value={statusText(invite)}>
       {invite.status==='pending'&&<Button disabled={busy} onClick={()=>revoke(invite)}>{t('Revoke invitation')}</Button>}
     </Row>)}
     {error&&<p role="alert">{t(invitationErrorKey(error))}</p>}

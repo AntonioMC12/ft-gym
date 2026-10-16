@@ -34,7 +34,7 @@ export default function Receipts({centerId,memberId,ownerUid,revision=0,canRecor
     <StripePayments key={selected.id} centerId={centerId} memberId={memberId} receiptId={selected.id} availableMinor={selected.settlement?.balanceMinor} ownerUid={ownerUid} own={own} canPrepare={own?canPay:canRecord&&!record} canReconcile={!own&&canRecord} changed={changed} reservationChanged={setReserved}/>
     {!own&&<p className="small muted">{t('Creating a receipt does not record a payment.')}</p>}<Button onClick={()=>{setSelected(null);setRecord(false)}}>{t('Back')}</Button></div></Section>
   return <Section title={t('Receipts')}><div className="centers-form">
-    {rows.map(row=><Row key={row.id} title={(row.concept==='pass'?row.snapshot.name+' · ':'')+row.periodStart+' → '+row.periodEnd} subtitle={t('Due date')+': '+row.dueOn} value={minorToPrice(row.totalMinor)+' '+row.currency} accessory="chevron" onClick={()=>setSelected(row)}/>)}
+    {rows.map(row=><Row className="centers-entity-row" key={row.id} title={(row.concept==='pass'?row.snapshot.name+' · ':'')+row.periodStart+' → '+row.periodEnd} subtitle={t('Due date')+': '+row.dueOn} value={minorToPrice(row.totalMinor)+' '+row.currency} accessory="chevron" onClick={()=>setSelected(row)}/>)}
     {!busy&&!rows.length&&!error&&<p className="muted">{t('No receipts available')}</p>}{busy&&<p role="status">{t('Loading…')}</p>}{error&&<p role="alert">{t(receiptsErrorKey(error))}</p>}
     {cursor&&<Button ref={moreRef} disabled={busy} onClick={more}>{t('Show more')}</Button>}
   </div></Section>

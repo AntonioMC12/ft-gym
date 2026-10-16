@@ -2,6 +2,8 @@
 
 Punto de entrada junto con [CENTERS_PROGRESS.md](CENTERS_PROGRESS.md). Rama `codex/centers-module`, esquema041. Alcance actualizado por las decisiones del usuario del16octubre: alta manual y cobro exclusivamente en efectivo; Stripe/tarjeta, SEPA, facturas, alta pública y ocupación/NFC aplazados. C41/C42 se validan al terminar. Esta matriz separa implementación técnica, validación pendiente y funciones futuras. No constituye aceptación del módulo completo ni autorización de producción. No iniciar de nuevo una función entregada por tener revisión visual pendiente.
 
+Acceso compartido vigente: https://dining-salt-volumes-adaptive.trycloudflare.com/#/centers. API/web saludables, túnel activo y /api/health público200. Usar esta URL HTTPS tanto localmente como desde fuera, porque el origen de autenticación es el compartido. Stripe desactivado (0perfiles), jobs0, esquema041 y datos preservados. Las referencias a reanudaciones locales anteriores son históricas.
+
 ## Trazabilidad de los casos de uso
 
 | CU | Alcance | Implementación/evidencia | Pendiente para aceptación completa |

@@ -36,8 +36,6 @@ export function registerPassDay({database,user,checkSession},raw,{platform=false
  return businessTransaction(database,user.id,c,'billing.manage',async client=>{
   const replay=await commandReplay(client,c,user.id,operation,requestId,hash);if(replay){checkSession();return replay}
   const member=await memberRecord(client,c,m),day=member.local_today;
-  const {rows:contracts}=await client.query('SELECT id FROM centers.subscriptions WHERE center_id=$1 AND member_id=$2 AND canceled_at IS NULL LIMIT 1',[c,m]);
-  if(contracts.length)throw new CentersError(409,'pass-only-required','daily use is only for pass-only members');
   const availability=await passDayAvailability(client,c,member);
   if(availability.used){const result={alreadyUsed:true,usedOn:day,passId:availability.used.pass_id};await rememberCommand(client,c,user.id,operation,requestId,hash,result);checkSession();return result}
   if(availability.reason==='member-inactive')throw new CentersError(409,'pass-member-inactive','inactive member');

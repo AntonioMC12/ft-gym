@@ -28,7 +28,7 @@ El backend comprueba cada ruta privada autenticada, incluidos datos personales y
 
 ## Registrar un día de bono
 
-1. Para un socio sin contratos de cuota y con bonos adquiridos, la tarjeta de Socios muestra **Registrar día de uso** y el saldo utilizable.
+1. Para un socio con bonos adquiridos, tenga o no una mensualidad, la tarjeta de Socios muestra **Registrar día de uso** y el saldo utilizable.
 2. El servidor verifica afiliación activa y bono vigente, no revocado, con créditos y, si es de pago, recibo totalmente liquidado. No depende de tener configurados QR, dispositivo o cerradura.
 3. Elige primero el bono que termina antes; a igualdad de caducidad, el adquirido antes. Registra socio, bono, fecha local y operador y descuenta una sesión dentro de la misma transacción.
 4. Otra pulsación/petición/operador ese día informa que ya está registrado. También detecta un consumo QR anterior de ese día. Un bono agotado, caducado, futuro, revocado o impagado no se consume y los saldos no bajan de cero.
@@ -45,10 +45,17 @@ En **Cuotas → Historial de bonos**, aparecen compras actuales y anteriores, fe
 
 Migración aditiva `042_renewals_daily_passes.sql`, ejecutada con `centers_migrator`: crea el ledger de renovaciones y su unicidad socio/mes, relaciona recibos/pagos, añade día/operador a consumos y permite registros manuales sin visita QR. Completa los registros antiguos desde sus visitas sin modificar identificador, instante ni saldo. FORCE RLS queda restaurado antes del commit; runtime no obtiene DDL, UPDATE ni DELETE sobre los ledgers. Reutiliza permisos, bloqueo de centro, idempotencia, auditoría y APIs existentes. No guarda datos financieros ni permisos en S/localStorage/exportaciones personales.
 
-Aplicar042 con copia de seguridad, después arrancar API/WEB de esta versión. No ejecutar suites en la base persistente ni aplicar automáticamente esta entrega en producción. En preview ficticia puede usarse el inicializador protegido `node test/centers-integration/preview-init.mjs` dentro de su imagen nueva; conserva JSON de identidades/secretos/entrenamientos y datos SQL. Los backups SQL completos incluyen las nuevas tablas; no restaurar solo las tablas históricas de una exportación parcial.
+Aplicar042 y043 con copia de seguridad, después arrancar API/WEB de esta versión. No ejecutar suites en la base persistente ni aplicar automáticamente esta entrega en producción. En preview ficticia puede usarse el inicializador protegido `node test/centers-integration/preview-init.mjs` dentro de su imagen nueva; conserva JSON de identidades/secretos/entrenamientos y datos SQL. Los backups SQL completos incluyen las nuevas tablas; no restaurar solo las tablas históricas de una exportación parcial.
 
 ## Evidencia y límites
 
 Pruebas con PostgreSQL real aislado: concurrencia entre operadores, un solo pago/consumo, primera cuota con activación, rollback completo ante fallo de auditoría, recibo parcialmente pagado, último contrato y descuento, gracia10/11días, bloqueo y recuperación de una sesión existente, permisos/centros, bonos sin cuota, impago, caducidad, FEFO y cursor/historial. Upgrade041→042 con un consumo QR no vacío conserva saldo, instante, ID, operador y FORCE RLS. Pruebas de dominio cubren febrero bisiesto, fin de año, periodos1/3meses, estados y rutas privadas sin excepción accidental.
 
 Pruebas UI enfocadas cubren confirmación antes de registrar efectivo, periodo ya cubierto, selección sin fechas, saldo agotado, cambio de cuenta/respuesta tardía, bloqueo/revalidación de sesión e historial/consumos/filtros; se mantienen los tests pertinentes previos de centros. Compilación e i18n se comprueban antes de actualizar preview. Aceptación visual real móvil/escritorio/temas y validación operativa final continúan pendientes en C41/C42; no se presentan como realizadas por pasar tests. Sin cobros ni comunicaciones a personas reales, sin despliegue productivo.
+
+
+## Agrupación por socio y bonos con mensualidad (schema043)
+
+La lista de Socios mantiene una tarjeta por ID de socio: cuota actual/última renovable, bloque independiente de bonos y botón Historial. El historial se consulta bajo demanda con los endpoints de contratos y bonos del mismo centro/socio, sin formularios de adquisición, revocación ni pago. El historial global de bonos agrupa las compras cargadas por memberId; ampliar páginas añade compras a la misma tarjeta. No agrupar por nombre ni eliminar compras reales.
+
+043_mixed_members_daily_passes.sql modifica únicamente la comprobación del consumo manual para permitir socios con mensualidad y bono. No cambia ledgers ni precios/fechas/recibos. Renueva exclusivamente la acción Renovar; Registrar día de uso consume exclusivamente un crédito elegible, FEFO, una vez por día local y con las mismas comprobaciones de afiliación, pago, caducidad, locks y auditoría. Los bonos no renuevan la mensualidad ni eliminan su deuda o el bloqueo de la app.

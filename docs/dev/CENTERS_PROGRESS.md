@@ -4,7 +4,7 @@
 
 ## Punto de reanudación — decisiones del16octubre
 
-- Rama codex/centers-module, schema042. Cambios previos Docker/web/demo del usuario conservados. Preview en https://dining-salt-volumes-adaptive.trycloudflare.com/#/centers, WEB9420721a-dirty y API11280aa3-dirty healthy, túnel y volumen conservados. No ejecutar migraciones: esta mejora no cambia esquema.
+- Rama codex/centers-module, código schema043 (preview042 pendiente de actualizar). Cambios previos Docker/web/demo del usuario conservados. Preview en https://dining-salt-volumes-adaptive.trycloudflare.com/#/centers, WEB9420721a-dirty y API11280aa3-dirty healthy, túnel y volumen conservados. C47 añade migración043 para bonos de socios con mensualidad; aplicar únicamente en preview ficticia tras backup y CI.
 - Alcance vigente: cobros exclusivamente en efectivo. C43–C45 implementados; C46 mejora UX de cuotas/bonos implementada y comprobada automáticamente, pendiente aceptación visual real. Guardar calcula sin exigir previsualización, acciones locales con indicador compacto y motivos de bloqueo consultables. No hay autorización productiva ni cobros reales.
 - C27: aplazado expresamente, todo/fuera de la entrega actual. Conservar código/fixture y guía como referencia futura, sin configurar claves, ensayar sandbox ni activar cobros. La validación Stripe no bloquea el cierre del alcance en efectivo.
 - C28/C39: aplazados expresamente, estado todo/fuera del alcance actual. No se emitirán facturas fiscales por ahora; conservar recibos, pagos manuales y deuda. SEPA es domiciliación bancaria y también se aplaza.
@@ -12,6 +12,7 @@
 - C35: alta pública aplazada, todo/fuera del alcance. Alta administrativa de socios y cobros en efectivo ya implementados en C13/C15/C17/C20. No requieren Stripe ni cuenta personal vinculada; asignar cuota puede activar antes de registrar pago. Ver pasos en CENTERS_DELIVERY_STATUS.md.
 - C41/C42: todo, validar al terminar el alcance acordado. No bloquear por adelantado tareas de desarrollo local con su aceptación/activación final ni marcar funciones futuras como implementadas.
 - C29/C30/C31/C33/C34/C36/C37/C38/C40: done técnico; criterios y evidencia en el historial. C30/C33/C38 no deben reimplementarse. Matriz vigente: CENTERS_DELIVERY_STATUS.md.
+- C47: implementación de tarjeta única por socio, cuota/bonos independientes e historial de lectura bajo demanda. Migración043 y SQL16/16 correctos en CI; pendiente actualizar preview y revisión visual.
 - Última entrega: ajuste visual C46 de historial compacto y ancho completo en socios;19/19 pruebas focales correctas. C46, implementación terminada; pruebas de interfaz133/133 (82 formularios/controles +51 navegación afectada), PostgreSQL15/15 y OpenAPI3/3 correctos. Build correcto;2181textos presentes y18locales/2834claves sincronizados. No suites generales.
 - Validación pendiente: revisión visual real escritorio/móvil/temas y aceptación C41/C42. El navegador de esta sesión no permite esa comprobación; no sustituirla por resultados DOM ni marcarla verificada. C46 sigue in_progress únicamente por esa validación solicitada. Siguiente paso: revisar visualmente la preview actualizada en escritorio/móvil/temas cuando haya navegador habilitado; C46 no requiere más implementación conocida.
 
@@ -134,6 +135,7 @@ Estados permitidos: `todo`, `in_progress`, `done`, `blocked`. Una tarea done nec
 | C44 | F14 | Restricción privada por caducidad y gracia10días | done |
 | C45 | F14 | Día de bono atómico e historial filtrable | done |
 | C46 | F15 | UX cuotas/bonos: guardado directo, acciones, cambios pendientes y motivos | in_progress — implementación terminada; revisión visual pendiente |
+| C47 | F15 | Tarjeta por socio, historial y bonos con mensualidad | in_progress — implementación terminada; revisión visual pendiente |
 
 ## Gates de entrega
 
@@ -954,3 +956,12 @@ Feedback de dos capturas: historial de bonos excesivamente alto y buscador/acci�
 PassHistory.jsx usa lista compacta con cabecera socio/número y estado de ancho natural; condiciones y fechas en línea con wrap; saldo/consumos/fecha de alta y botón secundario Ver consumos en pie. La advertencia de caducidad exclusiva aparece una vez junto al filtro. Conserva todos los datos, estados, búsqueda, cursor y consulta de consumos. CSS específico evita alterar otros formularios.19/19 tests existentes de historial/socios/renovación correctos. Revisión visual real sigue pendiente y C46 continúa in_progress por ese motivo. Sin cambios de backend/finanzas ni migraciones.
 
 Preview del ajuste compacto: WEB9420721a-dirty healthy y build Docker correcto; health público200. Solo se recrea WEB, conservando API, datos SQL/archivos y túnel. Commit9420721a local; sin push en esta petición. Aspecto real escritorio/móvil pendiente de revisión, no acreditado por tests DOM.
+
+
+## C47 — agrupación de socios, historial y bonos mixtos
+
+Implementación terminada: Members deduplica por ID (nunca por nombre), tarjeta única con cuota vigente/última renovable, bloque de bonos y botón Historial. MemberBillingHistory reutiliza ContractSummary y Passes en modo solo lectura, consulta bajo demanda por centro/socio y descarta respuestas de contextos anteriores. PassHistory agrupa compras por memberId incluso al añadir páginas; conserva cada bono y su acceso a consumos.
+
+El resumen financiero expone hasPass/saldo/motivo de uso independientemente de hasContract. Renovar registra efectivo por su transacción existente; Registrar día de uso solo consume una sesión, incluso con mensualidad, sin modificarla ni registrar pagos. Claves idempotentes separadas para ambos comandos. Migración043 reemplaza solo el trigger de consumo, retirando la incompatibilidad mensualidad/bono y conservando locks, disponibilidad, afiliación, uso diario y validación QR.042 no se edita. No altera el bloqueo por mensualidad ni liquida deuda.
+
+SQL focal16/16 correcto sobre CI aislado con migración043, incluidos socio mixto, saldo, repetición diaria, afiliación/permisos, FEFO y aislamiento; OpenAPI3/3 correcto. UI33/33 focales correctos: acciones simultáneas, agrupación de compras, historial de lectura y descarte de respuesta de otro socio. Backup preview previo043 fuera de Git; datos existentes no modificados por las pruebas. Pendiente build/actualización de preview y aceptación visual real. C47 in_progress por validación visual pendiente; no hay cobros reales ni despliegue productivo.

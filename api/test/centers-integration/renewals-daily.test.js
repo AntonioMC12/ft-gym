@@ -39,7 +39,7 @@ test('daily pass use is once per local day across actors and picks earliest expi
  const history=await f.req('/api/centers/passes/history?'+new URLSearchParams({centerId:f.center,status:'exhausted',query:'pass person'}),f.ids.manager);assert.equal(history.status,200,JSON.stringify(history));assert.equal(history.body.passes.length,1);assert.equal(history.body.passes[0].remaining,0);assert.equal(history.body.passes[0].used,1);
  const uses=await f.req('/api/centers/passes/history?'+new URLSearchParams({centerId:f.center,passId:first.id}),f.ids.manager);assert.equal(uses.body.uses.length,1);assert.equal(uses.body.uses[0].usedOn,f.today);assert.ok([f.ids.manager,f.ids.root].includes(uses.body.uses[0].actorUid));
  const active=await f.req('/api/centers/passes/history?'+new URLSearchParams({centerId:f.center,status:'active'}),f.ids.manager);assert.ok(active.body.passes.some(p=>p.id===later.id));
- assert.equal((await f.req('/api/centers/passes/day',f.ids.manager,{...raw,memberId:f.members.alice,requestId:f.p+'_monthly'})).body.code,'pass-only-required');
+ assert.equal((await f.req('/api/centers/passes/day',f.ids.manager,{...raw,memberId:f.members.alice,requestId:f.p+'_monthly'})).body.code,'pass-unavailable');
  assert.ok([403,404].includes((await f.req('/api/centers/passes/history?centerId='+f.center,f.ids.alice)).status));
 });
 test('expired passes cannot be manually consumed; inactive records are an explicit conflict',async t=>{
@@ -111,4 +111,14 @@ test('daily eligibility explains exhausted, future and revoked passes using the 
  assert.equal((await eligible(shift(f.today,1))).reason,'not-started');
  const revoked=await f.req('/api/centers/passes/revoke',f.ids.manager,{centerId:f.center,id:another.id,reason:'Fictional test',requestId:f.p+'_revoke_explanation'});assert.equal(revoked.status,200,JSON.stringify(revoked));
  assert.equal((await eligible(shift(f.today,1))).reason,'exhausted');
+});
+
+test('mixed monthly and pass members expose both entitlements and consume only one pass credit',async t=>{
+ const f=await fixture(t),m={id:f.members.alice},pass=await gift(f,m,2,30,'mixed');
+ const summary=()=>f.req('/api/centers/members?centerId='+f.center,f.ids.manager);
+ const before=(await summary()).body.members.find(r=>r.id===m.id).fee;assert.equal(before.hasContract,true);assert.equal(before.hasPass,true);assert.equal(before.passRemaining,2);assert.equal(before.passDayReason,null);
+ const result=await f.req('/api/centers/passes/day',f.ids.manager,{centerId:f.center,memberId:m.id,requestId:f.p+'_mixed_use'});assert.equal(result.status,200,JSON.stringify(result));assert.equal(result.body.passId,pass.id);assert.equal(result.body.remaining,1);
+ const after=(await summary()).body.members.find(r=>r.id===m.id).fee;assert.equal(after.hasContract,true);assert.equal(after.subscriptionId,before.subscriptionId);assert.equal(after.expiresOn,before.expiresOn);assert.equal(after.passDayReason,'used-today');
+ const repeated=await f.req('/api/centers/passes/day',f.ids.root,{centerId:f.center,memberId:m.id,requestId:f.p+'_mixed_again'});assert.equal(repeated.body.alreadyUsed,true);
+ const payments=(await f.req('/api/centers/payments?'+new URLSearchParams({centerId:f.center,memberId:m.id}),f.ids.manager)).body.payments;assert.equal(payments.length,0);
 });

@@ -209,3 +209,13 @@ fieldset.centers-fields{border:0;padding:0;min-width:0}
 .centers-pass-history-footer>.btn{width:auto;min-height:44px;flex:0 0 auto;padding:10px 14px;border:1px solid var(--sep);border-radius:var(--r)}
 .centers-pass-history-note{margin:8px 0 0}
 @media(max-width:480px){.centers-page .centers-pass-history-list>.centers-pass-history-card{padding:12px}.centers-pass-history-heading{gap:8px}.centers-pass-history-footer{flex-wrap:wrap}.centers-pass-history-footer>.btn{margin-inline-start:auto}}
+
+.centers-member-entitlement{display:grid;gap:8px;padding:12px;border:1px solid var(--sep);border-radius:var(--r);background:var(--surface)}
+.centers-member-entitlement>.centers-actions{display:grid;grid-template-columns:minmax(0,1fr);gap:8px;margin:0}
+.centers-member-entitlement .action-reason{display:flex;width:100%;gap:8px}
+.centers-member-entitlement .action-reason>.btn{flex:1 1 0%;width:auto;min-height:48px}
+.centers-member-entitlement>.centers-actions>.btn,.centers-member-history-link.btn{width:100%;min-height:44px}
+.centers-member-history-link.btn{border:1px solid var(--sep);border-radius:var(--r)}
+
+.centers-grouped-pass{display:grid;gap:8px;border-top:1px solid var(--sep);padding-top:12px}
+.centers-grouped-pass .centers-pass-history-footer{border-top:0;padding-top:0}

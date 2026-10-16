@@ -2609,7 +2609,7 @@ paths:
         stable created_at/id keyset order. Cursor is bound to account, center and filters.
         Explicit superadmin accounts can administer members in every selected center;
         this global access is audited. Technical admin alone does not grant member access.
-        With billing.read, fee.passDayReason explains daily pass eligibility using the same
+        With billing.read, fee.hasPass and fee.passRemaining describe passes independently of a monthly subscription. fee.passDayReason explains daily pass eligibility using the same
         availability rules as passes/day: null, used-today, member-inactive, no-pass,
         revoked, exhausted, expired, not-started or payment-required. Reasons are advisory;
         commands recheck permissions, local business date and balance transactionally.
@@ -5903,11 +5903,11 @@ paths:
     post:
       tags: [centers]
       operationId: recordDailyPassUse
-      summary: Record one local day and consume one credit for a pass-only member
-      description: Requires billing.manage. Body centerId, memberId, requestId. Server chooses the first usable paid or promotional pass by expiry then purchase age. Shared append-only QR/manual balance, center lock, member/local-day replay and SQL validation prevent negative or duplicate consumption. Existing QR admission policy remains unchanged.
+      summary: Record one local day and consume one pass credit
+      description: Requires billing.manage. Body centerId, memberId, requestId. Members may also have a monthly subscription; manual pass use never renews or pays that subscription. Server chooses the first usable paid or promotional pass by expiry then purchase age. Shared append-only QR/manual balance, center lock, member/local-day replay and SQL validation prevent negative or duplicate consumption. Existing QR admission policy remains unchanged.
       responses:
         '200': { description: "usedOn, passId, remaining or alreadyUsed" }
-        '409': { description: "No usable balance, inactive member or member has a fee contract" }
+        '409': { description: "No usable balance or inactive member" }
   /api/centers/passes/history:
     get:
       tags: [centers]

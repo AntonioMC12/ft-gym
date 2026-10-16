@@ -14,12 +14,13 @@ import {appendPayment,receiptBalance} from './payments.js';
 const fail=code=>{throw new CentersError(409,code,'renewal requires review')};
 export async function feeSummary(client,c,member){
  const {rows:contracts}=await client.query('SELECT s.*,s.starts_on::text,s.ends_on::text,s.anchor_on::text,v.name,v.interval_months FROM centers.subscriptions s JOIN centers.membership_plan_versions v ON (v.center_id,v.id)=(s.center_id,s.price_version_id) WHERE s.center_id=$1 AND s.member_id=$2 AND s.canceled_at IS NULL ORDER BY (s.starts_on<=$3) DESC,s.starts_on DESC,s.created_at DESC LIMIT 1',[c,member.id,member.local_today]);const last=contracts[0];
- if(!last){const availability=await passDayAvailability(client,c,member);return {hasContract:false,passOnly:availability.hasPass,passRemaining:availability.remaining,passDayReason:availability.reason,today:member.local_today,...feeAccess(member.local_today,null)}}
+ const availability=await passDayAvailability(client,c,member),passes={hasPass:availability.hasPass,passRemaining:availability.remaining,passDayReason:availability.reason};
+ if(!last)return {hasContract:false,passOnly:availability.hasPass,...passes,today:member.local_today,...feeAccess(member.local_today,null)};
  const {rows}=await client.query(`SELECT max(r.period_end)::text AS until FROM centers.receipts r WHERE r.center_id=$1 AND r.member_id=$2 AND r.subscription_id=$3 AND r.period_start<=$4 AND r.total_minor=coalesce((SELECT sum(a.amount_minor) FROM centers.payment_allocations a WHERE a.center_id=r.center_id AND a.receipt_id=r.id),0)-coalesce((SELECT sum(f.amount_minor) FROM centers.refunds f WHERE f.center_id=r.center_id AND f.receipt_id=r.id),0)`,[c,member.id,last.id,member.local_today]);
  const {rows:renewed}=await client.query('SELECT max(period_end)::text AS until FROM centers.renewals WHERE center_id=$1 AND member_id=$2 AND subscription_id=$3 AND period_start<=$4 AND receipt_id IS NULL',[c,member.id,last.id,member.local_today]);
  let end=[initialCoverage({anchorOn:last.anchor_on,intervalMonths:last.interval_months,billingDay:last.billing_day}),rows[0].until,renewed[0].until].filter(Boolean).sort().at(-1);
  if(last.ends_on&&last.ends_on<end)end=last.ends_on;if(member.ends_on&&member.ends_on<end)end=member.ends_on;
- return {hasContract:true,passOnly:false,name:last.name,subscriptionId:last.id,planId:last.plan_id,today:member.local_today,...feeAccess(member.local_today,end),...(last.starts_on>member.local_today?{status:'scheduled',blocked:false}:{})};
+ return {hasContract:true,passOnly:false,...passes,name:last.name,subscriptionId:last.id,planId:last.plan_id,today:member.local_today,...feeAccess(member.local_today,end),...(last.starts_on>member.local_today?{status:'scheduled',blocked:false}:{})};
 }
 async function prepare(client,scope,memberId,priceVersionId){
  const c=scope.centerId,member=await memberRecord(client,c,memberId),today=member.local_today,month=today.slice(0,7)+'-01';

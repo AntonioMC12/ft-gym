@@ -1,3 +1,4 @@
+import MemberBillingHistory from './MemberBillingHistory.jsx'
 import MemberQuickActions from './MemberQuickActions.jsx'
 import CenterWorkspace from './CenterWorkspace.jsx'
 import Passes from './Passes.jsx'
@@ -34,7 +35,7 @@ function MemberForm({centerId,member,lifecycle,ownerUid,close,saved,canBilling,c
   useEffect(()=>{memberAlive.current=true;return()=>{memberAlive.current=false}},[])
   const refreshAfterPass=async()=>{setReceiptsRevision(v=>v+1);try{const r=await centerMember(centerId,currentMember.id);if(memberAlive.current&&useStore.getState().user?.id===ownerUid){setCurrentMember(r.member);setInfo({today:r.today,changes:r.changes})}}catch(e){if(memberAlive.current&&useStore.getState().user?.id===ownerUid)setError(e)}}
   const [pane,setPane]=useState(initialPane),[editingDetails,setEditingDetails]=useState(!member)
-  const sections=[{value:'overview',label:t('Member overview')},{value:'details',label:t('Member details')},...(canBilling?[{value:'billing',label:t('Fees and payments')}]:[]),{value:'access',label:t('Access and membership')},...(capabilities.some(c=>['training.shared.read','training.assign'].includes(c))?[{value:'training',label:t('Training proposals')}]:[])]
+  const sections=[{value:'overview',label:t('Member overview')},{value:'details',label:t('Member details')},...(canBilling?[{value:'billing',label:t('Fees and payments')},{value:'history',label:t('History')}]:[]),{value:'access',label:t('Access and membership')},...(capabilities.some(c=>['training.shared.read','training.assign'].includes(c))?[{value:'training',label:t('Training proposals')}]:[])]
   const changePane=value=>{if(value!==pane)requestNavigation(()=>{setFields(fieldsOf(currentMember));setEditingDetails(false);setPane(value)})}
   const requestNavigation=useCenterNavigation()
   const saveForm=useUnsavedCenterForm(JSON.stringify(fields)!==JSON.stringify(fieldsOf(currentMember))?JSON.stringify(fields):null,busy)
@@ -73,6 +74,7 @@ function MemberForm({centerId,member,lifecycle,ownerUid,close,saved,canBilling,c
           {capabilities.includes('access.manage')&&<MemberAccess key={'access:'+currentMember.id} centerId={centerId} memberId={currentMember.id} ownerUid={ownerUid} canManage/>}
         </>}
         {pane==='training'&&<>{capabilities.includes('training.shared.read')&&<SharedProgress centerId={centerId} member={currentMember} ownerUid={ownerUid}/>}{capabilities.includes('training.assign')&&<TrainingProposals onLinkAccount={()=>changePane('details')} key={'training:'+currentMember.id} centerId={centerId} member={currentMember} ownerUid={ownerUid} canAssign active={active}/>}</>}
+        {pane==='history'&&canBilling&&<MemberBillingHistory centerId={centerId} memberId={currentMember.id} ownerUid={ownerUid} today={info?.today}/>}
         {pane==='billing'&&canBilling&&<><Subscriptions onManagePlans={capabilities.includes('plans.manage')?onPlans:undefined} key={currentMember.id} centerId={centerId} member={currentMember} ownerUid={ownerUid} changed={result=>{setCurrentMember(result.member);setInfo({today:result.today,changes:result.changes})}} receiptCreated={()=>setReceiptsRevision(value=>value+1)}/><Receipts key={currentMember.id} centerId={centerId} memberId={currentMember.id} ownerUid={ownerUid} revision={receiptsRevision} canRecord={capabilities.includes('payments.record')} today={info?.today} changed={()=>setReceiptsRevision(value=>value+1)}/><Payments centerId={centerId} memberId={currentMember.id} ownerUid={ownerUid} revision={receiptsRevision} canRefund={capabilities.includes('payments.refund')} today={info?.today} changed={()=>setReceiptsRevision(value=>value+1)}/><Passes centerId={centerId} memberId={currentMember.id} ownerUid={ownerUid} today={info?.today} active={active&&['active','preactive'].includes(currentMember.state)} revision={receiptsRevision} changed={refreshAfterPass}/></>}
     </CenterWorkspace>
   </article>
@@ -92,12 +94,12 @@ export default function Members({centerId,ownerUid,capabilities,active=true,cent
   useEffect(()=>{const timer=setTimeout(()=>setSearch(query.trim()),250);return()=>clearTimeout(timer)},[query])
   useEffect(()=>{
     const id=++epoch.current;detailEpoch.current++;pending.current=true;setBusy(true);setRows([]);setCursor(null);setError(null);setEditing(null);setLifecycle(null)
-    centerMembers(centerId,{query:search}).then(result=>{if(current(id)){setRows(result.members);setCursor(result.nextCursor)}}).catch(e=>{if(current(id))failure(e)}).finally(()=>{if(current(id)){pending.current=false;setBusy(false)}})
+    centerMembers(centerId,{query:search}).then(result=>{if(current(id)){setRows([...new Map(result.members.map(member=>[member.id,member])).values()]);setCursor(result.nextCursor)}}).catch(e=>{if(current(id))failure(e)}).finally(()=>{if(current(id)){pending.current=false;setBusy(false)}})
     return()=>{epoch.current++;pending.current=false}
   },[centerId,ownerUid,permissionKey,search,revision])
   const more=async()=>{
     if(!cursor||pending.current)return;const id=epoch.current;pending.current=true;setBusy(true)
-    try{const result=await centerMembers(centerId,{query:search,cursor});if(current(id)){setRows(previous=>[...previous,...result.members]);setCursor(result.nextCursor)}}
+    try{const result=await centerMembers(centerId,{query:search,cursor});if(current(id)){setRows(previous=>[...new Map([...previous,...result.members].map(member=>[member.id,member])).values()]);setCursor(result.nextCursor)}}
     catch(e){if(current(id))failure(e)}finally{if(current(id)){pending.current=false;setBusy(false)}}
   }
   const moreRef=useAutoMore(more)
@@ -111,7 +113,7 @@ export default function Members({centerId,ownerUid,capabilities,active=true,cent
   return <Section title={t('Members')}><div className="centers-form">
     <div className="centers-actions centers-members-toolbar"><SearchField aria-label={t('Search members')} placeholder={t('Search members')} value={query} onChange={e=>setQuery(e.target.value)} onClear={()=>setQuery('')}/>{manage&&<Button onClick={()=>{setLifecycle(null);setEditing({})}}>{t('New member')}</Button>}{manage&&<Button variant="tinted" disabled={!active} aria-describedby={!active?importReason:undefined} onClick={()=>setImporting(true)}>{t('Import members (CSV)')}</Button>}</div>
     {manage&&!active&&<div className="centers-import-notice"><p id={importReason}>{t(centerState==='draft'?'Assign a manager to activate this draft before importing members.':'Activate the center before importing members.')}</p>{onDetails&&<Button type="button" variant="tinted" onClick={onDetails}>{t('Center details')}</Button>}</div>}
-    {rows.map(member=><article className="centers-card centers-member-list-card" key={member.id}><Row title={member.name} subtitle={stateText(member.state)} value={member.number} accessory="chevron" onClick={()=>open(member)}/><MemberQuickActions centerId={centerId} member={member} ownerUid={ownerUid} active={active} canCollect={capabilities.includes('billing.manage')&&capabilities.includes('payments.record')} changed={()=>setRevision(r=>r+1)} onChangeFee={()=>open(member,'billing')}/></article>)}
+    {rows.map(member=><article className="centers-card centers-member-list-card" key={member.id}><Row title={member.name} subtitle={stateText(member.state)} value={member.number} accessory="chevron" onClick={()=>open(member)}/><MemberQuickActions centerId={centerId} member={member} ownerUid={ownerUid} active={active} canCollect={capabilities.includes('billing.manage')&&capabilities.includes('payments.record')} changed={()=>setRevision(r=>r+1)} onChangeFee={()=>open(member,'billing')} onHistory={()=>open(member,'history')}/></article>)}
     {!busy&&!rows.length&&!error&&<p className="muted">{t('No members available')}</p>}
     {busy&&<p role="status" className="muted">{t('Loading…')}</p>}
     {error&&<p role="alert">{t(membersErrorKey(error))}</p>}

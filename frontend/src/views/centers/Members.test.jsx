@@ -110,3 +110,6 @@ it('opens cash management only in its section and preserves separate recording a
   await render('b',['members.manage','billing.manage','payments.record']);await act(async()=>host.querySelector('button.lrow').click());await click('Fees and payments');
   expect(host.querySelector('[data-member-receipts]').dataset.canRecord).toBe('true');expect(host.querySelector('[data-member-payments]').dataset.canRefund).toBe('false');
 })
+it('shows each member ID once while preserving different people with the same name',async()=>{
+ centerMembers.mockResolvedValue({members:[sample,{...sample},{...sample,id:'two',number:'M-000002'}],nextCursor:null});await render();expect(host.querySelectorAll('.centers-member-list-card')).toHaveLength(2);expect(host.textContent).toContain('M-000001');expect(host.textContent).toContain('M-000002');
+})

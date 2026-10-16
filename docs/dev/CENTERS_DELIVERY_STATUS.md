@@ -4,6 +4,8 @@ Punto de entrada junto con [CENTERS_PROGRESS.md](CENTERS_PROGRESS.md). Rama `cod
 
 Acceso compartido vigente: https://dining-salt-volumes-adaptive.trycloudflare.com/#/centers. API/web saludables, túnel activo y /api/health público200. Usar esta URL HTTPS tanto localmente como desde fuera, porque el origen de autenticación es el compartido. Stripe desactivado (0perfiles), jobs0, esquema041 y datos preservados. Las referencias a reanudaciones locales anteriores son históricas.
 
+Última corrección de interfaz: avisos de cambios reales y barra de guardado por formulario, web b70980e2-dirty; API a1566365-dirty/schema041 sin cambios.70pruebas focalizadas y compilación; publicación web saludable, mismo túnel y datos conservados. La validación visual completa sigue pendiente.
+
 ## Trazabilidad de los casos de uso
 
 | CU | Alcance | Implementación/evidencia | Pendiente para aceptación completa |

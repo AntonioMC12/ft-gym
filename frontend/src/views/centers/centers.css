@@ -373,3 +373,11 @@ fieldset.centers-fields{border:0;padding:0;min-width:0}
 @media(max-width:550px){.centers-profile-data{grid-template-columns:minmax(0,1fr);gap:8px}.centers-profile-heading>.btn{width:100%}.centers-profile-day{padding:12px}.centers-profile-day>div{gap:4px}.centers-profile-day>div>span{padding:4px 6px}.centers-profile-editor .centers-form-actions>.btn{width:100%}}
 
 @media(max-width:550px){.centers-profile-editor .centers-hour-row{grid-template-columns:minmax(0,1fr) minmax(0,1fr)}.centers-profile-editor .centers-hour-remove{grid-column:1/-1;justify-self:end}}
+
+.centers-profile-info{border:1px solid var(--sep);border-radius:var(--r);background:var(--surface-2);overflow:hidden}
+.centers-profile-info>summary{cursor:pointer;padding:16px;min-height:54px;font-weight:600}
+.centers-profile-info>summary:focus-visible{outline:2px solid var(--acc);outline-offset:-3px;border-radius:var(--r)}
+.centers-profile-info-body{padding:16px;border-top:1px solid var(--sep)}
+.centers-profile-info-body>.centers-profile-heading{justify-content:flex-end}
+.centers-profile-info-body>.centers-profile-data{margin-top:14px}
+.centers-profile-info-body>.centers-profile-heading:empty{display:none}

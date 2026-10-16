@@ -137,8 +137,10 @@ function CenterPanel({ center, platform, capabilities, close, refresh, ownerUid,
       <h3>{t(editing==='hours'?'Edit opening hours':'Edit center')}</h3><Fields value={fields} change={setFields} disabled={busy} mode={editing}/>
       <div className="centers-form-actions" data-center-form-actions><Button type="submit" variant="primary" disabled={busy||!fieldsDirty}>{t(busy?'Saving…':'Save')}</Button><Button type="button" disabled={busy} onClick={cancelEdit}>{t('Cancel')}</Button></div>
     </form>:<>
-      <div className="centers-profile-heading"><h3>{t('Center details')}</h3>{canEdit&&<Button type="button" variant="tinted" icon="pencil" onClick={()=>setEditing('details')}>{t('Edit center')}</Button>}</div>
+      <details className="centers-profile-info"><summary>{t('Center details')}</summary><div className="centers-profile-info-body">
+      <div className="centers-profile-heading">{canEdit&&<Button type="button" variant="tinted" icon="pencil" onClick={()=>setEditing('details')}>{t('Edit center')}</Button>}</div>
       <dl className="centers-profile-data">{[['name','Center name'],['taxId','Tax ID'],['address','Center address'],['contactEmail','Contact email'],['phone','Phone'],['timezone','Time zone'],['capacity','Center capacity'],['billingDay','Billing day']].map(([key,label])=><div key={key}><dt>{t(label)}</dt><dd>{fields[key]===null||fields[key]===''?'—':fields[key]}</dd></div>)}</dl>
+      </div></details>
       <div className="centers-profile-heading centers-profile-hours-heading"><h3><Icon name="clock"/>{t('Opening hours')}</h3>{canEdit&&<Button type="button" icon="pencil" onClick={()=>setEditing('hours')}>{t('Edit opening hours')}</Button>}</div>
       <div className="centers-profile-week">{[1,2,3,4,5,6,0].map(day=><div className={'centers-profile-day'+(fields.openingHours[day]?.length?'':' is-closed')} key={day}><strong>{t(['Sunday','Monday','Tuesday','Wednesday','Thursday','Friday','Saturday'][day])}</strong><div>{fields.openingHours[day]?.length?fields.openingHours[day].map((pair,i)=><span key={i}>{pair[0]} <span className="muted">–</span> {pair[1]}</span>):<span className="muted">{t('Closed')}</span>}</div></div>)}</div>
     </>}

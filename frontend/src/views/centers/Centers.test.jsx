@@ -45,7 +45,7 @@ beforeEach(() => {
 afterEach(() => { act(() => root.unmount()); host.remove(); useCenters.getState().reset();vi.restoreAllMocks() })
 const render = () => act(async () => { root.render(<MemoryRouter><Centers /></MemoryRouter>); await Promise.resolve() })
 const button = text => [...host.querySelectorAll('button')].find(b => b.textContent === text || b.textContent.endsWith(text))
-const click = text => act(async () => { button(text).click(); await Promise.resolve() })
+const click = text => act(async () => { if(text==='Edit center'){const details=host.querySelector('.centers-profile-info');if(details&&!details.open)details.querySelector('summary').click()} button(text).click(); await Promise.resolve() })
 const input = (element, value) => act(() => {
   Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value').set.call(element, value)
   element.dispatchEvent(new Event('input', { bubbles: true }))
@@ -267,4 +267,19 @@ it('does not offer either editor to a read-only center role',async()=>{
  expect(button('Edit center')).toBeUndefined();expect(button('Edit opening hours')).toBeUndefined()
  expect(host.querySelector('.centers-profile-data dd').textContent).toBe(center.name)
  expect(host.querySelector('.centers-profile-day').textContent).toContain('22:00')
+})
+
+it('keeps center data and its edit action inside a closed disclosure while the schedule stays visible',async()=>{
+ await render();await click('Center details')
+ const details=host.querySelector('.centers-profile-info')
+ expect(details.open).toBe(false)
+ expect(details.querySelector('summary').textContent).toBe('Center details')
+ expect(details.contains(button('Edit center'))).toBe(true)
+ expect(details.contains(host.querySelector('.centers-profile-week'))).toBe(false)
+ await act(async()=>details.querySelector('summary').click())
+ expect(details.open).toBe(true)
+ expect(details.querySelector('dd').textContent).toBe(center.name)
+ await click('Edit center');expect(host.querySelector('form[aria-label="Center details"]')).not.toBeNull()
+ await click('Cancel');expect(confirmSheet).not.toHaveBeenCalled()
+ expect(host.querySelector('.centers-profile-info').open).toBe(false)
 })

@@ -16,7 +16,7 @@
 - C48: apartado independiente de Bonos, búsqueda de socios, asignación/revocación/consumo específico y edición versionada del catálogo implementados. Sin migración; schema043. UI56/56, SQL18/18 y OpenAPI3/3 correctos; build/preview correctos; aceptación visual pendiente.
 - C49: prueba de dashboard visual de métricas con datos actuales/periodo separados, tarjetas, distribución de socios y gráficos de visitas. UI40/40 correcta; build/preview WEB correctos; aceptación visual pendiente. Backend y schema043 conservados.
 - C50: rediseño de Deuda y calendario, recibos automáticos y avisos. Saldos destacados, recibos identificados, agenda por vencimiento y ayuda contextual accesible. UI19/19, locales18, build WEB y preview healthy correctos; revisión visual real pendiente. Backend y schema043 conservados.
-- Última entrega: C51, Datos del centro en consulta compacta, botones Editar centro/Editar horario y gestión del personal desplegable. Editores focales con guardado actual, cancelación protegida y permisos conservados. UI37/37, locales18, build WEB y preview healthy correctos; revisión visual real pendiente.
+- Última entrega: C51, Datos del centro colapsados por defecto, Editar centro dentro del desplegable y Editar horario independiente y gestión del personal desplegable. Editores focales con guardado actual, cancelación protegida y permisos conservados. UI37/37, locales18, build WEB y preview healthy correctos; revisión visual real pendiente.
 - Validación pendiente: revisión visual real escritorio/móvil/temas y aceptación C41/C42. El navegador de esta sesión no permite esa comprobación; no sustituirla por resultados DOM ni marcarla verificada. C46/C47/C48/C49/C50/C51 siguen in_progress únicamente por esa validación solicitada. Siguiente paso: revisión visual de C51 en la preview actualizada cuando haya navegador habilitado. No hay implementación pendiente conocida dentro de estas peticiones.
 
 ### Cierre técnico y validación diferida
@@ -1046,3 +1046,10 @@ Archivos: views/centers/Centers.jsx y Centers.test.jsx, centers.css; locales/mod
 
 
 C51 operación cerrada: código c3dda6d7, build Docker WEB/Vite correcto (../informes/center-profile-build.log). Recreado exclusivamente centers-preview-web con --no-deps --wait: healthy y etiqueta c3dda6d7-dirty; API2217d62d-dirty healthy sin reinicio, mismo túnel/URL, datos y schema043. Cambios previos Docker/web/demo ajenos conservados, sin push. Implementación y pruebas automáticas terminadas; queda revisión visual real escritorio/móvil/temas y aceptación.
+
+
+### C51 — Ajuste solicitado: datos colapsados por defecto
+
+Datos del centro se muestra ahora como details/summary cerrado inicialmente. Al abrirlo aparecen los datos y el botón Editar centro dentro del mismo bloque. Horario semanal y Editar horario siguen fuera y visibles. Se reutiliza el desplegable nativo accesible y tokens; edición, permisos y protección de cambios conservados. Al cancelar se vuelve a consulta colapsada. Sin claves i18n nuevas ni cambios de backend/datos.
+
+Centers.test.jsx31/31 correcto, incluyendo cerrado inicial, apertura, ubicación del botón, horario fuera, edición y cancelación. Log ../informes/center-profile-collapse-ui.log; git diff --check correcto. Archivos Centers.jsx, Centers.test.jsx y centers.css. Pendiente build/recreación WEB y revisión visual real, que sigue sin estar acreditada.

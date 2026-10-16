@@ -2,7 +2,7 @@
 import React,{act} from 'react'
 import {createRoot} from 'react-dom/client'
 import {beforeEach,afterEach,it,expect,vi} from 'vitest'
-vi.mock('../../lib/i18n.js',()=>({t:key=>key}))
+vi.mock('../../lib/i18n.js',async()=>({t:(await import('../../lib/i18n-core.js')).t}))
 vi.mock('../../sheets.jsx',()=>({confirmSheet:vi.fn()}))
 vi.mock('../../lib/mobile.js',()=>({MOBILE:false}))
 vi.mock('../../lib/scan.js',()=>({scanCode:vi.fn()}))
@@ -16,12 +16,14 @@ import {useStore} from '../../store/useStore.js'
 import {useUI} from '../../store/useUI.js'
 import {confirmSheet} from '../../sheets.jsx'
 import AccessPanel from './AccessPanel.jsx'
+import {_setLangState,t} from '../../lib/i18n-core.js'
+import es from '../../locales/es.js'
 globalThis.IS_REACT_ACT_ENVIRONMENT=true
 let root,host
 const token='gqr1_'+'a'.repeat(43),key='gdev1_'+'b'.repeat(43),device={id:'device1',name:'Door',version:1,expiresAt:'2026-11-15T10:00:00Z',revokedAt:null}
-const info={version:1,policy:{enabled:true,requireSubscription:false,denyOverdue:false,graceDays:15},devices:[device],nextCursor:null}
+const info={version:1,policy:{enabled:true,requireSubscription:false,denyOverdue:false,allowPasses:false,graceDays:15},devices:[device],nextCursor:null}
 beforeEach(()=>{
-  vi.clearAllMocks();useStore.getState().user={id:'actor'};centerAccess.mockResolvedValue(structuredClone(info));centerAccessVisits.mockResolvedValue({visits:[],nextCursor:null});centerCommand.mockResolvedValue({device:{...device,version:2},credential:key});consumeCenterAccess.mockResolvedValue({admitted:true,replayed:false,visitId:'visit1',member:{name:'Fictional member',number:'M-1'}})
+  _setLangState('en',{},null,null);vi.clearAllMocks();useStore.getState().user={id:'actor'};centerAccess.mockResolvedValue(structuredClone(info));centerAccessVisits.mockResolvedValue({visits:[],nextCursor:null});centerCommand.mockResolvedValue({device:{...device,version:2},credential:key});consumeCenterAccess.mockResolvedValue({admitted:true,replayed:false,visitId:'visit1',member:{name:'Fictional member',number:'M-1'}})
   host=document.createElement('div');document.body.append(host);root=createRoot(host)
 })
 afterEach(()=>{act(()=>root.unmount());host.remove()})
@@ -48,4 +50,16 @@ it('does not display a scan result that arrives after account change',async()=>{
 })
 it('requires confirmation for explicit policy fields and does not expose device mutations in a read-only view',async()=>{
   await render();await click('Save');expect(centerCommand).not.toHaveBeenCalled();await act(async()=>confirm().onConfirm());expect(centerCommand).toHaveBeenCalledWith('/api/centers/access/policy',expect.objectContaining({centerId:'center1',version:1,policy:info.policy}));await render({canManage:false,canVerify:false});expect(button('Activate reception here')).toBeUndefined();expect(button('Revoke reception device')).toBeUndefined();expect(button('Save')).toBeUndefined()
+})
+
+it('renders every access rule in Spanish and saves the visit-pass rule only after confirmation',async()=>{
+  _setLangState('es',es,null,null);await render();
+  const switches=[...host.querySelectorAll('[role="switch"]')];
+  expect(switches).toHaveLength(4);
+  expect(switches.every(node=>node.getAttribute('aria-label')?.trim())).toBe(true);
+  const passes=switches.find(node=>node.getAttribute('aria-label')===t('Allow explicitly selected visit passes'));
+  expect(passes).toBeDefined();expect(passes.getAttribute('aria-checked')).toBe('false');
+  await act(async()=>passes.click());await click(t('Save'));expect(centerCommand).not.toHaveBeenCalled();
+  await act(async()=>confirm().onConfirm());
+  expect(centerCommand).toHaveBeenCalledWith('/api/centers/access/policy',expect.objectContaining({centerId:'center1',version:1,policy:{...info.policy,allowPasses:true}}));
 })

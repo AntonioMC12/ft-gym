@@ -84,7 +84,12 @@ export default function AccessPanel({centerId,ownerUid,active=true,canManage=fal
   const deviceMore=useAutoMore(moreDevices),visitMore=useAutoMore(moreVisits)
   return <><Section title={t('Access rules')}><form ref={saveForm} aria-label={t('Access rules')} className="centers-form" onSubmit={e=>{e.preventDefault();save()}}>
     {draft&&<>
-      {['enabled','requireSubscription','denyOverdue','allowPasses'].map((key,index)=><Row key={key} title={t(['Enable center access','Require a current subscription','Deny entry for overdue debt','Allow explicitly selected visit passes'][index])} value={<Switch checked={draft[key]} aria-label={t(['Enable center access','Require a current subscription','Deny entry for overdue debt'][index])} disabled={busy||!canManage||!active} onChange={value=>{if(canManage&&active&&!busy)setDraft(old=>({...old,[key]:value}))}}/>}/>)}
+      {[
+        ['enabled','Enable center access'],
+        ['requireSubscription','Require a current subscription'],
+        ['denyOverdue','Deny entry for overdue debt'],
+        ['allowPasses','Allow explicitly selected visit passes']
+      ].map(([key,label])=><Row key={key} title={t(label)} value={<Switch checked={draft[key]} aria-label={t(label)} disabled={busy||!canManage||!active} onChange={value=>{if(canManage&&active&&!busy)setDraft(old=>({...old,[key]:value}))}}/>}/>)}
       <label className="centers-field"><span>{t('Access debt grace (days)')}</span><NumberField className="field" value={draft.graceDays} decimal={false} disabled={busy||!canManage||!active} onChange={value=>setDraft(old=>({...old,graceDays:value}))}/></label>
       {canManage&&<Button type="submit" disabled={busy||!active}>{t('Save')}</Button>}
     </>}

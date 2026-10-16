@@ -4,7 +4,7 @@ import {createRoot} from 'react-dom/client'
 import {beforeEach,afterEach,it,expect,vi} from 'vitest'
 vi.mock('../../lib/i18n.js',()=>({t:key=>key}))
 vi.mock('../../store/useStore.js',()=>{const state={user:{id:'manager'}};return{useStore:Object.assign(selector=>selector(state),{getState:()=>state})}})
-vi.mock('../../lib/centers-api.js',()=>({centerSubscriptions:vi.fn(),centerPlans:vi.fn(),centerCommand:vi.fn(),subscriptionsErrorKey:()=> 'error'}))
+vi.mock('../../lib/centers-api.js',()=>({centerSubscriptions:vi.fn(),centerPlans:vi.fn(),centerCommand:vi.fn(),subscriptionsErrorKey:()=> 'error',receiptsErrorKey:()=> 'error'}))
 vi.mock('../../sheets.jsx',()=>({confirmSheet:vi.fn(options=>options.onConfirm())}))
 import {centerSubscriptions,centerPlans,centerCommand} from '../../lib/centers-api.js'
 import Subscriptions from './Subscriptions.jsx'
@@ -71,4 +71,16 @@ it('does not forget incomplete selected terms when a catalogue search hides that
     expect([...host.querySelectorAll('button')].find(button=>button.textContent==='Save').disabled).toBe(true);
     await act(async()=>host.querySelector('form').dispatchEvent(new Event('submit',{bubbles:true,cancelable:true})));expect(centerCommand).not.toHaveBeenCalled();
   }finally{vi.useRealTimers()}
+})
+it('keeps current and scheduled contracts visible and folds history without losing its period previews',async()=>{
+  const contract=(id,startsOn,status,end=null)=>({id,name:id,priceMinor:'2500',currency:'EUR',discountBasisPoints:0,startsOn,status,effectiveEndsOn:end,priceIncludesTax:true,taxBasisPoints:0,proration:'none'});
+  centerSubscriptions.mockResolvedValue({member,today,changes:[],subscriptions:[contract('Current',today,'active'),contract('Old','2026-09-01','ended',today),contract('Future','2026-11-01','scheduled'),{...contract('Cancelled','2026-11-01','canceled'),canceled:true}]});await render();
+  const history=host.querySelector('.centers-subscription-history');expect(history.open).toBe(false);expect(history.querySelector('summary').textContent).toBe('Subscription history (2)');
+  expect(history.textContent).toContain('Old');expect(history.textContent).toContain('Ended subscription');expect(history.textContent).not.toContain('Ended member');
+  expect(host.querySelectorAll('.centers-subscriptions .centers-form>.centers-subscription-card')).toHaveLength(2);
+  expect([...history.querySelectorAll('button')].filter(button=>button.textContent==='Preview charge')).toHaveLength(1);
+  await act(async()=>history.open=true);expect(history.open).toBe(true);expect(centerCommand).not.toHaveBeenCalled();
+  centerCommand.mockRejectedValueOnce({code:'billing-policy-required'});await act(async()=>[...history.querySelectorAll('button')].find(button=>button.textContent==='Preview charge').click());
+  await act(async()=>history.querySelector('form').dispatchEvent(new Event('submit',{bubbles:true,cancelable:true})));
+  expect(centerCommand).toHaveBeenCalledWith('/api/centers/billing/preview',{centerId:'a',memberId:member.id,id:'Old'});
 })

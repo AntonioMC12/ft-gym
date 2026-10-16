@@ -40,12 +40,28 @@ export default function CenterNavigationGuard({children,contextKey}){
     })})
   }
   const dirty=pending.filter(item=>item.value.dirty),target=dirty.find(item=>item.ref.current.saveable&&item.ref.current.form.current)?.ref.current
+  const submitButton=target?.form.current?.querySelector('button[type=submit]')
+  const [localSubmit,setLocalSubmit]=useState(null)
+  useEffect(()=>{
+    if(!submitButton)return
+    if(typeof IntersectionObserver==='function'){
+      const observer=new IntersectionObserver(records=>{
+        const record=records.find(item=>item.target===submitButton)
+        if(record)setLocalSubmit({button:submitButton,visible:record.isIntersecting&&record.intersectionRatio>=0.99})
+      },{threshold:1,rootMargin:'0px 0px -100px 0px'})
+      observer.observe(submitButton);return()=>observer.disconnect()
+    }
+    const update=()=>{const rect=submitButton.getBoundingClientRect();setLocalSubmit({button:submitButton,visible:rect.height>0&&rect.top>=0&&rect.bottom<=window.innerHeight-100})}
+    update();window.addEventListener('scroll',update,true);window.addEventListener('resize',update)
+    return()=>{window.removeEventListener('scroll',update,true);window.removeEventListener('resize',update)}
+  },[submitButton])
+  const localSaveVisible=localSubmit?.button===submitButton&&localSubmit?.visible
   const save=()=>{
     if(pending.some(item=>item.ref.current.busy)||!target?.dirty||!target.saveable)return
     const form=target.form.current
     if(form?.isConnected&&!form.querySelector('button[type=submit]')?.disabled){form.scrollIntoView?.({block:'center',behavior:'smooth'});form.requestSubmit()}
   }
-  return <Context.Provider value={{entries:entries.current,request,report}}>{children}{dirty.length>0&&<aside className="centers-unsaved-bar" aria-label={t('Unsaved changes')}>
+  return <Context.Provider value={{entries:entries.current,request,report}}>{children}{dirty.length>0&&!localSaveVisible&&<aside className="centers-unsaved-bar" aria-label={t('Unsaved changes')}>
     <div><strong role="status">{t('Unsaved changes')}</strong><p className="small muted">{t('Each form is saved separately.')}</p></div>
     {target?.saveable&&target.form.current&&<Button variant="primary" disabled={pending.some(item=>item.value.busy)||!!target.form.current.querySelector('button[type=submit]')?.disabled} onClick={save}>{t('Save form')}{target.form.current.getAttribute('aria-label')?': '+target.form.current.getAttribute('aria-label'):''}</Button>}
   </aside>}</Context.Provider>

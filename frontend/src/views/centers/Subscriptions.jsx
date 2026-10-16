@@ -67,18 +67,22 @@ export default function Subscriptions({centerId,member,ownerUid,changed,receiptC
       try{const result=await centerCommand('/api/centers/subscriptions/cancel',{centerId,memberId:member.id,memberVersion:member.version,id:row.id,requestId:cancelIds.current.get(row.id)});if(current(epoch)){setInfo(result);changed(result)}}catch(e){if(current(epoch))fail(e)}finally{if(current(epoch))setBusy(false)}
     }})
   }
-  return <Section title={t('Subscriptions')}><div className="centers-form">
+  const history=(info?.subscriptions||[]).filter(row=>row.canceled||row.status==='ended'||row.effectiveEndsOn&&row.effectiveEndsOn<=info.today)
+  const currentContracts=(info?.subscriptions||[]).filter(row=>!history.includes(row))
+  const contract=row=><div key={row.id} className="centers-subscription-card"><ContractSummary contract={row}>{row.canCancel&&<Button disabled={busy} onClick={()=>cancel(row)}>{t('Cancel scheduled change')}</Button>}</ContractSummary>{!row.canceled&&<BillingPreview key={member.version} centerId={centerId} memberId={member.id} contractId={row.id} ownerUid={ownerUid} today={info.today} canGenerate onGenerated={receiptCreated} policyMissing={row.priceIncludesTax===null||row.taxBasisPoints===null||row.proration===null} onConfigure={onManagePlans}/>}</div>
+  return <Section title={t('Subscriptions')} className="centers-subscriptions"><div className="centers-form">
     {!info&&!error&&<p role="status">{t('Loading…')}</p>}
-    {info?.subscriptions.map(row=><div key={row.id}><ContractSummary contract={row}>{row.canCancel&&<Button disabled={busy} onClick={()=>cancel(row)}>{t('Cancel scheduled change')}</Button>}</ContractSummary>{!row.canceled&&<BillingPreview key={member.version} centerId={centerId} memberId={member.id} contractId={row.id} ownerUid={ownerUid} today={info.today} canGenerate onGenerated={receiptCreated} policyMissing={row.priceIncludesTax===null||row.taxBasisPoints===null||row.proration===null} onConfigure={onManagePlans}/>}</div>)}
-    {info&&!scheduled&&member.state!=='ended'&&<form ref={saveForm} aria-label={t('Subscriptions')} onSubmit={submit}>
+    {currentContracts.map(contract)}
+    {history.length>0&&<details className="centers-subscription-history"><summary>{t('Subscription history')} ({history.length})</summary>{history.map(contract)}</details>}
+    {info&&!scheduled&&member.state!=='ended'&&<form className="centers-subscription-editor" ref={saveForm} aria-label={t('Subscriptions')} onSubmit={submit}>
       <h3>{active?t('Change membership plan'):t('Assign membership plan')}</h3>
       <SearchField aria-label={t('Search membership plans')} placeholder={t('Search membership plans')} value={query} onChange={e=>setQuery(e.target.value)} onClear={()=>setQuery('')}/>
       <SelectRow title={t('Membership plans')} value={priceVersionId} options={plans.map(plan=>({value:plan.priceVersionId,label:plan.name+' · '+minorToPrice(plan.priceMinor)+' '+plan.currency}))} onChange={value=>update(setPriceVersionId,value)}/>
       {planIncomplete&&<div className="centers-import-notice" role="status"><p>{t('Tax and proration must be configured before calculating charges.')}</p>{onManagePlans&&<Button type="button" onClick={onManagePlans}>{t('Membership plans')}</Button>}</div>}
       {cursor&&<Button ref={moreRef} type="button" onClick={more}>{t('Show more')}</Button>}
       {!plans.length&&!pendingPlans.current&&<p>{t('No membership plans available')}</p>}
-      <label className="centers-field"><span>{t('Effective date')}</span><TextField type="date" required disabled={busy} min={info.today} value={effectiveOn} onChange={e=>update(setEffectiveOn,e.target.value)}/></label>
-      <label className="centers-field"><span>{t('Discount (%)')}</span><TextField required disabled={busy} inputMode="decimal" value={discount} onChange={e=>update(setDiscount,e.target.value)}/></label>
+      <div className="centers-fields"><label className="centers-field"><span>{t('Effective date')}</span><TextField type="date" required disabled={busy} min={info.today} value={effectiveOn} onChange={e=>update(setEffectiveOn,e.target.value)}/></label>
+      <label className="centers-field"><span>{t('Discount (%)')}</span><TextField required disabled={busy} inputMode="decimal" value={discount} onChange={e=>update(setDiscount,e.target.value)}/></label></div>
       <label className="centers-field"><span>{t('Discount reason')}</span><TextArea disabled={busy} maxLength={250} value={reason} onChange={e=>update(setReason,e.target.value)}/></label>
       <Button type="submit" variant="primary" disabled={busy||!priceVersionId||planIncomplete}>{t('Save')}</Button>
     </form>}

@@ -51,3 +51,14 @@ it('the shared action respects a disabled local submit instead of bypassing elig
  function Restricted(){const ref=useUnsavedCenterForm('changed');return <form ref={ref} onSubmit={leave}><button type="submit" disabled>Local save</button></form>}
  act(()=>root.render(<Guard><Restricted/></Guard>));expect(host.querySelector('aside button').disabled).toBe(true);act(()=>host.querySelector('aside button').click());expect(leave).not.toHaveBeenCalled();
 })
+it('shows the local save alone when visible and restores the floating action when scrolled out',()=>{
+ let observe;const disconnect=vi.fn();vi.stubGlobal('IntersectionObserver',class{constructor(callback){observe=callback}observe(){}disconnect(){disconnect()}});
+ try{
+  act(()=>root.render(<Guard><EditableForm/></Guard>));edit(host.querySelector('input'),'changed');const local=host.querySelector('form button');
+  expect(host.querySelector('aside button')).not.toBeNull();
+  act(()=>observe([{target:local,isIntersecting:true,intersectionRatio:1}]));expect(host.querySelector('aside')).toBeNull();
+  const before=new Event('beforeunload',{cancelable:true});window.dispatchEvent(before);expect(before.defaultPrevented).toBe(true);
+  act(()=>observe([{target:local,isIntersecting:false,intersectionRatio:0}]));expect(host.querySelector('aside button')).not.toBeNull();
+  act(()=>observe([{target:local,isIntersecting:true,intersectionRatio:1}]));act(()=>local.click());expect(leave).toHaveBeenCalledOnce();expect(host.querySelector('aside')).toBeNull();expect(disconnect).toHaveBeenCalled();
+ }finally{vi.unstubAllGlobals()}
+})

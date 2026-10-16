@@ -105,3 +105,20 @@ body.no-tabbar .centers-unsaved-bar{bottom:calc(12px + var(--sab,0px))}
 .centers-member-source>summary:focus-visible{outline:2px solid var(--acc);outline-offset:4px}
 @media(min-width:768px){#app:has(.centers-member-workspace){max-width:1160px}.centers-page:has(.centers-member-workspace){max-width:1100px}}
 @media(max-width:767px){.centers-member-layout{grid-template-columns:1fr;gap:16px}.centers-member-nav{position:static;padding:0}.centers-member-desktop-nav{display:none}.centers-member-mobile-nav{display:block}.centers-member-mobile-nav .lrow-v{max-width:65%;white-space:normal}.centers-member-summary{grid-template-columns:1fr}.centers-member-quick-actions>.btn{width:100%}}
+
+/* Compact contracts, with historical versions behind a disclosure. */
+.centers-subscription-card{padding:12px 16px;margin-bottom:12px;border:1px solid var(--sep);border-radius:var(--r);background:var(--surface-2)}
+.centers-subscription-card .lrow{padding:8px 0;border-bottom:0}
+.centers-subscription-card .lrow-s{white-space:normal;line-height:1.45}
+.centers-subscription-history{margin:16px 0;border-top:1px solid var(--sep);border-bottom:1px solid var(--sep)}
+.centers-subscription-history>summary{min-height:48px;align-content:center;cursor:pointer;padding:10px 4px;color:var(--label-2);font-weight:600}
+.centers-subscription-history>summary:focus-visible{outline:2px solid var(--acc);outline-offset:3px}
+.centers-subscription-history .centers-subscription-card{margin:0;padding:12px 4px;border:0;border-top:1px solid var(--sep);border-radius:0;background:transparent}
+.centers-billing-preview{display:block;margin:0;padding:4px 0;border-bottom:0}
+.centers-billing-preview>.btn,.centers-billing-preview>form>.btn{width:auto;min-height:44px;padding:10px 14px;border:1px solid var(--sep);border-radius:var(--r)}
+.centers-billing-preview>form{display:grid;gap:12px;margin-top:14px;max-width:720px}
+.centers-billing-preview>form>.btn{justify-self:start}
+.centers-subscription-editor{display:grid;gap:16px;margin-top:24px;padding-top:24px;border-top:1px solid var(--sep)}
+.centers-subscription-editor h3{margin:0 0 4px;line-height:1.35}
+.centers-subscription-editor>.centers-fields{margin:0}
+.centers-subscription-editor>p{margin:0}

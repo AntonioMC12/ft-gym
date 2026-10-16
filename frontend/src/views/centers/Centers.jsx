@@ -1,3 +1,4 @@
+import CenterWorkspace from './CenterWorkspace.jsx'
 import PassProducts from './PassProducts.jsx'
 import Retention from './Retention.jsx'
 import { useEffect, useRef, useState } from 'react'
@@ -7,7 +8,7 @@ import { useStore } from '../../store/useStore.js'
 import { useCenters } from '../../store/useCenters.js'
 import { t } from '../../lib/i18n.js'
 import { platformCenters, centerCommand, centerDetail, centerStaff, centersErrorKey } from '../../lib/centers-api.js'
-import { Button, TextField, NumberField, Section, Row, SearchField, Switch, Segmented, SelectRow } from '../../components/ui.jsx'
+import { Button, TextField, NumberField, Section, Row, SearchField, Switch, SelectRow } from '../../components/ui.jsx'
 import { confirmSheet } from '../../sheets.jsx'
 import { useUI } from '../../store/useUI.js'
 import Icon from '../../components/Icon.jsx'
@@ -119,10 +120,12 @@ function CenterPanel({ center, platform, capabilities, close, refresh, ownerUid,
     confirmSheet({title:t('Confirm deactivation'),message:center.name,confirmText:t('Deactivate center'),danger:true,onConfirm:()=>perform(updatePath,{...fields,centerId:center.id,version:center.version,state:'inactive'},epoch)})
   }
   const updatePath = platform ? '/api/platform/centers/update' : '/api/centers/update'
-  return <><Section title={center.name}><div className="centers-form">
-    <div className="centers-actions"><span className="muted small">{stateLabel(center.state)}</span><Button onClick={close}>{t('Back')}</Button></div>
-    {(canMembers||canPlans||canBilling||canAccess||canClasses)&&<div className="centers-tabs-scroll"><Segmented scrollable label={t('Center details')} options={[{value:'details',label:t('Center details')},...(canMembers?[{value:'members',label:t('Members')}]:[]),...(canPlans?[{value:'plans',label:t('Membership plans')}]:[]),...(canClasses?[{value:'classes',label:t('Classes')}]:[]),...(canBilling?[{value:'billing',label:t('Debt and calendar')},{value:'metrics',label:t('Center metrics')}]:[]),...(canAccess?[{value:'access',label:t('Center access')}]:[])]} value={classesPane?'classes':memberPane?'members':planPane?'plans':billingPane?'billing':accessPane?'access':metricsPane?'metrics':'details'} onChange={setPane}/><p className="centers-tabs-hint small muted"><Icon name="chevronRight"/>{t('Scroll to see more sections')}</p></div>}
-    {!memberPane&&!planPane&&!billingPane&&!accessPane&&!metricsPane&&!classesPane&&<>
+  const sections=[{value:'details',label:t('Center details')},...(canMembers?[{value:'members',label:t('Members')}]:[]),...(canPlans?[{value:'plans',label:t('Membership plans')}]:[]),...(canClasses?[{value:'classes',label:t('Classes')}]:[]),...(canBilling?[{value:'billing',label:t('Debt and calendar')},{value:'metrics',label:t('Center metrics')}]:[]),...(canAccess?[{value:'access',label:t('Center access')}]:[])]
+  const selectedPane=classesPane?'classes':memberPane?'members':planPane?'plans':billingPane?'billing':accessPane?'access':metricsPane?'metrics':'details'
+  return <article className="centers-center-workspace">
+    <header className="centers-center-header"><div><h2>{center.name}</h2><span className="centers-member-status">{stateLabel(center.state)}</span></div><Button type="button" icon="chevronLeft" onClick={close}>{t('Back')}</Button></header>
+    <CenterWorkspace label={center.name} options={sections} value={selectedPane} onChange={setPane}>
+    {detailsPane&&<Section title={t('Center details')}><div className="centers-form">
     {(platform || capabilities.includes('center.update')) && <form ref={saveForm} aria-label={t('Center details')} onSubmit={e => { e.preventDefault(); perform(updatePath, { ...fields, centerId: center.id, version: center.version }) }}><Fields value={fields} change={setFields} disabled={busy}/><Button type="submit" variant="primary" disabled={busy}>{t('Save')}</Button></form>}
     {staff.length > 0 && <div><h3>{t('Center staff')}</h3>{staff.map(role => <div key={role.id} className="centers-staff-row"><div><strong>{role.role === 'manager' ? t('Center manager') : t('Trainer')}</strong><div className="small muted">{role.accountUid}</div></div>
       {role.revoked ? <span className="muted small">{t('Revoked role')}</span> : (platform || role.role === 'trainer') && <div className="centers-actions">{platform && role.role==='manager' && <Button onClick={() => setReplaceId(role.id)}>{t('Replace')}</Button>}<Button disabled={busy} onClick={() => perform(platform ? '/api/platform/centers/revoke-role' : '/api/centers/staff/revoke', { centerId: center.id, version: center.version, assignmentId: role.id })}>{t('Revoke role')}</Button></div>}
@@ -134,9 +137,11 @@ function CenterPanel({ center, platform, capabilities, close, refresh, ownerUid,
       {center.state === 'inactive' && <Button disabled={busy} onClick={() => perform(updatePath, { ...fields, centerId: center.id, version: center.version, state: 'active' })}>{t('Activate center')}</Button>}
     </div>}
     {error && <p role="alert">{t(centersErrorKey(error))}</p>}
-    </>}
-  </div></Section>{classesPane?<Classes centerId={center.id} ownerUid={ownerUid} canManage={capabilities.includes('classes.manage')}/>:metricsPane?<><Metrics key={'metrics:'+center.id} centerId={center.id} ownerUid={ownerUid} timezone={center.timezone} period={metricPeriod} onPeriod={setMetricPeriod}/>{capabilities.includes('members.manage')&&<Retention centerId={center.id} ownerUid={ownerUid}/>}</>:accessPane?<AccessPanel key={'access:'+center.id} centerId={center.id} ownerUid={ownerUid} active={center.state==='active'} canManage={capabilities.includes('access.manage')} canVerify={capabilities.includes('access.verify')} timezone={center.timezone}/>:billingPane?<><DebtCalendar key={center.id} centerId={center.id} ownerUid={ownerUid} canExport={capabilities.includes('data.export')}/><StripePayments key={'stripe:'+center.id} centerId={center.id} ownerUid={ownerUid} canReconcile={capabilities.includes('payments.record')}/><BillingAutomation key={'automation:'+center.id} centerId={center.id} ownerUid={ownerUid} platform={platform} active={center.state==='active'}/><NotificationSettings key={'notifications:'+center.id} centerId={center.id} ownerUid={ownerUid} platform={platform} active={center.state==='active'}/></>:planPane?<><MembershipPlans key={center.id} centerId={center.id} ownerUid={ownerUid}/><PassProducts centerId={center.id} ownerUid={ownerUid}/></>:memberPane?<Members platform={platform} key={center.id} centerId={center.id} ownerUid={ownerUid} capabilities={capabilities} active={center.state==='active'} centerState={center.state} onDetails={()=>setPane('details')} onPlans={()=>setPane('plans')} importId={importId} onImport={onImport}/>:
-    (platform||capabilities.includes('staff.manage'))&&<Invitations key={center.id} centerId={center.id} ownerUid={ownerUid} allowedKinds={platform?['manager','trainer']:['trainer']}/>}</>
+    </div></Section>}
+    {classesPane?<Classes centerId={center.id} ownerUid={ownerUid} canManage={capabilities.includes('classes.manage')}/>:metricsPane?<><Metrics key={'metrics:'+center.id} centerId={center.id} ownerUid={ownerUid} timezone={center.timezone} period={metricPeriod} onPeriod={setMetricPeriod}/>{capabilities.includes('members.manage')&&<Retention centerId={center.id} ownerUid={ownerUid}/>}</>:accessPane?<AccessPanel key={'access:'+center.id} centerId={center.id} ownerUid={ownerUid} active={center.state==='active'} canManage={capabilities.includes('access.manage')} canVerify={capabilities.includes('access.verify')} timezone={center.timezone}/>:billingPane?<><DebtCalendar key={center.id} centerId={center.id} ownerUid={ownerUid} canExport={capabilities.includes('data.export')}/><StripePayments key={'stripe:'+center.id} centerId={center.id} ownerUid={ownerUid} canReconcile={capabilities.includes('payments.record')}/><BillingAutomation key={'automation:'+center.id} centerId={center.id} ownerUid={ownerUid} platform={platform} active={center.state==='active'}/><NotificationSettings key={'notifications:'+center.id} centerId={center.id} ownerUid={ownerUid} platform={platform} active={center.state==='active'}/></>:planPane?<><MembershipPlans key={center.id} centerId={center.id} ownerUid={ownerUid}/><PassProducts centerId={center.id} ownerUid={ownerUid}/></>:memberPane?<Members platform={platform} key={center.id} centerId={center.id} ownerUid={ownerUid} capabilities={capabilities} active={center.state==='active'} centerState={center.state} onDetails={()=>setPane('details')} onPlans={()=>setPane('plans')} importId={importId} onImport={onImport}/>:
+    (platform||capabilities.includes('staff.manage'))&&<Invitations key={center.id} centerId={center.id} ownerUid={ownerUid} allowedKinds={platform?['manager','trainer']:['trainer']}/>}
+    </CenterWorkspace>
+  </article>
 }
 
 function Content({ user }) {

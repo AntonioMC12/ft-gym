@@ -222,3 +222,10 @@ it('discarding edited details clears the hidden draft and browsing plan lists do
 it('the visible shared save action sends edited center fields through the existing save handler',async()=>{
  centerCommand.mockResolvedValue({center});await render();await click('Center details');input(host.querySelector('input'),'Saved via bar');await act(async()=>{host.querySelector('aside button').click();await Promise.resolve()});expect(centerCommand).toHaveBeenCalledWith('/api/platform/centers/update',expect.objectContaining({centerId:'one',version:1,name:'Saved via bar'}));
 })
+it('shares center navigation across areas while preserving permissions and the selected destination',async()=>{
+ useCenters.setState({platformCapabilities:['centers.manage','plans.manage','members.read','classes.read','access.manage']});await render();await click('Center details');
+ const menu=()=>host.querySelector('.centers-center-workspace>.centers-workspace>.centers-workspace-nav');
+ expect(menu().textContent).toContain('Membership plans');expect(menu().textContent).toContain('Members');expect(menu().textContent).not.toContain('Debt and calendar');
+ expect(host.querySelector('.centers-tabs-scroll')).toBeNull();await click('Membership plans');expect(host.textContent).toContain('Existing plan list');expect(menu().querySelector('[aria-current=page]').textContent).toBe('Membership plans');
+ await click('Classes');expect(host.querySelector('[data-classes-center]').dataset.classesCenter).toBe(center.id);await click('Center access');expect(host.querySelector('[data-access-panel]').dataset.accessPanel).toBe(center.id);
+})

@@ -1,7 +1,8 @@
+import CenterWorkspace from './CenterWorkspace.jsx'
 import Passes from './Passes.jsx'
 import SharedProgress from './SharedProgress.jsx'
 import { useEffect, useId, useRef, useState } from 'react'
-import { Button, Section, Row, SearchField, TextField, SelectRow } from '../../components/ui.jsx'
+import { Button, Section, Row, SearchField, TextField } from '../../components/ui.jsx'
 import { useAutoMore } from '../../lib/use-auto-more.js'
 import { centerMembers, centerMember, centerCommand, membersErrorKey } from '../../lib/centers-api.js'
 import { t } from '../../lib/i18n.js'
@@ -29,7 +30,6 @@ function MemberForm({centerId,member,lifecycle,ownerUid,close,saved,canBilling,c
   const [requestId]=useState(()=>crypto.randomUUID())
   const [receiptsRevision,setReceiptsRevision]=useState(0)
   const [pane,setPane]=useState('overview'),[editingDetails,setEditingDetails]=useState(!member)
-  const panelId=useId()
   const sections=[{value:'overview',label:t('Member overview')},{value:'details',label:t('Member details')},...(canBilling?[{value:'billing',label:t('Fees and payments')}]:[]),{value:'access',label:t('Access and membership')},...(capabilities.some(c=>['training.shared.read','training.assign'].includes(c))?[{value:'training',label:t('Training proposals')}]:[])]
   const changePane=value=>{if(value!==pane)requestNavigation(()=>{setFields(fieldsOf(currentMember));setEditingDetails(false);setPane(value)})}
   const requestNavigation=useCenterNavigation()
@@ -55,12 +55,7 @@ function MemberForm({centerId,member,lifecycle,ownerUid,close,saved,canBilling,c
       <Button type="button" icon="chevronLeft" onClick={()=>requestNavigation(close)}>{t('Back to members')}</Button>
       <div><p className="small muted">{t('Member number')}: {currentMember.number}</p><h2>{currentMember.name}</h2><span className="centers-member-status">{stateText(currentMember.state)}</span></div>
     </header>
-    <div className="centers-member-layout">
-      <nav className="centers-member-nav" aria-label={t('Member sections')}>
-        <div className="centers-member-desktop-nav">{sections.map(section=><Button key={section.value} type="button" aria-current={pane===section.value?'page':undefined} aria-controls={panelId} onClick={()=>changePane(section.value)}>{section.label}</Button>)}</div>
-        <div className="centers-member-mobile-nav"><SelectRow title={t('Member sections')} value={pane} options={sections} onChange={changePane}/></div>
-      </nav>
-      <div id={panelId} className="centers-member-content">
+    <CenterWorkspace label={t('Member sections')} options={sections} value={pane} onChange={changePane}>
         {pane==='overview'&&<Section title={t('Member overview')}><div className="centers-form">
           <div className="centers-member-summary"><Row title={t('Member details')} value={stateText(currentMember.state)}/><Row title={t('Center invitations')} value={t(currentMember.accountLinked?'Account linked':'No linked account')}/></div>
           <Row title={t('Contact email')} value={currentMember.email||'—'}/><Row title={t('Phone')} value={currentMember.phone||'—'}/>
@@ -75,8 +70,7 @@ function MemberForm({centerId,member,lifecycle,ownerUid,close,saved,canBilling,c
         </>}
         {pane==='training'&&<>{capabilities.includes('training.shared.read')&&<SharedProgress centerId={centerId} member={currentMember} ownerUid={ownerUid}/>}{capabilities.includes('training.assign')&&<TrainingProposals onLinkAccount={()=>changePane('details')} key={'training:'+currentMember.id} centerId={centerId} member={currentMember} ownerUid={ownerUid} canAssign active={active}/>}</>}
         {pane==='billing'&&canBilling&&<><Subscriptions onManagePlans={capabilities.includes('plans.manage')?onPlans:undefined} key={currentMember.id} centerId={centerId} member={currentMember} ownerUid={ownerUid} changed={result=>{setCurrentMember(result.member);setInfo({today:result.today,changes:result.changes})}} receiptCreated={()=>setReceiptsRevision(value=>value+1)}/><Receipts key={currentMember.id} centerId={centerId} memberId={currentMember.id} ownerUid={ownerUid} revision={receiptsRevision} canRecord={capabilities.includes('payments.record')} today={info?.today} changed={()=>setReceiptsRevision(value=>value+1)}/><Payments centerId={centerId} memberId={currentMember.id} ownerUid={ownerUid} revision={receiptsRevision} canRefund={capabilities.includes('payments.refund')} today={info?.today} changed={()=>setReceiptsRevision(value=>value+1)}/><Passes centerId={centerId} memberId={currentMember.id} ownerUid={ownerUid} today={info?.today} active={active&&currentMember.state==='active'} revision={receiptsRevision} changed={()=>setReceiptsRevision(value=>value+1)}/></>}
-      </div>
-    </div>
+    </CenterWorkspace>
   </article>
 }
 

@@ -4,7 +4,7 @@
 
 ## Punto de reanudación — decisiones del16octubre
 
-- Rama codex/centers-module, schema042. Cambios previos Docker/web/demo del usuario conservados. Preview en https://dining-salt-volumes-adaptive.trycloudflare.com/#/centers, API/WEB4a695510-dirty healthy antes de esta entrega, túnel y volumen conservados. No ejecutar migraciones: esta mejora no cambia esquema.
+- Rama codex/centers-module, schema042. Cambios previos Docker/web/demo del usuario conservados. Preview en https://dining-salt-volumes-adaptive.trycloudflare.com/#/centers, API/WEB11280aa3-dirty healthy, túnel y volumen conservados. No ejecutar migraciones: esta mejora no cambia esquema.
 - Alcance vigente: cobros exclusivamente en efectivo. C43–C45 implementados; C46 mejora UX de cuotas/bonos implementada y comprobada automáticamente, pendiente aceptación visual real. Guardar calcula sin exigir previsualización, acciones locales con indicador compacto y motivos de bloqueo consultables. No hay autorización productiva ni cobros reales.
 - C27: aplazado expresamente, todo/fuera de la entrega actual. Conservar código/fixture y guía como referencia futura, sin configurar claves, ensayar sandbox ni activar cobros. La validación Stripe no bloquea el cierre del alcance en efectivo.
 - C28/C39: aplazados expresamente, estado todo/fuera del alcance actual. No se emitirán facturas fiscales por ahora; conservar recibos, pagos manuales y deuda. SEPA es domiciliación bancaria y también se aplaza.
@@ -13,7 +13,7 @@
 - C41/C42: todo, validar al terminar el alcance acordado. No bloquear por adelantado tareas de desarrollo local con su aceptación/activación final ni marcar funciones futuras como implementadas.
 - C29/C30/C31/C33/C34/C36/C37/C38/C40: done técnico; criterios y evidencia en el historial. C30/C33/C38 no deben reimplementarse. Matriz vigente: CENTERS_DELIVERY_STATUS.md.
 - Última entrega: C46, implementación terminada; pruebas de interfaz133/133 (82 formularios/controles +51 navegación afectada), PostgreSQL15/15 y OpenAPI3/3 correctos. Build correcto;2181textos presentes y18locales/2834claves sincronizados. No suites generales.
-- Validación pendiente: revisión visual real escritorio/móvil/temas y aceptación C41/C42. El navegador de esta sesión no permite esa comprobación; no sustituirla por resultados DOM ni marcarla verificada. C46 sigue in_progress únicamente por esa validación solicitada. Siguiente paso: actualizar preview sin migrar ni tocar datos y realizar esa revisión cuando haya navegador habilitado.
+- Validación pendiente: revisión visual real escritorio/móvil/temas y aceptación C41/C42. El navegador de esta sesión no permite esa comprobación; no sustituirla por resultados DOM ni marcarla verificada. C46 sigue in_progress únicamente por esa validación solicitada. Siguiente paso: revisar visualmente la preview actualizada en escritorio/móvil/temas cuando haya navegador habilitado; C46 no requiere más implementación conocida.
 
 ### Cierre técnico y validación diferida
 
@@ -942,3 +942,6 @@ Cuotas, bonos y recibos agrupan acciones locales con área táctil mínima44px y
 El backend comparte passDayAvailability entre resumen financiero y registro diario. passDayReason indica used-today, member-inactive, no-pass, revoked, exhausted, expired, not-started o payment-required; solo null habilita uso con disponibilidad SQL. Misma regla centers.pass_available, orden FEFO, locks, RLS, replay y ledger existentes. La explicación es orientativa; el comando vuelve a comprobar el estado transaccionalmente. Sin migración ni cambio de reglas económicas.
 
 Comprobaciones:133/133 tests DOM focales,15/15 SQL en CI aislado y3/3 contrato OpenAPI. Cubren guardado directo, previsualización, edición tras cálculo, confirmación obsoleta/cambio de cuenta o centro, reintento con misma clave, doble envío, cancelación limpia/sucia/reversión, protección nativa y accesibilidad de ayuda/selector. Build e i18n correctos; avisos previos de imports dinámicos ineficaces sin error de compilación. Logs ux-forms-* fuera de Git. Estas comprobaciones no acreditan legibilidad ni disposición real en escritorio/móvil/temas: revisión visual y aceptación pendientes, C46 in_progress por ese motivo. No se han realizado cobros ni comunicaciones externas.
+
+
+Preview C46 actualizada: commit11280aa3 en codex/centers-module, API/WEB11280aa3-dirty healthy tras build Docker correcto y HTTP público200. Túnel sin reiniciar; schema042 y volumen conservados.7archivos con SHA256 idénticos y conteos SQL socios/contratos/recibos/pagos/consumos idénticos. Sin migraciones ni operaciones económicas sobre preview. Dirty corresponde únicamente a cambios previos Docker/web/demo del usuario, excluidos del commit. No push. Pendiente revisión visual real; esta comprobación de salud no acredita el aspecto de la interfaz.

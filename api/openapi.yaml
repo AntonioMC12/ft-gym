@@ -5850,9 +5850,9 @@ paths:
       summary: Current account application access and ten-day grace deadlines
       description: Account-bound, no selectors. Civil expiry is exclusive period end minus one day; blocked after expiry plus ten days. Administrators and fee managers are exempt. Pass-only memberships do not require a monthly contract. Rechecked on private API requests and frontend focus/30 seconds. All private APIs can return 403 membership-renewal-required; logout, authentication and this recovery status remain accessible.
       responses:
-        '200': { description: blocked flag, grace warnings and own membership deadlines }
-        '401': { description: Not signed in }
-        '503': { description: Status unavailable; private access fails closed }
+        '200': { description: "blocked flag, grace warnings and own membership deadlines" }
+        '401': { description: "Not signed in" }
+        '503': { description: "Status unavailable; private access fails closed" }
   /api/centers/renewals/preview:
     post:
       tags: [centers]
@@ -5871,8 +5871,8 @@ paths:
                 memberId: { type: string }
                 priceVersionId: { type: string }
       responses:
-        '200': { description: Cash review or covered period }
-        '409': { description: Select a valid fee, review receipt refunds or activate membership }
+        '200': { description: "Cash review or covered period" }
+        '409': { description: "Select a valid fee, review receipt refunds or activate membership" }
   /api/centers/renewals/cash:
     post:
       tags: [centers]
@@ -5893,8 +5893,8 @@ paths:
                 quoteHash: { type: string }
                 requestId: { type: string }
       responses:
-        '200': { description: Renewal, receipt and optional payment IDs or alreadyCovered }
-        '409': { description: Review changed, pending contract or refund reconciliation required }
+        '200': { description: "Renewal, receipt and optional payment IDs or alreadyCovered" }
+        '409': { description: "Review changed, pending contract or refund reconciliation required" }
   /api/centers/passes/day:
     post:
       tags: [centers]
@@ -5902,8 +5902,8 @@ paths:
       summary: Record one local day and consume one credit for a pass-only member
       description: Requires billing.manage. Body centerId, memberId, requestId. Server chooses the first usable paid or promotional pass by expiry then purchase age. Shared append-only QR/manual balance, center lock, member/local-day replay and SQL validation prevent negative or duplicate consumption. Existing QR admission policy remains unchanged.
       responses:
-        '200': { description: usedOn, passId, remaining or alreadyUsed }
-        '409': { description: No usable balance, inactive member or member has a fee contract }
+        '200': { description: "usedOn, passId, remaining or alreadyUsed" }
+        '409': { description: "No usable balance, inactive member or member has a fee contract" }
   /api/centers/passes/history:
     get:
       tags: [centers]
@@ -5917,9 +5917,9 @@ paths:
         - { in: query, name: passId, schema: { type: string } }
         - { in: query, name: cursor, schema: { type: string } }
       responses:
-        '200': { description: passes or uses with nextCursor }
-        '403': { description: Current capability required }
-        '404': { description: Center unavailable }
+        '200': { description: "passes or uses with nextCursor" }
+        '403': { description: "Current capability required" }
+        '404': { description: "Center unavailable" }
 components:
   securitySchemes:
     cookieAuth:

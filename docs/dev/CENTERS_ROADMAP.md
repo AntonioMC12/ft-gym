@@ -488,3 +488,6 @@ C47 (petición posterior del16octubre): tarjeta por socio con cuota renovable, b
 
 
 C48: apartado Bonos independiente de Cuotas y de la sección económica de la ficha. Directorio de socios con búsqueda/cursor, gestión de asignaciones/revocaciones/consumo explícito e historial. Edición versionada del catálogo que conserva compras y ledger históricos; sin modificar recibos/pagos. Consumo de bono seleccionado con mismos controles de disponibilidad/socio/centro y límite diario. Reutilizar componentes, capacidades actuales y navegación protegida. Implementado; evidencia y validación visual pendiente en CENTERS_PROGRESS.md.
+
+
+C49: prueba de dashboard visual de métricas a partir del DTO existente, con indicadores, distribución de socios, dinero y visitas; reutilizar LineChart y controles/tokens actuales. Distinguir stocks actuales de flujos del periodo, no inventar tendencias ni ocupación. Preservar precisión de dinero y datos no configurados. Implementación/pruebas focales terminadas; revisión visual y aceptación pendientes en CENTERS_PROGRESS.md.

@@ -14,8 +14,8 @@
 - C29/C30/C31/C33/C34/C36/C37/C38/C40: done técnico; criterios y evidencia en el historial. C30/C33/C38 no deben reimplementarse. Matriz vigente: CENTERS_DELIVERY_STATUS.md.
 - C47: implementación de tarjeta única por socio, cuota/bonos independientes e historial de lectura bajo demanda. Migración043 y SQL16/16 correctos en CI; preview actualizada; revisión visual pendiente.
 - C48: apartado independiente de Bonos, búsqueda de socios, asignación/revocación/consumo específico y edición versionada del catálogo implementados. Sin migración; schema043. UI56/56, SQL18/18 y OpenAPI3/3 correctos; build/preview correctos; aceptación visual pendiente.
-- Última entrega: C48, Bonos independiente de Cuotas; búsqueda/gestión por socio, consumo específico y edición versionada de catálogo. UI56/56, SQL18/18, OpenAPI3/3, Docker e i18n correctos. Datos y túnel conservados; sin migración.
-- Validación pendiente: revisión visual real escritorio/móvil/temas y aceptación C41/C42. El navegador de esta sesión no permite esa comprobación; no sustituirla por resultados DOM ni marcarla verificada. C46/C47/C48 siguen in_progress únicamente por esa validación solicitada. Siguiente paso: revisar visualmente la preview actualizada en escritorio/móvil/temas cuando haya navegador habilitado; No hay implementación pendiente conocida dentro de estas peticiones.
+- Última entrega: C49, prueba de dashboard visual de métricas con datos actuales/periodo separados, tarjetas, distribución de socios y gráficos de visitas. UI40/40 correcta; build/preview WEB en curso. Backend y schema043 conservados.
+- Validación pendiente: revisión visual real escritorio/móvil/temas y aceptación C41/C42. El navegador de esta sesión no permite esa comprobación; no sustituirla por resultados DOM ni marcarla verificada. C46/C47/C48/C49 siguen in_progress únicamente por esa validación solicitada. Siguiente paso: revisar visualmente la preview actualizada en escritorio/móvil/temas cuando haya navegador habilitado; No hay implementación pendiente conocida dentro de estas peticiones.
 
 ### Cierre técnico y validación diferida
 
@@ -138,6 +138,7 @@ Estados permitidos: `todo`, `in_progress`, `done`, `blocked`. Una tarea done nec
 | C46 | F15 | UX cuotas/bonos: guardado directo, acciones, cambios pendientes y motivos | in_progress — implementación terminada; revisión visual pendiente |
 | C47 | F15 | Tarjeta por socio, historial y bonos con mensualidad | in_progress — implementación terminada; revisión visual pendiente |
 | C48 | F15 | Apartado independiente de bonos y gestión por socio | in_progress — implementación terminada; revisión visual pendiente |
+| C49 | F15 | Prueba de dashboard visual de métricas | in_progress — implementación terminada; revisión visual pendiente |
 
 ## Gates de entrega
 
@@ -982,3 +983,12 @@ POST passes/day admite passId opcional; comprueba que el bono pertenece al centr
 
 
 Preview C48: API/WEB2217d62d-dirty healthy y HTTPS público200, schema043 sin migrar. Solo API/WEB recreadas; túnel/volumen conservados,7archivos SHA256 sin diferencias y conteos SQL de socios/contratos/recibos/pagos/consumos idénticos. Build correcto,2182textos presentes y18locales/2834claves sincronizados. Cambios previos del usuario conservados; commits locales sin push. Pendiente revisión visual real escritorio/móvil y aceptación de los recorridos Bonos → Socios/Historial/Catálogo. No se han consumido bonos ni registrado cobros en preview durante las comprobaciones.
+
+
+## C49 — prueba de métricas visuales
+
+Metrics.jsx pasa de filas homogéneas a cuatro indicadores (socios activos y porcentaje, cobros netos del periodo, saldo pendiente y deuda vencida), distribución circular con leyenda de estados, barras comparativas de recibos/cobros/devoluciones, movimientos de socios y visitas por fecha/hora. Se reutiliza LineChart, Section/Row/Button/campos/tokens e i18n; las series se memoizan, rellenan con cero los días sin admisiones dentro del periodo y mantienen tabla de detalle accesible. No se inventa ocupación, tendencias previas, beneficios ni ingresos recurrentes. La nota de ausencia de salidas/ocupación permanece.
+
+Saldos actuales y flujos del periodo se muestran separados. Importes exactos permanecen en strings; escalas monetarias/porcentajes usan BigInt antes de convertir solo porcentajes pequeños a number. Un vencido no configurado se indica como tal, no como cero. Accesos a Socios y Deuda según capacidades; métricas globales conservan alcance y número de centros. Responsive en4/2columnas de indicadores y2/1paneles con tamaños táctiles y leyendas textuales sin depender del color/hover.
+
+40/40 pruebas de métricas, LineChart y navegación correctas: céntimos mayores que Number.MAX_SAFE_INTEGER, neto negativo, vacío/sin visitas, datos desconocidos, rango temporal, respuestas de otro contexto, shortcuts por capacidad y chart existente. Sin cambios de API/SQL/permisos ni suites generales. Build WEB y preview pendientes en este punto; aceptación visual real escritorio/móvil sigue pendiente y no se acredita con DOM.

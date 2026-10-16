@@ -1,4 +1,6 @@
 import {useEffect,useRef,useState} from 'react'
+import HelpLabel from '../../components/HelpLabel.jsx'
+import {debtHelp} from './debt-help.js'
 import {Section,Row,Button,Switch,TextField} from '../../components/ui.jsx'
 import {centerAutomation,centerCommand,centersErrorKey} from '../../lib/centers-api.js'
 import {useStore} from '../../store/useStore.js'
@@ -24,19 +26,20 @@ export default function BillingAutomation({centerId,ownerUid,platform=false,acti
     if(!data||busy)return;const epoch=life.current,body={centerId,enabled,fromOn,version:data.settings.version}
     confirmSheet({title:t('Automatic receipts'),message:t('Issue receipt records automatically; no payments are collected.')+' '+t('First eligible period')+': '+fromOn,confirmText:t('Confirm'),onConfirm:()=>execute('/api/platform/centers/billing/automation',body,epoch)})
   }
-  return <Section title={t('Automatic receipts')}><div className="centers-form">
-    <p className="small muted">{t('Issue receipt records automatically; no payments are collected.')}</p>
-    <Button disabled={busy} onClick={()=>setRevision(value=>value+1)}>{t('Reload centers')}</Button>
+  return <Section className="centers-billing-tools" title={t('Automatic receipts')}><div className="centers-form">
+    <div className="centers-billing-heading"><HelpLabel title="Automatic receipts" help={debtHelp.automation}/><p className="small muted">{t('Issue receipt records automatically; no payments are collected.')}</p></div>
     {data&&<>
-      {!data.workerEnabled&&<p role="status">{t('The executor is disabled on this server.')}</p>}
-      {platform?<><label className="centers-field"><span>{t('First eligible period')}</span><TextField type="date" value={fromOn} disabled={busy||data.settings.version>0||!active} onChange={e=>setFromOn(e.target.value)}/></label>
+      {!data.workerEnabled&&<div className="centers-billing-status" role="status"><span className="centers-member-status">{t('Disabled')}</span><span>{t('The executor is disabled on this server.')}</span></div>}
+      {platform?<><div className="centers-field"><HelpLabel title="First eligible period" help={debtHelp.start}/><TextField aria-label={t('First eligible period')} type="date" value={fromOn} disabled={busy||data.settings.version>0||!active} onChange={e=>setFromOn(e.target.value)}/></div>
         <label className="centers-actions"><span>{t('Automatic receipts')}</span><Switch type="button" aria-label={t('Automatic receipts')} checked={data.settings.enabled} disabled={busy||!fromOn||!active} onChange={toggle}/></label>
         {data.settings.version>0&&<p className="small muted">{t('The initial date is locked after saving.')}</p>}</>:<Row title={t('Automatic receipts')} value={t(data.settings.enabled?'On':'Off')}/>}
-      {Object.entries(labels).map(([state,label])=><Row key={state} title={t(label)} value={data.counts[state]||'0'}/>)}
-      <Row title={t('Pending events')} value={data.pendingEvents}/>
-      <h3>{t('Recent jobs (30 maximum)')}</h3>
+      <div className="centers-job-stats">{Object.entries(labels).map(([state,label])=><article key={state}><HelpLabel title={label} help={debtHelp.jobs}/><strong>{data.counts[state]||'0'}</strong></article>)}</div>
+      <Row title={<HelpLabel title="Pending events" help={debtHelp.events}/>} value={data.pendingEvents}/>
+      <details className="centers-billing-details" open={data.jobs.some(job=>job.state==='blocked')}><summary>{t('Recent jobs (30 maximum)')}</summary>
       {data.jobs.map(job=><div key={job.id}><Row title={job.periodStart} subtitle={t(labels[job.state])} value={String(job.attempts)}/>{platform&&active&&job.state==='blocked'&&<Button disabled={busy} onClick={()=>execute('/api/platform/centers/billing/jobs/retry',{centerId,id:job.id},life.current)}>{t('Retry blocked job')}</Button>}</div>)}
+      {!data.jobs.length&&<p className="small muted">{t('No data yet')}</p>}</details>
     </>}
+    <div className="centers-debt-toolbar"><Button variant="tinted" disabled={busy} onClick={()=>setRevision(value=>value+1)}>{t('Reload centers')}</Button></div>
     {error&&<p role="alert">{t(centersErrorKey(error))}</p>}
   </div></Section>
 }

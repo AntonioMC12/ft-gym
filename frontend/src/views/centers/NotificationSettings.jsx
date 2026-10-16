@@ -1,4 +1,6 @@
 import {useEffect,useRef,useState} from 'react'
+import HelpLabel from '../../components/HelpLabel.jsx'
+import {debtHelp} from './debt-help.js'
 import {Section,Row,Button,Switch,NumberField} from '../../components/ui.jsx'
 import {centerNotifications,centerCommand,notificationErrorKey} from '../../lib/centers-api.js'
 import {useStore} from '../../store/useStore.js'
@@ -25,19 +27,20 @@ export default function NotificationSettings({centerId,ownerUid,platform=false,a
     try{await centerCommand(path,{...content,requestId:retry.current.id});if(current(epoch))setRevision(value=>value+1)}catch(e){if(current(epoch))fail(e)}finally{if(current(epoch)){pending.current=false;setBusy(false)}}
   }
   const save=e=>{e.preventDefault();const epoch=life.current,body={...draft};confirmSheet({title:t('Email notices'),message:fields.map(([key,label])=>t(label)+': '+body[key]).join(' · '),confirmText:t('Save'),onConfirm:()=>execute('policy',body,epoch)})}
-  return <Section title={t('Email notices')}><div className="centers-form">
-    <Button disabled={busy} onClick={()=>setRevision(value=>value+1)}>{t('Reload centers')}</Button>
+  return <Section className="centers-billing-tools" title={t('Email notices')}><div className="centers-form">
+    <div className="centers-billing-heading"><HelpLabel title="Email notices" help={debtHelp.notices}/></div>
     {data&&<>
-      {data.transport==='off'?<p role="status">{t('Email notices are not configured.')}</p>:data.transport==='test-capture'&&<p role="status">{t('Local test: no emails are sent.')}</p>}
+      {data.transport==='off'?<p className="centers-billing-status" role="status">{t('Email notices are not configured.')}</p>:data.transport==='test-capture'&&<p className="centers-billing-status" role="status">{t('Local test: no emails are sent.')}</p>}
       {platform?<form ref={saveForm} aria-label={t('Email notices')} onSubmit={save}>
         <label className="centers-actions"><span>{t('Enable email notices')}</span><Switch type="button" aria-label={t('Enable email notices')} checked={draft.enabled} disabled={busy||!active||data.transport==='off'} onChange={enabled=>setDraft(value=>({...value,enabled}))}/></label>
         <label className="centers-actions"><span>{t('Receipt notices')}</span><Switch type="button" aria-label={t('Receipt notices')} checked={draft.receipts} disabled={busy||!active} onChange={receipts=>setDraft(value=>({...value,receipts}))}/></label>
-        {fields.map(([key,label])=><label className="centers-field" key={key}><span>{t(label)}</span><NumberField className="field" decimal={false} value={draft[key]} disabled={busy||!active} onChange={number=>setDraft(value=>({...value,[key]:number}))}/></label>)}
-        <Button type="submit" disabled={busy||!active}>{t('Save')}</Button>
+        {fields.map(([key,label])=><div className="centers-field" key={key}><HelpLabel title={label} help={debtHelp.notices}/><NumberField aria-label={t(label)} className="field" decimal={false} value={draft[key]} disabled={busy||!active} onChange={number=>setDraft(value=>({...value,[key]:number}))}/></div>)}
+        <div className="centers-form-actions" data-center-form-actions><Button type="submit" variant="primary" disabled={busy||!active}>{t('Save')}</Button></div>
       </form>:<>{fields.map(([key,label])=><Row key={key} title={t(label)} value={data.policy?.[key]??t('Not configured')}/>)}<Row title={t('Email notices')} value={t(data.policy?.enabled?'On':'Off')}/></>}
-      {Object.entries(states).map(([state,label])=><Row key={state} title={t(label)} value={data.counts[state]||'0'}/>)}
+      <div className="centers-job-stats">{Object.entries(states).map(([state,label])=><article key={state}><span>{t(label)}</span><strong>{data.counts[state]||'0'}</strong></article>)}</div>
       {platform&&data.counts.blocked!=='0'&&data.counts.blocked&&<Button disabled={busy||!active} onClick={()=>execute('retry',{},life.current)}>{t('Retry blocked notices')}</Button>}
     </>}
+    <div className="centers-debt-toolbar"><Button variant="tinted" disabled={busy} onClick={()=>setRevision(value=>value+1)}>{t('Reload centers')}</Button></div>
     {error&&<p role="alert">{t(notificationErrorKey(error))}</p>}
   </div></Section>
 }

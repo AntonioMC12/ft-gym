@@ -35,3 +35,25 @@ it('downloads only the server-exported CSV when capability is present',async()=>
 it('does not download an export that arrives after switching center',async()=>{
   let release;centerDebtExport.mockReturnValue(new Promise(resolve=>release=resolve));const create=vi.spyOn(URL,'createObjectURL').mockReturnValue('blob:debt');await render({canExport:true});await click('Export debts (CSV)');await render({centerId:'b',canExport:true});await act(async()=>release({content:'old center',fileName:'old.csv'}));expect(create).not.toHaveBeenCalled()
 })
+
+it('explains financial totals without changing filters or creating payments',async()=>{
+  await render()
+  const help=host.querySelector('button[aria-label="Overdue balance"]')
+  await act(async()=>help.focus())
+  expect(document.querySelector('[role=tooltip]').textContent).toContain('grace period')
+  await act(async()=>help.dispatchEvent(new KeyboardEvent('keydown',{key:'Escape',bubbles:true})))
+  expect(document.querySelector('[role=tooltip]')).toBeNull()
+  expect(centerDebt).toHaveBeenCalledTimes(1)
+})
+it('groups calendar receipts by due date while preserving distinct receipts for the same member',async()=>{
+  centerDebt.mockResolvedValue({...data,summary:{...data.summary,receiptCount:3},receipts:[receipt,{...receipt,id:'second'},{...receipt,id:'third',dueOn:'2026-10-15'}]})
+  await render();await click('Billing calendar')
+  const days=host.querySelectorAll('.centers-debt-day')
+  expect(days).toHaveLength(2)
+  expect(days[0].querySelector('time').dateTime).toBe('2026-10-14')
+  expect(days[0].querySelectorAll('button.lrow')).toHaveLength(2)
+  expect(host.textContent).toContain('#second')
+  await act(async()=>days[0].querySelectorAll('button.lrow')[1].click())
+  expect(host.textContent).toContain('second')
+  expect(host.textContent).toContain('Receipt details')
+})

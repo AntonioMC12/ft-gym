@@ -1,4 +1,7 @@
 import {useEffect,useRef,useState} from 'react'
+import HelpLabel from '../../components/HelpLabel.jsx'
+import {debtHelp} from './debt-help.js'
+import Icon from '../../components/Icon.jsx'
 import {Section,Row,Button,TextField,Segmented} from '../../components/ui.jsx'
 import {centerDebt,centerDebtExport,debtErrorKey} from '../../lib/centers-api.js'
 import {minorToPrice} from '../../lib/membership-price.js'
@@ -32,14 +35,24 @@ export default function DebtCalendar({centerId,ownerUid,canExport=false}) {
     try{const result=await centerDebtExport(centerId,filterOptions(filters));if(current(epoch)){const url=URL.createObjectURL(new Blob([result.content],{type:'text/csv;charset=utf-8'})),a=document.createElement('a');a.href=url;a.download=result.fileName;document.body.appendChild(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(url),1000)}}catch(e){if(current(epoch))fail(e)}finally{if(current(epoch)){pending.current=false;setBusy(false)}}
   }
   const money=value=>minorToPrice(value)+' EUR'
-  if(selected)return <Section title={t('Receipt details')}><div className="centers-form"><Row title={selected.memberName} value={selected.memberNumber}/><Row title={t('Due date')} value={selected.dueOn}/><Row title={selected.periodStart+' → '+selected.periodEnd} value={debtLabel(selected.debt.status)}/><Row title={t('Total amount')} value={money(selected.totalMinor)}/><Row title={t('Paid amount')} value={money(selected.paidMinor)}/><Row title={t('Refunded amount')} value={money(selected.refundedMinor)}/><Row title={t('Outstanding balance')} value={money(selected.balanceMinor)}/><Button onClick={()=>setSelected(null)}>{t('Back')}</Button></div></Section>
-  return <Section title={t('Debt and calendar')}><div className="centers-form">
-    <Segmented value={mode} options={[{value:'debts',label:t('Outstanding receipts')},{value:'calendar',label:t('Billing calendar')}]} onChange={value=>{setMode(value);setDraft(empty);setFilters(empty)}}/>
-    <form onSubmit={apply}><div className="centers-fields"><label className="centers-field"><span>{t('From')}</span><TextField type="date" disabled={busy} value={draft.dueFrom} onChange={e=>setDraft({...draft,dueFrom:e.target.value})}/></label><label className="centers-field"><span>{t('To')}</span><TextField type="date" disabled={busy} value={draft.dueTo} onChange={e=>setDraft({...draft,dueTo:e.target.value})}/></label></div><Button type="submit" disabled={busy}>{t('Apply filters')}</Button></form>
-    {data&&<><p className="small muted">{data.today+' · '+t('Grace period (days)')+': '+data.policy.graceDays}</p><Row title={t('Outstanding balance')} value={money(data.summary.outstandingMinor)}/><Row title={t('Overdue balance')} value={money(data.summary.overdueMinor)}/><p className="small muted">{t('Receipts')+': '+data.summary.receiptCount}</p></>}
-    <p className="small muted">{t('Only issued receipts are shown.')}</p>
-    {data?.receipts.map(row=><Row key={row.id} title={row.memberName+' · '+row.memberNumber} subtitle={row.dueOn+' · '+debtLabel(row.debt.status)} value={money(row.balanceMinor)} accessory="chevron" onClick={()=>setSelected(row)}/>)}
-    {data&&!data.receipts.length&&!busy&&!error&&<p className="muted">{t('No receipts in this view.')}</p>}{busy&&<p role="status">{t('Loading…')}</p>}{error&&<p role="alert">{t(debtErrorKey(error))}</p>}
-    {data?.nextCursor&&<Button ref={moreRef} disabled={busy} onClick={more}>{t('Show more')}</Button>}{canExport&&mode==='debts'&&data&&<Button disabled={busy} onClick={download}>{t('Export debts (CSV)')}</Button>}
+  const receiptCard=row=><article key={row.id} className={'centers-card centers-debt-receipt centers-debt-'+row.debt.status}>
+    <div className="centers-debt-receipt-top"><span className="centers-member-status">{debtLabel(row.debt.status)}</span><span className="small muted">#{row.id.slice(-8)}</span></div>
+    <Row title={row.memberName} subtitle={row.memberNumber+' · '+row.periodStart+' → '+row.periodEnd} value={money(row.balanceMinor)} accessory="chevron" onClick={()=>setSelected(row)}/>
+    <p className="small muted">{t('Due date')}: <time dateTime={row.dueOn}>{row.dueOn}</time></p>
+  </article>
+  if(selected)return <Section title={t('Receipt details')} className="centers-debt"><div className="centers-form"><div className="centers-debt-toolbar"><Button icon="chevronLeft" onClick={()=>setSelected(null)}>{t('Back')}</Button><span className="centers-member-status">{debtLabel(selected.debt.status)}</span></div><Row title={selected.memberName} value={selected.memberNumber}/><p className="small muted">{selected.id}</p><Row title={t('Due date')} value={selected.dueOn}/><Row title={selected.periodStart+' → '+selected.periodEnd} value={debtLabel(selected.debt.status)}/><Row title={t('Total amount')} value={money(selected.totalMinor)}/><Row title={<HelpLabel title="Paid amount" help={debtHelp.paid}/>} value={money(selected.paidMinor)}/><Row title={t('Refunded amount')} value={money(selected.refundedMinor)}/><Row title={<HelpLabel title="Outstanding balance" help={debtHelp.outstanding}/>} value={money(selected.balanceMinor)}/></div></Section>
+  const groups=data?[...data.receipts.reduce((map,row)=>{if(!map.has(row.dueOn))map.set(row.dueOn,[]);map.get(row.dueOn).push(row);return map},new Map())]:[]
+  return <Section title={t('Debt and calendar')} className="centers-debt"><div className="centers-form">
+    <Segmented label={t('Debt and calendar')} value={mode} options={[{value:'debts',label:t('Outstanding receipts')},{value:'calendar',label:t('Billing calendar')}]} onChange={value=>{setMode(value);setDraft(empty);setFilters(empty)}}/>
+    <div className="centers-debt-description"><HelpLabel title={mode==='calendar'?'Billing calendar':'Outstanding receipts'} help={mode==='calendar'?debtHelp.calendar:debtHelp.outstanding}/><p className="small muted">{t('Only issued receipts are shown.')}</p></div>
+    <form className="centers-debt-filter" onSubmit={apply}><div className="centers-fields"><div className="centers-field"><HelpLabel title="From" help={debtHelp.calendar}/><TextField aria-label={t('From')} type="date" disabled={busy} value={draft.dueFrom} onChange={e=>setDraft({...draft,dueFrom:e.target.value})}/></div><label className="centers-field"><span>{t('To')}</span><TextField type="date" disabled={busy} value={draft.dueTo} onChange={e=>setDraft({...draft,dueTo:e.target.value})}/></label></div><Button type="submit" variant="primary" disabled={busy}>{t('Apply filters')}</Button></form>
+    {data&&<><div className="centers-debt-summary">
+      <article><HelpLabel title="Outstanding balance" help={debtHelp.outstanding}/><strong>{money(data.summary.outstandingMinor)}</strong></article>
+      <article className="centers-debt-overdue"><HelpLabel title="Overdue balance" help={debtHelp.overdue}/><strong>{money(data.summary.overdueMinor)}</strong></article>
+      <article><span>{t('Receipts')}</span><strong>{data.summary.receiptCount}</strong></article>
+    </div><div className="centers-debt-context"><span>{t('Business date')}: {data.today}</span><HelpLabel title="Grace period (days)" help={debtHelp.overdue}>{': '+data.policy.graceDays}</HelpLabel></div></>}
+    <div className="centers-debt-list">{mode==='calendar'?groups.map(([day,receipts])=><div key={day} className="centers-debt-day"><h3><time dateTime={day}>{day}</time></h3>{receipts.map(receiptCard)}</div>):data?.receipts.map(receiptCard)}</div>
+    {data&&!data.receipts.length&&!busy&&!error&&<div className="centers-metric-empty"><Icon name="info"/><p>{t('No receipts in this view.')}</p></div>}{busy&&<p role="status">{t('Loading…')}</p>}{error&&<p role="alert">{t(debtErrorKey(error))}</p>}
+    <div className="centers-debt-toolbar">{data?.nextCursor&&<Button ref={moreRef} variant="tinted" disabled={busy} onClick={more}>{t('Show more')}</Button>}{canExport&&mode==='debts'&&data&&<Button variant="tinted" disabled={busy} onClick={download}>{t('Export debts (CSV)')}</Button>}</div>
   </div></Section>
 }

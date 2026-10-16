@@ -12,7 +12,7 @@
 - C35: alta pública aplazada, todo/fuera del alcance. Alta administrativa de socios y cobros en efectivo ya implementados en C13/C15/C17/C20. No requieren Stripe ni cuenta personal vinculada; asignar cuota puede activar antes de registrar pago. Ver pasos en CENTERS_DELIVERY_STATUS.md.
 - C41/C42: todo, validar al terminar el alcance acordado. No bloquear por adelantado tareas de desarrollo local con su aceptación/activación final ni marcar funciones futuras como implementadas.
 - C29/C30/C31/C33/C34/C36/C37/C38/C40: done técnico; criterios y evidencia en el historial. C30/C33/C38 no deben reimplementarse. Matriz vigente: CENTERS_DELIVERY_STATUS.md.
-- Última entrega: C46, implementación terminada; pruebas de interfaz133/133 (82 formularios/controles +51 navegación afectada), PostgreSQL15/15 y OpenAPI3/3 correctos. Build correcto;2181textos presentes y18locales/2834claves sincronizados. No suites generales.
+- Última entrega: ajuste visual C46 de historial compacto y ancho completo en socios;19/19 pruebas focales correctas. C46, implementación terminada; pruebas de interfaz133/133 (82 formularios/controles +51 navegación afectada), PostgreSQL15/15 y OpenAPI3/3 correctos. Build correcto;2181textos presentes y18locales/2834claves sincronizados. No suites generales.
 - Validación pendiente: revisión visual real escritorio/móvil/temas y aceptación C41/C42. El navegador de esta sesión no permite esa comprobación; no sustituirla por resultados DOM ni marcarla verificada. C46 sigue in_progress únicamente por esa validación solicitada. Siguiente paso: revisar visualmente la preview actualizada en escritorio/móvil/temas cuando haya navegador habilitado; C46 no requiere más implementación conocida.
 
 ### Cierre técnico y validación diferida
@@ -945,3 +945,10 @@ Comprobaciones:133/133 tests DOM focales,15/15 SQL en CI aislado y3/3 contrato O
 
 
 Preview C46 actualizada: commit11280aa3 en codex/centers-module, API/WEB11280aa3-dirty healthy tras build Docker correcto y HTTP público200. Túnel sin reiniciar; schema042 y volumen conservados.7archivos con SHA256 idénticos y conteos SQL socios/contratos/recibos/pagos/consumos idénticos. Sin migraciones ni operaciones económicas sobre preview. Dirty corresponde únicamente a cambios previos Docker/web/demo del usuario, excluidos del commit. No push. Pendiente revisión visual real; esta comprobación de salud no acredita el aspecto de la interfaz.
+
+
+## 16octubre — ajuste C46: densidad del historial y acciones de socios
+
+Feedback de dos capturas: historial de bonos excesivamente alto y buscador/acción de renovar demasiado estrechos. Members.jsx identifica su toolbar con clase específica: búsqueda y botones ocupan toda la columna, también en escritorio. La colección del socio usa una columna y el wrapper ActionReason crece al100%; Renovar/Registrar día de uso aprovecha el espacio completo, restando únicamente44px del disparador informativo y8px de separación si existe. Cambiar cuota queda en su propia fila. Se eliminan márgenes verticales redundantes de ese grupo sin reducir áreas táctiles.
+
+PassHistory.jsx usa lista compacta con cabecera socio/número y estado de ancho natural; condiciones y fechas en línea con wrap; saldo/consumos/fecha de alta y botón secundario Ver consumos en pie. La advertencia de caducidad exclusiva aparece una vez junto al filtro. Conserva todos los datos, estados, búsqueda, cursor y consulta de consumos. CSS específico evita alterar otros formularios.19/19 tests existentes de historial/socios/renovación correctos. Revisión visual real sigue pendiente y C46 continúa in_progress por ese motivo. Sin cambios de backend/finanzas ni migraciones.

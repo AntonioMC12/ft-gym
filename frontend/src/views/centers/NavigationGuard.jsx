@@ -43,11 +43,11 @@ export default function CenterNavigationGuard({children,contextKey}){
   const save=()=>{
     if(pending.some(item=>item.ref.current.busy)||!target?.dirty||!target.saveable)return
     const form=target.form.current
-    if(form?.isConnected){form.scrollIntoView?.({block:'center',behavior:'smooth'});form.requestSubmit()}
+    if(form?.isConnected&&!form.querySelector('button[type=submit]')?.disabled){form.scrollIntoView?.({block:'center',behavior:'smooth'});form.requestSubmit()}
   }
   return <Context.Provider value={{entries:entries.current,request,report}}>{children}{dirty.length>0&&<aside className="centers-unsaved-bar" aria-label={t('Unsaved changes')}>
     <div><strong role="status">{t('Unsaved changes')}</strong><p className="small muted">{t('Each form is saved separately.')}</p></div>
-    {target?.saveable&&target.form.current&&<Button variant="primary" disabled={pending.some(item=>item.value.busy)} onClick={save}>{t('Save form')}{target.form.current.getAttribute('aria-label')?': '+target.form.current.getAttribute('aria-label'):''}</Button>}
+    {target?.saveable&&target.form.current&&<Button variant="primary" disabled={pending.some(item=>item.value.busy)||!!target.form.current.querySelector('button[type=submit]')?.disabled} onClick={save}>{t('Save form')}{target.form.current.getAttribute('aria-label')?': '+target.form.current.getAttribute('aria-label'):''}</Button>}
   </aside>}</Context.Provider>
 }
 export const useCenterNavigation=()=>useContext(Context)?.request||(action=>action())

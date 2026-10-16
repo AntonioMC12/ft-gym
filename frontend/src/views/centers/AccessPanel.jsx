@@ -17,7 +17,7 @@ import {useUnsavedCenterForm} from './NavigationGuard.jsx'
 export default function AccessPanel({centerId,ownerUid,active=true,canManage=false,canVerify=false,timezone='UTC'}){
   const [data,setData]=useState(null),[draft,setDraft]=useState(null),[deviceName,setDeviceName]=useState(''),[paired,setPaired]=useState(null),[code,setCode]=useState(''),[result,setResult]=useState(null)
   const [visits,setVisits]=useState([]),[visitCursor,setVisitCursor]=useState(null),[busy,setBusy]=useState(false),[error,setError]=useState(null),[revision,setRevision]=useState(0)
-  useUnsavedCenterForm(draft&&data&&JSON.stringify(draft)!==JSON.stringify(data.policy)?JSON.stringify(draft):null,!!data&&busy)
+  const saveForm=useUnsavedCenterForm(draft&&data&&JSON.stringify(draft)!==JSON.stringify(data.policy)?JSON.stringify(draft):null,!!data&&busy,{saveable:canManage&&active})
   const policyDraft=useRef(null);policyDraft.current=JSON.stringify(draft)
   const life=useRef(0),pending=useRef(false),intent=useRef(null),scanIntent=useRef(null),camera=useRef(null)
   const current=epoch=>life.current===epoch&&useStore.getState().user?.id===ownerUid
@@ -82,15 +82,15 @@ export default function AccessPanel({centerId,ownerUid,active=true,canManage=fal
     try{const next=await centerAccessVisits(centerId,{cursor:visitCursor});if(current(epoch)){setVisits(old=>[...old,...next.visits]);setVisitCursor(next.nextCursor)}}catch(e){if(current(epoch))failure(e)}finally{if(current(epoch)){pending.current=false;setBusy(false)}}
   }
   const deviceMore=useAutoMore(moreDevices),visitMore=useAutoMore(moreVisits)
-  return <><Section title={t('Access rules')}><div className="centers-form">
+  return <><Section title={t('Access rules')}><form ref={saveForm} aria-label={t('Access rules')} className="centers-form" onSubmit={e=>{e.preventDefault();save()}}>
     {draft&&<>
       {['enabled','requireSubscription','denyOverdue','allowPasses'].map((key,index)=><Row key={key} title={t(['Enable center access','Require a current subscription','Deny entry for overdue debt','Allow explicitly selected visit passes'][index])} value={<Switch checked={draft[key]} aria-label={t(['Enable center access','Require a current subscription','Deny entry for overdue debt'][index])} disabled={busy||!canManage||!active} onChange={value=>{if(canManage&&active&&!busy)setDraft(old=>({...old,[key]:value}))}}/>}/>)}
       <label className="centers-field"><span>{t('Access debt grace (days)')}</span><NumberField className="field" value={draft.graceDays} decimal={false} disabled={busy||!canManage||!active} onChange={value=>setDraft(old=>({...old,graceDays:value}))}/></label>
-      {canManage&&<Button disabled={busy||!active} onClick={save}>{t('Save')}</Button>}
+      {canManage&&<Button type="submit" disabled={busy||!active}>{t('Save')}</Button>}
     </>}
     {busy&&<p role="status">{t('Loading…')}</p>}{error&&<p role="alert">{t(accessErrorKey(error))}</p>}
-    <Button disabled={busy} onClick={()=>setRevision(n=>n+1)}>{t('Reload centers')}</Button>
-  </div></Section>
+    <Button type="button" disabled={busy} onClick={()=>setRevision(n=>n+1)}>{t('Reload centers')}</Button>
+  </form></Section>
   <Section title={t('Reception devices')}><div className="centers-form">
     {canManage&&active&&<><label className="centers-field"><span>{t('Device name')}</span><TextField value={deviceName} onChange={e=>setDeviceName(e.target.value)} maxLength={80} disabled={busy}/></label><Button disabled={busy||!deviceName.trim()} onClick={()=>device('create')}>{t('Register reception device')}</Button></>}
     {data?.devices.map(row=><div key={row.id}><Row title={row.name} subtitle={t('Device key expiry')+': '+centerDateTime(row.expiresAt,timezone)} value={row.revokedAt?t('Reception device revoked'):''}/>{canManage&&!row.revokedAt&&<div className="centers-actions"><Button disabled={busy||!active} onClick={()=>device('rotate',row)}>{t('Activate reception here')}</Button><Button disabled={busy} onClick={()=>device('revoke',row)}>{t('Revoke reception device')}</Button></div>}</div>)}

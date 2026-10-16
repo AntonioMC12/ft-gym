@@ -46,3 +46,8 @@ it('shared save opens the form confirmation instead of bypassing it',()=>{
  function Confirmed(){const ref=useUnsavedCenterForm('edited');return <form ref={ref} onSubmit={e=>{e.preventDefault();confirmSheet({onConfirm:leave})}}><button type="submit">Local confirm</button></form>}
  act(()=>root.render(<Guard><Confirmed/></Guard>));act(()=>host.querySelector('aside button').click());expect(confirmSheet).toHaveBeenCalledOnce();expect(leave).not.toHaveBeenCalled();act(()=>confirmSheet.mock.calls[0][0].onConfirm());expect(leave).toHaveBeenCalledOnce();
 })
+
+it('the shared action respects a disabled local submit instead of bypassing eligibility checks',()=>{
+ function Restricted(){const ref=useUnsavedCenterForm('changed');return <form ref={ref} onSubmit={leave}><button type="submit" disabled>Local save</button></form>}
+ act(()=>root.render(<Guard><Restricted/></Guard>));expect(host.querySelector('aside button').disabled).toBe(true);act(()=>host.querySelector('aside button').click());expect(leave).not.toHaveBeenCalled();
+})

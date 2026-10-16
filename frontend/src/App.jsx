@@ -1,3 +1,4 @@
+import {useMembershipAccess,MembershipAccessScreen,MembershipGraceNotice} from './components/MembershipAccess.jsx'
 import { useEffect, useLayoutEffect, useRef } from 'react'
 import { HashRouter, Routes, Route, Navigate, useNavigate, useLocation, useNavigationType } from 'react-router-dom'
 import { useStore } from './store/useStore.js'
@@ -75,6 +76,8 @@ function Shell() {
   const loc = useLocation()
   const navType = useNavigationType()
   const { S, user, ready, config } = useStore()
+  const membershipAccess=useMembershipAccess(user,config)
+  useEffect(()=>{if(membershipAccess.blocked)useUI.getState().closeAll()},[membershipAccess.blocked])
   useEffect(() => {
     if (!user || !config?.centers?.enabled) { useCenters.getState().reset(); return }
     const refresh = () => { if (document.visibilityState !== 'hidden') useCenters.getState().load(user.id) }
@@ -196,7 +199,7 @@ function Shell() {
   }, [inWorkout])
   // The chat owns the bottom of the screen as well: its composer sits where the tabs would be.
   // The first-launch card has no tabs either: they changed the route behind it.
-  const noTabs = inWorkout || loc.pathname === '/coach' || loc.pathname.startsWith('/centers') || needsMobileOnboarding
+  const noTabs = !membershipAccess.allowed || inWorkout || loc.pathname === '/coach' || loc.pathname.startsWith('/centers') || needsMobileOnboarding
 
   const authed = user || isGuest
   if (!ready && !authed) return (
@@ -213,7 +216,9 @@ function Shell() {
           re-mounts the boundary, so the tab bar is always a way out */}
       <div id="app" className="vfade" key={loc.pathname}>
         <ErrorBoundary>
-          {!authed ? <Login /> : needsMobileOnboarding ? <MobileOnboarding /> : (
+          {!authed ? <Login /> : needsMobileOnboarding ? <MobileOnboarding /> : !membershipAccess.allowed ? <MembershipAccessScreen access={membershipAccess}/> : (
+            <>
+            <MembershipGraceNotice warnings={membershipAccess.warnings}/>
             <Routes>
               <Route path="/home" element={<Home />} />
               <Route path="/centers" element={<Centers />} />
@@ -244,6 +249,7 @@ function Shell() {
               <Route path="/admin" element={user?.admin ? <Admin /> : <Navigate to="/home" replace />} />
               <Route path="*" element={<Navigate to="/home" replace />} />
             </Routes>
+            </>
           )}
         </ErrorBoundary>
       </div>
@@ -252,10 +258,10 @@ function Shell() {
           including on the sign-in screen, when the server has just ended the session. */}
       <SyncBanner />
       {!noTabs && <TabBar onStart={startFlow} />}
-      <RestTimer />
+      {membershipAccess.allowed&&<RestTimer />}
       <Modals />
       <Toast />
-      <TimerFlash />
+      {membershipAccess.allowed&&<TimerFlash />}
     </>
   )
 }

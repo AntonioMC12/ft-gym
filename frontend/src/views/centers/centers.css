@@ -168,3 +168,14 @@ body.no-tabbar .centers-unsaved-bar{bottom:calc(12px + var(--sab,0px))}
 .centers-pass-product-form>.centers-actions{margin:4px 0 0;justify-content:flex-end}
 .centers-pass-product-form>.centers-actions>.btn{width:auto;min-height:44px;padding:12px 20px}
 @media(max-width:500px){.centers-pass-product-form>.centers-actions>.btn{flex:1 1 100%}}
+
+.centers-member-list-card { margin-block:12px; }
+.centers-member-collection { display:grid; gap:12px; padding:0 14px 14px; }
+.centers-quick-plan-picker { border-top:1px solid var(--sep); padding-top:12px; }
+.centers-pass-history-card { display:grid; gap:12px; }
+.centers-pass-history-card p { margin:0; }
+.centers-pass-state-exhausted { border-style:dashed; }
+.centers-pass-state-expired { border-color:var(--red); }
+.membership-access-screen { max-width:620px; margin:12vh auto; display:grid; gap:20px; }
+.membership-access-screen h1 { font-size:clamp(23px,4vw,32px); }
+.membership-grace-notice { border:1px solid var(--acc); }

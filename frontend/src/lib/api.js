@@ -90,7 +90,7 @@ async function exchange(url, init) {
   try { data = await r.json() } catch { parsed = false }
   const body = parsed && data && typeof data === 'object' ? data : null
   // The body rides along on the error: a 409 from /api/data carries the server's document.
-  if (!r.ok) { const e = new Error((body && body.error) || ('HTTP ' + r.status)); e.status = r.status; e.data = body || {}; throw e }
+  if (!r.ok) { if(body?.code==='membership-renewal-required'&&typeof window!=='undefined')window.dispatchEvent(new CustomEvent('membership-renewal-required',{detail:{access:body.access}})); const e = new Error((body && body.error) || ('HTTP ' + r.status)); e.status = r.status; e.data = body || {}; throw e }
   if (!body) throw failure(t('The server answered with something other than openGym data.'), 'bad-response', r.status)
   return body
 }

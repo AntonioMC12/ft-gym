@@ -75,7 +75,7 @@ export default function Subscriptions({centerId,member,ownerUid,changed,receiptC
     {currentContracts.map(contract)}
     {history.length>0&&<details className="centers-subscription-history"><summary>{t('Subscription history')} ({history.length})</summary>{history.map(contract)}</details>}
     {info&&!scheduled&&member.state!=='ended'&&<form className="centers-subscription-editor" ref={saveForm} aria-label={t('Subscriptions')} onSubmit={submit}>
-      <h3>{active?t('Change membership plan'):t('Assign membership plan')}</h3>
+      <h3>{active?t('Change membership plan'):t('Assign membership plan')}</h3>{active&&<p className="small muted">{t('Fee changes apply on the effective date below. Earlier periods are preserved.')}</p>}
       <SearchField aria-label={t('Search membership plans')} placeholder={t('Search membership plans')} value={query} onChange={e=>setQuery(e.target.value)} onClear={()=>setQuery('')}/>
       <SelectRow title={t('Membership plans')} value={priceVersionId} options={plans.map(plan=>({value:plan.priceVersionId,label:plan.name+' · '+minorToPrice(plan.priceMinor)+' '+plan.currency}))} onChange={value=>update(setPriceVersionId,value)}/>
       {planIncomplete&&<div className="centers-import-notice" role="status"><p>{t('Tax and proration must be configured before calculating charges.')}</p>{onManagePlans&&<Button type="button" onClick={onManagePlans}>{t('Membership plans')}</Button>}</div>}

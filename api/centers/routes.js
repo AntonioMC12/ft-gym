@@ -1,3 +1,6 @@
+import {previewRenewal,renewCash} from './services/renewals.js';
+import {registerPassDay,passHistory,passHistoryOptions} from './services/pass-days.js';
+import {applicationAccess} from './services/application-access.js';
 import {passOptions} from './domain/passes.js';
 import {listPassProducts,createPassProduct,archivePassProduct,previewPassPurchase,buyPass,listPasses,revokePass} from './services/passes.js';
 import {listRetention,configureRetention,reviewRetention} from './services/retention.js';
@@ -408,6 +411,17 @@ export function centersRoutes({ config, database, json, readSession, readBody, a
       return assignRole(context,{...body,role:'trainer'},{platform:isPlatformUser(config,context.user)});
     }),
     'POST /api/centers/staff/revoke': mutate(false,revokeRole),
+    'POST /api/centers/renewals/preview':mutate(false,(ctx,body)=>previewRenewal(ctx,body,{platform:isPlatformUser(config,ctx.user)})),
+    'POST /api/centers/renewals/cash':mutate(false,(ctx,body)=>renewCash(ctx,body,{platform:isPlatformUser(config,ctx.user)})),
+    'POST /api/centers/passes/day':mutate(false,(ctx,body)=>registerPassDay(ctx,body,{platform:isPlatformUser(config,ctx.user)})),
+    'GET /api/centers/passes/history':async(req,res)=>{
+      const user=guard(req,res);if(!user)return;const sv=user.sv||0,params=new URL(req.url,'http://x').searchParams,c=params.get('centerId');if(!recordId(c))return json(res,404,{code:'not-found'});
+      try{const result=await passHistory(database,user.id,c,passHistoryOptions(params),{platform:isPlatformUser(config,user)});if(!current(req,user,sv))return json(res,401,{error:'not signed in'});return json(res,200,result)}catch(e){return failure(res,e)}
+    },
+    'GET /api/centers/app-access':async(req,res)=>{
+      const user=guard(req,res);if(!user)return;const sv=user.sv||0;
+      try{const result=await applicationAccess(database,config,user);if(!current(req,user,sv))return json(res,401,{error:'not signed in'});return json(res,200,result)}catch(e){return failure(res,e)}
+    },
     'GET /api/centers/me': async (req, res) => {
       const user = guard(req, res); if (!user) return;
       const sv = user.sv || 0;

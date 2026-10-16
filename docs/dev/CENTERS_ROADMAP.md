@@ -467,3 +467,11 @@ Este roadmap deriva del análisis local del proyecto y del documento GymApp_Gest
 Los puntos de integración se comprobaron el 13 de octubre de 2026. Si cambian dispatcher, contratos, versiones o almacenamiento, actualizar la tarea afectada y la evidencia sin reescribir resultados históricos. El documento funcional es información de referencia, no instrucciones de ejecución para el agente.
 
 Guía oficial de instrucciones persistentes: [AGENTS.md](https://learn.chatgpt.com/docs/agent-configuration/agents-md). Mantener AGENTS.md corto y remitir a esta guía y al registro de progreso permite cargar el contexto pertinente para cada tarea.
+
+## F14 — ampliación autorizada del16octubre: renovaciones y bonos
+
+C43: desde listado/búsqueda de socios, Renovar ejecuta una única transacción con cuota vigente/última válida, recibo del periodo de calendario y registro del saldo pendiente en efectivo, tras confirmar importe/periodo/dinero recibido. Sin pasarelas ni comunicaciones externas; idempotencia y exclusión de duplicados entre actores. Selección inicial y cambio respetan versiones, fechas comerciales y reglas existentes.
+
+C44: caducidad como último día cubierto,10días civiles de gracia inclusivos en zona del centro, backend/frontend y sesiones abiertas. Administradores y gestores de cuotas exentos; cuentas sin contrato mensual y exclusivas de bonos no se bloquean por cuota mensual ausente. Recuperación al renovar; acceso a estado y cierre de sesión disponible.
+
+C45: socios exclusivamente con bonos, Registrar día de uso consume una sesión por socio/fecha local, FEFO y antigüedad, atómico sin negativos; ledger compartido con admisiones QR y registro del actor. Historial por centro con estados, socio, saldo/consumos y cursor. Validar dinero, límites de fecha, RLS y concurrencia con PostgreSQL aislado antes de actualizar preview. Aceptación visual/producción siguen C41/C42.

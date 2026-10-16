@@ -1,3 +1,4 @@
+import {applicationAccess,renewalGateExempt} from './centers/services/application-access.js';
 /* opengym-api — passkey (WebAuthn) auth + per-user state storage for openGym
    No framework, JSON-file storage, signed session cookies.               */
 import http from 'node:http';
@@ -2756,7 +2757,16 @@ const server = http.createServer(async (req, res) => {
     const wait = AUTH_BURST.take(addr) || (kind ? ADDR_FAILS.retryAfter(kind + '|' + addr) : 0);
     if (wait) return tooMany(res, wait);
   }
-  try { await handler(req, res); }
+  try {
+    const gatedUser=CENTERS_CONFIG.enabled&&!renewalGateExempt(key)?readSession(req):null;
+    if(gatedUser){
+      const sv=gatedUser.sv||0;let access;
+      try{access=await applicationAccess(CENTERS_DATABASE,CENTERS_CONFIG,gatedUser)}catch{return json(res,503,{error:'centers temporarily unavailable',code:'centers-unavailable'})}
+      if(readSession(req)!==gatedUser||(gatedUser.sv||0)!==sv)return notSignedIn(res);
+      if(access.blocked)return json(res,403,{error:'renew membership to continue',code:'membership-renewal-required',access});
+    }
+    await handler(req,res);
+  }
   catch (e) {
     if (e?.clientGone) { console.warn(key, 'client went away mid-body:', e.message); return; }
     if (e instanceof HttpError) {

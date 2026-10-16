@@ -1,3 +1,4 @@
+import {passState} from '../domain/renewals.js';
 import {CentersError} from '../errors.js';
 import {objectBody,idField,requestField,textField,versionField} from '../domain/validation.js';
 import {passFields,passDates} from '../domain/passes.js';
@@ -32,7 +33,10 @@ export function archivePassProduct({database,user,checkSession},raw,{platform=fa
 }
 async function quote(client,uid,c,m,p,start){
   const member=await memberRecord(client,c,m),terms=await product(client,c,p);if(terms.archived)conflict('pass-unavailable');
-  if(member.state!=='active'||member.joined_on>member.local_today||member.ends_on&&member.ends_on<=member.local_today)conflict('pass-member-inactive');
+  if(!['active','preactive'].includes(member.state)||member.joined_on>member.local_today||member.ends_on&&member.ends_on<=member.local_today)conflict('pass-member-inactive');
+  if(member.state==='preactive'){
+    const {rows:pending}=await client.query('SELECT id FROM centers.membership_changes WHERE center_id=$1 AND member_id=$2 AND canceled_at IS NULL AND effective_on>$3',[c,m,member.local_today]);if(pending.length)conflict('pending-transition');
+  }
   const dates=passDates(start,terms.valid_days,member.local_today);
   const value={definitionVersion:1,centerId:c,actorUid:uid,memberId:m,memberVersion:member.version,memberName:member.name,memberNumber:member.member_number,product:productDto(terms),...dates,today:member.local_today};return {quote:value,quoteHash:commandHash(value)};
 }
@@ -40,13 +44,13 @@ export function previewPassPurchase({database,user},raw,{platform=false}={}){
   objectBody(raw,['centerId','memberId','productId','startsOn']);const c=idField(raw.centerId),m=idField(raw.memberId),p=idField(raw.productId);
   return businessTransaction(database,user.id,c,'billing.manage',client=>quote(client,user.id,c,m,p,raw.startsOn),{platform});
 }
-const purchaseProjection=`b.*,b.starts_on::text AS starts_on,b.ends_on::text AS ends_on,b.created_at::text AS cursor_at,p.name,p.kind,p.credits,p.total_minor,
+const purchaseProjection=`b.*,b.starts_on::text AS starts_on,b.ends_on::text AS ends_on,b.created_at::text AS cursor_at,p.name,p.kind,p.credits,p.total_minor,(statement_timestamp() AT TIME ZONE c.timezone)::date::text AS local_today,
   (SELECT count(*)::integer FROM centers.pass_consumptions u WHERE (u.center_id,u.pass_id)=(b.center_id,b.id)) AS used,
   EXISTS(SELECT 1 FROM centers.pass_revocations r WHERE (r.center_id,r.pass_id)=(b.center_id,b.id)) AS revoked,
   centers.pass_available(b.center_id,b.member_id,b.id,(statement_timestamp() AT TIME ZONE c.timezone)::date) AS available,
   centers.access_decision(b.center_id,b.member_id,statement_timestamp(),b.id)='allowed' AS can_use`;
 const purchaseFrom=` FROM centers.pass_purchases b JOIN centers.pass_products p ON (p.center_id,p.id)=(b.center_id,b.product_id) JOIN centers.centers c ON c.id=b.center_id `;
-const purchaseDto=r=>({id:r.id,memberId:r.member_id,name:r.name,kind:r.kind,credits:r.credits,used:r.used,remaining:r.credits-r.used,startsOn:r.starts_on,endsOn:r.ends_on,receiptId:r.receipt_id,totalMinor:r.total_minor,currency:'EUR',revoked:r.revoked,available:r.available,canUse:r.can_use});
+const purchaseDto=r=>({status:passState({revoked:r.revoked,remaining:r.credits-r.used,endsOn:r.ends_on,startsOn:r.starts_on,available:r.available},r.local_today),id:r.id,memberId:r.member_id,name:r.name,kind:r.kind,credits:r.credits,used:r.used,remaining:r.credits-r.used,startsOn:r.starts_on,endsOn:r.ends_on,receiptId:r.receipt_id,totalMinor:r.total_minor,currency:'EUR',revoked:r.revoked,available:r.available,canUse:r.can_use});
 async function purchase(client,c,id){const row=(await client.query('SELECT '+purchaseProjection+purchaseFrom+'WHERE b.center_id=$1 AND b.id=$2',[c,id])).rows[0]||missing();return purchaseDto(row)}
 export function buyPass({database,user,checkSession},raw,{platform=false}={}){
   objectBody(raw,['centerId','memberId','productId','startsOn','quoteHash','requestId']);const c=idField(raw.centerId),m=idField(raw.memberId),p=idField(raw.productId),requestId=requestField(raw.requestId);
@@ -56,6 +60,12 @@ export function buyPass({database,user,checkSession},raw,{platform=false}={}){
     const replay=await commandReplay(client,c,user.id,operation,requestId,hash);if(replay){checkSession();return {pass:await purchase(client,c,replay.id)}}
     if(context.center.state!=='active')conflict('center-inactive');const preview=await quote(client,user.id,c,m,p,raw.startsOn);if(preview.quoteHash!==raw.quoteHash)conflict('quote-changed');
     const id='pb_'+commandHash([c,user.id,requestId]).slice(0,32),q=preview.quote,paid=q.product.kind==='paid',receiptId=paid?'rc_'+commandHash([c,id,'pass']).slice(0,32):null;checkSession();
+    const member=await memberRecord(client,c,m);
+    if(member.state==='preactive'){
+      await client.query("INSERT INTO centers.membership_changes(id,center_id,member_id,sequence,action,from_state,to_state,effective_on,actor_uid) SELECT $1,$2,$3,coalesce(max(sequence),0)+1,'activate','preactive','active',$4,$5 FROM centers.membership_changes WHERE center_id=$2 AND member_id=$3",[id+'_a',c,m,q.today,user.id]);
+      await client.query('UPDATE centers.members SET version=version+1,updated_at=clock_timestamp() WHERE center_id=$1 AND id=$2',[c,m]);
+      await businessAudit(client,c,user.id,'member.pass.activate',m,{passId:id});
+    }
     await client.query('INSERT INTO centers.pass_purchases(id,center_id,member_id,product_id,starts_on,ends_on,receipt_id,actor_uid) VALUES($1,$2,$3,$4,$5,$6,$7,$8)',[id,c,m,p,q.startsOn,q.endsOn,receiptId,user.id]);
     if(paid){const snapshot={definitionVersion:1,concept:'pass',name:q.product.name,memberName:q.memberName,memberNumber:q.memberNumber,credits:q.product.credits,startsOn:q.startsOn,periodStart:q.today,periodEnd:q.endsOn,currency:'EUR',netMinor:q.product.netMinor,taxMinor:q.product.taxMinor,totalMinor:q.product.totalMinor,priceIncludesTax:q.product.priceIncludesTax,taxBasisPoints:q.product.taxBasisPoints};
       await client.query("INSERT INTO centers.receipts(id,center_id,member_id,concept,pass_purchase_id,period_start,period_end,due_on,currency,net_minor,tax_minor,total_minor,snapshot,actor_uid) VALUES($1,$2,$3,'pass',$4,$5,$6,$5,'EUR',$7,$8,$9,$10,$11)",[receiptId,c,m,id,q.today,q.endsOn,q.product.netMinor,q.product.taxMinor,q.product.totalMinor,JSON.stringify(snapshot),user.id]);

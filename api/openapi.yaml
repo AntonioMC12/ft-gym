@@ -425,7 +425,7 @@ paths:
       tags: [centers]
       operationId: getPassesProducts
       summary: "List immutable pass products (manager; cursor pages of30)"
-      description: "Selected center and current capability required; explicit platform allowlist supported for administrative routes only. Real cursor pagination30. Purchases require active membership and do not alter its subscription. Starts on chosen local day, exclusive expiry after validDays. Paid grants require a fully settled receipt; refunds suspend unused credits, never restore consumed ones. Promotions have no receipt. Receipts are not fiscal invoices. No external charge or message is sent. See docs/dev/CENTERS_PASSES.md."
+      description: "Selected center and current capability required; explicit platform allowlist supported for administrative routes only. Real cursor pagination30. Purchases activate preactive members without creating a monthly subscription; inactive/ended members remain ineligible. Starts on chosen local day, exclusive expiry after validDays. Paid grants require a fully settled receipt; refunds suspend unused credits, never restore consumed ones. Promotions have no receipt. Receipts are not fiscal invoices. No external charge or message is sent. See docs/dev/CENTERS_PASSES.md."
       parameters:
         - { name: centerId, in: query, required: true, schema: { type: string } }
         - { name: cursor, in: query, schema: { type: string, maxLength: 1024 } }
@@ -5843,6 +5843,83 @@ paths:
         '401': { $ref: '#/components/responses/Unauthorized' }
         '403': { $ref: '#/components/responses/Forbidden' }
 
+  /api/centers/app-access:
+    get:
+      tags: [centers]
+      operationId: getApplicationMembershipAccess
+      summary: Current account application access and ten-day grace deadlines
+      description: Account-bound, no selectors. Civil expiry is exclusive period end minus one day; blocked after expiry plus ten days. Administrators and fee managers are exempt. Pass-only memberships do not require a monthly contract. Rechecked on private API requests and frontend focus/30 seconds. All private APIs can return 403 membership-renewal-required; logout, authentication and this recovery status remain accessible.
+      responses:
+        '200': { description: blocked flag, grace warnings and own membership deadlines }
+        '401': { description: Not signed in }
+        '503': { description: Status unavailable; private access fails closed }
+  /api/centers/renewals/preview:
+    post:
+      tags: [centers]
+      operationId: previewCashRenewal
+      summary: Review the current calendar period and cash balance before renewal
+      description: Requires billing.manage and payments.record. Body centerId, memberId, optional current priceVersionId for a first or ended contract. Returns alreadyCovered or name, periodStart, exclusive periodEnd, amountMinor in EUR and quoteHash. Never creates a contract, receipt or payment.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [centerId, memberId]
+              properties:
+                centerId: { type: string }
+                memberId: { type: string }
+                priceVersionId: { type: string }
+      responses:
+        '200': { description: Cash review or covered period }
+        '409': { description: Select a valid fee, review receipt refunds or activate membership }
+  /api/centers/renewals/cash:
+    post:
+      tags: [centers]
+      operationId: renewMembershipInCash
+      summary: Atomically renew, issue or reuse the receipt and allocate the cash payment
+      description: Same selectors as preview plus quoteHash and requestId. Explicit operator confirmation of cash received required in UI. Shares immutable contract calendar, tax, proration, receiptBalance and appendPayment. Preserves discount for renewed fee; no fixed30day duration. Center lock, actor idempotency and natural member/month key prevent duplicates across operators. A settled current membership receipt also counts as covered. No gateway or automatic external collection.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [centerId, memberId, quoteHash, requestId]
+              properties:
+                centerId: { type: string }
+                memberId: { type: string }
+                priceVersionId: { type: string }
+                quoteHash: { type: string }
+                requestId: { type: string }
+      responses:
+        '200': { description: Renewal, receipt and optional payment IDs or alreadyCovered }
+        '409': { description: Review changed, pending contract or refund reconciliation required }
+  /api/centers/passes/day:
+    post:
+      tags: [centers]
+      operationId: recordDailyPassUse
+      summary: Record one local day and consume one credit for a pass-only member
+      description: Requires billing.manage. Body centerId, memberId, requestId. Server chooses the first usable paid or promotional pass by expiry then purchase age. Shared append-only QR/manual balance, center lock, member/local-day replay and SQL validation prevent negative or duplicate consumption. Existing QR admission policy remains unchanged.
+      responses:
+        '200': { description: usedOn, passId, remaining or alreadyUsed }
+        '409': { description: No usable balance, inactive member or member has a fee contract }
+  /api/centers/passes/history:
+    get:
+      tags: [centers]
+      operationId: listPassHistory
+      summary: Administrative pass history or a pass consumption page
+      description: Requires billing.read for selected center. Query centerId, status(all/active/exhausted/expired), query(member name), cursor. Optional passId returns uses with local date, actor and QR/manual source. Pages30, newest purchase first; cursor bound to actor, center and filters. Returns members, pass terms, purchase date, exclusive expiry, credits, used, remaining and explicit state. No historical purchases are deleted.
+      parameters:
+        - { in: query, name: centerId, required: true, schema: { type: string } }
+        - { in: query, name: status, schema: { type: string, enum: [all, active, exhausted, expired] } }
+        - { in: query, name: query, schema: { type: string } }
+        - { in: query, name: passId, schema: { type: string } }
+        - { in: query, name: cursor, schema: { type: string } }
+      responses:
+        '200': { description: passes or uses with nextCursor }
+        '403': { description: Current capability required }
+        '404': { description: Center unavailable }
 components:
   securitySchemes:
     cookieAuth:

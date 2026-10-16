@@ -5,14 +5,14 @@
 ## Punto de reanudación — decisiones del16octubre
 
 - Rama codex/centers-module, schema041. Cambios previos Docker/web/demo del usuario conservados. Aplicación compartida en https://dining-salt-volumes-adaptive.trycloudflare.com/#/centers, API/web healthy, túnel running y SQL available/schema041. Usar ese HTTPS tanto desde este ordenador como desde fuera; el origen de autenticación se ajustó a la URL pública. WEB6f88e121-dirty con acceso directo a centro elegido en Inicio del superadmin y ambos campos numéricos de bonos corregidos; API71545306-dirty conservada con vinculación por selector, schema041. Arranque normal preview.mjs:0 perfiles Stripe, jobs0 y7archivos conservados por SHA256.
-- Alcance vigente: todo se cobra en mano, exclusivamente en efectivo, y se registra manualmente por el responsable. No implementar ni activar pagos con tarjeta/Stripe por ahora. Petición actual: acceso directo a un centro elegido desde Inicio del superadmin, sustituyendo su tarjeta de check-in. Sin repetir el apagado de otra sesión.
+- Alcance vigente: todo se cobra en mano, exclusivamente en efectivo, y se registra manualmente por el responsable. No implementar ni activar pagos con tarjeta/Stripe por ahora. Petición actual: renovación completa en efectivo desde socios, bloqueo de app tras10 días de caducidad e historial/uso diario de bonos. C43–C45 implementados con validación focal; preview pendiente de actualización y aceptación visual diferida. Sin repetir el apagado de otra sesión.
 - C27: aplazado expresamente, todo/fuera de la entrega actual. Conservar código/fixture y guía como referencia futura, sin configurar claves, ensayar sandbox ni activar cobros. La validación Stripe no bloquea el cierre del alcance en efectivo.
 - C28/C39: aplazados expresamente, estado todo/fuera del alcance actual. No se emitirán facturas fiscales por ahora; conservar recibos, pagos manuales y deuda. SEPA es domiciliación bancaria y también se aplaza.
 - C32: done técnico del alcance actual (contratos/finanzas/admisiones registradas). Ocupación física y conexión NFC/cerradura quedan para más adelante; no existen datos de entrada/salida de ese hardware en la app. Retención actual solo usa visitas QR registradas, no todas las entradas NFC del gimnasio.
 - C35: alta pública aplazada, todo/fuera del alcance. Alta administrativa de socios y cobros en efectivo ya implementados en C13/C15/C17/C20. No requieren Stripe ni cuenta personal vinculada; asignar cuota puede activar antes de registrar pago. Ver pasos en CENTERS_DELIVERY_STATUS.md.
 - C41/C42: todo, validar al terminar el alcance acordado. No bloquear por adelantado tareas de desarrollo local con su aceptación/activación final ni marcar funciones futuras como implementadas.
 - C29/C30/C31/C33/C34/C36/C37/C38/C40: done técnico; criterios y evidencia en el historial. C30/C33/C38 no deben reimplementarse. Matriz vigente: CENTERS_DELIVERY_STATUS.md.
-- Implementado en esta iteración: tarjeta de centro elegido en Inicio del superadmin, con búsqueda/paginación, cambio de favorito y acceso directo; check-in conservado para otras cuentas.45 pruebas focales y build correctos; revisión visual pendiente.
+- Última entrega: C43 renovación completa en efectivo desde socios, C44 bloqueo/gracia10días y C45 día de bono/historial implementados. Migración042 y pruebas focales acreditadas; detalle en CENTERS_RENEWALS_AND_PASSES.md. Preview todavía041 hasta actualizarla; aceptación visual y C41/C42 pendientes.
 - Comprobaciones: mantener esenciales de permisos, aislamiento y dinero; revisión visual y suites generales se reservan para la fase final acordada. Última corrección: se completa field en Días de validez, omitido anteriormente;7 pruebas focales y build Docker correctos, WEB actualizada; pendiente aceptación visual. Siguen pendientes configuración explícita de cuota y validación de autofill con extensión real. Revisión visual pendiente, sin suites generales.
 
 ### Cierre técnico y validación diferida
@@ -130,6 +130,9 @@ Estados permitidos: `todo`, `in_progress`, `done`, `blocked`. Una tarea done nec
 | C40 | F13 | Operación y reversión | done |
 | C41 | F13 | Activación gradual | todo |
 | C42 | F13 | Aceptación/documentación | todo |
+| C43 | F14 | Renovación atómica de cuota/recibo/efectivo desde socios | done |
+| C44 | F14 | Restricción privada por caducidad y gracia10días | done |
+| C45 | F14 | Día de bono atómico e historial filtrable | done |
 
 ## Gates de entrega
 
@@ -909,3 +912,17 @@ Se sustituye la tarjeta En el gimnasio/Registrarse exclusivamente para cuentas c
 Comprobación:45/45 tests focales (8 nuevos de permisos, selección, navegación, persistencia aislada, favorito ausente, búsqueda/paginación y cambio de cuenta;37 existentes de Home) correctos. Build correcto;2157 textos presentes y18locales/2788claves sincronizados. Preview actualizada únicamente en WEB6f88e121-dirty. Sin modificaciones de backend, socios, dinero ni SQL. Revisión visual móvil/escritorio/temas pendiente del usuario. Siguiente paso: probar Elegir/Cambiar/Abrir centro desde Inicio y aceptar visualmente la tarjeta en móvil/escritorio.
 
 Preview: WEB6f88e121-dirty healthy tras build Docker correcto; API71545306-dirty, SQL y túnel conservados, HTTPS público /api/health200. Los7archivos de preview conservan sus SHA256,0diferencias. Cambios previos del usuario intactos. Commit de código6f88e121 en codex/centers-module, sin push. Logs home-center-* fuera de Git.
+
+## 16octubre — C43/C44/C45 alcance adicional solicitado
+
+En desarrollo: renovación completa en efectivo (confirmación de dinero recibido, suscripción si falta/venció, recibo y pago atomicamente), acceso privado restringido tras10días de gracia y uso diario de bonos exclusivos/historial filtrable. Migración042 aditiva, sin cambiar registros históricos ni cargar datos reales. Pendiente pruebas SQL concurrentes/fechas/RLS, UI focal y compilación. No presentar como verificado ni reconstruir preview hasta cerrar esas comprobaciones.
+
+## Cierre técnico C43/C44/C45 — renovación en efectivo y bonos
+
+Implementación terminada; guía y decisiones comerciales en CENTERS_RENEWALS_AND_PASSES.md. Renovar desde listado/buscador confirma dinero recibido y atomiza contrato/activación si falta, recibo y saldo pendiente en efectivo. Reconoce recibos ya liquidados, conserva descuentos y versiones, exige selección/revisión si cuota no válida o devolución. Cambio de cuota abre directamente ficha económica y mantiene política existente de fecha efectiva/preaviso/historial. Sin procesos de cobro externo.
+
+Acceso privado: fecha final exclusiva→caducidad el día anterior,10días civiles de gracia y bloqueo día11; backend por petición y frontend en sesiones abiertas. Exentos admins/gestores y ausencia de mensualidad para bonos exclusivos. Estado/cierre de sesión disponibles y recuperación tras renovar; no elimina estado local. El primer ciclo del contrato conserva la asignación inicial existente y los siguientes se acreditan por recibos pagados/renovaciones gratuitas. Varias cuotas: basta una afiliación en vigencia/gracia.
+
+Bonos: primera asignación puede activar un socio pendiente sin mensualidad. Registro manual por socio/fecha local, FEFO/antigüedad, saldo compartido con QR, auditado y atómico, sin negativos ni uso de bonos agotados/caducados/impagados. Historial global y consumos con búsqueda, estados explícitos y cursor30. Admisiones QR conservan sus reglas propias.
+
+Migración042 aditiva con backfill de actor/día para visitas anteriores y FORCE RLS restaurado en la misma transacción. Prueba de actualización041→042 con ledger QR no vacío:1/1. SQL focal final14/14 (9 nuevos +5 regresiones de bonos), además pagos/suscripciones2/2 en ejecución focal anterior. Dominio/contrato OpenAPI/bonos11/11. UI69/69 combinando6archivos válidos, historial2/2 y compatibilidad de configuración inicial/instalación sin centros2/2; no suites generales. Build correcto,2170textos presentes y18locales/2820claves sincronizados. Logs renewals-* fuera de Git. No hay bloqueos técnicos detectados; pendientes aceptación visual, C41/C42 y actualizar API/WEB preview conservando datos/túnel.

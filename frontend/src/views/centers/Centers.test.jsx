@@ -1,3 +1,4 @@
+vi.mock('./PassHistory.jsx',()=>({default:()=>null}))
 // @vitest-environment happy-dom
 vi.mock('./MembershipPlans.jsx',()=>({default:()=> <p>Existing plan list</p>}))
 vi.mock('./PassProducts.jsx',()=>({default:()=>null}))

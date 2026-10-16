@@ -1,3 +1,4 @@
+import {feeSummary} from './renewals.js';
 import { createHash } from 'node:crypto';
 import { CentersError } from '../errors.js';
 import { memberDto } from '../authz.js';
@@ -66,7 +67,8 @@ export async function listMembers(database,uid,centerId,{query,state,limit,curso
         AND ($4='' OR state=$4) AND ($5::timestamptz IS NULL OR (created_at,id)<($5::timestamptz,$6::text))
       ORDER BY created_at DESC,id DESC LIMIT $7`,[centerId,query,pattern,state,after?.at||null,after?.id||null,limit+1]);
     const page=rows.slice(0,limit),last=page.at(-1);
-    return {members:page.map(row=>memberDto(row,context.capabilities)),nextCursor:rows.length>limit?
+    const members=[];for(const row of page){const dto=memberDto(row,context.capabilities);if(context.capabilities.includes('billing.read'))dto.fee=await feeSummary(client,centerId,await memberRecord(client,centerId,row.id));members.push(dto)}
+    return {members,nextCursor:rows.length>limit?
       nextCursor(scope,last):null};
   },{platform,allowInactive:platform});
 }

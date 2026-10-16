@@ -14,7 +14,7 @@ export default function Passes({centerId,ownerUid,memberId,own=false,today,activ
   const life=useRef(0),pending=useRef(false),intent=useRef(null),draft=useRef(null),selectRef=useRef(onSelect);selectRef.current=onSelect;draft.current=JSON.stringify({productId,startsOn,revoke:revoke?.id,reason})
   const current=e=>life.current===e&&useStore.getState().user?.id===ownerUid
   const fail=e=>{setError(e);useCenters.getState().revokeOn(e)}
-  useUnsavedCenterForm(editor||revoke?draft.current:null,busy)
+  useUnsavedCenterForm(editor&&(productId||startsOn!==(today||''))||revoke&&reason?draft.current:null,busy)
   useEffect(()=>{const epoch=++life.current;pending.current=true;setBusy(true);setError(null);setRows([]);setCursor(null);setEditor(false);setQuote(null);setRevoke(null);setReason('');intent.current=null;selectRef.current?.(null)
     centerPasses(centerId,own?{}:{memberId},own).then(page=>{if(current(epoch)){setRows(page.passes);setCursor(page.nextCursor)}}).catch(e=>{if(current(epoch))fail(e)}).finally(()=>{if(current(epoch)){pending.current=false;setBusy(false)}});return()=>{life.current++;pending.current=false}
   },[centerId,ownerUid,memberId,own,revision,reload])

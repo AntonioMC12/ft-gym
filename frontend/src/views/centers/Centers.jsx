@@ -99,16 +99,18 @@ function CenterPanel({ center, platform, capabilities, close, refresh, ownerUid,
   const [fields, setFields] = useState(() => fieldsOf(center)), [staff, setStaff] = useState([]), [manager, setManager] = useState(null)
   const [trainerUid, setTrainerUid] = useState(''), [replaceId, setReplaceId] = useState(null)
   const [busy, setBusy] = useState(false), [error, setError] = useState(null)
-  useUnsavedCenterForm(JSON.stringify(fields)!==JSON.stringify(fieldsOf(center))||manager||trainerUid||replaceId?JSON.stringify([fields,manager?.id,trainerUid,replaceId]):null,busy)
+  const detailsPane=!memberPane&&!planPane&&!billingPane&&!accessPane&&!metricsPane&&!classesPane
+  const fieldsDirty=JSON.stringify(fields)!==JSON.stringify(fieldsOf(center))
+  const saveForm=useUnsavedCenterForm(detailsPane&&(fieldsDirty||manager||trainerUid||replaceId)?JSON.stringify([fields,manager?.id,trainerUid,replaceId]):null,busy,{saveable:fieldsDirty&&!manager&&!trainerUid&&!replaceId})
   const life=useRef(0),pending=useRef(false),permissionKey=capabilities.join('|')
   const current=epoch=>life.current===epoch&&useStore.getState().user?.id===ownerUid
   useEffect(()=>{life.current++;pending.current=false;setBusy(false);setError(null);return()=>{life.current++;pending.current=false}},[center.id,center.version,ownerUid,pane,permissionKey])
-  useEffect(() => { setFields(fieldsOf(center)) }, [center])
+  useEffect(() => { setFields(fieldsOf(center));setManager(null);setTrainerUid('');setReplaceId(null) }, [center,pane])
   useEffect(() => { let current = true; setStaff([]); if (platform || capabilities.includes('staff.manage')) centerStaff(center.id).then(r => { if (current) setStaff(r.staff) }).catch(e => { if (current) setError(e) }); return () => { current = false } }, [center, platform, capabilities])
   const perform = async (path, body, epoch=life.current) => {
     if(!current(epoch)||pending.current)return;pending.current=true
     setBusy(true); setError(null)
-    try { await centerCommand(path, body); if (!current(epoch)) return; useUI.getState().toast(t('Saved')); refresh(); setManager(null); setReplaceId(null) }
+    try { await centerCommand(path, body); if (!current(epoch)) return; useUI.getState().toast(t('Saved')); refresh(); setManager(null); setTrainerUid(''); setReplaceId(null) }
     catch (e) { if(current(epoch)){setError(e);useCenters.getState().revokeOn(e)} }
     finally { if(current(epoch)){pending.current=false;setBusy(false)} }
   }
@@ -121,7 +123,7 @@ function CenterPanel({ center, platform, capabilities, close, refresh, ownerUid,
     <div className="centers-actions"><span className="muted small">{stateLabel(center.state)}</span><Button onClick={close}>{t('Back')}</Button></div>
     {(canMembers||canPlans||canBilling||canAccess||canClasses)&&<div className="centers-tabs-scroll"><Segmented scrollable label={t('Center details')} options={[{value:'details',label:t('Center details')},...(canMembers?[{value:'members',label:t('Members')}]:[]),...(canPlans?[{value:'plans',label:t('Membership plans')}]:[]),...(canClasses?[{value:'classes',label:t('Classes')}]:[]),...(canBilling?[{value:'billing',label:t('Debt and calendar')},{value:'metrics',label:t('Center metrics')}]:[]),...(canAccess?[{value:'access',label:t('Center access')}]:[])]} value={classesPane?'classes':memberPane?'members':planPane?'plans':billingPane?'billing':accessPane?'access':metricsPane?'metrics':'details'} onChange={setPane}/><p className="centers-tabs-hint small muted"><Icon name="chevronRight"/>{t('Scroll to see more sections')}</p></div>}
     {!memberPane&&!planPane&&!billingPane&&!accessPane&&!metricsPane&&!classesPane&&<>
-    {(platform || capabilities.includes('center.update')) && <form onSubmit={e => { e.preventDefault(); perform(updatePath, { ...fields, centerId: center.id, version: center.version }) }}><Fields value={fields} change={setFields} disabled={busy}/><Button type="submit" variant="primary" disabled={busy}>{t('Save')}</Button></form>}
+    {(platform || capabilities.includes('center.update')) && <form ref={saveForm} aria-label={t('Center details')} onSubmit={e => { e.preventDefault(); perform(updatePath, { ...fields, centerId: center.id, version: center.version }) }}><Fields value={fields} change={setFields} disabled={busy}/><Button type="submit" variant="primary" disabled={busy}>{t('Save')}</Button></form>}
     {staff.length > 0 && <div><h3>{t('Center staff')}</h3>{staff.map(role => <div key={role.id} className="centers-staff-row"><div><strong>{role.role === 'manager' ? t('Center manager') : t('Trainer')}</strong><div className="small muted">{role.accountUid}</div></div>
       {role.revoked ? <span className="muted small">{t('Revoked role')}</span> : (platform || role.role === 'trainer') && <div className="centers-actions">{platform && role.role==='manager' && <Button onClick={() => setReplaceId(role.id)}>{t('Replace')}</Button>}<Button disabled={busy} onClick={() => perform(platform ? '/api/platform/centers/revoke-role' : '/api/centers/staff/revoke', { centerId: center.id, version: center.version, assignmentId: role.id })}>{t('Revoke role')}</Button></div>}
       {platform&&!role.revoked&&role.role==='manager'&&<><RefundGrant centerId={center.id} role={role} ownerUid={ownerUid} saved={refresh}/><RefundGrant centerId={center.id} role={role} ownerUid={ownerUid} saved={refresh} capability="data.export"/></>}

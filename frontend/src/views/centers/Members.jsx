@@ -29,7 +29,7 @@ function MemberForm({centerId,member,lifecycle,ownerUid,close,saved,canBilling,c
   const [requestId]=useState(()=>crypto.randomUUID())
   const [receiptsRevision,setReceiptsRevision]=useState(0)
   const requestNavigation=useCenterNavigation()
-  useUnsavedCenterForm(JSON.stringify(fields)!==JSON.stringify(fieldsOf(currentMember))?JSON.stringify(fields):null,busy)
+  const saveForm=useUnsavedCenterForm(JSON.stringify(fields)!==JSON.stringify(fieldsOf(currentMember))?JSON.stringify(fields):null,busy)
   const input=(key,label,type='text')=><label className="centers-field"><span>{label}</span><TextField type={type} disabled={busy} value={fields[key]} required={key==='name'} onChange={e=>setFields({...fields,[key]:e.target.value})}/></label>
   const submit=async e=>{
     e.preventDefault();if(busy)return;setBusy(true);setError(null)
@@ -40,7 +40,7 @@ function MemberForm({centerId,member,lifecycle,ownerUid,close,saved,canBilling,c
     }catch(e){setError(e);if(useStore.getState().user?.id===ownerUid)useCenters.getState().revokeOn(e)}
     finally{setBusy(false)}
   }
-  return <><Section title={currentMember?t('Member details'):t('New member')}><form className="centers-form" onSubmit={submit}>
+  return <><Section title={currentMember?t('Member details'):t('New member')}><form ref={saveForm} aria-label={t('Member details')} className="centers-form" onSubmit={submit}>
     {currentMember&&<p>{t('Member number')}: {currentMember.number} · {stateText(currentMember.state)}</p>}
     <div className="centers-fields">{input('name',t('Member name'))}{input('email',t('Contact email'),'email')}{input('phone',t('Phone'))}{input('nationalDocument',t('National document'))}</div>
     {error&&<p role="alert">{t(membersErrorKey(error))}</p>}

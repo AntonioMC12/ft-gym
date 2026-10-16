@@ -1,4 +1,5 @@
-import {createContext,useContext,useEffect,useRef} from 'react'
+import {createContext,useContext,useEffect,useRef,useState,useCallback} from 'react'
+import {Button} from '../../components/ui.jsx'
 import {confirmSheet} from '../../sheets.jsx'
 import {t} from '../../lib/i18n.js'
 import {onSheetEntry} from '../../lib/nav.js'
@@ -6,6 +7,11 @@ import {onSheetEntry} from '../../lib/nav.js'
 const Context=createContext(null)
 export default function CenterNavigationGuard({children,contextKey}){
   const entries=useRef(new Set()),alive=useRef(true)
+  const [pending,setPending]=useState([])
+  const report=useCallback(()=>{
+    const next=[...entries.current].filter(ref=>ref.current.dirty||ref.current.busy).map(ref=>({ref,value:ref.current}))
+    setPending(previous=>previous.length===next.length&&previous.every((item,i)=>item.ref===next[i].ref&&item.value===next[i].value)?previous:next)
+  },[])
   const waiting=useRef(new Set())
   const context=useRef(contextKey);context.current=contextKey
   useEffect(()=>{
@@ -33,12 +39,24 @@ export default function CenterNavigationGuard({children,contextKey}){
       action()
     })})
   }
-  return <Context.Provider value={{entries:entries.current,request}}>{children}</Context.Provider>
+  const dirty=pending.filter(item=>item.value.dirty),target=dirty.find(item=>item.ref.current.saveable&&item.ref.current.form.current)?.ref.current
+  const save=()=>{
+    if(pending.some(item=>item.ref.current.busy)||!target?.dirty||!target.saveable)return
+    const form=target.form.current
+    if(form?.isConnected){form.scrollIntoView?.({block:'center',behavior:'smooth'});form.requestSubmit()}
+  }
+  return <Context.Provider value={{entries:entries.current,request,report}}>{children}{dirty.length>0&&<aside className="centers-unsaved-bar" aria-label={t('Unsaved changes')}>
+    <div><strong role="status">{t('Unsaved changes')}</strong><p className="small muted">{t('Each form is saved separately.')}</p></div>
+    {target?.saveable&&target.form.current&&<Button variant="primary" disabled={pending.some(item=>item.value.busy)} onClick={save}>{t('Save form')}{target.form.current.getAttribute('aria-label')?': '+target.form.current.getAttribute('aria-label'):''}</Button>}
+  </aside>}</Context.Provider>
 }
 export const useCenterNavigation=()=>useContext(Context)?.request||(action=>action())
-export function useUnsavedCenterForm(dirty,busy=false){
-  const context=useContext(Context),entry=useRef({dirty,busy})
-  if(entry.current.dirty!==dirty||entry.current.busy!==busy)entry.current={dirty,busy}
+export function useUnsavedCenterForm(dirty,busy=false,{saveable=true}={}){
+  const context=useContext(Context),form=useRef(null),entry=useRef({dirty,busy,saveable,form})
+  if(entry.current.dirty!==dirty||entry.current.busy!==busy||entry.current.saveable!==saveable)entry.current={dirty,busy,saveable,form}
   const entries=context?.entries
-  useEffect(()=>{if(!entries)return;entries.add(entry);return()=>entries.delete(entry)},[entries])
+  const report=context?.report
+  useEffect(()=>{if(!entries)return;entries.add(entry);report();return()=>{entries.delete(entry);report()}},[entries,report])
+  useEffect(()=>{report?.()},[dirty,busy,saveable,report])
+  return form
 }

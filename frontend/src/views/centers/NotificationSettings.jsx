@@ -11,7 +11,7 @@ const fields=[['dueLeadDays','Due reminder lead (days)'],['debtRepeatDays','Debt
 const states={pending:'Pending job',sending:'Sending notice',sent:'Sent notice',blocked:'Blocked job',uncertain:'Delivery needs review',skipped:'Skipped job'}
 export default function NotificationSettings({centerId,ownerUid,platform=false,active=true}) {
   const [data,setData]=useState(null),[draft,setDraft]=useState(empty),[error,setError]=useState(null),[busy,setBusy]=useState(false),[revision,setRevision]=useState(0)
-  useUnsavedCenterForm(data&&JSON.stringify(draft)!==JSON.stringify(data.policy||empty)?JSON.stringify(draft):null,!!data&&busy)
+  const saveForm=useUnsavedCenterForm(data&&JSON.stringify(draft)!==JSON.stringify(data.policy||empty)?JSON.stringify(draft):null,!!data&&busy)
   const life=useRef(0),pending=useRef(false),retry=useRef(null),current=epoch=>life.current===epoch&&useStore.getState().user?.id===ownerUid
   const fail=e=>{setError(e);useCenters.getState().revokeOn(e)}
   useEffect(()=>{
@@ -29,7 +29,7 @@ export default function NotificationSettings({centerId,ownerUid,platform=false,a
     <Button disabled={busy} onClick={()=>setRevision(value=>value+1)}>{t('Reload centers')}</Button>
     {data&&<>
       {data.transport==='off'?<p role="status">{t('Email notices are not configured.')}</p>:data.transport==='test-capture'&&<p role="status">{t('Local test: no emails are sent.')}</p>}
-      {platform?<form onSubmit={save}>
+      {platform?<form ref={saveForm} aria-label={t('Email notices')} onSubmit={save}>
         <label className="centers-actions"><span>{t('Enable email notices')}</span><Switch type="button" aria-label={t('Enable email notices')} checked={draft.enabled} disabled={busy||!active||data.transport==='off'} onChange={enabled=>setDraft(value=>({...value,enabled}))}/></label>
         <label className="centers-actions"><span>{t('Receipt notices')}</span><Switch type="button" aria-label={t('Receipt notices')} checked={draft.receipts} disabled={busy||!active} onChange={receipts=>setDraft(value=>({...value,receipts}))}/></label>
         {fields.map(([key,label])=><label className="centers-field" key={key}><span>{t(label)}</span><NumberField className="field" decimal={false} value={draft[key]} disabled={busy||!active} onChange={number=>setDraft(value=>({...value,[key]:number}))}/></label>)}

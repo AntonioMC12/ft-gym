@@ -1,4 +1,5 @@
 // @vitest-environment happy-dom
+vi.mock('./MembershipPlans.jsx',()=>({default:()=> <p>Existing plan list</p>}))
 vi.mock('./PassProducts.jsx',()=>({default:()=>null}))
 import React, { act } from 'react'
 import { createRoot } from 'react-dom/client'
@@ -213,4 +214,11 @@ it('offers direct Home navigation while protecting an unsaved new center',async(
 it('returns directly to Centers preserving its filter only after confirming edited details',async()=>{
   function Location(){return <output data-path>{useLocation().search}</output>}
   await act(async()=>{root.render(<MemoryRouter initialEntries={['/centers?centerId=one&q=Synthetic']}><Centers/><Location/></MemoryRouter>);await Promise.resolve()});input(host.querySelector('input'),'Changed details');await click('Centers');expect(host.querySelector('[data-path]').textContent).toContain('centerId=one');await act(async()=>confirmSheet.mock.calls.at(-1)[0].onConfirm());expect(host.querySelector('[data-path]').textContent).toBe('?q=Synthetic');expect(host.textContent).toContain('Synthetic center')
+})
+
+it('discarding edited details clears the hidden draft and browsing plan lists does not ask for a nonexistent save',async()=>{
+ useCenters.setState({platformCapabilities:['centers.manage','plans.manage','members.read']});await render();await click('Center details');input(host.querySelector('input'),'Unsaved name');expect(host.querySelector('aside button').textContent).toContain('Save form: Center details');await click('Membership plans');expect(confirmSheet).toHaveBeenCalledOnce();await act(async()=>{confirmSheet.mock.calls[0][0].onConfirm();await Promise.resolve()});expect(host.textContent).toContain('Existing plan list');expect(host.querySelector('aside')).toBeNull();await click('Members');expect(confirmSheet).toHaveBeenCalledOnce();await click('Center details');expect(host.querySelector('input').value).toBe(center.name);expect(host.querySelector('aside')).toBeNull();
+})
+it('the visible shared save action sends edited center fields through the existing save handler',async()=>{
+ centerCommand.mockResolvedValue({center});await render();await click('Center details');input(host.querySelector('input'),'Saved via bar');await act(async()=>{host.querySelector('aside button').click();await Promise.resolve()});expect(centerCommand).toHaveBeenCalledWith('/api/platform/centers/update',expect.objectContaining({centerId:'one',version:1,name:'Saved via bar'}));
 })

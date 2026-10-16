@@ -15,7 +15,7 @@ export default function PassProducts({centerId,ownerUid}){
   const life=useRef(0),pending=useRef(false),intent=useRef(null),draft=useRef(null);draft.current=JSON.stringify(fields)
   const current=e=>life.current===e&&useStore.getState().user?.id===ownerUid
   const fail=e=>{setError(e);useCenters.getState().revokeOn(e)}
-  useUnsavedCenterForm(editor&&JSON.stringify(fields)!==JSON.stringify(initial)?JSON.stringify(fields):null,busy)
+  const saveForm=useUnsavedCenterForm(editor&&JSON.stringify(fields)!==JSON.stringify(initial)?JSON.stringify(fields):null,busy)
   useEffect(()=>{const epoch=++life.current;pending.current=true;setBusy(true);setError(null);setRows([]);setCursor(null);setEditor(false);setFields(initial);intent.current=null
     centerPassProducts(centerId,{archived:archived?'all':'active'}).then(page=>{if(current(epoch)){setRows(page.products);setCursor(page.nextCursor)}}).catch(e=>{if(current(epoch))fail(e)}).finally(()=>{if(current(epoch)){pending.current=false;setBusy(false)}});return()=>{life.current++;pending.current=false}
   },[centerId,ownerUid,archived,revision])
@@ -31,7 +31,7 @@ export default function PassProducts({centerId,ownerUid}){
   return <Section title={t('Pass products')}><div className="centers-form">
     <p className="small muted">{t('Purchased passes keep their original terms.')}</p>
     {!editor&&<><Button disabled={busy} onClick={()=>setEditor(true)}>{t('Create pass product')}</Button><label>{t('Archived plans')} <Switch checked={archived} disabled={busy} onChange={setArchived}/></label></>}
-    {editor&&<form onSubmit={create} className="centers-form"><label className="centers-field"><span>{t('Pass product')}</span><TextField required maxLength={120} value={fields.name} disabled={busy} onChange={e=>update('name',e.target.value)}/></label>
+    {editor&&<form ref={saveForm} aria-label={t('Pass products')} onSubmit={create} className="centers-form"><label className="centers-field"><span>{t('Pass product')}</span><TextField required maxLength={120} value={fields.name} disabled={busy} onChange={e=>update('name',e.target.value)}/></label>
       <SelectRow title={t('Pass kind')} value={fields.kind} disabled={busy} options={[{value:'paid',label:t('Paid pass')},{value:'promotion',label:t('Free promotion')}]} onChange={v=>update('kind',v)}/>
       <label className="centers-field"><span>{t('Pass credits')}</span><NumberField min={1} max={1000} value={fields.credits} disabled={busy} onChange={v=>update('credits',v)}/></label>
       <label className="centers-field"><span>{t('Pass validity days')}</span><NumberField min={1} max={3650} value={fields.validDays} disabled={busy} onChange={v=>update('validDays',v)}/></label>

@@ -14,20 +14,20 @@ import {useUnsavedCenterForm} from './NavigationGuard.jsx'
 export default function Subscriptions({centerId,member,ownerUid,changed,receiptCreated}) {
   const [info,setInfo]=useState(null),[plans,setPlans]=useState([]),[cursor,setCursor]=useState(null),[query,setQuery]=useState(''),[search,setSearch]=useState('')
   const [priceVersionId,setPriceVersionId]=useState(''),[effectiveOn,setEffectiveOn]=useState(''),[discount,setDiscount]=useState('0'),[reason,setReason]=useState('')
+  const [baseline,setBaseline]=useState(null)
   const [busy,setBusy]=useState(false),[error,setError]=useState(null),[requestId,setRequestId]=useState(()=>crypto.randomUUID())
   const life=useRef(0),planEpoch=useRef(0),pendingPlans=useRef(false),cancelIds=useRef(new Map()),prepared=useRef('')
   const current=epoch=>life.current===epoch&&useStore.getState().user?.id===ownerUid
-  useUnsavedCenterForm(priceVersionId||reason||discount!=='0'||info&&effectiveOn!==info.today?JSON.stringify([priceVersionId,effectiveOn,discount,reason]):null,busy)
   const fail=e=>{setError(e);useCenters.getState().revokeOn(e)}
   useEffect(()=>{
-    const epoch=++life.current;setInfo(null);setError(null);setBusy(false);setRequestId(crypto.randomUUID())
+    const epoch=++life.current;setInfo(null);setBaseline(null);prepared.current='';setError(null);setBusy(false);setRequestId(crypto.randomUUID())
     centerSubscriptions(centerId,member.id).then(result=>{if(current(epoch)){setInfo(result);setEffectiveOn(value=>value||result.today)}}).catch(e=>{if(current(epoch))fail(e)})
     return()=>{life.current++}
   },[centerId,member.id,member.version,ownerUid])
   useEffect(()=>{const timer=setTimeout(()=>setSearch(query.trim()),250);return()=>clearTimeout(timer)},[query])
   useEffect(()=>{
     const epoch=++planEpoch.current;pendingPlans.current=true;setPlans([]);setCursor(null)
-    centerPlans(centerId,{query:search}).then(result=>{if(planEpoch.current===epoch&&useStore.getState().user?.id===ownerUid){setPlans(result.plans);setCursor(result.nextCursor);setPriceVersionId(value=>result.plans.some(row=>row.priceVersionId===value)?value:result.plans[0]?.priceVersionId||'')}}).catch(e=>{if(planEpoch.current===epoch&&useStore.getState().user?.id===ownerUid)fail(e)}).finally(()=>{if(planEpoch.current===epoch)pendingPlans.current=false})
+    centerPlans(centerId,{query:search}).then(result=>{if(planEpoch.current===epoch&&useStore.getState().user?.id===ownerUid){setPlans(result.plans);setCursor(result.nextCursor);setPriceVersionId(value=>value||result.plans[0]?.priceVersionId||'')}}).catch(e=>{if(planEpoch.current===epoch&&useStore.getState().user?.id===ownerUid)fail(e)}).finally(()=>{if(planEpoch.current===epoch)pendingPlans.current=false})
     return()=>{planEpoch.current++;pendingPlans.current=false}
   },[centerId,member.id,ownerUid,search])
   const more=async()=>{
@@ -38,19 +38,22 @@ export default function Subscriptions({centerId,member,ownerUid,changed,receiptC
   const update=(setter,value)=>{if(!busy){setter(value);setRequestId(crypto.randomUUID())}}
   const active=info?.subscriptions.find(row=>!row.canceled&&row.startsOn<=info.today&&(!row.effectiveEndsOn||row.effectiveEndsOn>info.today))
   const scheduled=info?.subscriptions.some(row=>!row.canceled&&row.startsOn>info.today)
+  const signature=JSON.stringify([priceVersionId,effectiveOn,discount,reason])
+  const saveForm=useUnsavedCenterForm(info&&!scheduled&&member.state!=='ended'&&baseline!==null&&signature!==baseline?signature:null,busy)
   useEffect(()=>{
     if(!info||!plans.length)return
     const future=info.subscriptions.find(row=>!row.canceled&&row.startsOn>info.today),key=[centerId,member.id,active?.id||'new',future?.id||''].join('|')
     if(prepared.current===key)return;prepared.current=key
-    setDiscount(minorToPrice(String(active?.discountBasisPoints||0)));setReason(active?.discountReason||'');setEffectiveOn(info.today)
-    setPriceVersionId(plans.find(row=>row.id===active?.planId)?.priceVersionId||plans[0].priceVersionId);setRequestId(crypto.randomUUID())
+    const price=plans.find(row=>row.id===active?.planId)?.priceVersionId||plans[0].priceVersionId,amount=minorToPrice(String(active?.discountBasisPoints||0)),note=active?.discountReason||''
+    setDiscount(amount);setReason(note);setEffectiveOn(info.today);setPriceVersionId(price)
+    setBaseline(JSON.stringify([price,info.today,amount,note]));setRequestId(crypto.randomUUID())
   },[info,plans,centerId,member.id])
   const submit=async e=>{
     e.preventDefault();if(busy)return;const epoch=life.current;setBusy(true);setError(null)
     try{
       const result=await centerCommand('/api/centers/subscriptions/'+(active?'change':'create'),{centerId,memberId:member.id,memberVersion:member.version,priceVersionId,effectiveOn,
         discountBasisPoints:Number(priceToMinor(discount)),discountReason:reason||null,requestId,...(active?{id:active.id}:{})})
-      if(current(epoch)){setInfo(result);changed(result)}
+      if(current(epoch)){setBaseline(signature);setInfo(result);changed(result)}
     }catch(e){if(current(epoch))fail(e)}finally{if(current(epoch))setBusy(false)}
   }
   const cancel=row=>{
@@ -63,7 +66,7 @@ export default function Subscriptions({centerId,member,ownerUid,changed,receiptC
   return <Section title={t('Subscriptions')}><div className="centers-form">
     {!info&&!error&&<p role="status">{t('Loading…')}</p>}
     {info?.subscriptions.map(row=><div key={row.id}><ContractSummary contract={row}>{row.canCancel&&<Button disabled={busy} onClick={()=>cancel(row)}>{t('Cancel scheduled change')}</Button>}</ContractSummary>{!row.canceled&&<BillingPreview key={member.version} centerId={centerId} memberId={member.id} contractId={row.id} ownerUid={ownerUid} today={info.today} canGenerate onGenerated={receiptCreated}/>}</div>)}
-    {info&&!scheduled&&member.state!=='ended'&&<form onSubmit={submit}>
+    {info&&!scheduled&&member.state!=='ended'&&<form ref={saveForm} aria-label={t('Subscriptions')} onSubmit={submit}>
       <h3>{active?t('Change membership plan'):t('Assign membership plan')}</h3>
       <SearchField aria-label={t('Search membership plans')} placeholder={t('Search membership plans')} value={query} onChange={e=>setQuery(e.target.value)} onClear={()=>setQuery('')}/>
       <SelectRow title={t('Membership plans')} value={priceVersionId} options={plans.map(plan=>({value:plan.priceVersionId,label:plan.name+' · '+minorToPrice(plan.priceMinor)+' '+plan.currency}))} onChange={value=>update(setPriceVersionId,value)}/>

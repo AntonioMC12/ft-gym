@@ -8,6 +8,7 @@ vi.mock('../../lib/centers-api.js',()=>({centerSubscriptions:vi.fn(),centerPlans
 vi.mock('../../sheets.jsx',()=>({confirmSheet:vi.fn(options=>options.onConfirm())}))
 import {centerSubscriptions,centerPlans,centerCommand} from '../../lib/centers-api.js'
 import Subscriptions from './Subscriptions.jsx'
+import Guard from './NavigationGuard.jsx'
 globalThis.IS_REACT_ACT_ENVIRONMENT=true
 let host,root,changed
 const member={id:'member1',version:1,state:'preactive'},today='2026-10-13',plan={priceVersionId:'price1',name:'Synthetic fee',priceMinor:'2999',currency:'EUR'}
@@ -34,4 +35,17 @@ it('scheduled contracts offer cancellation, keep the retry id and hide another a
 })
 it('discards old-center subscription results and late successful writes',async()=>{
   let release;centerCommand.mockReturnValueOnce(new Promise(resolve=>{release=resolve}));await render();await click('Save');await render('b');await act(async()=>{release({member:{...member,name:'Private old center'},today,subscriptions:[]})});expect(changed).not.toHaveBeenCalled()
+})
+
+it('prefilled fee defaults are clean; real edits expose a save action and reverting them removes it',async()=>{
+ await act(async()=>{root.render(<Guard><Subscriptions centerId="a" member={member} ownerUid="manager" changed={changed}/></Guard>);await Promise.resolve()});expect(host.querySelector('aside')).toBeNull();const clean=new Event('beforeunload',{cancelable:true});window.dispatchEvent(clean);expect(clean.defaultPrevented).toBe(false);fill('Discount (%)','10');expect(host.querySelector('aside button').textContent).toContain('Save form: Subscriptions');fill('Discount (%)','0.00');expect(host.querySelector('aside')).toBeNull();
+})
+it('the shared fee save clears dirty state after the existing command succeeds',async()=>{
+ centerCommand.mockResolvedValue({member,today,changes:[],subscriptions:[]});await act(async()=>{root.render(<Guard><Subscriptions centerId="a" member={member} ownerUid="manager" changed={changed}/></Guard>);await Promise.resolve()});fill('Discount reason','A real edit');await act(async()=>{host.querySelector('aside button').click();await Promise.resolve()});expect(centerCommand).toHaveBeenCalledWith('/api/centers/subscriptions/create',expect.objectContaining({discountReason:'A real edit'}));expect(host.querySelector('aside')).toBeNull();
+})
+
+it('searching the fee catalogue does not silently select another price or create unsaved changes',async()=>{
+ vi.useFakeTimers({toFake:['setTimeout','clearTimeout']});try{
+ await act(async()=>{root.render(<Guard><Subscriptions centerId="a" member={member} ownerUid="manager" changed={changed}/></Guard>);await Promise.resolve()});centerPlans.mockResolvedValue({plans:[{...plan,priceVersionId:'another_price'}],nextCursor:null});const search=host.querySelector('input[aria-label="Search membership plans"]');act(()=>{Object.getOwnPropertyDescriptor(HTMLInputElement.prototype,'value').set.call(search,'Other');search.dispatchEvent(new Event('input',{bubbles:true}))});await act(async()=>{await vi.advanceTimersByTimeAsync(300)});expect(host.querySelector('aside')).toBeNull();centerCommand.mockRejectedValue(new Error('temporary'));await click('Save');expect(centerCommand.mock.calls[0][1].priceVersionId).toBe('price1');
+ }finally{vi.useRealTimers()}
 })

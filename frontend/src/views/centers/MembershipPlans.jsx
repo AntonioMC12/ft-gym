@@ -17,7 +17,7 @@ function PlanEditor({centerId,ownerUid,detail,close,saved,duplicate=false}) {
   const plan=detail?.plan,[fields,setFields]=useState(()=>fieldsOf(plan)),[busy,setBusy]=useState(false),[error,setError]=useState(null),[requestId]=useState(()=>crypto.randomUUID())
   const live=useRef(true)
   const requestNavigation=useCenterNavigation()
-  useUnsavedCenterForm(JSON.stringify(fields)!==JSON.stringify(fieldsOf(plan))?JSON.stringify(fields):null,busy)
+  const saveForm=useUnsavedCenterForm(JSON.stringify(fields)!==JSON.stringify(fieldsOf(plan))?JSON.stringify(fields):null,busy)
   useEffect(()=>{live.current=true;return()=>{live.current=false}},[])
   const current=()=>live.current&&useStore.getState().user?.id===ownerUid
   const failure=e=>{if(current()){setError(e);useCenters.getState().revokeOn(e)}}
@@ -38,7 +38,7 @@ function PlanEditor({centerId,ownerUid,detail,close,saved,duplicate=false}) {
     if(!current())return;setBusy(true)
     try{const result=await centerCommand('/api/centers/plans/archive',{centerId,id:plan.id,version:plan.version});if(current())saved(result.plan)}catch(e){failure(e)}finally{if(current())setBusy(false)}
   }})
-  return <><Section title={duplicate?t('Duplicate'):plan?t('New price version'):t('New membership plan')}><form className="centers-form" onSubmit={submit}>
+  return <><Section title={duplicate?t('Duplicate'):plan?t('New price version'):t('New membership plan')}><form ref={saveForm} aria-label={t('Membership plans')} className="centers-form" onSubmit={submit}>
     {plan&&<p className="small muted">{t('Version')}: {plan.revision} · {plan.archived?t('Archived plans'):conditions(plan)}</p>}
     {input('name',t('Membership plan name'))}
     {!duplicate&&<>{input('price',t('Price (EUR)'))}

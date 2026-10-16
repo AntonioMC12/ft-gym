@@ -71,3 +71,11 @@ fieldset.centers-fields{border:0;padding:0;min-width:0}
   .centers-hour-remove{grid-column:1 / -1;justify-self:end}
   .centers-form { padding: 14px; }
 }
+
+/* The page keeps its own forms/permissions; this bar submits one real form. */
+.centers-page:has(~.centers-unsaved-bar){padding-bottom:160px}
+.centers-unsaved-bar{position:fixed;inset-inline:16px;bottom:calc(84px + var(--sab,0px));z-index:40;max-width:720px;margin-inline:auto;padding:14px 18px;display:flex;align-items:center;justify-content:space-between;gap:14px;background:var(--surface);color:var(--label);border:1px solid var(--acc);border-radius:var(--r);box-shadow:0 8px 28px #0004}
+.centers-unsaved-bar p{margin:4px 0 0}
+.centers-unsaved-bar>.btn{width:auto;flex-shrink:0;min-height:44px}
+body.no-tabbar .centers-unsaved-bar{bottom:calc(12px + var(--sab,0px))}
+@media(max-width:500px){.centers-unsaved-bar{inset-inline:12px;flex-wrap:wrap;padding:12px}.centers-unsaved-bar>.btn{width:100%;white-space:normal}}

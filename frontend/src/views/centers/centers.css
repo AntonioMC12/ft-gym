@@ -272,3 +272,26 @@ fieldset.centers-fields{border:0;padding:0;min-width:0}
 .centers-financial-panel .centers-money-bars{grid-template-columns:repeat(3,minmax(0,1fr));gap:18px;margin-block:16px}
 .centers-financial-panel .centers-metric-mini-stats{grid-template-columns:repeat(4,minmax(0,1fr))}
 @media(max-width:700px){.centers-financial-panel .centers-money-bars{grid-template-columns:minmax(0,1fr)}.centers-financial-panel .centers-metric-mini-stats{grid-template-columns:repeat(2,minmax(0,1fr))}}
+
+/* Visits and inactivity: clear state, purposeful empty states and visible actions. */
+.centers-metric-empty{display:flex;align-items:flex-start;gap:12px;padding:16px;background:var(--surface-2);border:1px solid var(--sep);border-radius:var(--r);margin-block:14px 0}
+.centers-metric-empty>.icon,.centers-metric-empty>svg{flex:0 0 22px;width:22px;height:22px;color:var(--label-2)}
+.centers-metric-empty strong{font-size:15px}
+.centers-metric-empty p{font-size:13px;line-height:1.5;color:var(--label-2);margin:6px 0 0}
+.centers-retention{margin-top:20px}
+.centers-retention-heading{display:flex;align-items:center;justify-content:space-between;gap:16px}
+.centers-retention-heading>div{display:grid;gap:6px}
+.centers-retention-heading>.centers-member-status{flex-shrink:0}
+.centers-retention-enabled{color:var(--acc);background:var(--acc-soft);border-color:var(--acc-line)}
+.centers-retention-toolbar{display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap;padding-block:16px;margin-bottom:4px}
+.centers-retention .btn{width:auto;min-height:44px;border:1px solid var(--sep);border-radius:var(--r);padding:10px 14px;white-space:normal}
+.centers-retention .seg{display:flex;gap:8px;flex-wrap:wrap;padding:0;background:transparent;border-radius:0;margin-block:16px}
+.centers-retention .seg>button{min-height:44px;padding:10px 16px;border:1px solid var(--sep);border-radius:var(--r);background:var(--surface-2);color:var(--label-2);font-size:14px;white-space:normal}
+.centers-retention .seg>button.on{border-color:var(--acc);background:var(--acc-soft);color:var(--label);font-weight:600}
+.centers-retention .centers-lifecycle-fields{display:grid;gap:14px}
+.centers-retention-footer{display:flex;align-items:center;justify-content:space-between;gap:16px;flex-wrap:wrap;border-top:1px solid var(--sep);padding-top:16px;margin-top:20px}
+.centers-retention-footer>p{flex:1;min-width:180px;margin:0;line-height:1.5}
+.centers-retention-notice{display:grid;gap:10px}
+.centers-retention-notice h3,.centers-retention-notice p{margin:0}
+.centers-retention-notice>.btn{justify-self:start}
+@media(max-width:500px){.centers-retention-toolbar>.btn,.centers-retention-footer>.btn{width:100%}.centers-retention .seg>button{flex:1 1 140px}.centers-retention-heading{align-items:flex-start}.centers-metric-empty{padding:12px}}

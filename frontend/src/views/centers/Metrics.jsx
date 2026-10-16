@@ -1,3 +1,4 @@
+import Icon from '../../components/Icon.jsx'
 import {useEffect,useMemo,useRef,useState} from 'react'
 import LineChart from '../../components/LineChart.jsx'
 import {Section,Row,Button,TextField} from '../../components/ui.jsx'
@@ -70,8 +71,8 @@ export default function Metrics({centerId,ownerUid,global=false,timezone='UTC',p
       </div></Section>
     {report.attendance&&<Section title={t('Visit metrics')}><div className="centers-form">
       <div className="centers-metric-mini-stats">{[['admissions','Validated admissions'],['visitingMemberships','Visiting center memberships'],['memberDays','Membership visit days'],['centerDaysWithVisits','Days with visits per center']].map(([key,label])=><div key={key}><strong>{report.attendance[key]}</strong><span className="small muted">{t(label)}</span></div>)}</div>
-      <p className="small muted">{t('Live occupancy is unavailable because exits are not recorded.')}</p>
-      {report.attendance.admissions==='0'?<p>{t('No admissions in this period.')}</p>:<>
+      {report.attendance.admissions==='0'?<div className="centers-metric-empty"><Icon name="info"/><div><strong>{t('No admissions in this period.')}</strong><p>{t('Live occupancy is unavailable because exits are not recorded.')}</p></div></div>:<>
+        <p className="small muted">{t('Live occupancy is unavailable because exits are not recorded.')}</p>
         <div className="centers-metric-panels">
           <div><h3>{t('Admissions by date')}</h3><div className="chart" role="img" aria-label={t('Admissions by date')}><LineChart points={points} h={190} unit={t('Validated admissions')}/></div></div>
           <div><h3>{t('Admissions by local hour')}</h3><div className="centers-hour-bars">{report.attendance.hours.filter(hour=>hour.admissions!=='0').map(hour=><div key={hour.hour}><span>{String(hour.hour).padStart(2,'0')+':00'}</span><div className="centers-metric-track" aria-hidden="true"><span style={{width:share(hour.admissions,report.attendance.hours.reduce((max,h)=>BigInt(h.admissions)>BigInt(max)?h.admissions:max,'0'))+'%'}}/></div><strong>{hour.admissions}</strong></div>)}</div></div>

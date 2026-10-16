@@ -1009,3 +1009,10 @@ Ajuste de huecos publicado en preview: WEBca31760c-dirty healthy, build Docker c
 La siguiente captura confirma que las columnas independientes aún dejan una zona vacía bajo finanzas cuando socios+visitas son más altos. Se sustituye ese enfoque por secciones a ancho completo, sin columnas vecinas de alturas desiguales. En escritorio las tres barras financieras se distribuyen horizontalmente y los cuatro indicadores en una fila; en móvil usan una y dos columnas respectivamente. Se conservan datos/gráficos y se reduce la altura del bloque económico. La nota anterior de columnas independientes queda sustituida por esta distribución. Pendiente comprobación visual del usuario; build/actualización WEB en curso.
 
 Distribución a ancho completo publicada: WEBef8123b2-dirty healthy y build correcto;7/7 tests de métricas. Se conservan API, datos y túnel. Sin push; pendiente comprobación visual del resultado por el usuario.
+
+
+## C49 — visitas vacías y revisión de inactividad
+
+Feedback sobre el cierre de métricas: se agrupan el mensaje de ausencia de visitas y la limitación de ocupación en un estado vacío con icono, conservando los cuatro datos exactos. Retention adopta cabecera con fecha/estado, configuración como botón visible, regla activa si existe, selector de avisos/historial con áreas táctiles44px y estado vacío diferenciado (desactivado, sin avisos o sin historial), evitando mensajes contradictorios/repetidos. Contexto de datos y recarga quedan en pie con separación. Tarjetas de gestión reutilizan controles actuales; resultado de gestión usa SelectRow field. Acciones locales conservan confirmaciones; cancelar cambios de política usa navegación protegida en vez de descartar silenciosamente. No se activa ninguna regla ni se envían comunicaciones.
+
+11/11 tests focales de Metrics/Retention correctos, incluidos guardar/configurar solo tras confirmar, reintento idempotente, resultado/motivo, rechazo de confirmación obsoleta, paginación e historial como texto inerte. Sin API/SQL nuevos. Build/preview WEB en curso; revisión visual real de los nuevos estados en escritorio/móvil pendiente.

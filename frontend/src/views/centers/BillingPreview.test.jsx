@@ -27,3 +27,9 @@ it('drops delayed old-center amounts and clears the previous period after a scop
   let release;centerCommand.mockReturnValueOnce(new Promise(resolve=>{release=resolve}));await render();await open();await submit();await render('b');await act(async()=>{release({quote})})
   expect(host.textContent).not.toContain('19.30 EUR');expect(host.querySelector('form')).toBeNull()
 })
+it('explains incomplete immutable conditions before requesting a quote and offers configuration',async()=>{
+  const configure=vi.fn();await act(async()=>root.render(<BillingPreview centerId="a" memberId="member1" contractId="contract1" ownerUid="manager" policyMissing onConfigure={configure}/>));
+  expect(host.querySelector('form')).toBeNull();expect(centerCommand).not.toHaveBeenCalled();
+  expect(host.textContent).toContain('Existing subscriptions keep their original terms.');
+  await act(async()=>host.querySelector('button').click());expect(configure).toHaveBeenCalledOnce();expect(centerCommand).not.toHaveBeenCalled();
+})

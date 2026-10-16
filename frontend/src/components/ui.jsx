@@ -1,3 +1,4 @@
+import {fieldAutofill} from '../lib/form-autofill.js'
 // openGym control set.
 //
 // Every input in the app is built here rather than styled on top of a native
@@ -68,25 +69,25 @@ export function NumberField({ value, onChange, decimal = true, nullable = false,
       onMouseUp={e => { if (justFocused.current) { justFocused.current = false; e.preventDefault() } }}
       onChange={e => commit(e.target.value)}
       onBlur={() => { setDraft(null); committed.current = null; justFocused.current = false }}
-      {...rest}
+      {...fieldAutofill(rest)}
     />
   )
 }
 
 // forwardRef so callers can focus it or read its value imperatively
 export const TextField = forwardRef(function TextField({ className = '', ...rest }, ref) {
-  return <input ref={ref} className={'field ' + className} {...rest} />
+  return <input ref={ref} className={'field ' + className} {...fieldAutofill(rest)} />
 })
 
 export function TextArea({ className = '', ...rest }) {
-  return <textarea className={'field area ' + className} {...rest} />
+  return <textarea className={'field area ' + className} {...fieldAutofill(rest)} />
 }
 
 export const SearchField = forwardRef(function SearchField({ value, onChange, onClear, ...rest }, ref) {
   return (
     <div className="searchf">
       <Icon name="magnifier" className="lead" />
-      <input ref={ref} className="field" value={value} onChange={onChange} {...rest} />
+      <input ref={ref} className="field" value={value} onChange={onChange} {...fieldAutofill(rest)} />
       {!!value && (
         <button type="button" className="clear" onClick={onClear} aria-label={t('Clear')}>
           <Icon name="xmark" />

@@ -2,7 +2,7 @@
 import React, { act, useState } from 'react'
 import { createRoot } from 'react-dom/client'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import { Slider, Stepper, NumberField, numWidthCh, SLIDER_GRAB_PX, Switch, Check, Segmented, Row, SearchField } from './ui.jsx'
+import { Slider, Stepper, NumberField, numWidthCh, SLIDER_GRAB_PX, Switch, Check, Segmented, Row, SearchField, TextField, TextArea } from './ui.jsx'
 
 globalThis.IS_REACT_ACT_ENVIRONMENT = true
 
@@ -339,4 +339,15 @@ describe('NumberField select on tap', () => {
     act(() => input.blur())
     expect(mouseup(input).defaultPrevented).toBe(false)
   })
+})
+
+it('ordinary text, date, numeric, search and multiline fields opt out of credential suggestions',()=>{
+  act(()=>root.render(<><TextField aria-label="Member"/><TextField type="date"/><TextField type="email" autoComplete="email"/><NumberField value={25} onChange={()=>{}}/><SearchField value="" onChange={()=>{}}/><TextArea/></>));
+  const fields=[...host.querySelectorAll('input,textarea')];expect(fields).toHaveLength(6);
+  for(const field of fields){expect(field.getAttribute('data-bwignore')).toBe('true');expect(field.getAttribute('data-1p-ignore')).toBe('true');expect(field.getAttribute('data-lpignore')).toBe('true')}
+  expect(fields.filter(field=>field.autocomplete==='off')).toHaveLength(5);expect(fields[2].autocomplete).toBe('email');
+})
+it('keeps password, username and verification code autofill available',()=>{
+  act(()=>root.render(<><TextField type="password" autoComplete="current-password"/><TextField autoComplete="section-login username"/><TextField autoComplete="one-time-code"/></>));
+  for(const field of host.querySelectorAll('input')){expect(field.hasAttribute('data-1p-ignore')).toBe(false);expect(field.hasAttribute('data-bwignore')).toBe(false);expect(field.autocomplete).not.toBe('off')}
 })

@@ -11,7 +11,7 @@ import BillingPreview from './BillingPreview.jsx'
 import ContractSummary from './ContractSummary.jsx'
 import {useUnsavedCenterForm} from './NavigationGuard.jsx'
 
-export default function Subscriptions({centerId,member,ownerUid,changed,receiptCreated}) {
+export default function Subscriptions({centerId,member,ownerUid,changed,receiptCreated,onManagePlans}) {
   const [info,setInfo]=useState(null),[plans,setPlans]=useState([]),[cursor,setCursor]=useState(null),[query,setQuery]=useState(''),[search,setSearch]=useState('')
   const [priceVersionId,setPriceVersionId]=useState(''),[effectiveOn,setEffectiveOn]=useState(''),[discount,setDiscount]=useState('0'),[reason,setReason]=useState('')
   const [baseline,setBaseline]=useState(null)
@@ -48,8 +48,12 @@ export default function Subscriptions({centerId,member,ownerUid,changed,receiptC
     setDiscount(amount);setReason(note);setEffectiveOn(info.today);setPriceVersionId(price)
     setBaseline(JSON.stringify([price,info.today,amount,note]));setRequestId(crypto.randomUUID())
   },[info,plans,centerId,member.id])
+  const selectedTerms=useRef(null),priceScope=JSON.stringify([centerId,member.id,ownerUid,priceVersionId])
+  const selectedPlan=plans.find(row=>row.priceVersionId===priceVersionId)||(selectedTerms.current?.scope===priceScope?selectedTerms.current.plan:null)
+  if(selectedPlan)selectedTerms.current={scope:priceScope,plan:selectedPlan}
+  const planIncomplete=selectedPlan?.conditionsReady===false||selectedPlan?.priceIncludesTax===null||selectedPlan?.taxBasisPoints===null||selectedPlan?.proration===null
   const submit=async e=>{
-    e.preventDefault();if(busy)return;const epoch=life.current;setBusy(true);setError(null)
+    e.preventDefault();if(busy||planIncomplete)return;const epoch=life.current;setBusy(true);setError(null)
     try{
       const result=await centerCommand('/api/centers/subscriptions/'+(active?'change':'create'),{centerId,memberId:member.id,memberVersion:member.version,priceVersionId,effectiveOn,
         discountBasisPoints:Number(priceToMinor(discount)),discountReason:reason||null,requestId,...(active?{id:active.id}:{})})
@@ -65,17 +69,18 @@ export default function Subscriptions({centerId,member,ownerUid,changed,receiptC
   }
   return <Section title={t('Subscriptions')}><div className="centers-form">
     {!info&&!error&&<p role="status">{t('Loading…')}</p>}
-    {info?.subscriptions.map(row=><div key={row.id}><ContractSummary contract={row}>{row.canCancel&&<Button disabled={busy} onClick={()=>cancel(row)}>{t('Cancel scheduled change')}</Button>}</ContractSummary>{!row.canceled&&<BillingPreview key={member.version} centerId={centerId} memberId={member.id} contractId={row.id} ownerUid={ownerUid} today={info.today} canGenerate onGenerated={receiptCreated}/>}</div>)}
+    {info?.subscriptions.map(row=><div key={row.id}><ContractSummary contract={row}>{row.canCancel&&<Button disabled={busy} onClick={()=>cancel(row)}>{t('Cancel scheduled change')}</Button>}</ContractSummary>{!row.canceled&&<BillingPreview key={member.version} centerId={centerId} memberId={member.id} contractId={row.id} ownerUid={ownerUid} today={info.today} canGenerate onGenerated={receiptCreated} policyMissing={row.priceIncludesTax===null||row.taxBasisPoints===null||row.proration===null} onConfigure={onManagePlans}/>}</div>)}
     {info&&!scheduled&&member.state!=='ended'&&<form ref={saveForm} aria-label={t('Subscriptions')} onSubmit={submit}>
       <h3>{active?t('Change membership plan'):t('Assign membership plan')}</h3>
       <SearchField aria-label={t('Search membership plans')} placeholder={t('Search membership plans')} value={query} onChange={e=>setQuery(e.target.value)} onClear={()=>setQuery('')}/>
       <SelectRow title={t('Membership plans')} value={priceVersionId} options={plans.map(plan=>({value:plan.priceVersionId,label:plan.name+' · '+minorToPrice(plan.priceMinor)+' '+plan.currency}))} onChange={value=>update(setPriceVersionId,value)}/>
+      {planIncomplete&&<div className="centers-import-notice" role="status"><p>{t('Tax and proration must be configured before calculating charges.')}</p>{onManagePlans&&<Button type="button" onClick={onManagePlans}>{t('Membership plans')}</Button>}</div>}
       {cursor&&<Button ref={moreRef} type="button" onClick={more}>{t('Show more')}</Button>}
       {!plans.length&&!pendingPlans.current&&<p>{t('No membership plans available')}</p>}
       <label className="centers-field"><span>{t('Effective date')}</span><TextField type="date" required disabled={busy} min={info.today} value={effectiveOn} onChange={e=>update(setEffectiveOn,e.target.value)}/></label>
       <label className="centers-field"><span>{t('Discount (%)')}</span><TextField required disabled={busy} inputMode="decimal" value={discount} onChange={e=>update(setDiscount,e.target.value)}/></label>
       <label className="centers-field"><span>{t('Discount reason')}</span><TextArea disabled={busy} maxLength={250} value={reason} onChange={e=>update(setReason,e.target.value)}/></label>
-      <Button type="submit" variant="primary" disabled={busy||!priceVersionId}>{t('Save')}</Button>
+      <Button type="submit" variant="primary" disabled={busy||!priceVersionId||planIncomplete}>{t('Save')}</Button>
     </form>}
     {error&&<p role="alert">{t(subscriptionsErrorKey(error))}</p>}
   </div></Section>

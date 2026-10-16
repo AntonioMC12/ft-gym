@@ -49,3 +49,26 @@ it('searching the fee catalogue does not silently select another price or create
  await act(async()=>{root.render(<Guard><Subscriptions centerId="a" member={member} ownerUid="manager" changed={changed}/></Guard>);await Promise.resolve()});centerPlans.mockResolvedValue({plans:[{...plan,priceVersionId:'another_price'}],nextCursor:null});const search=host.querySelector('input[aria-label="Search membership plans"]');act(()=>{Object.getOwnPropertyDescriptor(HTMLInputElement.prototype,'value').set.call(search,'Other');search.dispatchEvent(new Event('input',{bubbles:true}))});await act(async()=>{await vi.advanceTimersByTimeAsync(300)});expect(host.querySelector('aside')).toBeNull();centerCommand.mockRejectedValue(new Error('temporary'));await click('Save');expect(centerCommand.mock.calls[0][1].priceVersionId).toBe('price1');
  }finally{vi.useRealTimers()}
 })
+it('detects missing conditions in the assigned version even when the catalogue already has a configured price',async()=>{
+  const configure=vi.fn(),row={id:'active',planId:'plan1',name:'Legacy fee',priceMinor:'2999',currency:'EUR',startsOn:today,status:'active',priceIncludesTax:null,taxBasisPoints:null,proration:null,discountBasisPoints:0};
+  centerSubscriptions.mockResolvedValue({member,today,changes:[],subscriptions:[row]});centerPlans.mockResolvedValue({plans:[{...plan,id:'plan1',conditionsReady:true,priceIncludesTax:true,taxBasisPoints:2100,proration:'none'}],nextCursor:null});
+  await act(async()=>root.render(<Subscriptions centerId="a" member={member} ownerUid="manager" changed={changed} onManagePlans={configure}/>));
+  expect(host.textContent).toContain('Existing subscriptions keep their original terms.');expect(host.textContent).not.toContain('Preview charge');
+  await click('Membership plans');expect(configure).toHaveBeenCalledOnce();expect(centerCommand).not.toHaveBeenCalled();
+})
+it('does not assign a known incomplete catalogue price, including through direct form submission',async()=>{
+  centerPlans.mockResolvedValue({plans:[{...plan,conditionsReady:false}],nextCursor:null});await render();
+  expect([...host.querySelectorAll('button')].find(button=>button.textContent==='Save').disabled).toBe(true);
+  expect(host.textContent).toContain('Tax and proration must be configured before calculating charges.');
+  await act(async()=>host.querySelector('form').dispatchEvent(new Event('submit',{bubbles:true,cancelable:true})));
+  expect(centerCommand).not.toHaveBeenCalled();
+})
+
+it('does not forget incomplete selected terms when a catalogue search hides that price',async()=>{
+  vi.useFakeTimers({toFake:['setTimeout','clearTimeout']});try{
+    centerPlans.mockResolvedValue({plans:[{...plan,conditionsReady:false}],nextCursor:null});await render();centerPlans.mockResolvedValue({plans:[],nextCursor:null});
+    const search=host.querySelector('input[aria-label="Search membership plans"]');act(()=>{Object.getOwnPropertyDescriptor(HTMLInputElement.prototype,'value').set.call(search,'Other');search.dispatchEvent(new Event('input',{bubbles:true}))});await act(async()=>vi.advanceTimersByTimeAsync(300));
+    expect([...host.querySelectorAll('button')].find(button=>button.textContent==='Save').disabled).toBe(true);
+    await act(async()=>host.querySelector('form').dispatchEvent(new Event('submit',{bubbles:true,cancelable:true})));expect(centerCommand).not.toHaveBeenCalled();
+  }finally{vi.useRealTimers()}
+})

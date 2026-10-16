@@ -9,7 +9,7 @@ import {confirmSheet} from '../../sheets.jsx'
 import {t} from '../../lib/i18n.js'
 import ChargeBreakdown from './ChargeBreakdown.jsx'
 
-export default function BillingPreview({centerId,memberId,contractId,ownerUid,canGenerate=false,today,onGenerated}) {
+export default function BillingPreview({centerId,memberId,contractId,ownerUid,canGenerate=false,today,onGenerated,policyMissing=false,onConfigure}) {
   const [open,setOpen]=useState(false),[periodStart,setPeriodStart]=useState(''),[quote,setQuote]=useState(null),[busy,setBusy]=useState(false),[error,setError]=useState(null)
   const life=useRef(0)
   const [quoteHash,setQuoteHash]=useState(null),[dueOn,setDueOn]=useState(''),[outcome,setOutcome]=useState(null)
@@ -38,7 +38,8 @@ export default function BillingPreview({centerId,memberId,contractId,ownerUid,ca
   }
   const code=error?.data?.code||error?.code
   const errorText=!error?null:canGenerate?receiptsErrorKey(error):code==='billing-policy-required'?'Tax and proration must be configured before calculating charges.':code==='invalid-input'?'Check the billing period.':centersErrorKey(error)
-  return <div className="centers-selected"><Button onClick={()=>setOpen(value=>!value)}>{t('Preview charge')}</Button>{open&&<form onSubmit={preview}>
+  if(policyMissing||code==='billing-policy-required')return <div className="centers-import-notice" role="status"><p>{t('Tax and proration must be configured before calculating charges.')}</p><p className="small muted">{t('Configure the fee, then assign its new version to this member. Existing subscriptions keep their original terms.')}</p>{onConfigure&&<Button type="button" variant="tinted" onClick={onConfigure}>{t('Membership plans')}</Button>}</div>
+  return <div className="centers-selected"><Button type="button" aria-expanded={open} onClick={()=>setOpen(value=>!value)}>{t(open?'Close':'Preview charge')}</Button>{open&&<form onSubmit={preview}>
     <label className="centers-field"><span>{t('Billing period start')}</span><TextField type="date" disabled={busy} value={periodStart} onChange={e=>{setPeriodStart(e.target.value);setQuote(null);setQuoteHash(null);setOutcome(null);intent.current=null}}/></label>
     <Button type="submit" disabled={busy}>{t('Preview charge')}</Button>
     {error&&<p role="alert">{t(errorText)}</p>}

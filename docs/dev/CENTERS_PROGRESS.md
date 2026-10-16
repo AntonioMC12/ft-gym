@@ -4,7 +4,7 @@
 
 ## Punto de reanudación — decisiones del16octubre
 
-- Rama codex/centers-module, schema043 en código y preview. Cambios previos Docker/web/demo del usuario conservados. Preview en https://dining-salt-volumes-adaptive.trycloudflare.com/#/centers, WEBc3dda6d7-dirty y API2217d62d-dirty healthy, túnel y volumen conservados. C47/migración043 aplicada únicamente en preview ficticia tras backup y CI, con datos conservados.
+- Rama codex/centers-module, schema043 en código y preview. Cambios previos Docker/web/demo del usuario conservados. Preview en https://dining-salt-volumes-adaptive.trycloudflare.com/#/centers, WEB9c0362a1-dirty y API2217d62d-dirty healthy, túnel y volumen conservados. C47/migración043 aplicada únicamente en preview ficticia tras backup y CI, con datos conservados.
 - Alcance vigente: cobros exclusivamente en efectivo. C43–C45 implementados; C46 mejora UX de cuotas/bonos implementada y comprobada automáticamente, pendiente aceptación visual real. Guardar calcula sin exigir previsualización, acciones locales con indicador compacto y motivos de bloqueo consultables. No hay autorización productiva ni cobros reales.
 - C27: aplazado expresamente, todo/fuera de la entrega actual. Conservar código/fixture y guía como referencia futura, sin configurar claves, ensayar sandbox ni activar cobros. La validación Stripe no bloquea el cierre del alcance en efectivo.
 - C28/C39: aplazados expresamente, estado todo/fuera del alcance actual. No se emitirán facturas fiscales por ahora; conservar recibos, pagos manuales y deuda. SEPA es domiciliación bancaria y también se aplaza.
@@ -972,7 +972,7 @@ El resumen financiero expone hasPass/saldo/motivo de uso independientemente de h
 SQL focal16/16 correcto sobre CI aislado con migración043, incluidos socio mixto, saldo, repetición diaria, afiliación/permisos, FEFO y aislamiento; OpenAPI3/3 correcto. UI34/34 focales correctos (33 iniciales más deduplicación/homónimos): acciones simultáneas, agrupación de compras, historial de lectura y descarte de respuesta de otro socio. Backup preview previo043 fuera de Git; datos existentes no modificados por las pruebas. Build y actualización de preview correctos; pendiente aceptación visual real. C47 in_progress por validación visual pendiente; no hay cobros reales ni despliegue productivo.
 
 
-Cierre operativo C47: WEBc3dda6d7-dirty y API2217d62d-dirty healthy, schema043, build Docker correcto y health HTTPS público200. Backup SQL previo043 guardado fuera de Git. Inicializador protegido correcto;7archivos sin diferencias SHA256 y conteos SQL de socios/contratos/recibos/pagos/consumos idénticos. Solo API/WEB recreadas, túnel y volumen conservados.34/34 comprobaciones UI focales,16/16 SQL y3/3 OpenAPI acreditadas. No push. Próximo paso: revisar visualmente tarjeta de socio mixto, Historial de lectura y agrupación de compras en escritorio/móvil; C46/C47 continúan in_progress solo por esa revisión. No se han registrado cobros ni consumos en los datos de preview durante las pruebas.
+Cierre operativo C47: WEB9c0362a1-dirty y API2217d62d-dirty healthy, schema043, build Docker correcto y health HTTPS público200. Backup SQL previo043 guardado fuera de Git. Inicializador protegido correcto;7archivos sin diferencias SHA256 y conteos SQL de socios/contratos/recibos/pagos/consumos idénticos. Solo API/WEB recreadas, túnel y volumen conservados.34/34 comprobaciones UI focales,16/16 SQL y3/3 OpenAPI acreditadas. No push. Próximo paso: revisar visualmente tarjeta de socio mixto, Historial de lectura y agrupación de compras en escritorio/móvil; C46/C47 continúan in_progress solo por esa revisión. No se han registrado cobros ni consumos en los datos de preview durante las pruebas.
 
 
 ## C48 — apartado independiente de bonos
@@ -984,7 +984,7 @@ Edición del catálogo con POST passes/products/revise: valida campos/versiones/
 POST passes/day admite passId opcional; comprueba que el bono pertenece al centro/socio y está disponible. Sin passId conserva FEFO y el hash de reintentos anteriores. El límite por socio/día sigue compartido entre bonos y QR; no registra un pago ni renueva la cuota. La selección es explícita en esta pantalla. Pruebas SQL18/18 con PostgreSQL CI aislado: sustitución/replay/versiones/centro/rol, compras anteriores intactas, consumo concreto frente a FEFO y prohibición de consumir a otro socio o un segundo bono el mismo día. UI56/56 de navegación, gestión por usuario, permisos de lectura/catálogo, edición, consumo y regresiones focales; OpenAPI3/3 e i18n correctos. Pendiente build Docker/actualizar preview y revisión visual real. No pruebas generales ni datos reales.
 
 
-Preview C48: WEBc3dda6d7-dirty y API2217d62d-dirty healthy y HTTPS público200, schema043 sin migrar. Solo API/WEB recreadas; túnel/volumen conservados,7archivos SHA256 sin diferencias y conteos SQL de socios/contratos/recibos/pagos/consumos idénticos. Build correcto,2182textos presentes y18locales/2834claves sincronizados. Cambios previos del usuario conservados; commits locales sin push. Pendiente revisión visual real escritorio/móvil y aceptación de los recorridos Bonos → Socios/Historial/Catálogo. No se han consumido bonos ni registrado cobros en preview durante las comprobaciones.
+Preview C48: WEB9c0362a1-dirty y API2217d62d-dirty healthy y HTTPS público200, schema043 sin migrar. Solo API/WEB recreadas; túnel/volumen conservados,7archivos SHA256 sin diferencias y conteos SQL de socios/contratos/recibos/pagos/consumos idénticos. Build correcto,2182textos presentes y18locales/2834claves sincronizados. Cambios previos del usuario conservados; commits locales sin push. Pendiente revisión visual real escritorio/móvil y aceptación de los recorridos Bonos → Socios/Historial/Catálogo. No se han consumido bonos ni registrado cobros en preview durante las comprobaciones.
 
 
 ## C49 — prueba de métricas visuales
@@ -1056,3 +1056,6 @@ Centers.test.jsx31/31 correcto, incluyendo cerrado inicial, apertura, ubicación
 
 
 C51 ajuste de cabecera: Personal del centro coloca el engranaje después del texto, a la derecha. Cabecera flex en una línea con chevron inicial y texto flexible, evitando el salto de línea de SVG. Desplegable nativo y foco visible conservados. Cambio de presentación, sin pruebas adicionales por alcance reversible; pendiente build WEB combinado con el colapsado de datos.
+
+
+C51 cierre de los ajustes: WEB9c0362a1-dirty reconstruida y recreada con --no-deps --wait, healthy; API/túnel/datos conservados. Build Vite correcto (../informes/center-profile-collapse-build.log). Colapsado probado con UI31/31, engranaje ajustado y compilado. Sin push; revisión visual real pendiente. Sustituye los pasos de build pendientes de los dos apuntes anteriores.

@@ -7,18 +7,19 @@ vi.mock('../../sheets.jsx',()=>({confirmSheet:vi.fn()}))
 vi.mock('../../lib/centers-api.js',()=>({centerTraining:vi.fn(),centerTrainingProposal:vi.fn(),centerCommand:vi.fn(),trainingErrorKey:()=> 'Delivery error'}))
 vi.mock('../../store/useStore.js',()=>{const state={user:{id:'actor'},S:{},update:vi.fn(),syncNow:vi.fn()};return {useStore:Object.assign(selector=>selector(state),{getState:()=>state})}})
 vi.mock('../../store/useCenters.js',()=>({useCenters:{getState:()=>({revokeOn:vi.fn()})}}))
-vi.mock('../../components/ui.jsx',async original=>({...await original(),MultiSelectRow:({onToggle})=><button onClick={()=>onToggle('source')}>Choose routine</button>}))
+vi.mock('../../components/ui.jsx',async original=>({...await original(),MultiSelectRow:({onToggle})=><button type="button" onClick={()=>onToggle('source')}>Choose routine</button>}))
 import {centerTraining,centerTrainingProposal,centerCommand} from '../../lib/centers-api.js'
 import {confirmSheet} from '../../sheets.jsx'
 import {useStore} from '../../store/useStore.js'
 import TrainingProposals from './TrainingProposals.jsx'
+import Guard from './NavigationGuard.jsx'
 
 globalThis.IS_REACT_ACT_ENVIRONMENT=true
 let root,host
 const rid='cr_'+'b'.repeat(32),key='td_'+'a'.repeat(32),stamp='2026-10-15T02:00:00.000Z'
 const routine={id:'source',name:'Push',ex:[{id:'0025',sets:3,reps:8,weight:60}]}
 const proposal={id:'proposal',version:1,versionId:'version1',revision:1,name:'Trainer plan',unit:'kg',state:'offered',proposalState:'offered',acceptedAt:null,deliveryResult:null,deliveryKey:key,routineIds:{source:rid},bundle:{opengym_plan:1,name:'Trainer plan',unit:'kg',routines:[routine],customEx:[],week:{1:['source']}}}
-const member={id:'member1',name:'Member One',version:2,state:'active'}
+const member={id:'member1',name:'Member One',version:2,state:'active',accountLinked:true}
 beforeEach(()=>{
   vi.clearAllMocks();const state=useStore.getState();state.user={id:'actor'};state.S={unit:'kg',routines:[structuredClone(routine)],customEx:[],week:{2:['source']},dayPlan:{'2026-10-16':['source']},active:{id:'live'}}
   state.update.mockImplementation(mut=>mut(state.S));state.syncNow.mockResolvedValue({status:'ok'})
@@ -27,7 +28,7 @@ beforeEach(()=>{
   host=document.createElement('div');document.body.append(host);root=createRoot(host)
 })
 afterEach(()=>{act(()=>root.unmount());host.remove()})
-const render=(props={})=>act(async()=>{root.render(<TrainingProposals centerId="center1" ownerUid="actor" own {...props}/>);await Promise.resolve()})
+const render=(props={})=>act(async()=>{root.render(<Guard><TrainingProposals centerId="center1" ownerUid="actor" own {...props}/></Guard>);await Promise.resolve()})
 const button=label=>[...host.querySelectorAll('button')].find(node=>node.textContent===label)
 const click=label=>act(async()=>button(label).click())
 const confirm=()=>confirmSheet.mock.calls.at(-1)[0]
@@ -64,4 +65,43 @@ it('offers only chosen routines with an explicit member/version and reuses the r
 })
 it('does not expose staff mutations without training.assign and invalidates old confirmations after capability revocation',async()=>{
   await render({own:false,member,canAssign:false});expect(button('Choose routine')).toBeUndefined();expect(button('Propose routines')).toBeUndefined();await render({own:false,member,canAssign:true});await click('Choose routine');await click('Propose routines');const old=confirm();await render({own:false,member,canAssign:false});await act(async()=>old.onConfirm());expect(centerCommand).not.toHaveBeenCalled()
+})
+it('explains the account requirement before editing and leaves a clean profile without a discard warning',async()=>{
+  const link=vi.fn();await render({own:false,member:{...member,accountLinked:false},canAssign:true,onLinkAccount:link});
+  expect(host.textContent).toContain('Link this member to an account before proposing routines.');expect(button('Propose routines')).toBeUndefined();expect(host.querySelector('input')).toBeNull();expect(host.querySelector('aside')).toBeNull();
+  await click('Member details');expect(link).toHaveBeenCalledOnce();expect(confirmSheet).not.toHaveBeenCalled();expect(centerCommand).not.toHaveBeenCalled();
+  const event=new Event('beforeunload',{cancelable:true});window.dispatchEvent(event);expect(event.defaultPrevented).toBe(false);
+})
+it('submits existing routines from the shared save action and clears the warning only after confirmed success',async()=>{
+  await render({own:false,member,canAssign:true});expect(host.querySelector('aside')).toBeNull();await click('Choose routine');
+  expect(host.querySelector('aside button').textContent).toContain('Save form: Training proposals');
+  await act(async()=>host.querySelector('aside button').click());expect(centerCommand).not.toHaveBeenCalled();await act(async()=>confirm().onConfirm());
+  expect(centerCommand).toHaveBeenCalledWith('/api/centers/training/propose',expect.objectContaining({memberId:member.id,bundle:expect.objectContaining({routines:[expect.objectContaining({id:'source',name:'Push'})]})}));
+  expect(host.querySelector('aside')).toBeNull();expect(useStore.getState().update).not.toHaveBeenCalled();
+})
+it('keeps failed proposals recoverable and cancels their draft so leaving no longer warns',async()=>{
+  centerCommand.mockRejectedValueOnce({code:'training-account-required'});await render({own:false,member:{...member,accountLinked:undefined},canAssign:true});await click('Choose routine');await click('Propose routines');await act(async()=>confirm().onConfirm());
+  expect(host.textContent).toContain('Link this member to an account before proposing routines.');expect(host.querySelector('aside')).not.toBeNull();
+  await click('Cancel');expect(confirm().title).toBe('Discard changes?');await act(async()=>confirm().onConfirm());
+  expect(host.querySelector('aside')).toBeNull();expect(button('Cancel')).toBeUndefined();
+  const event=new Event('beforeunload',{cancelable:true});window.dispatchEvent(event);expect(event.defaultPrevented).toBe(false);expect(centerCommand).toHaveBeenCalledOnce();
+})
+it('does not carry another member draft across profile contexts',async()=>{
+  await render({own:false,member,canAssign:true});await click('Choose routine');expect(host.querySelector('aside')).not.toBeNull();
+  await render({own:false,member:{...member,id:'member2'},canAssign:true});expect(host.querySelector('aside')).toBeNull();expect(button('Propose routines').disabled).toBe(true);
+})
+it('reviewing an existing proposal without editing is clean',async()=>{
+  await render({own:false,member,canAssign:true});await open();expect(host.querySelector('aside')).toBeNull();
+  const event=new Event('beforeunload',{cancelable:true});window.dispatchEvent(event);expect(event.defaultPrevented).toBe(false);
+})
+it('distinguishes account, inactive member and unavailable proposal errors',async()=>{
+  const actual=await vi.importActual('../../lib/centers-api.js');
+  expect(actual.trainingErrorKey({data:{code:'training-account-required'}})).toBe('Link this member to an account before proposing routines.');
+  expect(actual.trainingErrorKey({code:'training-member-inactive'})).toBe('Training proposals require an active member.');
+  expect(actual.trainingErrorKey({code:'training-proposal-unavailable'})).toBe('This training proposal is not available. Reload it.');
+})
+it('invalidates a captured offer confirmation when its draft is cancelled',async()=>{
+  await render({own:false,member,canAssign:true});await click('Choose routine');await click('Propose routines');const offer=confirm();
+  await click('Cancel');await act(async()=>confirm().onConfirm());await act(async()=>offer.onConfirm());
+  expect(centerCommand).not.toHaveBeenCalled();expect(host.querySelector('aside')).toBeNull();
 })

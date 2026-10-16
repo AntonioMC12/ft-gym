@@ -22,7 +22,9 @@ export function trainingErrorKey(error){
   const code=error?.data?.code||error?.code
   if(code==='invalid-training-plan')return 'Check the proposed routines. Only catalogue exercises are supported.'
   if(['training-not-synced','training-state-unavailable'].includes(code))return 'Sync your training, then retry delivery.'
-  if(['training-member-inactive','training-account-required','training-proposal-unavailable','training-not-accepted'].includes(code))return 'This training proposal is not available. Reload it.'
+  if(code==='training-account-required')return 'Link this member to an account before proposing routines.'
+  if(code==='training-member-inactive')return 'Training proposals require an active member.'
+  if(['training-proposal-unavailable','training-not-accepted'].includes(code))return 'This training proposal is not available. Reload it.'
   return centersErrorKey(error)
 }
 export const platformCenters = (options={}) => api('/api/platform/centers'+(Object.keys(options).length?'?'+new URLSearchParams(options):''))

@@ -1,4 +1,4 @@
-import {useUnsavedCenterForm} from './NavigationGuard.jsx'
+import {useCenterNavigation,useUnsavedCenterForm} from './NavigationGuard.jsx'
 import {useEffect,useRef,useState} from 'react'
 import {Section,Row,Button,TextField,MultiSelectRow,Switch} from '../../components/ui.jsx'
 import {centerTraining,centerTrainingProposal,centerCommand,trainingErrorKey} from '../../lib/centers-api.js'
@@ -13,11 +13,17 @@ import {useStore} from '../../store/useStore.js'
 import {useCenters} from '../../store/useCenters.js'
 import {confirmSheet} from '../../sheets.jsx'
 
-export default function TrainingProposals({centerId,member,ownerUid,own=false,active=true,canAssign=false}){
+export default function TrainingProposals({centerId,member,ownerUid,own=false,active=true,canAssign=false,onLinkAccount}){
   const S=useStore(s=>s.S),[rows,setRows]=useState([]),[cursor,setCursor]=useState(null),[detail,setDetail]=useState(null),[error,setError]=useState(null),[busy,setBusy]=useState(false),[revision,setRevision]=useState(0)
   const [selected,setSelected]=useState([]),[name,setName]=useState(''),[schedule,setSchedule]=useState(false)
-  useUnsavedCenterForm(selected.length||name||schedule?JSON.stringify([selected,name,schedule]):null,busy,{saveable:false})
+  const accountRequired=!own&&(member?.accountLinked===false||(error?.data?.code||error?.code)==='training-account-required')
+  const canOffer=canAssign&&active&&member?.state==='active'
+  const draftDirty=!!(selected.length||name||schedule)
+  const saveForm=useUnsavedCenterForm(draftDirty?JSON.stringify([selected,name,schedule]):null,busy,{saveable:canOffer&&!accountRequired&&!own})
   const life=useRef(0),pending=useRef(false),intent=useRef(null)
+  const requestNavigation=useCenterNavigation()
+  const clearDraft=()=>{life.current++;setSelected([]);setName('');setSchedule(false);setError(null);intent.current=null}
+  useEffect(()=>{clearDraft()},[centerId,member?.id,member?.version,ownerUid,own,active,canAssign])
   const current=epoch=>life.current===epoch&&useStore.getState().user?.id===ownerUid
   const failure=e=>{setError(e);useCenters.getState().revokeOn(e)}
   const options=own?{}:{memberId:member.id}
@@ -40,7 +46,7 @@ export default function TrainingProposals({centerId,member,ownerUid,own=false,ac
     const used=intent.current,result=await centerCommand(path,{...body,requestId:used.id});if(intent.current===used)intent.current=null;return result
   }
   const offer=(revise=false)=>{
-    const epoch=life.current;if(!canAssign||!active||pending.current||!selected.length)return
+    const epoch=life.current;if(!canAssign||!active||accountRequired||pending.current||!selected.length)return
     let bundle
     try{
       const source=useStore.getState().S,chosen=new Set(selected),week=Object.fromEntries(Object.entries(source.week||{}).map(([day,ids])=>[day,[].concat(ids).filter(id=>chosen.has(id))]).filter(([,ids])=>ids.length))
@@ -74,7 +80,7 @@ export default function TrainingProposals({centerId,member,ownerUid,own=false,ac
       try{await command('/api/centers/training/withdraw',{centerId,id:proposal.id,version:proposal.version});if(current(epoch))setRevision(n=>n+1)}catch(e){if(current(epoch))failure(e)}finally{if(current(epoch)){pending.current=false;setBusy(false)}}
     }})
   }
-  const sourceRoutines=S?.routines||[],canOffer=canAssign&&active&&member?.state==='active'
+  const sourceRoutines=S?.routines||[]
   return <Section title={t('Training proposals')}><div className="centers-form">
     {detail?<>
       <Row title={detail.name} subtitle={t('Proposal version')+' '+detail.revision} value={detail.unit}/>
@@ -100,12 +106,14 @@ export default function TrainingProposals({centerId,member,ownerUid,own=false,ac
       {!rows.length&&!busy&&!error&&<p className="muted">{t('No training proposals')}</p>}
       {cursor&&<Button ref={moreRef} disabled={busy} onClick={more}>{t('Show more')}</Button>}
     </>}
-    {canOffer&&(!detail||detail.proposalState==='offered')&&<>
+    {canOffer&&accountRequired&&<div className="centers-import-notice" role="status"><p>{t('Link this member to an account before proposing routines.')}</p>{onLinkAccount&&<Button type="button" variant="tinted" onClick={onLinkAccount}>{t('Member details')}</Button>}</div>}
+    {canOffer&&!accountRequired&&(!detail||detail.proposalState==='offered')&&<form ref={saveForm} aria-label={t('Training proposals')} onSubmit={e=>{e.preventDefault();offer(!!detail)}}>
       <p className="small muted">{t('Choose your routines to offer to this member. Their training stays unchanged until acceptance.')}</p>
       <label className="centers-field"><span>{t('Plan name')}</span><TextField value={name} onChange={e=>setName(e.target.value)} maxLength={120}/></label>
       <MultiSelectRow title={t('Routines')} values={selected} options={sourceRoutines.map(row=>({value:row.id,label:row.name}))} onToggle={id=>setSelected(ids=>ids.includes(id)?ids.filter(x=>x!==id):[...ids,id])}/>
-      <Button disabled={busy||!selected.length||selected.length>20} onClick={()=>offer(!!detail)}>{t(detail?'New proposal version':'Propose routines')}</Button>
-    </>}
+      <Button type="submit" disabled={busy||!selected.length||selected.length>20}>{t(detail?'New proposal version':'Propose routines')}</Button>
+    </form>}
+    {draftDirty&&<Button type="button" disabled={busy} onClick={()=>requestNavigation(clearDraft)}>{t('Cancel')}</Button>}
     <Button disabled={busy} onClick={()=>setRevision(n=>n+1)}>{t('Reload centers')}</Button>
     {busy&&<p role="status">{t('Loading…')}</p>}{error&&<p role="alert">{t(trainingErrorKey(error))}</p>}
   </div></Section>

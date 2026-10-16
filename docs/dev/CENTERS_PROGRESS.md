@@ -13,6 +13,7 @@
 - C41/C42: todo, validar al terminar el alcance acordado. No bloquear por adelantado tareas de desarrollo local con su aceptación/activación final ni marcar funciones futuras como implementadas.
 - C29/C30/C31/C33/C34/C36/C37/C38/C40: done técnico; criterios y evidencia en el historial. C30/C33/C38 no deben reimplementarse. Matriz vigente: CENTERS_DELIVERY_STATUS.md.
 - C47: implementación de tarjeta única por socio, cuota/bonos independientes e historial de lectura bajo demanda. Migración043 y SQL16/16 correctos en CI; preview actualizada; revisión visual pendiente.
+- C48: apartado independiente de Bonos, búsqueda de socios, asignación/revocación/consumo específico y edición versionada del catálogo implementados. Sin migración; schema043. UI56/56, SQL18/18 y OpenAPI3/3 correctos; build/preview en curso.
 - Última entrega: ajuste visual C46 de historial compacto y ancho completo en socios;19/19 pruebas focales correctas. C46, implementación terminada; pruebas de interfaz133/133 (82 formularios/controles +51 navegación afectada), PostgreSQL15/15 y OpenAPI3/3 correctos. Build correcto;2181textos presentes y18locales/2834claves sincronizados. No suites generales.
 - Validación pendiente: revisión visual real escritorio/móvil/temas y aceptación C41/C42. El navegador de esta sesión no permite esa comprobación; no sustituirla por resultados DOM ni marcarla verificada. C46 sigue in_progress únicamente por esa validación solicitada. Siguiente paso: revisar visualmente la preview actualizada en escritorio/móvil/temas cuando haya navegador habilitado; C46 no requiere más implementación conocida.
 
@@ -136,6 +137,7 @@ Estados permitidos: `todo`, `in_progress`, `done`, `blocked`. Una tarea done nec
 | C45 | F14 | Día de bono atómico e historial filtrable | done |
 | C46 | F15 | UX cuotas/bonos: guardado directo, acciones, cambios pendientes y motivos | in_progress — implementación terminada; revisión visual pendiente |
 | C47 | F15 | Tarjeta por socio, historial y bonos con mensualidad | in_progress — implementación terminada; revisión visual pendiente |
+| C48 | F15 | Apartado independiente de bonos y gestión por socio | in_progress — implementación terminada; revisión visual pendiente |
 
 ## Gates de entrega
 
@@ -968,3 +970,12 @@ SQL focal16/16 correcto sobre CI aislado con migración043, incluidos socio mixt
 
 
 Cierre operativo C47: API/WEBf46c4e23-dirty healthy, schema043, build Docker correcto y health HTTPS público200. Backup SQL previo043 guardado fuera de Git. Inicializador protegido correcto;7archivos sin diferencias SHA256 y conteos SQL de socios/contratos/recibos/pagos/consumos idénticos. Solo API/WEB recreadas, túnel y volumen conservados.34/34 comprobaciones UI focales,16/16 SQL y3/3 OpenAPI acreditadas. No push. Próximo paso: revisar visualmente tarjeta de socio mixto, Historial de lectura y agrupación de compras en escritorio/móvil; C46/C47 continúan in_progress solo por esa revisión. No se han registrado cobros ni consumos en los datos de preview durante las pruebas.
+
+
+## C48 — apartado independiente de bonos
+
+Bonos de acceso pasa a ser un destino propio en CenterWorkspace, separado de Cuotas en escritorio y móvil; la ficha de socio también separa Bonos de Cuotas y cobros. PassManagement reutiliza Segmented, búsqueda/listado paginado de socios, Passes, PassHistory y PassProducts. Vistas Socios, Historial y Catálogo según capacidades vigentes; selección por ID y centro, búsqueda por nombre/número y lectura bajo demanda. Gestionar un socio permite asignar bonos, revocarlos con motivo y registrar un uso del bono concreto. Historial conserva filtros/consumos y búsqueda por número además del nombre. Estado de uso diario se obtiene también del servidor al abrir la lista, no solo tras pulsar.
+
+Edición del catálogo con POST passes/products/revise: valida campos/versiones/capacidad, crea definición sustituta y archiva anterior en una transacción idempotente/auditada. No modifica condiciones de bonos adquiridos, recibos, pagos o consumos. Editar no sobrescribe compras históricas: los bonos asignados se consultan, revocan o consumen; las nuevas condiciones se aplican a futuras asignaciones. Sin migración ni nuevos permisos ni pasarelas.
+
+POST passes/day admite passId opcional; comprueba que el bono pertenece al centro/socio y está disponible. Sin passId conserva FEFO y el hash de reintentos anteriores. El límite por socio/día sigue compartido entre bonos y QR; no registra un pago ni renueva la cuota. La selección es explícita en esta pantalla. Pruebas SQL18/18 con PostgreSQL CI aislado: sustitución/replay/versiones/centro/rol, compras anteriores intactas, consumo concreto frente a FEFO y prohibición de consumir a otro socio o un segundo bono el mismo día. UI56/56 de navegación, gestión por usuario, permisos de lectura/catálogo, edición, consumo y regresiones focales; OpenAPI3/3 e i18n correctos. Pendiente build Docker/actualizar preview y revisión visual real. No pruebas generales ni datos reales.

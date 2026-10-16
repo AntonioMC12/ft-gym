@@ -2,7 +2,7 @@ import {previewRenewal,renewCash} from './services/renewals.js';
 import {registerPassDay,passHistory,passHistoryOptions} from './services/pass-days.js';
 import {applicationAccess} from './services/application-access.js';
 import {passOptions} from './domain/passes.js';
-import {listPassProducts,createPassProduct,archivePassProduct,previewPassPurchase,buyPass,listPasses,revokePass} from './services/passes.js';
+import {listPassProducts,createPassProduct,revisePassProduct,archivePassProduct,previewPassPurchase,buyPass,listPasses,revokePass} from './services/passes.js';
 import {listRetention,configureRetention,reviewRetention} from './services/retention.js';
 import {retentionOptions} from './domain/retention.js';
 import {progressSelectors,ownProgressShare,changeProgressShare,readSharedProgress} from './services/shared-progress.js';
@@ -168,6 +168,7 @@ export function centersRoutes({ config, database, json, readSession, readBody, a
     'POST /api/centers/classes/series/create':mutate(false,(context,body)=>createClassSeries(context,body,{platform:isPlatformUser(config,context.user)})),
 
     'POST /api/centers/passes/products/create':mutate(false,(context,body)=>createPassProduct(context,body,{platform:isPlatformUser(config,context.user)})),
+    'POST /api/centers/passes/products/revise':mutate(false,(context,body)=>revisePassProduct(context,body,{platform:isPlatformUser(config,context.user)})),
     'POST /api/centers/passes/products/archive':mutate(false,(context,body)=>archivePassProduct(context,body,{platform:isPlatformUser(config,context.user)})),
     'POST /api/centers/passes/preview':mutate(false,(context,body)=>previewPassPurchase(context,body,{platform:isPlatformUser(config,context.user)})),
     'POST /api/centers/passes/purchase':mutate(false,(context,body)=>buyPass(context,body,{platform:isPlatformUser(config,context.user)})),

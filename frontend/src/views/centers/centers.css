@@ -219,3 +219,15 @@ fieldset.centers-fields{border:0;padding:0;min-width:0}
 
 .centers-grouped-pass{display:grid;gap:8px;border-top:1px solid var(--sep);padding-top:12px}
 .centers-grouped-pass .centers-pass-history-footer{border-top:0;padding-top:0}
+
+.centers-pass-management{display:grid;gap:18px;min-width:0}
+.centers-pass-management>.seg{flex-wrap:wrap;height:auto;gap:6px}
+.centers-pass-management>.seg button{min-height:44px;white-space:normal}
+.centers-pass-management .searchf,.centers-pass-management .searchf>.field{width:100%;min-width:0}
+.centers-pass-management-heading{display:flex;align-items:center;flex-wrap:wrap;gap:12px}
+.centers-pass-management-heading>.btn{width:auto;min-height:44px;border:1px solid var(--sep);border-radius:var(--r);padding:10px 14px}
+.centers-pass-management-heading h3{margin:0;overflow-wrap:anywhere}
+.centers-pass-management-heading small{font-weight:400}
+
+.centers-pass-purchase-card>.action-reason{display:flex;width:100%;margin:10px 0}
+.centers-pass-purchase-card>.action-reason>.btn{flex:1;min-height:44px}

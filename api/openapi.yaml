@@ -455,6 +455,31 @@ paths:
         '403': { description: Missing capability. }
         '404': { description: Center or resource not visible. }
         '409': { description: Inactive membership, changed quote, archived product or retry conflict. }
+  /api/centers/passes/products/revise:
+    post:
+      tags: [centers]
+      operationId: revisePassProduct
+      summary: Replace catalogue terms while preserving purchased passes
+      description: Requires plans.manage in the selected active center. Body centerId, id, version, fields (same explicit terms as create), requestId. Transactionally creates the replacement and archives the old product with optimistic version checking, idempotency and audit. Purchased passes and their receipts, payments and balances keep their original terms.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [centerId, id, version, fields, requestId]
+              properties:
+                centerId: { type: string }
+                id: { type: string }
+                version: { type: integer, minimum: 1 }
+                fields: { type: object }
+                requestId: { type: string }
+      responses:
+        '200': { description: Replacement product, same ID on retry. }
+        '400': { description: Invalid explicit terms or body. }
+        '403': { description: Missing current capability. }
+        '404': { description: Center or product not visible. }
+        '409': { description: Product archived, version changed or retry conflict. }
   /api/centers/passes/products/archive:
     post:
       tags: [centers]
@@ -5904,7 +5929,7 @@ paths:
       tags: [centers]
       operationId: recordDailyPassUse
       summary: Record one local day and consume one pass credit
-      description: Requires billing.manage. Body centerId, memberId, requestId. Members may also have a monthly subscription; manual pass use never renews or pays that subscription. Server chooses the first usable paid or promotional pass by expiry then purchase age. Shared append-only QR/manual balance, center lock, member/local-day replay and SQL validation prevent negative or duplicate consumption. Existing QR admission policy remains unchanged.
+      description: Requires billing.manage. Body centerId, memberId, optional passId, requestId. An explicit passId consumes that usable pass belonging to the member; otherwise the server uses expiry order. The daily limit covers all passes together. Members may also have a monthly subscription; manual pass use never renews or pays that subscription. Server chooses the first usable paid or promotional pass by expiry then purchase age. Shared append-only QR/manual balance, center lock, member/local-day replay and SQL validation prevent negative or duplicate consumption. Existing QR admission policy remains unchanged.
       responses:
         '200': { description: "usedOn, passId, remaining or alreadyUsed" }
         '409': { description: "No usable balance or inactive member" }
@@ -5913,7 +5938,7 @@ paths:
       tags: [centers]
       operationId: listPassHistory
       summary: Administrative pass history or a pass consumption page
-      description: Requires billing.read for selected center. Query centerId, status(all/active/exhausted/expired), query(member name), cursor. Optional passId returns uses with local date, actor and QR/manual source. Pages30, newest purchase first; cursor bound to actor, center and filters. Returns members, pass terms, purchase date, exclusive expiry, credits, used, remaining and explicit state. No historical purchases are deleted.
+      description: Requires billing.read for selected center. Query centerId, status(all/active/exhausted/expired), query(member name), cursor. Optional passId returns uses with local date, actor and QR/manual source. Search matches member name or number. Pages30, newest purchase first; cursor bound to actor, center and filters. Returns members, pass terms, purchase date, exclusive expiry, credits, used, remaining and explicit state. No historical purchases are deleted.
       parameters:
         - { in: query, name: centerId, required: true, schema: { type: string } }
         - { in: query, name: status, schema: { type: string, enum: [all, active, exhausted, expired] } }

@@ -11,7 +11,7 @@ export function passHistoryOptions(params){
  return {query,status,cursor,passId};
 }
 // Eligibility and its explanation share the authoritative SQL availability rule.
-export async function passDayAvailability(client,c,member){
+export async function passDayAvailability(client,c,member,passId=null){
  const day=member.local_today,m=member.id;
  const {rows:used}=await client.query('SELECT pass_id FROM centers.pass_consumptions WHERE center_id=$1 AND member_id=$2 AND used_on=$3 LIMIT 1',[c,m,day]);
  const {rows}=await client.query(`SELECT b.id,p.name,b.starts_on::text,b.ends_on::text,p.credits,
@@ -19,7 +19,7 @@ export async function passDayAvailability(client,c,member){
   EXISTS(SELECT 1 FROM centers.pass_revocations r WHERE r.center_id=b.center_id AND r.pass_id=b.id) AS revoked,
   centers.pass_available(b.center_id,b.member_id,b.id,$3) AS available
   FROM centers.pass_purchases b JOIN centers.pass_products p ON (p.center_id,p.id)=(b.center_id,b.product_id)
-  WHERE b.center_id=$1 AND b.member_id=$2 ORDER BY b.ends_on ASC NULLS LAST,b.created_at,b.id`,[c,m,day]);
+  WHERE b.center_id=$1 AND b.member_id=$2 AND ($4::text IS NULL OR b.id=$4) ORDER BY b.ends_on ASC NULLS LAST,b.created_at,b.id`,[c,m,day,passId]);
  const pass=rows.find(r=>r.available),remaining=rows.reduce((n,r)=>n+(r.available?r.credits-r.used:0),0);
  let reason=null;
  if(used.length)reason='used-today';
@@ -32,11 +32,11 @@ export async function passDayAvailability(client,c,member){
  return {hasPass:rows.length>0,remaining,reason,used:used[0]||null,pass};
 }
 export function registerPassDay({database,user,checkSession},raw,{platform=false}={}){
- objectBody(raw,['centerId','memberId','requestId']);const c=idField(raw.centerId),m=idField(raw.memberId),requestId=requestField(raw.requestId),operation='pass.day',hash=commandHash({memberId:m});
+ objectBody(raw,['centerId','memberId','passId','requestId']);const c=idField(raw.centerId),m=idField(raw.memberId),requestId=requestField(raw.requestId),operation='pass.day',passId=raw.passId==null?null:idField(raw.passId),hash=commandHash({memberId:m,...(passId?{passId}:{})});
  return businessTransaction(database,user.id,c,'billing.manage',async client=>{
   const replay=await commandReplay(client,c,user.id,operation,requestId,hash);if(replay){checkSession();return replay}
   const member=await memberRecord(client,c,m),day=member.local_today;
-  const availability=await passDayAvailability(client,c,member);
+  const availability=await passDayAvailability(client,c,member,passId);
   if(availability.used){const result={alreadyUsed:true,usedOn:day,passId:availability.used.pass_id};await rememberCommand(client,c,user.id,operation,requestId,hash,result);checkSession();return result}
   if(availability.reason==='member-inactive')throw new CentersError(409,'pass-member-inactive','inactive member');
   if(availability.reason)throw new CentersError(409,'pass-unavailable','no usable pass');
@@ -66,7 +66,7 @@ export function passHistory(database,uid,c,options,{platform=false}={}){
     WHEN centers.pass_available(b.center_id,b.member_id,b.id,(statement_timestamp() AT TIME ZONE c.timezone)::date) THEN 'active' ELSE 'unavailable' END AS status
    FROM centers.pass_purchases b JOIN centers.pass_products p ON (p.center_id,p.id)=(b.center_id,b.product_id)
    JOIN centers.members m ON (m.center_id,m.id)=(b.center_id,b.member_id) JOIN centers.centers c ON c.id=b.center_id
-   WHERE b.center_id=$1 AND ($2='' OR m.name ILIKE $3 ESCAPE '\\') AND ($4::timestamptz IS NULL OR (b.created_at,b.id)<($4::timestamptz,$5::text))) entries
+   WHERE b.center_id=$1 AND ($2='' OR m.name ILIKE $3 ESCAPE '\\' OR m.member_number ILIKE $3 ESCAPE '\\') AND ($4::timestamptz IS NULL OR (b.created_at,b.id)<($4::timestamptz,$5::text))) entries
    WHERE ($6='all' OR status=$6) ORDER BY created_at DESC,id DESC LIMIT 31`,[c,query,pattern,after?.at||null,after?.id||null,status]);
   const page=rows.slice(0,30);return {passes:page.map(r=>{const row={id:r.id,memberId:r.member_id,memberName:r.member_name,number:r.member_number,name:r.name,createdAt:r.created_at,startsOn:r.starts_on,endsOn:r.ends_on,credits:r.credits,used:r.used,remaining:r.credits-r.used,revoked:r.revoked,available:r.available};return {...row,status:passState(row,r.today)}}),nextCursor:rows.length>30?nextCursor(scope,page.at(-1)):null};
  },{platform,allowInactive:true});

@@ -485,3 +485,6 @@ Estado: implementación y validación técnica focal terminadas. Falta revisión
 
 
 C47 (petición posterior del16octubre): tarjeta por socio con cuota renovable, bonos independientes e historial de solo lectura bajo demanda. Agrupar compras del historial por memberId, sin fusionar homónimos ni borrar datos. Permitir consumo manual de bono aunque exista mensualidad, con migración043 aditiva, idempotencia, saldo compartido, afiliación y límite diario conservados. Renovar y consumir bono son acciones independientes; un bono no liquida ni renueva una cuota. Implementación y pruebas focales terminadas; aceptación visual pendiente en el registro.
+
+
+C48: apartado Bonos independiente de Cuotas y de la sección económica de la ficha. Directorio de socios con búsqueda/cursor, gestión de asignaciones/revocaciones/consumo explícito e historial. Edición versionada del catálogo que conserva compras y ledger históricos; sin modificar recibos/pagos. Consumo de bono seleccionado con mismos controles de disponibilidad/socio/centro y límite diario. Reutilizar componentes, capacidades actuales y navegación protegida. Implementado; evidencia y validación visual pendiente en CENTERS_PROGRESS.md.

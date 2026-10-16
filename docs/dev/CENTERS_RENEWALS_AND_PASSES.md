@@ -59,3 +59,8 @@ Pruebas UI enfocadas cubren confirmación antes de registrar efectivo, periodo y
 La lista de Socios mantiene una tarjeta por ID de socio: cuota actual/última renovable, bloque independiente de bonos y botón Historial. El historial se consulta bajo demanda con los endpoints de contratos y bonos del mismo centro/socio, sin formularios de adquisición, revocación ni pago. El historial global de bonos agrupa las compras cargadas por memberId; ampliar páginas añade compras a la misma tarjeta. No agrupar por nombre ni eliminar compras reales.
 
 043_mixed_members_daily_passes.sql modifica únicamente la comprobación del consumo manual para permitir socios con mensualidad y bono. No cambia ledgers ni precios/fechas/recibos. Renueva exclusivamente la acción Renovar; Registrar día de uso consume exclusivamente un crédito elegible, FEFO, una vez por día local y con las mismas comprobaciones de afiliación, pago, caducidad, locks y auditoría. Los bonos no renuevan la mensualidad ni eliminan su deuda o el bloqueo de la app.
+
+
+## Apartado Bonos de acceso (C48)
+
+Se accede desde el menú del centro → Bonos de acceso. Socios: busca por nombre o número y selecciona la persona para ver/asignar/revocar sus bonos o registrar un uso del bono elegido. Catálogo: crea, edita o archiva tipos de bono. Editar guarda una nueva definición y archiva la anterior, conservando condiciones de compras ya realizadas; no edita saldos ni pagos históricos. Historial: filtra por socio/estado y consulta consumos. Capacidades actuales distinguen gestión del catálogo, lectura de bonos y mutaciones. En la ficha del socio, Bonos tiene apartado propio; Cuotas y cobros conserva suscripciones/recibos/pagos.

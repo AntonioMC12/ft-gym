@@ -230,3 +230,6 @@ it('shares center navigation across areas while preserving permissions and the s
  expect(host.querySelector('.centers-tabs-scroll')).toBeNull();await click('Membership plans');expect(host.textContent).toContain('Existing plan list');expect(menu().querySelector('[aria-current=page]').textContent).toBe('Membership plans');
  await click('Classes');expect(host.querySelector('[data-classes-center]').dataset.classesCenter).toBe(center.id);await click('Center access');expect(host.querySelector('[data-access-panel]').dataset.accessPanel).toBe(center.id);
 })
+it('offers passes separately from membership plans',async()=>{
+ useCenters.setState({platformCapabilities:['centers.manage','plans.manage']});await render();await click('Center details');const menu=()=>host.querySelector('.centers-center-workspace>.centers-workspace>.centers-workspace-nav');expect(menu().textContent).toContain('Visit passes');await click('Membership plans');expect(host.textContent).toContain('Existing plan list');expect(host.querySelector('.centers-pass-management')).toBeNull();await click('Visit passes');expect(host.querySelector('.centers-pass-management')).not.toBeNull();expect(host.textContent).not.toContain('Existing plan list');
+})

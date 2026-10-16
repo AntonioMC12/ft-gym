@@ -25,6 +25,19 @@ export function createPassProduct({database,user,checkSession},raw,{platform=fal
     await businessAudit(client,centerId,user.id,operation,id);await rememberCommand(client,centerId,user.id,operation,requestId,hash,{id});checkSession();return {product:productDto(await product(client,centerId,id))};
   },{platform});
 }
+// Definitions are immutable once sold: editing replaces the catalogue entry
+// atomically, while historical purchases retain the original terms.
+export function revisePassProduct({database,user,checkSession},raw,{platform=false}={}){
+ objectBody(raw,['centerId','id','version','fields','requestId']);const c=idField(raw.centerId),oldId=idField(raw.id),version=versionField(raw.version),fields=passFields(raw.fields),requestId=requestField(raw.requestId),operation='pass.product.revise',hash=commandHash({oldId,version,fields});
+ return businessTransaction(database,user.id,c,'plans.manage',async client=>{
+  const replay=await commandReplay(client,c,user.id,operation,requestId,hash);if(replay){checkSession();return {product:productDto(await product(client,c,replay.id))}}
+  const old=await product(client,c,oldId);if(old.archived||old.version!==version)conflict('version-conflict');checkSession();
+  const id='pp_'+commandHash([c,user.id,requestId]).slice(0,32);
+  await client.query('INSERT INTO centers.pass_products(id,center_id,name,kind,credits,valid_days,price_minor,price_includes_tax,tax_basis_points,net_minor,tax_minor,total_minor,actor_uid) VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13)',[id,c,fields.name,fields.kind,fields.credits,fields.validDays,fields.priceMinor,fields.priceIncludesTax,fields.taxBasisPoints,fields.netMinor,fields.taxMinor,fields.totalMinor,user.id]);
+  await client.query('UPDATE centers.pass_products SET archived=true,version=version+1 WHERE center_id=$1 AND id=$2',[c,oldId]);
+  await businessAudit(client,c,user.id,operation,id,{previousId:oldId});await rememberCommand(client,c,user.id,operation,requestId,hash,{id});checkSession();return {product:productDto(await product(client,c,id))};
+ },{platform});
+}
 export function archivePassProduct({database,user,checkSession},raw,{platform=false}={}){
   objectBody(raw,['centerId','id','version','requestId']);const centerId=idField(raw.centerId),id=idField(raw.id),version=versionField(raw.version),requestId=requestField(raw.requestId),operation='pass.product.archive',hash=commandHash({id,version});
   return businessTransaction(database,user.id,centerId,'plans.manage',async client=>{
@@ -77,7 +90,7 @@ export function buyPass({database,user,checkSession},raw,{platform=false}={}){
 export function listPasses(database,uid,c,memberId,options,{platform=false,own=false}={}){
   return businessTransaction(database,uid,c,own?'membership.own.read':'billing.read',async client=>{
     if(own)memberId=(await client.query('SELECT id FROM centers.members WHERE center_id=$1 AND account_uid=$2',[c,uid])).rows[0]?.id||missing();else await memberRecord(client,c,memberId);
-    const scope=cursorScope(['passes',uid,c,memberId,own]),after=readCursor(options.cursor,scope),{rows}=await client.query('SELECT '+purchaseProjection+purchaseFrom+'WHERE b.center_id=$1 AND b.member_id=$2 AND ($3::timestamptz IS NULL OR (b.created_at,b.id)<($3::timestamptz,$4::text)) ORDER BY b.created_at DESC,b.id DESC LIMIT 31',[c,memberId,after?.at||null,after?.id||null]);const page=rows.slice(0,30);return {passes:page.map(purchaseDto),nextCursor:rows.length>30?nextCursor(scope,page.at(-1)):null};
+    const scope=cursorScope(['passes',uid,c,memberId,own]),after=readCursor(options.cursor,scope),{rows}=await client.query('SELECT '+purchaseProjection+purchaseFrom+'WHERE b.center_id=$1 AND b.member_id=$2 AND ($3::timestamptz IS NULL OR (b.created_at,b.id)<($3::timestamptz,$4::text)) ORDER BY b.created_at DESC,b.id DESC LIMIT 31',[c,memberId,after?.at||null,after?.id||null]);const {rows:daily}=await client.query('SELECT 1 FROM centers.pass_consumptions u JOIN centers.centers c ON c.id=u.center_id WHERE u.center_id=$1 AND u.member_id=$2 AND u.used_on=(statement_timestamp() AT TIME ZONE c.timezone)::date LIMIT 1',[c,memberId]);const page=rows.slice(0,30);return {passes:page.map(purchaseDto),usedToday:daily.length>0,nextCursor:rows.length>30?nextCursor(scope,page.at(-1)):null};
   },{platform:!own&&platform,allowInactive:true});
 }
 export function revokePass({database,user,checkSession},raw,{platform=false}={}){

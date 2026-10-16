@@ -6,7 +6,7 @@ import {useStore} from '../../store/useStore.js'
 import {useAutoMore} from '../../lib/use-auto-more.js'
 import {t} from '../../lib/i18n.js'
 export const passStatusLabel=s=>t(({active:'Available pass',exhausted:'Exhausted',expired:'Expired pass',revoked:'Revoked pass',scheduled:'Scheduled',unavailable:'Unavailable pass'})[s]||'Unavailable pass')
-export default function PassHistory({centerId,ownerUid}){
+export default function PassHistory({centerId,ownerUid,onManage}){
  const [query,setQuery]=useState(''),[status,setStatus]=useState('all'),[selected,setSelected]=useState(null),[rows,setRows]=useState([]),[cursor,setCursor]=useState(null),[busy,setBusy]=useState(false),[error,setError]=useState(null),[retry,setRetry]=useState(0)
  const life=useRef(0),pending=useRef(false)
  const current=e=>e===life.current&&useStore.getState().user?.id===ownerUid
@@ -21,7 +21,7 @@ export default function PassHistory({centerId,ownerUid}){
    <SelectRow title={t('Status')} value={status} options={['all','active','exhausted','expired'].map(v=>({value:v,label:v==='all'?t('All'):passStatusLabel(v)}))} onChange={setStatus}/>
    <p className="small muted centers-pass-history-note">{t('Pass expiry is exclusive.')}</p>
    <div className="centers-pass-history-list">{groups.map(group=><article key={group.id} className="centers-card centers-pass-history-card">
-    <header className="centers-pass-history-heading"><div><strong>{group.name}</strong><span className="small muted">{group.number}</span></div></header>
+    <header className="centers-pass-history-heading"><div><strong>{group.name}</strong><span className="small muted">{group.number}</span></div>{onManage&&<Button variant="tinted" onClick={()=>onManage({id:group.id,name:group.name,number:group.number})}>{t('Edit')}</Button>}</header>
     {group.passes.map(p=><div key={p.id} className="centers-grouped-pass"><div className="centers-pass-history-heading"><strong>{p.name}</strong><span className="centers-member-status">{passStatusLabel(p.status)}</span></div>
      <div className="centers-pass-history-terms"><span className="small muted"><span>{t('Pass starts on')}: {p.startsOn}</span><span>{t('Expires on')}: {p.endsOn}</span></span></div>
      <footer className="centers-pass-history-footer"><div><span>{t('Credits remaining')}: <strong>{p.remaining} / {p.credits}</strong></span><span className="small muted">{t('Sessions used')}: {p.used} · {t('Created')}: {new Date(p.createdAt).toLocaleDateString()}</span></div><Button variant="tinted" onClick={()=>setSelected(p)}>{t('View uses')}</Button></footer>

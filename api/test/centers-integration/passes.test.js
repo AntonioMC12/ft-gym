@@ -69,3 +69,24 @@ test('pass selection substitutes only the subscription check and expiry uses the
   assert.equal((await r.issue(pass.id,'expired_again',f.ids.technical)).body.code,'access-unavailable');
   assert.equal((await f.req('/api/centers/own/passes?centerId='+f.center,f.ids.technical)).body.passes[0].remaining,1);
 });
+test('revising a pass product atomically replaces the catalogue but preserves purchases and replay',async t=>{
+ const f=await fixture(t),p=await product(f),purchase=(await f.req('/api/centers/passes/purchase',f.ids.manager,await order(f,p))).body.pass;
+ const body={centerId:f.center,id:p.id,version:p.version,fields:{...fields,name:'Fictional revised',credits:8,priceMinor:'1500'},requestId:f.p+'_revise'};
+ const revised=await f.req('/api/centers/passes/products/revise',f.ids.manager,body);assert.equal(revised.status,200,JSON.stringify(revised));assert.notEqual(revised.body.product.id,p.id);assert.equal(revised.body.product.credits,8);
+ const replay=await f.req('/api/centers/passes/products/revise',f.ids.manager,body);assert.equal(replay.body.product.id,revised.body.product.id);
+ const previous=(await own(f)).body.passes.find(row=>row.id===purchase.id);assert.equal(previous.credits,3);assert.equal(previous.totalMinor,'1000');assert.equal(previous.name,p.name);
+ const old=(await f.req('/api/centers/passes/products?'+new URLSearchParams({centerId:f.center,archived:'all'}),f.ids.manager)).body.products.find(row=>row.id===p.id);assert.equal(old.archived,true);
+ assert.equal((await f.req('/api/centers/passes/products/revise',f.ids.manager,{...body,requestId:f.p+'_stale'})).status,409);
+ assert.equal((await f.req('/api/centers/passes/products/revise',f.ids.manager,{...body,centerId:f.other,requestId:f.p+'_foreign'})).status,404);
+ assert.ok([403,404].includes((await f.req('/api/centers/passes/products/revise',f.ids.trainer,{...body,requestId:f.p+'_denied'})).status));
+});
+test('manual consumption targets the selected member pass and preserves one daily use across passes',async t=>{
+ const f=await fixture(t),first=await product(f,{kind:'promotion',priceMinor:'0',validDays:10},'first'),later=await product(f,{kind:'promotion',priceMinor:'0',validDays:60},'later');
+ const a=(await f.req('/api/centers/passes/purchase',f.ids.manager,await order(f,first,f.members.alice,'first'))).body.pass,b=(await f.req('/api/centers/passes/purchase',f.ids.manager,await order(f,later,f.members.alice,'later'))).body.pass;
+ const raw={centerId:f.center,memberId:f.members.alice,passId:b.id,requestId:f.p+'_target'};
+ assert.equal((await f.req('/api/centers/passes/day',f.ids.manager,{...raw,memberId:f.members.bob,requestId:f.p+'_wrong_member'})).status,409);
+ const used=await f.req('/api/centers/passes/day',f.ids.manager,raw);assert.equal(used.status,200,JSON.stringify(used));assert.equal(used.body.passId,b.id);
+ const list=(await own(f)).body;assert.equal(list.usedToday,true);assert.equal(list.passes.find(p=>p.id===a.id).remaining,3);assert.equal(list.passes.find(p=>p.id===b.id).remaining,2);
+ const twice=await f.req('/api/centers/passes/day',f.ids.root,{...raw,passId:a.id,requestId:f.p+'_again'});assert.equal(twice.body.alreadyUsed,true);assert.equal((await own(f)).body.passes.find(p=>p.id===a.id).remaining,3);
+ const found=await f.req('/api/centers/passes/history?'+new URLSearchParams({centerId:f.center,query:(await f.detail('alice')).body.member.number}),f.ids.manager);assert.equal(found.status,200,JSON.stringify(found));assert.equal(found.body.passes.length,2);
+});

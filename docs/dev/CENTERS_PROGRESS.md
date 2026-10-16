@@ -1053,3 +1053,6 @@ C51 operación cerrada: código c3dda6d7, build Docker WEB/Vite correcto (../inf
 Datos del centro se muestra ahora como details/summary cerrado inicialmente. Al abrirlo aparecen los datos y el botón Editar centro dentro del mismo bloque. Horario semanal y Editar horario siguen fuera y visibles. Se reutiliza el desplegable nativo accesible y tokens; edición, permisos y protección de cambios conservados. Al cancelar se vuelve a consulta colapsada. Sin claves i18n nuevas ni cambios de backend/datos.
 
 Centers.test.jsx31/31 correcto, incluyendo cerrado inicial, apertura, ubicación del botón, horario fuera, edición y cancelación. Log ../informes/center-profile-collapse-ui.log; git diff --check correcto. Archivos Centers.jsx, Centers.test.jsx y centers.css. Pendiente build/recreación WEB y revisión visual real, que sigue sin estar acreditada.
+
+
+C51 ajuste de cabecera: Personal del centro coloca el engranaje después del texto, a la derecha. Cabecera flex en una línea con chevron inicial y texto flexible, evitando el salto de línea de SVG. Desplegable nativo y foco visible conservados. Cambio de presentación, sin pruebas adicionales por alcance reversible; pendiente build WEB combinado con el colapsado de datos.

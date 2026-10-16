@@ -381,3 +381,10 @@ fieldset.centers-fields{border:0;padding:0;min-width:0}
 .centers-profile-info-body>.centers-profile-heading{justify-content:flex-end}
 .centers-profile-info-body>.centers-profile-data{margin-top:14px}
 .centers-profile-info-body>.centers-profile-heading:empty{display:none}
+
+.centers-profile-management>summary{display:flex;align-items:center;gap:10px;list-style:none}
+.centers-profile-management>summary::-webkit-details-marker{display:none}
+.centers-profile-management>summary>span{flex:1;min-width:0}
+.centers-profile-management>summary>svg{flex:none;margin:0}
+.centers-profile-management[open]>summary>svg:first-child{transform:rotate(90deg)}
+.centers-profile-management>summary:focus-visible{outline:2px solid var(--acc);outline-offset:-3px;border-radius:var(--r)}

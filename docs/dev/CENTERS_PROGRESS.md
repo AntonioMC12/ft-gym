@@ -995,3 +995,8 @@ Saldos actuales y flujos del periodo se muestran separados. Importes exactos per
 
 
 Preview C49 actualizada: WEBed99eccf-dirty healthy tras build Docker correcto y HTTPS público200. Solo WEB recreada; API2217d62d-dirty, SQL/schema043, datos y túnel conservados.40/40 tests focales y2184textos presentes en locales. Commit local sin push. Próximo paso: probar el dashboard en Métricas del centro, escritorio/móvil; revisión visual real pendiente, no acreditada por DOM/build.
+
+
+## C49 — ajuste de huecos del dashboard
+
+Feedback visual: el panel económico más alto dejaba un hueco bajo el resumen de socios y empujaba visitas a otra fila. Metrics usa ahora dos columnas con pilas verticales independientes: socios y visitas consecutivos a la izquierda; finanzas a la derecha. No se igualan alturas con relleno. En móvil se apilan con el mismo orden del DOM; gráficos internos y miniindicadores se ajustan al ancho de columna. Se eliminan márgenes de Section dentro de las pilas para conservar separación uniforme20px. Sin datos nuevos, cálculos ni backend afectados. Revisión visual del ajuste pendiente; actualización WEB en curso.

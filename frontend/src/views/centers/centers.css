@@ -265,3 +265,11 @@ fieldset.centers-fields{border:0;padding:0;min-width:0}
 .centers-metrics-filter>.btn{width:auto;min-height:48px;padding:12px 24px}
 @media(max-width:1100px){.centers-metric-stats{grid-template-columns:repeat(2,minmax(0,1fr))}.centers-metric-panels{grid-template-columns:minmax(0,1fr)}}
 @media(max-width:500px){.centers-metric-stat{padding:14px}.centers-metric-stats{gap:10px}.centers-metric-mini-stats{grid-template-columns:repeat(2,minmax(0,1fr))}.centers-metrics-filter>.btn{width:100%}.centers-member-donut{margin-inline:auto}.centers-member-legend{min-width:0;flex-basis:100%}}
+
+/* Independent vertical stacks let visits follow members without a grid-row gap. */
+.centers-metrics-columns{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:20px;align-items:start}
+.centers-metrics-column{display:flex;flex-direction:column;gap:20px;min-width:0}
+.centers-metrics-column>.sect{margin:0;min-width:0}
+.centers-metrics-column .centers-metric-panels{grid-template-columns:minmax(0,1fr)}
+.centers-metrics-column .centers-metric-mini-stats{grid-template-columns:repeat(2,minmax(0,1fr))}
+@media(max-width:1100px){.centers-metrics-columns{grid-template-columns:minmax(0,1fr)}}

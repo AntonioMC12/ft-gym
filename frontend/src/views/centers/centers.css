@@ -163,3 +163,8 @@ body.no-tabbar .centers-unsaved-bar{bottom:calc(12px + var(--sab,0px))}
 .centers-page .centers-card:focus-within,.centers-page .centers-entity-row:focus-visible{outline:2px solid var(--acc);outline-offset:3px}
 @media(hover:hover){.centers-page .centers-card:has(button.lrow):hover,.centers-page button.centers-entity-row:hover{border-color:var(--acc-line);box-shadow:0 8px 22px #00000024}}
 @media(max-width:500px){.centers-catalog-grid{grid-template-columns:minmax(0,1fr)}.centers-catalog-toolbar>.searchf,.centers-catalog-toolbar>.btn{flex-basis:100%;width:100%}.centers-catalog-filter{justify-content:space-between;width:100%}.centers-page .centers-card>.lrow{flex-wrap:wrap;gap:8px}.centers-page .centers-card .lrow-v{max-width:100%}}
+
+.centers-form.centers-pass-product-form{display:grid;gap:16px;padding:0;margin-top:20px}
+.centers-pass-product-form>.centers-actions{margin:4px 0 0;justify-content:flex-end}
+.centers-pass-product-form>.centers-actions>.btn{width:auto;min-height:44px;padding:12px 20px}
+@media(max-width:500px){.centers-pass-product-form>.centers-actions>.btn{flex:1 1 100%}}

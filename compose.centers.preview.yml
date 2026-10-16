@@ -4,6 +4,9 @@ services:
   centers-preview-api:
     image: ft-gym-centers-preview-api:local
     container_name: ft-gym-centers-preview
+    # Current scope is cash recorded manually. Keep the optional Stripe carrier
+    # in the image for future work, but do not load it in the ordinary preview.
+    command: [node, test/centers-integration/preview.mjs]
     build:
       context: ./api
       target: centers-preview
@@ -17,6 +20,7 @@ services:
       CENTERS_STRIPE_TEST_FIXTURE: /tmp/gym-centers-stripe-fixture-preview
       CENTERS_PREVIEW_ORIGIN: ${CENTERS_PREVIEW_ORIGIN:-http://localhost:5178}
       CENTERS_PREVIEW_DATA_DIR: /tmp/ft-gym-centers-preview-data
+      CENTERS_JOBS_ENABLED: '0'
       CENTERS_PREVIEW_MAINTENANCE_ENABLED: ${CENTERS_PREVIEW_MAINTENANCE_ENABLED:-0}
     volumes:
       - ../informes/centers-stripe-preview:/tmp/gym-centers-stripe-fixture-preview

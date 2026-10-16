@@ -4,15 +4,15 @@
 
 ## Punto de reanudación — decisiones del16octubre
 
-- Rama codex/centers-module, schema041. Cambios previos Docker/web/demo del usuario conservados. Última preview verificada:a1566365-dirty, API/web healthy y7archivos conservados; no se comprueba ni se modifica su ejecución en esta petición documental.
-- Alcance vigente: todo se cobra en mano, exclusivamente en efectivo, y se registra manualmente por el responsable. No implementar ni activar pagos con tarjeta/Stripe por ahora. Esta petición actualiza documentación; no cambia servicios ni repite el apagado de otra sesión.
+- Rama codex/centers-module, schema041. Cambios previos Docker/web/demo del usuario conservados. Aplicación levantada en http://localhost:5178/#/centers, API/web healthy y SQL available/schema041. Imágenes de código a1566365-dirty, sin recompilar (solo configuración/documentación posteriores). Arranque normal preview.mjs:0 perfiles Stripe, jobs0 y7archivos conservados por SHA256.
+- Alcance vigente: todo se cobra en mano, exclusivamente en efectivo, y se registra manualmente por el responsable. No implementar ni activar pagos con tarjeta/Stripe por ahora. Petición actual: actualizar progreso y levantar aplicación local; sin repetir el apagado de otra sesión.
 - C27: aplazado expresamente, todo/fuera de la entrega actual. Conservar código/fixture y guía como referencia futura, sin configurar claves, ensayar sandbox ni activar cobros. La validación Stripe no bloquea el cierre del alcance en efectivo.
 - C28/C39: aplazados expresamente, estado todo/fuera del alcance actual. No se emitirán facturas fiscales por ahora; conservar recibos, pagos manuales y deuda. SEPA es domiciliación bancaria y también se aplaza.
 - C32: done técnico del alcance actual (contratos/finanzas/admisiones registradas). Ocupación física y conexión NFC/cerradura quedan para más adelante; no existen datos de entrada/salida de ese hardware en la app. Retención actual solo usa visitas QR registradas, no todas las entradas NFC del gimnasio.
 - C35: alta pública aplazada, todo/fuera del alcance. Alta administrativa de socios y cobros en efectivo ya implementados en C13/C15/C17/C20. No requieren Stripe ni cuenta personal vinculada; asignar cuota puede activar antes de registrar pago. Ver pasos en CENTERS_DELIVERY_STATUS.md.
 - C41/C42: todo, validar al terminar el alcance acordado. No bloquear por adelantado tareas de desarrollo local con su aceptación/activación final ni marcar funciones futuras como implementadas.
 - C29/C30/C31/C33/C34/C36/C37/C38/C40: done técnico; criterios y evidencia en el historial. C30/C33/C38 no deben reimplementarse. Matriz vigente: CENTERS_DELIVERY_STATUS.md.
-- Comprobaciones: mantener esenciales de permisos, aislamiento y dinero; revisión visual y suites generales se reservan para la fase final acordada. Esta actualización documental solo requiere verificar contratos/configuración/links; no una suite de aplicación.
+- Comprobaciones: mantener esenciales de permisos, aislamiento y dinero; revisión visual y suites generales se reservan para la fase final acordada. En esta reanudación basta validar Compose, arranque/salud, esquema y pasarela desactivada, sin suites generales.
 
 ### Cierre técnico y validación diferida
 
@@ -784,3 +784,7 @@ Verificación documental: el ejemplo Compose valida con config --quiet y credenc
 El usuario aclara «no se va a implementar el pago con tarjeta por ahora» y «todo en mano». El único método operativo del alcance actual es efectivo, recibido fuera de la app y registrado manualmente. C27 pasa de blocked a todo/aplazado, igual que SEPA y facturación; no se requiere ensayo sandbox para cerrar esta entrega. Se conserva la implementación previa de Stripe sin borrarla ni activarla, y la guía queda señalada como referencia futura. No desarrollar otros métodos de pago por iniciativa propia. Alta manual, cuotas, recibos internos, pagos parciales/totales, deuda y auditoría siguen dentro del alcance. Crear recibo no equivale a facturar ni a haber cobrado. C41/C42 se validan al terminar el alcance acordado.
 
 Actualizados cabecera, tablero, roadmap, matriz y notas de Stripe. Cambio exclusivamente documental; comprobación de diff/consistencia, sin suites, despliegue, configuración de pasarelas ni operaciones económicas.
+
+## 16octubre — reanudación local para probar cobro en efectivo
+
+Se actualiza la cabecera con el alcance vigente: alta administrativa y cobro exclusivamente en mano/efectivo; C27/C28/C35público/C39 y ocupación-NFC futuros; C41/C42 al terminar. El Compose de preview arranca preview.mjs en lugar del carrier Stripe, con jobs automáticos apagados. Se conservan implementación/archivos del simulador para una futura reactivación explícita, así como cuentas, entrenamiento y SQL existentes. Se reanuda con Start-CentersPreview.ps1 -NoBuild: los cambios recientes de aplicación son solo configuración/documentación, no requieren recompilar frontend/API. Comprobación completada: API/web running/healthy, base disponible/schema041, cero perfiles Stripe y jobs automáticos0. Siete archivos antes y después, cero modificados o ausentes por SHA256. El túnel estaba detenido y se conserva detenido: la sesión actual es local, http://localhost:5178/#/centers. No se ejecutaron suites ni operaciones económicas. Log: ../informes/centers-cash-start.log.

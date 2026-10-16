@@ -6,7 +6,7 @@ Actualizado: 16 octubre 2026. Guía contrastada con el código de la rama `codex
 
 ## 1. Qué vas a probar
 
-La preview actual usa un proveedor ficticio (`stripe-preview.mjs` / `stripe-http-preload.mjs`). Sirve para ensayar pantallas, pero no contacta con Stripe. Cambiar solamente una clave en esa preview no acredita una integración real.
+Desde la decisión de cobrar solo en efectivo, la preview habitual arranca `preview.mjs`, sin pasarela Stripe. El proveedor ficticio (`stripe-preview.mjs` / `stripe-http-preload.mjs`) se conserva como herramienta opcional de ensayos futuros y tampoco contacta con Stripe. Esta guía solo se retomará al autorizar de nuevo ese alcance.
 
 El ensayo de C27 consiste en crear desde la aplicación un Checkout de un recibo ficticio, pagarlo con una tarjeta de prueba en Stripe y comprobar que la confirmación genera exactamente un pago aplicado al recibo. Cancelar, recargar o reenviar una notificación no debe duplicar pagos ni marcar cobrado un recibo sin evidencia.
 

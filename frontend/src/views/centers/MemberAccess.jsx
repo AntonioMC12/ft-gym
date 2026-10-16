@@ -1,3 +1,4 @@
+import {useUnsavedCenterForm} from './NavigationGuard.jsx'
 import {useEffect,useRef,useState} from 'react'
 import {Section,Row,Button,TextField} from '../../components/ui.jsx'
 import {centerAccessMember,centerCommand,accessErrorKey} from '../../lib/centers-api.js'
@@ -8,6 +9,7 @@ import {t} from '../../lib/i18n.js'
 
 export default function MemberAccess({centerId,memberId,ownerUid,canManage=false}){
   const [data,setData]=useState(null),[reason,setReason]=useState(''),[error,setError]=useState(null),[busy,setBusy]=useState(false),[revision,setRevision]=useState(0)
+  useUnsavedCenterForm(reason||null,busy,{saveable:false})
   const life=useRef(0),pending=useRef(false),intent=useRef(null)
   const current=epoch=>life.current===epoch&&useStore.getState().user?.id===ownerUid
   const failure=e=>{setError(e);useCenters.getState().revokeOn(e)}

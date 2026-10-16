@@ -39,3 +39,9 @@ it('opening the action selector after entering a reason never submits the form',
   await act(async()=>{host.querySelector('button.lrow').click()})
   expect(confirmSheet).not.toHaveBeenCalled();expect(centerCommand).not.toHaveBeenCalled()
 })
+it('ignores a membership confirmation after leaving its section',async()=>{
+  await render({...member,state:'active'});fill(host.querySelector('textarea'),'Synthetic pause');
+  confirmSheet.mockImplementationOnce(()=>{});await click('Freeze membership');const confirmation=confirmSheet.mock.calls.at(-1)[0];
+  await act(async()=>root.render(<div>Another section</div>));await act(async()=>confirmation.onConfirm());
+  expect(centerCommand).not.toHaveBeenCalled();expect(changed).not.toHaveBeenCalled();
+})

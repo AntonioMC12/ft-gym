@@ -1,3 +1,4 @@
+import {useUnsavedCenterForm} from './NavigationGuard.jsx'
 import {useEffect,useRef,useState} from 'react'
 import {Section,Row,Button,TextField,MultiSelectRow,Switch} from '../../components/ui.jsx'
 import {centerTraining,centerTrainingProposal,centerCommand,trainingErrorKey} from '../../lib/centers-api.js'
@@ -15,6 +16,7 @@ import {confirmSheet} from '../../sheets.jsx'
 export default function TrainingProposals({centerId,member,ownerUid,own=false,active=true,canAssign=false}){
   const S=useStore(s=>s.S),[rows,setRows]=useState([]),[cursor,setCursor]=useState(null),[detail,setDetail]=useState(null),[error,setError]=useState(null),[busy,setBusy]=useState(false),[revision,setRevision]=useState(0)
   const [selected,setSelected]=useState([]),[name,setName]=useState(''),[schedule,setSchedule]=useState(false)
+  useUnsavedCenterForm(selected.length||name||schedule?JSON.stringify([selected,name,schedule]):null,busy,{saveable:false})
   const life=useRef(0),pending=useRef(false),intent=useRef(null)
   const current=epoch=>life.current===epoch&&useStore.getState().user?.id===ownerUid
   const failure=e=>{setError(e);useCenters.getState().revokeOn(e)}

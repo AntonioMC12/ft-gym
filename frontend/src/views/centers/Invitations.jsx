@@ -1,3 +1,4 @@
+import {useUnsavedCenterForm} from './NavigationGuard.jsx'
 import {useEffect,useRef,useState} from 'react'
 import {Section,Row,Button,TextField,SelectRow} from '../../components/ui.jsx'
 import {confirmSheet} from '../../sheets.jsx'
@@ -12,6 +13,7 @@ const statusText=invite=>invite.status==='accepted'?t('Invitation accepted'):inv
 export default function Invitations({centerId,ownerUid,memberId,linked=false,allowedKinds=['member']}) {
   const [kind,setKind]=useState(allowedKinds[0]),[uid,setUid]=useState(''),[invites,setInvites]=useState([]),[revision,setRevision]=useState(0)
   const [link,setLink]=useState(''),[missingLink,setMissingLink]=useState(false),[busy,setBusy]=useState(false),[error,setError]=useState(null),[requestId,setRequestId]=useState(()=>crypto.randomUUID())
+  const saveForm=useUnsavedCenterForm(!linked&&uid?uid:null,busy)
   const generation=useRef(0)
   useEffect(()=>{
     const epoch=++generation.current;let current=true;setInvites([]);setLink('');setMissingLink(false);setError(null);setBusy(false)
@@ -37,7 +39,7 @@ export default function Invitations({centerId,ownerUid,memberId,linked=false,all
   return <Section title={t('Center invitations')}><div className="centers-form">
     {allowedKinds.length>1&&<SelectRow title={t('Center staff')} value={kind} options={allowedKinds.map(value=>({value,label:kindText(value)}))} onChange={value=>{setKind(value);setRequestId(crypto.randomUUID())}}/>}
     {linked&&<p className="muted">{t('Account linked')}</p>}
-    {!linked&&!pending&&<form onSubmit={create}>
+    {!linked&&!pending&&<form ref={saveForm} aria-label={t('Center invitations')} onSubmit={create}>
       <label className="centers-field"><span>{t('Account ID')}</span><TextField required disabled={busy} maxLength={64} pattern="[a-zA-Z0-9_-]{1,64}" value={uid} onChange={e=>{setUid(e.target.value);setRequestId(crypto.randomUUID())}}/></label>
       <p className="small muted">{t('Create the personal account first, then use its account ID.')}</p>
       <Button type="submit" disabled={busy||!uid.trim()}>{t('Invite account')}</Button>

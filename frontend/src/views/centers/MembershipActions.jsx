@@ -1,4 +1,5 @@
-import {useRef,useState} from 'react'
+import {useUnsavedCenterForm} from './NavigationGuard.jsx'
+import {useEffect,useRef,useState} from 'react'
 import {Button,Section,Row,TextField,TextArea,SelectRow} from '../../components/ui.jsx'
 import {confirmSheet} from '../../sheets.jsx'
 import {centerCommand,membersErrorKey} from '../../lib/centers-api.js'
@@ -13,13 +14,16 @@ export default function MembershipActions({centerId,member,info,ownerUid,changed
   const choices=member.state==='active'?['freeze','end']:member.state==='frozen'?['resume','end']:member.state==='preactive'?['end']:[]
   const [action,setAction]=useState(choices[0]||'end'),[effectiveOn,setEffectiveOn]=useState(info.today),[resumeOn,setResumeOn]=useState(''),[reason,setReason]=useState('')
   const [busy,setBusy]=useState(false),[error,setError]=useState(null),[requestId]=useState(()=>crypto.randomUUID())
+  const saveForm=useUnsavedCenterForm(reason||resumeOn||effectiveOn!==info.today||action!==(choices[0]||'end')?JSON.stringify([action,effectiveOn,resumeOn,reason]):null,busy)
+  const alive=useRef(true)
+  useEffect(()=>{alive.current=true;return()=>{alive.current=false}},[])
   const cancellationIds=useRef(new Map())
   const pending=(info.changes||[]).some(change=>change.canCancel)
   const run=async(path,body)=>{
-    if(busy||useStore.getState().user?.id!==ownerUid)return
+    if(!alive.current||busy||useStore.getState().user?.id!==ownerUid)return
     setBusy(true);setError(null)
-    try{const result=await centerCommand(path,body);if(useStore.getState().user?.id!==ownerUid)return;useUI.getState().toast(t('Saved'));changed(result)}
-    catch(e){setError(e);if(useStore.getState().user?.id===ownerUid)useCenters.getState().revokeOn(e)}finally{setBusy(false)}
+    try{const result=await centerCommand(path,body);if(!alive.current||useStore.getState().user?.id!==ownerUid)return;useUI.getState().toast(t('Saved'));changed(result)}
+    catch(e){if(alive.current&&useStore.getState().user?.id===ownerUid){setError(e);useCenters.getState().revokeOn(e)}}finally{if(alive.current)setBusy(false)}
   }
   const submit=e=>{
     e.preventDefault()
@@ -37,7 +41,7 @@ export default function MembershipActions({centerId,member,info,ownerUid,changed
       {change.canCancel&&<Button type="button" disabled={busy} onClick={()=>cancel(change)}>{t('Cancel scheduled change')}</Button>}
     </Row>)}
     {pending&&<p className="muted">{t('Cancel the pending change before adding another.')}</p>}
-    {choices.length>0&&!pending&&<form onSubmit={submit}><fieldset disabled={busy} className="centers-lifecycle-fields">
+    {choices.length>0&&!pending&&<form ref={saveForm} aria-label={t('Membership changes')} onSubmit={submit}><fieldset disabled={busy} className="centers-lifecycle-fields">
       <SelectRow title={t('Membership change')} value={action} options={choices.map(value=>({value,label:actionText(value)}))} onChange={setAction}/>
       <div className="centers-fields"><label className="centers-field"><span>{t('Effective date')}</span><TextField type="date" required min={info.today} value={effectiveOn} onChange={e=>setEffectiveOn(e.target.value)}/></label>
         {action==='freeze'&&<label className="centers-field"><span>{t('Resumption date')}</span><TextField type="date" min={effectiveOn} value={resumeOn} onChange={e=>setResumeOn(e.target.value)}/></label>}

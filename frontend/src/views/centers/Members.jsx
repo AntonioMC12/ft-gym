@@ -1,7 +1,7 @@
 import Passes from './Passes.jsx'
 import SharedProgress from './SharedProgress.jsx'
 import { useEffect, useId, useRef, useState } from 'react'
-import { Button, Section, Row, SearchField, TextField } from '../../components/ui.jsx'
+import { Button, Section, Row, SearchField, TextField, SelectRow } from '../../components/ui.jsx'
 import { useAutoMore } from '../../lib/use-auto-more.js'
 import { centerMembers, centerMember, centerCommand, membersErrorKey } from '../../lib/centers-api.js'
 import { t } from '../../lib/i18n.js'
@@ -28,6 +28,10 @@ function MemberForm({centerId,member,lifecycle,ownerUid,close,saved,canBilling,c
   const [currentMember,setCurrentMember]=useState(member),[info,setInfo]=useState(lifecycle)
   const [requestId]=useState(()=>crypto.randomUUID())
   const [receiptsRevision,setReceiptsRevision]=useState(0)
+  const [pane,setPane]=useState('overview'),[editingDetails,setEditingDetails]=useState(!member)
+  const panelId=useId()
+  const sections=[{value:'overview',label:t('Member overview')},{value:'details',label:t('Member details')},...(canBilling?[{value:'billing',label:t('Fees and payments')}]:[]),{value:'access',label:t('Access and membership')},...(capabilities.some(c=>['training.shared.read','training.assign'].includes(c))?[{value:'training',label:t('Training proposals')}]:[])]
+  const changePane=value=>{if(value!==pane)requestNavigation(()=>{setFields(fieldsOf(currentMember));setEditingDetails(false);setPane(value)})}
   const requestNavigation=useCenterNavigation()
   const saveForm=useUnsavedCenterForm(JSON.stringify(fields)!==JSON.stringify(fieldsOf(currentMember))?JSON.stringify(fields):null,busy)
   const input=(key,label,type='text')=><label className="centers-field"><span>{label}</span><TextField type={type} disabled={busy} value={fields[key]} required={key==='name'} onChange={e=>setFields({...fields,[key]:e.target.value})}/></label>
@@ -36,22 +40,44 @@ function MemberForm({centerId,member,lifecycle,ownerUid,close,saved,canBilling,c
     try {
       const result=await centerCommand(currentMember?'/api/centers/members/update':'/api/centers/members/create',{centerId,...fields,...(currentMember?{id:currentMember.id,version:currentMember.version}:{requestId})})
       if(useStore.getState().user?.id!==ownerUid)return
-      useUI.getState().toast(t('Saved'));saved(result.member)
+      useUI.getState().toast(t('Saved'));if(currentMember){setCurrentMember(result.member);setFields(fieldsOf(result.member));setEditingDetails(false)}else saved(result.member)
     }catch(e){setError(e);if(useStore.getState().user?.id===ownerUid)useCenters.getState().revokeOn(e)}
     finally{setBusy(false)}
   }
-  return <><Section title={currentMember?t('Member details'):t('New member')}><form ref={saveForm} aria-label={t('Member details')} className="centers-form" onSubmit={submit}>
-    {currentMember&&<p>{t('Member number')}: {currentMember.number} · {stateText(currentMember.state)}</p>}
+  const contactForm=<Section title={currentMember?t('Member details'):t('New member')}><form ref={saveForm} aria-label={t('Member details')} className="centers-form" onSubmit={submit}>
     <div className="centers-fields">{input('name',t('Member name'))}{input('email',t('Contact email'),'email')}{input('phone',t('Phone'))}{input('nationalDocument',t('National document'))}</div>
     {error&&<p role="alert">{t(membersErrorKey(error))}</p>}
-    <div className="centers-actions"><Button type="button" disabled={busy} onClick={()=>requestNavigation(close)}>{t('Back')}</Button><Button type="submit" variant="primary" disabled={busy||!fields.name.trim()}>{t('Save')}</Button></div>
-  </form></Section>{currentMember?.sourceRegistration&&<Section title={t('Source registration (CSV)')}><SourceRegistration value={currentMember.sourceRegistration}/></Section>}{currentMember&&info?.today&&<MembershipActions key={currentMember.version} centerId={centerId} member={currentMember} info={info} ownerUid={ownerUid} changed={result=>{setCurrentMember(result.member);setInfo({today:result.today,changes:result.changes})}}/>}
-    {currentMember&&info?.today&&<FreezeRequests centerId={centerId} ownerUid={ownerUid} memberId={currentMember.id} memberVersion={currentMember.version} today={info.today} active={active} changed={result=>{setCurrentMember(result.member);setInfo({today:result.today,changes:result.changes})}}/>}
-    {currentMember&&<Invitations centerId={centerId} ownerUid={ownerUid} memberId={currentMember.id} linked={currentMember.accountLinked}/>}
-    {currentMember&&capabilities.includes('training.shared.read')&&<SharedProgress centerId={centerId} member={currentMember} ownerUid={ownerUid}/>}
-    {currentMember&&capabilities.includes('training.assign')&&<TrainingProposals key={'training:'+currentMember.id} centerId={centerId} member={currentMember} ownerUid={ownerUid} canAssign active={active}/>}
-    {currentMember&&capabilities.includes('access.manage')&&<MemberAccess key={'access:'+currentMember.id} centerId={centerId} memberId={currentMember.id} ownerUid={ownerUid} canManage/>}
-    {currentMember&&canBilling&&<><Passes centerId={centerId} memberId={currentMember.id} ownerUid={ownerUid} today={info?.today} active={active&&currentMember.state==='active'} revision={receiptsRevision} changed={()=>setReceiptsRevision(value=>value+1)}/><Subscriptions key={currentMember.id} centerId={centerId} member={currentMember} ownerUid={ownerUid} changed={result=>{setCurrentMember(result.member);setInfo({today:result.today,changes:result.changes})}} receiptCreated={()=>setReceiptsRevision(value=>value+1)}/><Receipts key={currentMember.id} centerId={centerId} memberId={currentMember.id} ownerUid={ownerUid} revision={receiptsRevision} canRecord={capabilities.includes('payments.record')} today={info?.today} changed={()=>setReceiptsRevision(value=>value+1)}/><Payments centerId={centerId} memberId={currentMember.id} ownerUid={ownerUid} revision={receiptsRevision} canRefund={capabilities.includes('payments.refund')} today={info?.today} changed={()=>setReceiptsRevision(value=>value+1)}/></>}</>
+    <div className="centers-actions"><Button type="button" disabled={busy} onClick={()=>requestNavigation(()=>{setFields(fieldsOf(currentMember));setEditingDetails(false);if(!currentMember)close()})}>{t('Cancel')}</Button><Button type="submit" variant="primary" disabled={busy||!fields.name.trim()}>{t('Save')}</Button></div>
+  </form></Section>
+  if(!currentMember)return contactForm
+  return <article className="centers-member-workspace">
+    <header className="centers-member-header">
+      <Button type="button" icon="chevronLeft" onClick={()=>requestNavigation(close)}>{t('Back to members')}</Button>
+      <div><p className="small muted">{t('Member number')}: {currentMember.number}</p><h2>{currentMember.name}</h2><span className="centers-member-status">{stateText(currentMember.state)}</span></div>
+    </header>
+    <div className="centers-member-layout">
+      <nav className="centers-member-nav" aria-label={t('Member sections')}>
+        <div className="centers-member-desktop-nav">{sections.map(section=><Button key={section.value} type="button" aria-current={pane===section.value?'page':undefined} aria-controls={panelId} onClick={()=>changePane(section.value)}>{section.label}</Button>)}</div>
+        <div className="centers-member-mobile-nav"><SelectRow title={t('Member sections')} value={pane} options={sections} onChange={changePane}/></div>
+      </nav>
+      <div id={panelId} className="centers-member-content">
+        {pane==='overview'&&<Section title={t('Member overview')}><div className="centers-form">
+          <div className="centers-member-summary"><Row title={t('Member details')} value={stateText(currentMember.state)}/><Row title={t('Center invitations')} value={t(currentMember.accountLinked?'Account linked':'No linked account')}/></div>
+          <Row title={t('Contact email')} value={currentMember.email||'—'}/><Row title={t('Phone')} value={currentMember.phone||'—'}/>
+          <div className="centers-member-quick-actions">{canBilling&&<Button variant="primary" onClick={()=>changePane('billing')}>{t('Fees and payments')}</Button>}<Button onClick={()=>changePane('details')}>{t('Member details')}</Button><Button onClick={()=>changePane('access')}>{t('Access and membership')}</Button></div>
+        </div></Section>}
+        {pane==='details'&&<>{editingDetails?contactForm:<Section title={t('Member details')}><div className="centers-form"><Row title={t('Member name')} value={currentMember.name}/><Row title={t('Contact email')} value={currentMember.email||'—'}/><Row title={t('Phone')} value={currentMember.phone||'—'}/><Row title={t('National document')} value={currentMember.nationalDocument||'—'}/><Button variant="tinted" onClick={()=>setEditingDetails(true)}>{t('Edit contact details')}</Button></div></Section>}
+          {currentMember.sourceRegistration&&<details className="centers-member-source"><summary>{t('Source registration (CSV)')}</summary><SourceRegistration value={currentMember.sourceRegistration}/></details>}
+          <Invitations centerId={centerId} ownerUid={ownerUid} memberId={currentMember.id} linked={currentMember.accountLinked}/>
+        </>}
+        {pane==='access'&&<>{info?.today&&<><MembershipActions key={currentMember.version} centerId={centerId} member={currentMember} info={info} ownerUid={ownerUid} changed={result=>{setCurrentMember(result.member);setInfo({today:result.today,changes:result.changes})}}/><FreezeRequests centerId={centerId} ownerUid={ownerUid} memberId={currentMember.id} memberVersion={currentMember.version} today={info.today} active={active} changed={result=>{setCurrentMember(result.member);setInfo({today:result.today,changes:result.changes})}}/></>}
+          {capabilities.includes('access.manage')&&<MemberAccess key={'access:'+currentMember.id} centerId={centerId} memberId={currentMember.id} ownerUid={ownerUid} canManage/>}
+        </>}
+        {pane==='training'&&<>{capabilities.includes('training.shared.read')&&<SharedProgress centerId={centerId} member={currentMember} ownerUid={ownerUid}/>}{capabilities.includes('training.assign')&&<TrainingProposals key={'training:'+currentMember.id} centerId={centerId} member={currentMember} ownerUid={ownerUid} canAssign active={active}/>}</>}
+        {pane==='billing'&&canBilling&&<><Subscriptions key={currentMember.id} centerId={centerId} member={currentMember} ownerUid={ownerUid} changed={result=>{setCurrentMember(result.member);setInfo({today:result.today,changes:result.changes})}} receiptCreated={()=>setReceiptsRevision(value=>value+1)}/><Receipts key={currentMember.id} centerId={centerId} memberId={currentMember.id} ownerUid={ownerUid} revision={receiptsRevision} canRecord={capabilities.includes('payments.record')} today={info?.today} changed={()=>setReceiptsRevision(value=>value+1)}/><Payments centerId={centerId} memberId={currentMember.id} ownerUid={ownerUid} revision={receiptsRevision} canRefund={capabilities.includes('payments.refund')} today={info?.today} changed={()=>setReceiptsRevision(value=>value+1)}/><Passes centerId={centerId} memberId={currentMember.id} ownerUid={ownerUid} today={info?.today} active={active&&currentMember.state==='active'} revision={receiptsRevision} changed={()=>setReceiptsRevision(value=>value+1)}/></>}
+      </div>
+    </div>
+  </article>
 }
 
 export default function Members({centerId,ownerUid,capabilities,active=true,centerState,onDetails,importId,onImport}) {

@@ -1,5 +1,8 @@
 // @vitest-environment happy-dom
 vi.mock('./Passes.jsx',()=>({default:()=>null}))
+vi.mock('./Subscriptions.jsx',()=>({default:()=> <div data-member-subscriptions/>}))
+vi.mock('./Receipts.jsx',()=>({default:props=> <div data-member-receipts data-can-record={String(props.canRecord)}/>}))
+vi.mock('./Payments.jsx',()=>({default:props=> <div data-member-payments data-can-refund={String(props.canRefund)}/>}))
 import React,{act} from 'react'
 import {createRoot} from 'react-dom/client'
 import {beforeEach,afterEach,it,expect,vi} from 'vitest'
@@ -11,12 +14,15 @@ vi.mock('../../lib/centers-api.js',()=>({centerMembers:vi.fn(),centerMember:vi.f
 vi.mock('../../sheets.jsx',()=>({confirmSheet:vi.fn(options=>options.onConfirm())}))
 import {centerMembers,centerMember,centerCommand} from '../../lib/centers-api.js'
 import Members from './Members.jsx'
+import Guard from './NavigationGuard.jsx'
+import {confirmSheet} from '../../sheets.jsx'
+import {centerInvitations} from '../../lib/centers-api.js'
 globalThis.IS_REACT_ACT_ENVIRONMENT=true
 let host,root
 const sample={id:'one',name:'Synthetic member',number:'M-000001',version:1,state:'preactive',email:'synthetic@example.test'}
 beforeEach(()=>{vi.clearAllMocks();centerMembers.mockResolvedValue({members:[sample],nextCursor:null});centerMember.mockResolvedValue({member:sample});host=document.createElement('div');document.body.append(host);root=createRoot(host)})
 afterEach(()=>{act(()=>root.unmount());host.remove()})
-const render=(centerId='a',capabilities=['members.read','members.manage'])=>act(async()=>{root.render(<Members key={centerId} centerId={centerId} ownerUid="manager" capabilities={capabilities}/>);await Promise.resolve()})
+const render=(centerId='a',capabilities=['members.read','members.manage'])=>act(async()=>{root.render(<Guard contextKey={centerId}><Members key={centerId} centerId={centerId} ownerUid="manager" capabilities={capabilities}/></Guard>);await Promise.resolve()})
 const click=text=>act(async()=>{[...host.querySelectorAll('button')].find(button=>button.textContent===text).click();await Promise.resolve()})
 const fill=(input,value)=>act(()=>{Object.getOwnPropertyDescriptor(input.tagName==='TEXTAREA'?HTMLTextAreaElement.prototype:HTMLInputElement.prototype,'value').set.call(input,value);input.dispatchEvent(new Event('input',{bubbles:true}))})
 it('explains draft versus inactive CSV requirements and offers details without activating the center',async()=>{
@@ -64,14 +70,43 @@ it('the last selected profile wins when detail responses arrive out of order',as
   await render();await act(async()=>{const buttons=host.querySelectorAll('button.lrow');buttons[0].click();buttons[1].click()})
   await act(async()=>{secondReply({member:second});await Promise.resolve()})
   await act(async()=>{firstReply({member:sample});await Promise.resolve()})
-  expect(host.querySelector('input').value).toBe('Second member')
+  expect(host.textContent).toContain('Second member');expect(host.textContent).toContain('Member overview');expect(host.querySelector('input')).toBeNull()
 })
-it('a lifecycle change preserves the contact draft and updates the version used to save it',async()=>{
-  const active={...sample,state:'active'},history={today:'2026-10-13',changes:[]}
-  centerMembers.mockResolvedValue({members:[active],nextCursor:null});centerMember.mockResolvedValue({member:active,...history})
-  centerCommand.mockResolvedValueOnce({member:{...active,state:'frozen',version:2},...history}).mockResolvedValueOnce({member:{...active,name:'Draft contact',version:3}})
-  await render();await act(async()=>{host.querySelector('button.lrow').click();await Promise.resolve()})
-  fill(host.querySelector('input'),'Draft contact');fill(host.querySelector('textarea'),'Synthetic pause')
-  await click('Freeze membership');expect(host.querySelector('input').value).toBe('Draft contact')
-  await click('Save');expect(centerCommand.mock.calls[1][1]).toMatchObject({name:'Draft contact',version:2})
+it('shows a concise overview and mounts only the selected operational section',async()=>{
+  await render();await act(async()=>host.querySelector('button.lrow').click());
+  expect(host.textContent).toContain('Member overview');expect(host.textContent).toContain(sample.email);
+  expect(host.querySelector('form')).toBeNull();expect(centerInvitations).not.toHaveBeenCalled();
+  expect(host.textContent).not.toContain('Fees and payments');expect(host.textContent).not.toContain('Training proposals');
+  await click('Member details');expect(host.querySelector('input')).not.toBeNull();
+  expect(centerInvitations).toHaveBeenCalledOnce();expect(host.querySelector('form[aria-label="Member details"]')).toBeNull();
+  await click('Edit contact details');expect(host.querySelector('form[aria-label="Member details"]')).not.toBeNull();
+})
+it('protects contact edits on section changes and really discards them only after confirmation',async()=>{
+  await render();await act(async()=>host.querySelector('button.lrow').click());await click('Member details');await click('Edit contact details');
+  fill(host.querySelector('input'), 'Unsaved name');
+  confirmSheet.mockImplementationOnce(()=>{});await click('Access and membership');
+  expect(host.querySelector('input').value).toBe('Unsaved name');expect(confirmSheet.mock.calls.at(-1)[0].title).toBe('Discard changes?');
+  await act(async()=>confirmSheet.mock.calls.at(-1)[0].onConfirm());
+  expect(host.querySelector('form[aria-label="Member details"]')).toBeNull();expect(host.querySelector('aside')).toBeNull();
+  await click('Member details');await click('Edit contact details');expect(host.querySelector('input').value).toBe(sample.name);
+})
+it('updates the profile state after an affiliation change and uses its latest version for contact edits',async()=>{
+  const active={...sample,state:'active'},history={today:'2026-10-13',changes:[]};
+  centerMembers.mockResolvedValue({members:[active],nextCursor:null});centerMember.mockResolvedValue({member:active,...history});
+  centerCommand.mockResolvedValueOnce({member:{...active,state:'frozen',version:2},...history}).mockResolvedValueOnce({member:{...active,name:'Saved contact',state:'frozen',version:3}});
+  await render();await act(async()=>host.querySelector('button.lrow').click());await click('Access and membership');
+  fill(host.querySelector('textarea'),'Synthetic pause');await click('Freeze membership');
+  expect(host.querySelector('.centers-member-status').textContent).toBe('Frozen member');
+  await click('Member details');await click('Edit contact details');fill(host.querySelector('input'),'Saved contact');await click('Save');
+  expect(centerCommand.mock.calls[1][1]).toMatchObject({name:'Saved contact',version:2});
+  expect(host.querySelector('.centers-member-header h2').textContent).toBe('Saved contact');expect(host.querySelector('form[aria-label="Member details"]')).toBeNull();expect(host.querySelector('aside')).toBeNull();
+})
+
+it('opens cash management only in its section and preserves separate recording and refund capabilities',async()=>{
+  await render('a',['members.manage','billing.manage']);await act(async()=>host.querySelector('button.lrow').click());
+  expect(host.querySelector('[data-member-receipts]')).toBeNull();await click('Fees and payments');
+  expect(host.querySelector('[data-member-subscriptions]')).not.toBeNull();
+  expect(host.querySelector('[data-member-receipts]').dataset.canRecord).toBe('false');expect(host.querySelector('[data-member-payments]').dataset.canRefund).toBe('false');
+  await render('b',['members.manage','billing.manage','payments.record']);await act(async()=>host.querySelector('button.lrow').click());await click('Fees and payments');
+  expect(host.querySelector('[data-member-receipts]').dataset.canRecord).toBe('true');expect(host.querySelector('[data-member-payments]').dataset.canRefund).toBe('false');
 })

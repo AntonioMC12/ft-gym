@@ -44,3 +44,10 @@ it('catalogue leaves commercial terms unset and preserves acquired packs when ar
 it('pass receipts show exact amounts without fabricated monthly proration',()=>{
   act(()=>root.render(<ChargeBreakdown quote={{concept:'pass',name:'Fictional pass',credits:3,startsOn:'2026-10-16',periodEnd:'2026-11-15',netMinor:'1000',taxMinor:'210',totalMinor:'1210',currency:'EUR'}}/>));expect(host.textContent).toContain('12.10 EUR');expect(host.textContent).not.toContain('Billable days');expect(host.textContent).not.toContain('undefined');
 })
+it('keeps both pass quantity fields styled and editable through focus and blur',async()=>{
+  await act(async()=>{root.render(<PassProducts centerId="a" ownerUid="manager"/>);await Promise.resolve()});await click('Create pass product');
+  for(const [label,value] of [['Pass credits','15'],['Pass validity days','365']]){
+    const input=[...host.querySelectorAll('label')].find(node=>node.textContent===label).querySelector('input');
+    expect(input.classList.contains('field')).toBe(true);await act(async()=>input.focus());fill(input,value);await act(async()=>input.blur());expect(input.value).toBe(value);expect(input.classList.contains('field')).toBe(true);
+  }
+})

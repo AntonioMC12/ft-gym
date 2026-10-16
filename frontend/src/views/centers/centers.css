@@ -103,7 +103,7 @@ body.no-tabbar .centers-unsaved-bar{bottom:calc(12px + var(--sab,0px))}
 .centers-member-source{margin:20px 0;border:1px solid var(--sep);background:var(--surface);border-radius:var(--r);padding:12px 16px}
 .centers-member-source>summary{cursor:pointer;min-height:44px;align-content:center;color:var(--label)}
 .centers-member-source>summary:focus-visible{outline:2px solid var(--acc);outline-offset:4px}
-@media(min-width:768px){#app:has(.centers-page){max-width:1160px}.centers-page{max-width:1100px}}
+@media(min-width:768px){#app:has(.centers-page){max-width:1160px}.centers-page.narrow{max-width:1100px}}
 @media(max-width:767px){.centers-workspace{grid-template-columns:1fr;gap:16px}.centers-workspace-nav{position:static;padding:0}.centers-workspace-desktop-nav{display:none}.centers-workspace-mobile-nav{display:block}.centers-workspace-mobile-nav .lrow-v{max-width:65%;white-space:normal}.centers-member-summary{grid-template-columns:1fr}.centers-member-quick-actions>.btn{width:100%}}
 
 /* Compact contracts, with historical versions behind a disclosure. */

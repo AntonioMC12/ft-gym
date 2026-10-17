@@ -1121,3 +1121,8 @@ Petición expresa: deshacer los últimos cambios. Restaurados únicamente Traini
 ### C53 — Solo espaciado de la captura (17octubre)
 
 Petición acotada posterior a la reversión: únicamente espacios. CSS local de TrainingPlanLibrary:16px entre cabecera y selector,14px antes de Asignar rutinas cuando sigue al selector,24px tras el panel y12px bajo la barra Editar/Nueva rutina. No se modifican JSX, textos, iconos, colores, tamaños de controles, disposición ni funcionamiento. Build Docker/Vite y publicación WEB908b5a7f-dirty correctos; healthy/HTTP200. API, datos y túnel conservados. Sin tests nuevos ni suites para un ajuste CSS reversible. Revisión visual real pendiente.
+
+
+### C53 — Espacios del formulario Asignar rutinas (17octubre)
+
+Solo espaciado de la nueva captura: clase local training-assignments,24px tras el botón que despliega el formulario, título alineado con sus campos y14px hasta la explicación; márgenes nativos de hijos normalizados y12px entre controles, mensajes y acciones;20px antes del selector final de consulta de propuestas. Se conservan colores, tipografías, iconos, tamaños de botones, campos y lógica. Build/publicación WEB pendiente; sin pruebas nuevas para espaciado reversible. Revisión visual real pendiente.

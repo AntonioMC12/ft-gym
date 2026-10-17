@@ -2192,6 +2192,12 @@ button.wl-summary{width:100%;padding:0 0 10px;text-align:start;border-radius:var
 .training-plan-library>.select-field+.btn{margin-top:14px}
 .plan .training-plan-library{margin-bottom:24px}
 .plan .training-plan-library+.plan-routines-bar{margin-bottom:12px}
+.training-plan-library>.training-assignments{margin-top:24px;margin-bottom:0}
+.training-plan-library>.training-assignments>.sect-t{margin:0 18px 14px;padding:0}
+.training-assignments>.sect-b>.centers-form{padding:0 18px 8px}
+.training-assignments>.sect-b>.centers-form>*{margin-block:0}
+.training-assignments>.sect-b>.centers-form>*+*{margin-top:12px}
+.training-assignments>.sect-b>.centers-form>.select-field:last-child{margin-top:20px}
 .training-plan-actions{display:flex;gap:10px;flex-wrap:wrap;margin:14px 0}
 .training-plan-library .btn{min-height:44px;width:auto;padding:10px 14px;border:1px solid var(--sep);border-radius:var(--r)}
 .training-plan-library form{margin-top:14px}

@@ -30,7 +30,7 @@ export default function TrainingAssignments({routineIds,planName}){
  }catch(e){if(epoch===life.current)setError(e)}finally{sending.current=false;if(epoch===life.current)setBusy(false)}}
  const inspect=async id=>{if(!id)return setMember(null);const epoch=life.current;setBusy(true);try{const r=await centerMember(center,id);if(epoch===life.current)setMember(r.member)}catch(e){if(epoch===life.current)setError(e)}finally{if(epoch===life.current)setBusy(false)}}
  const eligible=members.filter(m=>m.state==='active'&&m.accountLinked!==false)
- return <Section title={t('Assign routines')}><div className="centers-form">
+ return <Section className="training-assignments" title={t('Assign routines')}><div className="centers-form">
   <p className="small muted">{t('Training proposals require an active member.')+' '+t('Link this member to an account before proposing routines.')}</p>
   <SelectRow variant="field" title={t('Centers')} value={center} disabled={busy} options={centers.map(c=>({value:c.id,label:c.name}))} onChange={setCenter}/>
   {centerCursor&&<Button disabled={busy} aria-label={t('Centers')+' · '+t('Show more')} onClick={async()=>{const epoch=life.current;setBusy(true);try{const r=await platformCenters({cursor:centerCursor});if(epoch===life.current){setCenters(rows=>[...rows,...r.centers]);setCenterCursor(r.nextCursor)}}catch(e){if(epoch===life.current)setError(e)}finally{if(epoch===life.current)setBusy(false)}}}>{t('Show more')}</Button>}

@@ -37,3 +37,15 @@ it('does not display a delayed search result after changing account',async()=>{
  await mount();await click('Centers');let resolve;platformCenters.mockImplementation(()=>new Promise(r=>{resolve=r}));await search('Delayed');
  await act(async()=>{useStore.setState({user:{id:'other'}});resolve({centers:[{id:'secret',name:'Delayed private result'}],nextCursor:null})});expect(host.textContent).not.toContain('Delayed private result');expect(host.querySelector('input[aria-label="Search…"]')).toBeNull();
 });
+
+it('keeps the member search focused and editable while requests are pending, and ignores stale results',async()=>{
+ await mount();const input=host.querySelector('input[aria-label="Search members"]');input.focus();
+ let resolveA,resolveAn;centerMembers.mockImplementation((center,{query})=>new Promise(resolve=>{if(query==='a')resolveA=resolve;else if(query==='an')resolveAn=resolve}));
+ const type=async text=>{await act(async()=>{Object.getOwnPropertyDescriptor(HTMLInputElement.prototype,'value').set.call(input,text);input.dispatchEvent(new Event('input',{bubbles:true}));input.setSelectionRange(text.length,text.length)})};
+ await type('a');expect(input.disabled).toBe(false);expect(document.activeElement).toBe(input);await flush();
+ expect(centerMembers).toHaveBeenLastCalledWith('c',{query:'a'});expect(input.disabled).toBe(false);expect(document.activeElement).toBe(input);
+ await type('an');expect(input.disabled).toBe(false);expect(input.selectionStart).toBe(2);await flush();expect(centerMembers).toHaveBeenLastCalledWith('c',{query:'an'});
+ await act(async()=>resolveAn({members:[{id:'an',name:'Antonio',number:'M-1',state:'active',accountLinked:false}]}));
+ await act(async()=>resolveA({members:[{id:'a',name:'Alberto',number:'M-2',state:'active',accountLinked:false}]}));
+ expect(host.textContent).toContain('Antonio');expect(host.textContent).not.toContain('Alberto');expect(input.value).toBe('an');expect(document.activeElement).toBe(input);expect(host.querySelector('input[aria-label="Search members"]')).toBe(input);
+});

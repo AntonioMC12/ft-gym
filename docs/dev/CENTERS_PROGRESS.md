@@ -1142,3 +1142,10 @@ Captura: ficha Antonio visible en consulta pero excluida de destinatarios por ac
 Al seleccionar un plan con nombre, etiqueta Asignar plan y nombre del plan visibles; todas sus rutinas llegan seleccionadas por defecto. Guardado sigue como propuesta con aceptación del destinatario. Razón accesible junto a acción deshabilitada; número de socio utiliza el DTO real number. No se activan afiliaciones ni se producen cobros.
 
 Focal28/28 correctas: bloqueo sin cuenta, apertura de vinculación sin enviar comandos, actualización tras aceptación y destino seleccionable, restricción de miembro gestor, lotes/reintentos/cambio de cuenta, buscador, invitaciones y propuestas existentes. Locales18/2866claves y fuente2202 correctos; build Vite correcto. Publicación WEBed2be933-dirty correcta, healthy/HTTP200; API, datos y túnel conservados. Revisión visual real y vinculación de cuentas reales pendientes; este desarrollo no enlaza a Antonio ni acepta invitaciones en su nombre.
+
+
+### C53 — Buscador de socios sin pérdida de foco (17octubre)
+
+Causa reproducida: SearchField disabled=busy deshabilitaba el input al comenzar cada búsqueda y el navegador perdía foco/teclado. Eliminado ese bloqueo durante consultas; input permanece montado, editable y con foco/cursor mientras llegan resultados. Solo lectura durante envío efectivo de propuestas para conservar el destinatario del lote; protección contra duplicados y respuestas antiguas intacta. Limpiar restaura el foco del campo.
+
+Prueba de regresión real con controles compartidos: falla antes (disabled=true tras primera letra), pasa después; escritura a/an con peticiones pendientes, foco/cursor y nodo conservados, respuesta antigua ignorada. Focal8/8 y build Vite correctos. Archivos TrainingAssignments.jsx y TrainingCenterPicker.test.jsx. Publicación WEB pendiente; revisión visual real pendiente.

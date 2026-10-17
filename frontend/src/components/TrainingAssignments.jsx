@@ -18,7 +18,7 @@ export default function TrainingAssignments({routineIds,planName}){
  const signature=JSON.stringify(routineIds)
  useEffect(()=>setChosenRoutines(routineIds),[signature])
  const routines=useStore(s=>s.S.routines)
- const linkRef=useRef(null)
+ const linkRef=useRef(null),searchRef=useRef(null)
  useEffect(()=>{if(linking){linkRef.current?.focus({preventScroll:true});linkRef.current?.scrollIntoView?.({block:'start'})}},[linking,member?.id])
  const life=useRef(0),sending=useRef(false),requests=useRef(new Map())
  useEffect(()=>{let current=true;setLoadingCenters(true);setCenters([]);setCenter('');setError(null);(platform?platformCenters():Promise.resolve({centers:state.centers.filter(c=>c.capabilities?.includes('training.assign'))})).then(r=>{if(current){setCenters(r.centers);setCenter(r.centers[0]?.id||'')}}).catch(e=>{if(current)setError(e)}).finally(()=>{if(current)setLoadingCenters(false)});return()=>{current=false}},[uid,platform,retry])
@@ -61,7 +61,7 @@ export default function TrainingAssignments({routineIds,planName}){
   <Row className={'select-field'+(center?' has-selection':'')} title={t('Centers')} value={centers.find(c=>c.id===center)?.name||center} accessory="dropdown" disabled={busy||loadingCenters} onClick={openCenters}/>
   {planName&&<Row title={t('Plan')} value={planName}/>}
   <MultiSelectRow title={t('Routines')} values={chosenRoutines} options={routines.filter(r=>routineIds.includes(r.id)).map(r=>({value:r.id,label:r.name}))} onToggle={id=>{if(!busy)setChosenRoutines(rows=>rows.includes(id)?rows.filter(x=>x!==id):[...rows,id])}}/>
-  <SearchField aria-label={t('Search members')} placeholder={t('Search members')} value={query} disabled={busy} onChange={e=>setQuery(e.target.value)} onClear={()=>setQuery('')}/>
+  <SearchField ref={searchRef} aria-label={t('Search members')} placeholder={t('Search members')} value={query} readOnly={sending.current} aria-busy={busy} onChange={e=>{if(!sending.current)setQuery(e.target.value)}} onClear={()=>{if(!sending.current){setQuery('');searchRef.current?.focus()}}}/>
   <MultiSelectRow title={t('Members')} values={selected} options={eligible.map(m=>({value:m.id,label:m.name+' · '+number(m)}))} onToggle={id=>{if(!busy)setSelected(rows=>rows.includes(id)?rows.filter(x=>x!==id):[...rows,id])}}/>
   {cursor&&<Button disabled={busy} onClick={more}>{t('Show more')}</Button>}
   {!members.length&&!busy&&<p>{t('No members available')}</p>}

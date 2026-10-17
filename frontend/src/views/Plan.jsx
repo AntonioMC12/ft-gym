@@ -164,7 +164,7 @@ export default function Plan() {
 
   return <div className="narrow plan">
     <div className="hdr">
-      <div><h1>{t('Plan')}</h1><div className="sub">{mode === 'rotation' ? t('Your routines in a loop') : t('Your weekly routine')}</div></div>
+      <div><h1>{t(view==='routines'?'Routines':'Plan')}</h1><div className="sub">{view==='routines'?routineCount(S.routines.length):mode === 'rotation' ? t('Your routines in a loop') : t('Your weekly routine')}</div></div>
       <div className="hdr-actions">
         {showCoach && <Button size="sm" variant="tinted" icon="sparkles" onClick={() => nav('/coach')}>{t('Coach')}</Button>}
         <button className="iconbtn" onClick={openMenu} aria-label={t('Plan options')} title={t('Plan options')}><Icon name="share" /></button>
@@ -429,11 +429,12 @@ function Routines({ S, update, nav }) {
 
   return <>
     <TrainingPlanLibrary S={S} update={update} value={selected} onChange={setPlanId} canAssign={canAssign}/>
-    <div className="row between plan-sec-h plan-routines-bar">
-      {routines.length > 0
-        ? <button className="plan-textbtn" aria-pressed={edit} onClick={() => setEdit(e => !e)}>{edit ? t('Done') : t('Edit')}</button>
-        : <span />}
-      <Button size="sm" variant="tinted" icon="plus" onClick={addRoutine}>{t('New routine')}</Button>
+    <div className="plan-sec-h plan-routines-bar">
+      <div className="plan-routines-heading"><h2>{selected==='*'?t('All routines'):selected?S.trainingPlans[selected].name:t('Unfiled')}</h2><span className="plan-routines-count">{routines.length}</span></div>
+      <div className="plan-routines-actions">{routines.length > 0
+        ? <Button size="sm" icon="pencil" aria-pressed={edit} onClick={() => setEdit(e => !e)}>{edit ? t('Done') : t('Edit')}</Button>
+        : null}
+      <Button size="sm" variant="primary" icon="plus" onClick={addRoutine}>{t('New routine')}</Button></div>
     </div>
     {routines.length ? <>
       {edit

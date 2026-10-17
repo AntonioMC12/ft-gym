@@ -3,6 +3,7 @@ import React,{act} from 'react'
 import {createRoot} from 'react-dom/client'
 import {beforeEach,afterEach,it,expect,vi} from 'vitest'
 vi.mock('../lib/i18n.js',()=>({t:key=>key}))
+vi.mock('../views/centers/Invitations.jsx',()=>({default:()=>null}))
 vi.mock('../views/centers/TrainingProposals.jsx',()=>({default:()=>null}))
 vi.mock('../lib/centers-api.js',()=>({platformCenters:vi.fn(),centerMembers:vi.fn(),centerMember:vi.fn(),centerCommand:vi.fn(),trainingErrorKey:()=> 'Error',centersErrorKey:()=> 'Error'}))
 import {DEF,useStore} from '../store/useStore.js'

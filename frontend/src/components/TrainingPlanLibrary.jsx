@@ -15,7 +15,7 @@ export default function TrainingPlanLibrary({S,update,value,onChange,canAssign})
   <SelectRow icon="folder" variant="field" title={t('Training plans')} value={value??''} options={[{value:'*',label:t('All routines')},{value:'',label:t('Unfiled')},...plans.map(p=>({value:p.id,label:p.name+' · '+(S.routines||[]).filter(r=>planOf(S,r)===p.id).length}))]} onChange={v=>onChange(v||null)}/>
   {selected&&<div className="training-plan-actions"><Button icon="pencil" onClick={()=>{setEditing(selected.id);setName(selected.name)}}>{t('Rename')}</Button><Button icon="trash" onClick={remove}>{t('Delete plan')}</Button></div>}
   {editing&&<form onSubmit={save}><label className="centers-field"><span>{t('Plan name')}</span><TextField autoFocus maxLength={120} required value={name} onChange={e=>setName(e.target.value)}/></label><div className="training-plan-actions"><Button variant="primary" type="submit" disabled={!name.trim()}>{t('Save')}</Button><Button type="button" onClick={()=>setEditing(null)}>{t('Cancel')}</Button></div></form>}
-  {canAssign&&ids.length>0&&<Button variant="tinted" icon="person" onClick={()=>setAssigning(v=>!v)} aria-expanded={assigning}>{t('Assign routines')}</Button>}
+  {canAssign&&ids.length>0&&<Button variant="tinted" icon="person" onClick={()=>setAssigning(v=>!v)} aria-expanded={assigning}>{t(selected?'Assign plan':'Assign routines')}</Button>}
   {assigning&&canAssign&&<TrainingAssignments key={value??'unfiled'} routineIds={ids} planName={selected?.name||''}/>}
  </section>
 }

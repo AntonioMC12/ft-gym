@@ -1116,3 +1116,8 @@ Archivos: TrainingPlanLibrary.jsx, Plan.jsx e index.css. Build Vite correcto, co
 ### C53 — Reversión visual solicitada (17octubre)
 
 Petición expresa: deshacer los últimos cambios. Restaurados únicamente TrainingPlanLibrary.jsx, Plan.jsx e index.css al estado de afafaee7b, anterior al pulido c6b5a6f9. Funcionalidad C53, planes, rangos, asignaciones y registros conservados; cambios previos del usuario intactos. Se conserva el historial de la propuesta visual como referencia revertida. Preview WEB reconstruida y actualizada:4b8b3235-dirty, healthy y healthHTTP200; fuente idéntica a afafaee7b en los tres archivos de interfaz. API, datos y túnel conservados. No se repiten suites por reversión visual a código ya validado.
+
+
+### C53 — Solo espaciado de la captura (17octubre)
+
+Petición acotada posterior a la reversión: únicamente espacios. CSS local de TrainingPlanLibrary:16px entre cabecera y selector,14px antes de Asignar rutinas cuando sigue al selector,24px tras el panel y12px bajo la barra Editar/Nueva rutina. No se modifican JSX, textos, iconos, colores, tamaños de controles, disposición ni funcionamiento. Siguiente paso: build/publicación WEB; revisión visual real pendiente.

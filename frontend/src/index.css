@@ -2187,6 +2187,11 @@ button.wl-summary{width:100%;padding:0 0 10px;text-align:start;border-radius:var
 /* Named plans organize the existing routine library; controls remain touch friendly. */
 .training-plan-library{padding:18px;border:1px solid var(--sep);border-radius:var(--r);background:var(--surface);margin:16px 0}
 .training-plan-library h2{font-size:18px;margin:0}
+/* Spacing only: keep the existing library layout and control appearance. */
+.training-plan-library>.row{gap:14px;margin-bottom:16px}
+.training-plan-library>.select-field+.btn{margin-top:14px}
+.plan .training-plan-library{margin-bottom:24px}
+.plan .training-plan-library+.plan-routines-bar{margin-bottom:12px}
 .training-plan-actions{display:flex;gap:10px;flex-wrap:wrap;margin:14px 0}
 .training-plan-library .btn{min-height:44px;width:auto;padding:10px 14px;border:1px solid var(--sep);border-radius:var(--r)}
 .training-plan-library form{margin-top:14px}

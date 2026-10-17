@@ -55,8 +55,8 @@ test('live sessions lose private API access after grace and regain it through th
  const f=await fixture(t);const pg=(await import('pg')).default,{testUrls}=await import('./helpers.mjs'),{shiftBillingMonth}=await import('../../centers/domain/billing-calendar.js');const owner=new pg.Client({connectionString:testUrls().migration});await owner.connect();t.after(()=>owner.end());
  const raw=(await f.req('/api/centers/subscriptions?'+new URLSearchParams({centerId:f.center,memberId:f.members.alice}),f.ids.manager)).body.subscriptions[0];
  const setExpiry=async end=>{const day=+end.slice(8),anchor=shiftBillingMonth(end,-1,day);await historicalSeed(owner,['members','subscriptions'],async()=>{assert.equal((await owner.query('UPDATE centers.members SET joined_on=$2 WHERE id=$1',[f.members.alice,anchor])).rowCount,1);assert.equal((await owner.query('UPDATE centers.subscriptions SET starts_on=$2,anchor_on=$2,billing_day=$3 WHERE id=$1',[raw.id,anchor,day])).rowCount,1)})};
- await setExpiry(shift(f.today,-9));let access=await f.req('/api/centers/app-access',f.ids.alice);assert.equal(access.status,200,JSON.stringify(access));assert.equal(access.body.blocked,false);assert.equal(access.body.warnings[0].deadline,f.today);
- await setExpiry(shift(f.today,-10));access=await f.req('/api/centers/app-access',f.ids.alice);assert.equal(access.body.blocked,true);assert.equal((await f.req('/api/data',f.ids.alice)).body.code,'membership-renewal-required');assert.equal((await f.req('/api/centers/own/classes?centerId='+f.center,f.ids.alice)).body.code,'membership-renewal-required');
+ const month=f.today.slice(0,7)+'-01';await setExpiry(shiftBillingMonth(month,1,1));let access=await f.req('/api/centers/app-access',f.ids.alice);assert.equal(access.status,200,JSON.stringify(access));assert.equal(access.body.blocked,false);assert.equal(access.body.memberships[0].deadline,shiftBillingMonth(month,1,5));
+ await setExpiry(shiftBillingMonth(month,-1,1));access=await f.req('/api/centers/app-access',f.ids.alice);assert.equal(access.body.blocked,true);assert.equal((await f.req('/api/data',f.ids.alice)).body.code,'membership-renewal-required');assert.equal((await f.req('/api/centers/own/classes?centerId='+f.center,f.ids.alice)).body.code,'membership-renewal-required');
  const q=await preview(f);assert.equal(q.status,200,JSON.stringify(q));const paid=await f.req('/api/centers/renewals/cash',f.ids.manager,command(f,q.body));assert.equal(paid.status,200,JSON.stringify(paid));assert.equal((await f.req('/api/centers/app-access',f.ids.alice)).body.blocked,false);assert.notEqual((await f.req('/api/data',f.ids.alice)).status,403);
  assert.equal((await f.req('/api/centers/app-access',f.ids.manager)).body.blocked,false);assert.equal((await f.req('/api/centers/app-access',f.ids.technical)).body.blocked,false);
  assert.equal((await f.req('/api/logout',f.ids.alice,{})).status,200);
@@ -121,4 +121,30 @@ test('mixed monthly and pass members expose both entitlements and consume only o
  const after=(await summary()).body.members.find(r=>r.id===m.id).fee;assert.equal(after.hasContract,true);assert.equal(after.subscriptionId,before.subscriptionId);assert.equal(after.expiresOn,before.expiresOn);assert.equal(after.passDayReason,'used-today');
  const repeated=await f.req('/api/centers/passes/day',f.ids.root,{centerId:f.center,memberId:m.id,requestId:f.p+'_mixed_again'});assert.equal(repeated.body.alreadyUsed,true);
  const payments=(await f.req('/api/centers/payments?'+new URLSearchParams({centerId:f.center,memberId:m.id}),f.ids.manager)).body.payments;assert.equal(payments.length,0);
+});
+
+
+test('legacy monthly billing days renew the current calendar month and report the fifth as expiry',async t=>{
+ const f=await fixture(t),pg=(await import('pg')).default,{testUrls}=await import('./helpers.mjs'),{shiftBillingMonth}=await import('../../centers/domain/billing-calendar.js');
+ const owner=new pg.Client({connectionString:testUrls().migration});await owner.connect();t.after(()=>owner.end());
+ const month=f.today.slice(0,7)+'-01',previous=shiftBillingMonth(month,-1,20),end=shiftBillingMonth(month,1,1),deadline=shiftBillingMonth(month,1,5);
+ const info=(await f.req('/api/centers/subscriptions?'+new URLSearchParams({centerId:f.center,memberId:f.members.alice}),f.ids.manager)).body;
+ await historicalSeed(owner,['members','subscriptions'],async()=>{await owner.query('UPDATE centers.members SET joined_on=$2 WHERE id=$1',[f.members.alice,previous]);await owner.query('UPDATE centers.subscriptions SET starts_on=$2,anchor_on=$2,billing_day=20 WHERE id=$1',[info.subscriptions[0].id,previous])});
+ const q=await preview(f);assert.equal(q.status,200,JSON.stringify(q));assert.equal(q.body.periodStart,month);assert.equal(q.body.periodEnd,end);
+ const renewed=await f.req('/api/centers/renewals/cash',f.ids.manager,command(f,q.body,'legacy_month'));assert.equal(renewed.status,200,JSON.stringify(renewed));
+ const members=await f.req('/api/centers/members?centerId='+f.center,f.ids.manager),fee=members.body.members.find(m=>m.id===f.members.alice).fee;
+ assert.equal(fee.expiresOn,deadline);assert.equal(fee.deadline,deadline);
+ await f.db.platformTransaction(f.ids.root,client=>client.query('UPDATE centers.centers SET opening_hours=$2::jsonb WHERE id=$1',[f.center,JSON.stringify(Object.fromEntries([0,1,2,3,4,5,6].map(d=>[d,[['00:00','24:00']]])))]),f.center);
+ const policy=await f.req('/api/centers/access/policy',f.ids.manager,{centerId:f.center,version:0,policy:{enabled:true,requireSubscription:true,denyOverdue:false,graceDays:15},requestId:f.p+'_expiry_policy'});assert.equal(policy.status,200,JSON.stringify(policy));
+ const admission=day=>f.db.transaction({uid:f.ids.manager,centerId:f.center},async client=>(await client.query("SELECT centers.access_decision($1,$2,($3::date+time '12:00') AT TIME ZONE c.timezone) AS result FROM centers.centers c WHERE c.id=$1",[f.center,f.members.alice,day])).rows[0].result);
+ assert.equal(await admission(deadline),'allowed');assert.equal(await admission(shift(deadline,1)),'no-current-subscription');
+
+ const detail=(await f.detail('bob')).body;
+ const changed=await f.req('/api/centers/subscriptions/change',f.ids.manager,{centerId:f.center,memberId:f.members.bob,memberVersion:detail.member.version,id:(await f.req('/api/centers/subscriptions?'+new URLSearchParams({centerId:f.center,memberId:f.members.bob}),f.ids.manager)).body.subscriptions[0].id,priceVersionId:f.plan.priceVersionId,effectiveOn:f.today,requestId:f.p+'_monthly_change'});
+ assert.equal(changed.status,200,JSON.stringify(changed));assert.equal(changed.body.subscriptions[0].billingDay,1);assert.equal(changed.body.subscriptions[0].anchorOn,month);
+ const after=(await f.req('/api/centers/members?centerId='+f.center,f.ids.manager)).body.members.find(m=>m.id===f.members.bob).fee;assert.equal(after.expiresOn,deadline);
+ const pending=(await f.req('/api/centers/members/create',f.ids.manager,{centerId:f.center,name:'Fictional future monthly',requestId:f.p+'_future_monthly_member'})).body.member;
+ const scheduled=await f.req('/api/centers/subscriptions/create',f.ids.manager,{centerId:f.center,memberId:pending.id,memberVersion:pending.version,priceVersionId:f.plan.priceVersionId,effectiveOn:shift(f.today,1),requestId:f.p+'_future_monthly'});
+ assert.equal(scheduled.status,400);assert.equal(scheduled.body.code,'invalid-input');
+
 });

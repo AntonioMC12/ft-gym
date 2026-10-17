@@ -84,3 +84,10 @@ it('keeps current and scheduled contracts visible and folds history without losi
   await act(async()=>history.querySelector('form').dispatchEvent(new Event('submit',{bubbles:true,cancelable:true})));
   expect(centerCommand).toHaveBeenCalledWith('/api/centers/billing/preview',{centerId:'a',memberId:member.id,id:'Old'});
 })
+
+it('monthly assignment fixes the effective date to today and explains the fifth-day validity',async()=>{
+ centerPlans.mockResolvedValue({plans:[{...plan,intervalMonths:1}],nextCursor:null});centerCommand.mockRejectedValue(new Error('temporary'));await render()
+ const date=host.querySelector('input[type="date"]');expect(date.value).toBe(today);expect(date.disabled).toBe(true)
+ expect(host.textContent).toContain('Monthly fees cover the calendar month and remain valid through the 5th of the next month.')
+ await click('Save');expect(centerCommand).toHaveBeenCalledWith('/api/centers/subscriptions/create',expect.objectContaining({effectiveOn:today}))
+})

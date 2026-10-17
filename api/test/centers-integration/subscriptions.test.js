@@ -13,7 +13,7 @@ test('contracts pin terms, reject overlaps and recover canceled scheduled change
   const member=(await req('/api/centers/members/create',manager,{centerId:center,name:'Synthetic contract',requestId:p+'_member'})).body.member;
   const today=(await req(`/api/centers/member?centerId=${center}&id=${member.id}`,manager)).body.today;
   const later=(days)=>{const value=new Date(today+'T00:00:00Z');value.setUTCDate(value.getUTCDate()+days);return value.toISOString().slice(0,10)};
-  const fields={name:'Synthetic fee',priceMinor:'2999',currency:'EUR',intervalMonths:1,priceIncludesTax:true,taxBasisPoints:2100,proration:'actual-days'};
+  const fields={name:'Synthetic fee',priceMinor:'2999',currency:'EUR',intervalMonths:3,priceIncludesTax:true,taxBasisPoints:2100,proration:'actual-days'};
   const plan=(await req('/api/centers/plans/create',manager,{centerId:center,...fields,requestId:p+'_plan'})).body.plan;
   const firstInput={centerId:center,memberId:member.id,memberVersion:1,priceVersionId:plan.priceVersionId,effectiveOn:today,requestId:p+'_create'};
   const simultaneous=await Promise.all([req('/api/centers/subscriptions/create',manager,firstInput),req('/api/centers/subscriptions/create',manager,{...firstInput,requestId:p+'_compete'})]);

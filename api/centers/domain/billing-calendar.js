@@ -10,12 +10,14 @@ export function shiftBillingMonth(date,months,anchorDay) {
   const [year,month]=date.split('-').map(Number),index=year*12+month-1+months;
   return calendarDate(Math.floor(index/12),index%12+1,anchorDay);
 }
-export function billingAnchor(start,day) {
+export function billingAnchor(start,day,intervalMonths) {
+  if(intervalMonths===1)day=1;
   membershipDate(start);const [year,month]=start.split('-').map(Number),anchor=calendarDate(year,month,day);
   return anchor>start?shiftBillingMonth(anchor,-1,day):anchor;
 }
 export function billingPeriodStartFor(date,anchor,interval,day) {
   membershipDate(date);membershipDate(anchor);if(![1,3,6,12].includes(interval))invalid();
+  if(interval===1)return date.slice(0,7)+'-01';
   if(date<=anchor)return anchor;
   const [year,month]=date.split('-').map(Number),[ay,am]=anchor.split('-').map(Number);
   let count=Math.floor(((year-ay)*12+month-am)/interval)*interval;
@@ -24,6 +26,7 @@ export function billingPeriodStartFor(date,anchor,interval,day) {
   return candidate;
 }
 export function billingPeriod(start,{anchorOn,billingDay,intervalMonths}) {
+  if(intervalMonths===1){anchorOn=anchorOn.slice(0,7)+'-01';billingDay=1;}
   membershipDate(start);membershipDate(anchorOn);
   if(![1,3,6,12].includes(intervalMonths))invalid();
   const [year,month]=start.split('-').map(Number),[ay,am]=anchorOn.split('-').map(Number),offset=(year-ay)*12+month-am;

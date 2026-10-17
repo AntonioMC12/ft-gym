@@ -39,9 +39,9 @@ test('unconfigured fiscal policy, canceled contracts and non-boundary periods ca
   assert.throws(()=>quote({}, {},'2026-01-15'),{status:400});assert.throws(()=>quote({discountBasisPoints:10001}),{status:400});
   assert.throws(()=>quote({anchorOn:'2026-01-31',billingDay:31,intervalMonths:3}, {},'2026-02-28'),{status:400});
 });
-test('default preview period retains its original monthly or quarterly phase',()=>{
-  assert.equal(billingPeriodStartFor('2026-03-01','2026-01-31',1,31),'2026-02-28');
+test('monthly preview uses calendar months while quarterly retains its original phase',()=>{
+  assert.equal(billingPeriodStartFor('2026-03-01','2026-01-31',1,31),'2026-03-01');
   assert.equal(billingPeriodStartFor('2026-04-29','2026-01-31',3,31),'2026-01-31');
   assert.equal(billingPeriodStartFor('2026-05-01','2026-01-31',3,31),'2026-04-30');
-  assert.equal(billingPeriodStartFor('2025-01-01','2026-01-31',1,31),'2026-01-31');
+  assert.equal(billingPeriodStartFor('2025-01-01','2026-01-31',1,31),'2025-01-01');
 });

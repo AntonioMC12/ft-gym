@@ -497,3 +497,6 @@ C50: mejora visual de Deuda y calendario, automatización de recibos y avisos. S
 
 
 C51: Datos del centro en consulta con fichas y horario semanal compacto. Editar centro y Editar horario abren editores independientes reutilizando Fields y controles existentes, con cancelación protegida y permisos actuales. Gestión de personal desplegable; adaptación escritorio/móvil. No modificar contratos API ni reglas horarias. Implementación y UI37/37 terminadas; revisión visual real pendiente, in_progress. Evidencia en CENTERS_PROGRESS.md.
+
+
+C52 (17octubre): mensualidades siempre por mes natural, válidas hasta el5delmes siguiente inclusive y caducadas desde6. Unificar alta/cambio/renovación, caducidad visible, acceso app/QR y cálculo de periodos, independientemente del día de cobro. Conservar histórico, pagos atómicos e idempotencia; no modificar bonos ni cuotas plurimensuales. Migraciones044/045, implementación y pruebas focales terminadas; operación de preview/aceptación registradas en CENTERS_PROGRESS.md. Sustituye la regla anterior mensual de10días de margen de C43–C45.

@@ -51,6 +51,7 @@ async function write(context,raw,change,{platform=false}={}) {
     if(effectiveOn<member.local_today||effectiveOn<member.joined_on)throw new CentersError(400,'invalid-input','retroactive subscription');
     if(member.ends_on&&effectiveOn>=member.ends_on)throw conflict('subscription-ended');
     const price=await terms(client,centerId,priceVersionId),existing=await subscriptionRows(client,centerId,memberId),id='su_'+commandHash([centerId,context.user.id,requestId]).slice(0,32);
+    if(price.interval_months===1&&effectiveOn!==member.local_today)throw new CentersError(400,'invalid-input','monthly membership must start on registration day');
     let previous=null,activationId=null,noticeDays=null;
     if(change){
       previous=existing.find(row=>row.id===values.id&&!row.canceled_at);
@@ -73,7 +74,7 @@ async function write(context,raw,change,{platform=false}={}) {
     const {rows:centers}=await client.query('SELECT billing_day,timezone FROM centers.centers WHERE id=$1',[centerId]);
     const calendar=centers[0];context.checkSession();
     await client.query(`INSERT INTO centers.subscriptions(id,center_id,member_id,plan_id,price_version_id,starts_on,ends_on,billing_day,anchor_on,timezone,discount_basis_points,discount_reason,replaces_id,previous_ends_on,activation_id,actor_uid,notice_days)
-      VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17)`,[id,centerId,memberId,price.plan_id,priceVersionId,effectiveOn,previous?.ends_on||null,calendar.billing_day,billingAnchor(effectiveOn,calendar.billing_day),calendar.timezone,discountBasisPoints,discountReason,previous?.id||null,previous?.ends_on||null,activationId,context.user.id,noticeDays]);
+      VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17)`,[id,centerId,memberId,price.plan_id,priceVersionId,effectiveOn,previous?.ends_on||null,price.interval_months===1?1:calendar.billing_day,billingAnchor(effectiveOn,calendar.billing_day,price.interval_months),calendar.timezone,discountBasisPoints,discountReason,previous?.id||null,previous?.ends_on||null,activationId,context.user.id,noticeDays]);
     await businessAudit(client,centerId,context.user.id,operation,id,{memberId,priceVersionId,effectiveOn,replacesId:previous?.id||null});
     const response=await result(client,scope,memberId,{bump:true});await rememberCommand(client,centerId,context.user.id,operation,requestId,hash,response);context.checkSession();return response;
   },{platform});

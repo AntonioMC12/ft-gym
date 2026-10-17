@@ -56,6 +56,8 @@ export default function Subscriptions({centerId,member,ownerUid,changed,receiptC
   const selectedTerms=useRef(null),priceScope=JSON.stringify([centerId,member.id,ownerUid,priceVersionId])
   const selectedPlan=plans.find(row=>row.priceVersionId===priceVersionId)||(selectedTerms.current?.scope===priceScope?selectedTerms.current.plan:null)
   if(selectedPlan)selectedTerms.current={scope:priceScope,plan:selectedPlan}
+  const monthly=selectedPlan?.intervalMonths===1
+  useEffect(()=>{if(monthly&&info?.today)setEffectiveOn(info.today)},[monthly,info?.today])
   const planIncomplete=selectedPlan?.conditionsReady===false||selectedPlan?.priceIncludesTax===null||selectedPlan?.taxBasisPoints===null||selectedPlan?.proration===null
   const submit=async e=>{
     e.preventDefault();if(pending.current||busy||planIncomplete)return;const next=subscriptionFormErrors({priceVersionId,effectiveOn,discount,reason},info.today);setErrors(next);if(Object.keys(next).length){focusCenterError(saveForm.current,next);return}const epoch=life.current;pending.current=true;setBusy(true);setError(null)
@@ -87,10 +89,11 @@ export default function Subscriptions({centerId,member,ownerUid,changed,receiptC
       <h3>{active?t('Change membership plan'):t('Assign membership plan')}</h3>{active&&<p className="small muted">{t('Fee changes apply on the effective date below. Earlier periods are preserved.')}</p>}
       <SearchField aria-label={t('Search membership plans')} placeholder={t('Search membership plans')} value={query} onChange={e=>setQuery(e.target.value)} onClear={()=>setQuery('')}/>
       <SelectRow variant="field" disabled={busy} {...fieldProps('priceVersionId')} invalid={!!errors.priceVersionId} title={t('Membership plans')} value={priceVersionId} options={plans.map(plan=>({value:plan.priceVersionId,label:plan.name+' · '+minorToPrice(plan.priceMinor)+' '+plan.currency}))} onChange={value=>update(setPriceVersionId,value)}/>{fieldError('priceVersionId')}
+      {selectedPlan?.intervalMonths===1&&<p className="centers-import-notice small">{t('Monthly fees cover the calendar month and remain valid through the 5th of the next month.')}</p>}
       {planIncomplete&&<div className="centers-import-notice" role="status"><p>{t('Tax and proration must be configured before calculating charges.')}</p>{onManagePlans&&<Button type="button" onClick={onManagePlans}>{t('Membership plans')}</Button>}</div>}
       {cursor&&<Button ref={moreRef} type="button" onClick={more}>{t('Show more')}</Button>}
       {!plans.length&&!pendingPlans.current&&<p>{t('No membership plans available')}</p>}
-      <div className="centers-fields"><label className="centers-field"><span>{t('Effective date')}</span><TextField type="date" required disabled={busy} min={info.today} {...fieldProps('effectiveOn')} value={effectiveOn} onChange={e=>update(setEffectiveOn,e.target.value)}/>{fieldError('effectiveOn')}</label>
+      <div className="centers-fields"><label className="centers-field"><span>{t('Effective date')}</span><TextField type="date" required disabled={busy||monthly} min={info.today} {...fieldProps('effectiveOn')} value={effectiveOn} onChange={e=>update(setEffectiveOn,e.target.value)}/>{fieldError('effectiveOn')}</label>
       <label className="centers-field"><span>{t('Discount (%)')}</span><TextField required disabled={busy} inputMode="decimal" {...fieldProps('discount')} value={discount} onChange={e=>update(setDiscount,e.target.value)}/>{fieldError('discount')}</label></div>
       <label className="centers-field"><span>{t('Discount reason')}</span><TextArea disabled={busy} maxLength={250} {...fieldProps('reason')} value={reason} onChange={e=>update(setReason,e.target.value)}/>{fieldError('reason')}</label>
       <div className="centers-form-actions" data-center-form-actions><ActionReason reason={busy?t('Loading…'):null}><Button type="button" disabled={busy} onClick={()=>navigate(reset,{form:saveForm})}>{t('Cancel')}</Button></ActionReason><ActionReason reason={unavailable}><Button type="submit" variant="primary" disabled={!!unavailable}>{t(busy?'Saving…':'Save')}</Button></ActionReason></div>

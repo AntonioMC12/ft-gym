@@ -18,7 +18,7 @@
 - C50: rediseño de Deuda y calendario, recibos automáticos y avisos. Saldos destacados, recibos identificados, agenda por vencimiento y ayuda contextual accesible. UI19/19, locales18, build WEB y preview healthy correctos; revisión visual real pendiente. Backend y schema043 conservados.
 - C51: Datos del centro colapsados por defecto, Editar centro dentro del desplegable y Editar horario independiente y gestión del personal desplegable. Editores focales con guardado actual, cancelación protegida y permisos conservados. UI37/37, locales18, build WEB y preview healthy correctos; revisión visual real pendiente.
 - C52: mensualidades por mes natural y validez hasta día5delmes siguiente inclusive, desde alta/cambio/renovación; día6 bloqueado. Calendario nuevo independiente de billingDay, acceso app/QR coherente y ledger histórico conservado. Dominio15/15, SQL24/24 +15/15 final, UI27/27 y locales correctos; schema045 en CI/preview, build correcto y datos conservados; aceptación visual pendiente.
-- C53: ajuste visual posterior de biblioteca implementado (cabecera contextual, selector sin icono descolgado, acciones agrupadas, contador y tarjetas con relieve; WEBc6b5a6f9-dirty healthy). Biblioteca persistente de planes como carpetas, card Rutinas de superadmin, propuestas para varios socios y selección desde Empezar implementadas. Rangos por ejercicio y repeticiones reales vacías con referencia del historial. UI203/203, API27/27, SQL6/6 y locales18 correctos; sin migración. Preview API7b9f783e-dirty y WEBc6b5a6f9-dirty healthy; siete archivos conservados por SHA256 y mismo túnel.
+- C53: ajuste visual posterior revertido por petición expresa; interfaz anterior restaurada, actualización WEB pendiente. Biblioteca persistente de planes como carpetas, card Rutinas de superadmin, propuestas para varios socios y selección desde Empezar implementadas. Rangos por ejercicio y repeticiones reales vacías con referencia del historial. UI203/203, API27/27, SQL6/6 y locales18 correctos; sin migración. Preview API7b9f783e-dirty y WEBc6b5a6f9-dirty healthy; siete archivos conservados por SHA256 y mismo túnel.
 - Validación pendiente: revisión visual real escritorio/móvil/temas y aceptación C41/C42. El navegador de esta sesión no permite esa comprobación; no sustituirla por resultados DOM ni marcarla verificada. C46/C47/C48/C49/C50/C51/C52/C53 siguen in_progress únicamente por esa validación solicitada. Siguiente paso: revisar visualmente C53 escritorio/móvil/teclado cuando haya navegador habilitado. La aceptación C41/C42 permanece aplazada.
 
 ### Cierre técnico y validación diferida
@@ -1106,8 +1106,13 @@ Operación completada: commit de aplicación7b9f783e en codex/centers-module, AP
 Pendiente: aceptación visual real móvil/escritorio/temas/teclado. DOM y build no acreditan la revisión visual. C53 in_progress únicamente por esa validación final; cambios Docker/web/demo previos del usuario conservados.
 
 
-### C53 — Pulido visual de Plan/Rutinas (17octubre)
+### C53 — Pulido visual de Plan/Rutinas (17octubre; revertido posteriormente)
 
 Captura del usuario: selector excesivamente alto con icono en una tercera fila, botones pegados y jerarquía repetida. TrainingPlanLibrary agrupa cabecera/icono de carpeta y Nuevo plan; selector Plan sin icono huérfano y Asignar rutinas alineados en escritorio, apilados en móvil. Gestión y edición de nombre con separación explícita. Plan muestra título Rutinas y cantidad en su vista de biblioteca, cabecera de lista con nombre/contador, Editar secundario y Nueva rutina principal. Tarjetas con borde/relieve sutil, iconos verdes atenuados, estados de foco/hover y espacios consistentes. Reutiliza Button, SelectRow, Icon y tokens; sin cambios de lógica, permisos, datos ni backend.
 
 Archivos: TrainingPlanLibrary.jsx, Plan.jsx e index.css. Build Vite correcto, comprobación focal existente3/3 y diff sin errores; no suites generales. Revisión visual real de escritorio/móvil y temas pendiente por limitación de navegador de esta sesión. WEB reconstruida y actualizada con commitc6b5a6f9-dirty; healthy y healthHTTP200. API7b9f783e, datos y túnel conservados, sin ejecutar inicializador ni migraciones. Siguiente paso: revisión visual real en la preview existente.
+
+
+### C53 — Reversión visual solicitada (17octubre)
+
+Petición expresa: deshacer los últimos cambios. Restaurados únicamente TrainingPlanLibrary.jsx, Plan.jsx e index.css al estado de afafaee7b, anterior al pulido c6b5a6f9. Funcionalidad C53, planes, rangos, asignaciones y registros conservados; cambios previos del usuario intactos. Se conserva el historial de la propuesta visual como referencia revertida. Siguiente paso: reconstruir WEB para reflejar la reversión en la preview, sin alterar API ni datos.

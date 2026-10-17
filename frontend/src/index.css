@@ -2185,45 +2185,13 @@ button.wl-summary{width:100%;padding:0 0 10px;text-align:start;border-radius:var
 .action-reason-tip{position:fixed;box-sizing:border-box;max-width:calc(100vw - 32px);padding:12px 14px;background:var(--surface-2);color:var(--label);border:1px solid var(--sep);border-radius:var(--r);box-shadow:0 6px 20px #0005;z-index:60;font-size:14px;line-height:1.5;white-space:normal;text-align:start}
 
 /* Named plans organize the existing routine library; controls remain touch friendly. */
-.training-plan-library{padding:22px;border:1px solid var(--sep);border-radius:var(--r);background:var(--surface);margin:20px 0 28px;box-shadow:0 4px 16px #00000012}
-.training-plan-heading{display:flex;align-items:center;justify-content:space-between;gap:16px;margin-bottom:20px}
-.training-plan-heading-title{display:flex;align-items:center;gap:12px;min-width:0}
-.training-plan-library h2{font-size:18px;line-height:1.35;margin:0;overflow-wrap:anywhere}
-.training-plan-symbol{width:42px;height:42px;flex-shrink:0;display:grid;place-items:center;border:1px solid color-mix(in srgb,var(--acc) 25%,var(--sep));border-radius:12px;color:var(--acc);background:color-mix(in srgb,var(--acc) 10%,var(--surface));font-size:22px}
-.training-plan-controls{display:flex;align-items:stretch;gap:14px}
-.training-plan-controls>.select-field{flex:1;min-width:0;box-shadow:none}
-.training-plan-controls>.btn{align-self:stretch;flex-shrink:0}
-.training-plan-actions{display:flex;gap:10px;flex-wrap:wrap;margin-top:16px}
-.training-plan-library .btn,.plan-routines-actions .btn{min-height:44px;width:auto;padding:10px 16px;border:1px solid var(--sep);border-radius:var(--r);white-space:normal}
-.training-plan-library .btn.plain,.plan-routines-actions .btn.plain{background:var(--surface-2)}
-.training-plan-heading>.btn{flex-shrink:0}
-.training-plan-name-form{margin-top:20px;padding-top:20px;border-top:1px solid var(--sep)}
-.training-plan-name-form label{display:grid;gap:8px;font-size:14px;color:var(--label-2)}
-.plan .plan-routines-bar{display:flex;align-items:center;justify-content:space-between;gap:16px;margin:0 0 14px}
-.plan-routines-heading{display:flex;align-items:center;gap:10px;min-width:0}
-.plan-routines-heading h2{margin:0;font-size:19px;line-height:1.35;overflow-wrap:anywhere}
-.plan-routines-count{min-width:28px;padding:4px 8px;border-radius:20px;background:var(--surface-2);border:1px solid var(--sep);text-align:center;font-size:13px;color:var(--label-2)}
-.plan-routines-actions{display:flex;gap:10px;flex-shrink:0}
-.plan .plan-routines .plan-routine{min-height:88px;border:1px solid var(--sep);border-radius:var(--r);box-shadow:0 3px 12px #00000014;padding:18px;gap:14px;transition:border-color .16s,background .16s}
-.plan .plan-routines .plan-routine .lrow-i{width:42px;height:42px;border-radius:12px;background:color-mix(in srgb,var(--acc) 12%,var(--surface-2));color:var(--acc)}
-.plan .plan-routines .plan-routine .tt{font-weight:600;overflow-wrap:anywhere}
-.plan .plan-routines .plan-routine .ss{margin-top:5px}
-.plan .plan-routine:focus-visible,.training-plan-library .btn:focus-visible,.plan-routines-actions .btn:focus-visible{outline:2px solid var(--acc);outline-offset:3px}
-@media(hover:hover){.plan .plan-routines .plan-routine[role=button]:hover{border-color:color-mix(in srgb,var(--acc) 45%,var(--sep));background:var(--surface-2)}}
-@media(max-width:550px){
- .training-plan-library{padding:16px;margin:16px 0 24px}
- .training-plan-heading{align-items:flex-start;gap:12px;flex-wrap:wrap;margin-bottom:16px}
- .training-plan-heading-title{flex:1 1 170px}
- .training-plan-heading>.btn{margin-inline-start:auto}
- .training-plan-controls{flex-direction:column;gap:12px}
- .training-plan-actions>.btn{flex:1}
- .plan .plan-routines-bar{align-items:flex-start;flex-wrap:wrap;gap:12px}
- .plan-routines-heading{flex:1 1 100%}
- .plan-routines-actions{width:100%}
- .plan-routines-actions>.btn{flex:1}
- .plan .plan-routines .plan-routine{padding:16px;min-height:82px}
-}
+.training-plan-library{padding:18px;border:1px solid var(--sep);border-radius:var(--r);background:var(--surface);margin:16px 0}
+.training-plan-library h2{font-size:18px;margin:0}
+.training-plan-actions{display:flex;gap:10px;flex-wrap:wrap;margin:14px 0}
+.training-plan-library .btn{min-height:44px;width:auto;padding:10px 14px;border:1px solid var(--sep);border-radius:var(--r)}
+.training-plan-library form{margin-top:14px}
 .rep-target-mode{margin:14px 0}
 .rep-range-fields{display:grid;grid-template-columns:1fr 1fr;gap:12px;margin:14px 0}
 .rep-range-fields label{display:grid;gap:8px;font-size:14px;color:var(--label-2)}
 .rep-range-fields input[aria-invalid="true"]{border-color:var(--red)}
+@media(max-width:550px){.training-plan-library{padding:12px}.training-plan-actions>.btn{flex:1}.training-plan-library>.row{gap:10px;flex-wrap:wrap}}

@@ -26,7 +26,7 @@ function Content({edit}){
  const routineIds=S.routines.filter(r=>(planId==='*'||planOf(S,r)===planId)&&r.ex?.length).map(r=>r.id)
  const go=p=>requestNavigation(()=>{if(edit){nav('/training-admin?'+new URLSearchParams({pane:p}));return}const next=new URLSearchParams(params);next.set('pane',p);setParams(next)})
  const selectPlan=id=>{const next=new URLSearchParams(params);if(id==='*')next.delete('plan');else next.set('plan',id||'');setParams(next,{replace:true})}
- const assign=id=>{const next=new URLSearchParams(params);next.set('pane','assign');if(id==='*')next.delete('plan');else next.set('plan',id||'');setParams(next)}
+ const assign=id=>requestNavigation(()=>{const next=new URLSearchParams(params);next.set('pane','assign');if(id==='*')next.delete('plan');else next.set('plan',id||'');setParams(next)})
  return <div className="narrow centers-page training-admin-page">
   <div className="hdr"><button className="iconbtn" aria-label={t('Back')} onClick={()=>requestNavigation(()=>navBack('/home',nav))}><Icon name="chevronLeft"/></button><h1>{t('Manage routines')}</h1></div>
   <nav className="centers-navigation"><Button icon="house" onClick={()=>requestNavigation(()=>nav('/home'))}>{t('Home')}</Button><Button icon="list" onClick={()=>requestNavigation(()=>nav('/centers'))}>{t('Centers')}</Button></nav>

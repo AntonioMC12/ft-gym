@@ -44,4 +44,3 @@ function CenterShortcut({uid}){
     {choosing&&<CenterChoices ownerUid={uid} selectedId={id} choose={choose}/>}
   </section>
 }
-

@@ -1,10 +1,10 @@
 # Registro de ejecución: módulo de centros
 
-Última actualización: 16 de octubre de 2026.
+Última actualización: 17 de octubre de 2026.
 
 ## Punto de reanudación — decisiones del16octubre
 
-- Rama codex/centers-module, schema043 en código y preview. Cambios previos Docker/web/demo del usuario conservados. Preview en https://dining-salt-volumes-adaptive.trycloudflare.com/#/centers, WEB9c0362a1-dirty y API2217d62d-dirty healthy, túnel y volumen conservados. C47/migración043 aplicada únicamente en preview ficticia tras backup y CI, con datos conservados.
+- Rama codex/centers-module, schema043 en código y preview. Cambios previos Docker/web/demo del usuario conservados. Preview en https://fire-vanilla-subscribers-treatment.trycloudflare.com/#/centers, WEB9c0362a1-dirty y API2217d62d-dirty healthy, túnel y volumen conservados. C47/migración043 aplicada únicamente en preview ficticia tras backup y CI, con datos conservados.
 - Alcance vigente: cobros exclusivamente en efectivo. C43–C45 implementados; C46 mejora UX de cuotas/bonos implementada y comprobada automáticamente, pendiente aceptación visual real. Guardar calcula sin exigir previsualización, acciones locales con indicador compacto y motivos de bloqueo consultables. No hay autorización productiva ni cobros reales.
 - C27: aplazado expresamente, todo/fuera de la entrega actual. Conservar código/fixture y guía como referencia futura, sin configurar claves, ensayar sandbox ni activar cobros. La validación Stripe no bloquea el cierre del alcance en efectivo.
 - C28/C39: aplazados expresamente, estado todo/fuera del alcance actual. No se emitirán facturas fiscales por ahora; conservar recibos, pagos manuales y deuda. SEPA es domiciliación bancaria y también se aplaza.
@@ -1059,3 +1059,8 @@ C51 ajuste de cabecera: Personal del centro coloca el engranaje después del tex
 
 
 C51 cierre de los ajustes: WEB9c0362a1-dirty reconstruida y recreada con --no-deps --wait, healthy; API/túnel/datos conservados. Build Vite correcto (../informes/center-profile-collapse-build.log). Colapsado probado con UI31/31, engranaje ajustado y compilado. Sin push; revisión visual real pendiente. Sustituye los pasos de build pendientes de los dos apuntes anteriores.
+
+
+## Reanudación operativa — 17octubre2026
+
+Petición expresa de levantar proyecto y acceso externo. Docker Desktop iniciado y motor disponible. Start-CentersPreview.ps1 -Share -NoBuild reanuda la preview persistente sin reconstruir imágenes ni borrar volúmenes. API y WEB healthy, túnel activo. Nueva URL: https://fire-vanilla-subscribers-treatment.trycloudflare.com/#/centers (sustituye la dirección temporal anterior). /api/health local y público HTTP200, ok y writable true; cuentas existentes conservadas. Log ../informes/centers-preview-start-20261017.log. Sin cambios funcionales, cobros, envíos ni activación productiva. Validaciones visuales previas siguen pendientes.

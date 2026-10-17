@@ -1,7 +1,9 @@
+import CenterChoices from './CenterChoices.jsx'
+import {useUI} from '../store/useUI.js'
 import {useEffect,useRef,useState} from 'react'
 import {useStore} from '../store/useStore.js'
 import {useCenters} from '../store/useCenters.js'
-import {Section,Button,SelectRow,MultiSelectRow,SearchField} from './ui.jsx'
+import {Section,Button,Row,SelectRow,MultiSelectRow,SearchField} from './ui.jsx'
 import {platformCenters,centerMembers,centerMember,centerCommand,trainingErrorKey} from '../lib/centers-api.js'
 import {buildPlanBundle} from '../lib/plan-share.js'
 import TrainingProposals from '../views/centers/TrainingProposals.jsx'
@@ -10,12 +12,12 @@ export default function TrainingAssignments({routineIds,planName}){
  const uid=useStore(s=>s.user?.id),state=useCenters(),platform=state.ownerUid===uid&&state.platformCapabilities.includes('centers.manage')
  const [centers,setCenters]=useState([]),[center,setCenter]=useState(''),[members,setMembers]=useState([]),[selected,setSelected]=useState([]),[query,setQuery]=useState(''),[cursor,setCursor]=useState(null),[busy,setBusy]=useState(false),[error,setError]=useState(null),[message,setMessage]=useState(''),[member,setMember]=useState(null)
  const [loadingCenters,setLoadingCenters]=useState(true),[retry,setRetry]=useState(0)
- const [chosenRoutines,setChosenRoutines]=useState(routineIds),[centerCursor,setCenterCursor]=useState(null)
+ const [chosenRoutines,setChosenRoutines]=useState(routineIds)
  const signature=JSON.stringify(routineIds)
  useEffect(()=>setChosenRoutines(routineIds),[signature])
  const routines=useStore(s=>s.S.routines)
  const life=useRef(0),sending=useRef(false),requests=useRef(new Map())
- useEffect(()=>{let current=true;setLoadingCenters(true);setCenters([]);setCenter('');setError(null);(platform?platformCenters():Promise.resolve({centers:state.centers.filter(c=>c.capabilities?.includes('training.assign'))})).then(r=>{if(current){setCenters(r.centers);setCenterCursor(r.nextCursor||null);setCenter(r.centers[0]?.id||'')}}).catch(e=>{if(current)setError(e)}).finally(()=>{if(current)setLoadingCenters(false)});return()=>{current=false}},[uid,platform,retry])
+ useEffect(()=>{let current=true;setLoadingCenters(true);setCenters([]);setCenter('');setError(null);(platform?platformCenters():Promise.resolve({centers:state.centers.filter(c=>c.capabilities?.includes('training.assign'))})).then(r=>{if(current){setCenters(r.centers);setCenter(r.centers[0]?.id||'')}}).catch(e=>{if(current)setError(e)}).finally(()=>{if(current)setLoadingCenters(false)});return()=>{current=false}},[uid,platform,retry])
  useEffect(()=>{const epoch=++life.current;setMembers([]);setSelected([]);setMember(null);setMessage('');setCursor(null);setError(null);if(!center){setBusy(false);return}setBusy(true);const timer=setTimeout(()=>{centerMembers(center,{query}).then(r=>{if(epoch===life.current){setMembers(r.members);setCursor(r.nextCursor)}}).catch(e=>{if(epoch===life.current)setError(e)}).finally(()=>{if(epoch===life.current)setBusy(false)})},query?250:0);return()=>{clearTimeout(timer);life.current++}},[center,query,uid])
  const more=async()=>{if(busy||!cursor)return;const epoch=life.current;setBusy(true);try{const r=await centerMembers(center,{query,cursor});if(epoch===life.current){setMembers(rows=>[...rows,...r.members]);setCursor(r.nextCursor)}}catch(e){if(epoch===life.current)setError(e)}finally{if(epoch===life.current)setBusy(false)}}
  const assign=async()=>{if(busy||sending.current||!selected.length||!chosenRoutines.length)return;sending.current=true;const epoch=life.current;setBusy(true);setError(null);setMessage('');try{
@@ -29,11 +31,17 @@ export default function TrainingAssignments({routineIds,planName}){
   }
  }catch(e){if(epoch===life.current)setError(e)}finally{sending.current=false;if(epoch===life.current)setBusy(false)}}
  const inspect=async id=>{if(!id)return setMember(null);const epoch=life.current;setBusy(true);try{const r=await centerMember(center,id);if(epoch===life.current)setMember(r.member)}catch(e){if(epoch===life.current)setError(e)}finally{if(epoch===life.current)setBusy(false)}}
+ const openCenters=()=>useUI.getState().openSheet(close=><>
+  <h3>{t('Centers')}</h3>
+  <CenterChoices ownerUid={uid} selectedId={center} available={platform?undefined:state.centers.filter(c=>c.capabilities?.includes('training.assign'))} choose={row=>{
+   if(useStore.getState().user?.id!==uid)return
+   close();setCenters(rows=>rows.some(c=>c.id===row.id)?rows:[...rows,row]);setCenter(row.id)
+  }}/>
+ </>)
  const eligible=members.filter(m=>m.state==='active'&&m.accountLinked!==false)
  return <Section className="training-assignments" title={t('Assign routines')}><div className="centers-form">
   <p className="small muted">{t('Training proposals require an active member.')+' '+t('Link this member to an account before proposing routines.')}</p>
-  <SelectRow variant="field" title={t('Centers')} value={center} disabled={busy} options={centers.map(c=>({value:c.id,label:c.name}))} onChange={setCenter}/>
-  {centerCursor&&<Button disabled={busy} aria-label={t('Centers')+' · '+t('Show more')} onClick={async()=>{const epoch=life.current;setBusy(true);try{const r=await platformCenters({cursor:centerCursor});if(epoch===life.current){setCenters(rows=>[...rows,...r.centers]);setCenterCursor(r.nextCursor)}}catch(e){if(epoch===life.current)setError(e)}finally{if(epoch===life.current)setBusy(false)}}}>{t('Show more')}</Button>}
+  <Row className={'select-field'+(center?' has-selection':'')} title={t('Centers')} value={centers.find(c=>c.id===center)?.name||center} accessory="dropdown" disabled={busy||loadingCenters} onClick={openCenters}/>
   <MultiSelectRow title={t('Routines')} values={chosenRoutines} options={routines.filter(r=>routineIds.includes(r.id)).map(r=>({value:r.id,label:r.name}))} onToggle={id=>{if(!busy)setChosenRoutines(rows=>rows.includes(id)?rows.filter(x=>x!==id):[...rows,id])}}/>
   <SearchField aria-label={t('Search members')} placeholder={t('Search members')} value={query} disabled={busy} onChange={e=>setQuery(e.target.value)} onClear={()=>setQuery('')}/>
   <MultiSelectRow title={t('Members')} values={selected} options={eligible.map(m=>({value:m.id,label:m.name+' · '+m.memberNumber}))} onToggle={id=>{if(!busy)setSelected(rows=>rows.includes(id)?rows.filter(x=>x!==id):[...rows,id])}}/>

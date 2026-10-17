@@ -1126,3 +1126,10 @@ Petición acotada posterior a la reversión: únicamente espacios. CSS local de 
 ### C53 — Espacios del formulario Asignar rutinas (17octubre)
 
 Solo espaciado de la nueva captura: clase local training-assignments,24px tras el botón que despliega el formulario, título alineado con sus campos y14px hasta la explicación; márgenes nativos de hijos normalizados y12px entre controles, mensajes y acciones;20px antes del selector final de consulta de propuestas. Se conservan colores, tipografías, iconos, tamaños de botones, campos y lógica. Build Docker/Vite correcto y WEBed677fa6-dirty publicada, healthy/HTTP200. API, datos y túnel conservados. Sin pruebas nuevas para espaciado reversible. Revisión visual real pendiente.
+
+
+### C53 — Buscador dentro del selector de centros (17octubre)
+
+Petición: buscar centros en la ventana de selección de Asignar rutinas. Extraído CenterChoices del acceso de Inicio para reutilizarlo en ambas pantallas. Búsqueda con250ms de espera en directorio SQL completo para superadmin, cursor/Mostrar más dentro de la ventana y selección marcada. Personal de centro filtra solo sus centros con training.assign; sin consultar directorio de plataforma. Resultados protegidos contra respuestas antiguas/cambio de cuenta, estados carga/error/vacío y reintento. Conserva selección del centro y carga sus socios al confirmar; se elimina Mostrar más externo para centros. Sin cambios API, permisos ni datos.
+
+Verificación focal14/14: búsqueda/selección real en sheet con resultado fuera de primera página, ámbito del personal y cambio de cuenta, más regresiones de Inicio/asignaciones; build Vite correcto y textos/locales verificados. Archivos CenterChoices.jsx, HomeGymCard.jsx, TrainingAssignments.jsx y pruebas focales. Publicación WEB pendiente; revisión visual real pendiente.

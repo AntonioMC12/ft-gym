@@ -1,11 +1,12 @@
+import CenterChoices from './CenterChoices.jsx'
 import {writePlanView} from '../lib/plan-view.js'
 import {useEffect,useState} from 'react'
 import {useNavigate} from 'react-router-dom'
 import {useStore} from '../store/useStore.js'
 import {useCenters} from '../store/useCenters.js'
-import {Button,Row,SearchField} from './ui.jsx'
+import {Button,Row} from './ui.jsx'
 import Icon from './Icon.jsx'
-import {centerDetail,platformCenters,centersErrorKey} from '../lib/centers-api.js'
+import {centerDetail,centersErrorKey} from '../lib/centers-api.js'
 import {t} from '../lib/i18n.js'
 import {tappable} from '../lib/use-sheet-keyboard.js'
 
@@ -40,24 +41,7 @@ function CenterShortcut({uid}){
       <Button type="button" aria-expanded={choosing} onClick={()=>setChoosing(v=>!v)}>{t(choosing?'Cancel':id?'Change center':'Choose center')}</Button>
     </div>
     {error&&<><p role="alert">{t(centersErrorKey(error))}</p><Button type="button" onClick={()=>setRetry(n=>n+1)}>{t('Retry')}</Button></>}
-    {choosing&&<CenterChoices selectedId={id} choose={choose}/>}
+    {choosing&&<CenterChoices ownerUid={uid} selectedId={id} choose={choose}/>}
   </section>
 }
 
-function CenterChoices({selectedId,choose}){
-  const [query,setQuery]=useState(''),[rows,setRows]=useState([]),[cursor,setCursor]=useState(null),[busy,setBusy]=useState(true),[error,setError]=useState(null),[retry,setRetry]=useState(0),[page,setPage]=useState(null)
-  useEffect(()=>{
-    let current=true;if(!page){setRows([]);setCursor(null)}setBusy(true);setError(null)
-    const timer=setTimeout(()=>{platformCenters({query:query.trim(),...(page?{cursor:page}:{})}).then(r=>{if(current){setRows(old=>page?[...old,...r.centers]:r.centers);setCursor(r.nextCursor||null)}}).catch(e=>{if(current){setError(e);if([401,403].includes(e.status))useCenters.getState().revokeOn(e)}}).finally(()=>{if(current)setBusy(false)})},query.trim()&&!page?250:0)
-    return()=>{current=false;clearTimeout(timer)}
-  },[query,page,retry])
-  const search=value=>{setQuery(value);setPage(null)}
-  return <div className="home-center-choices">
-    <SearchField placeholder={t('Search…')} aria-label={t('Search…')} value={query} onChange={e=>search(e.target.value)} onClear={()=>search('')}/>
-    <div aria-busy={busy}>{rows.map(center=><Row key={center.id} title={center.name} accessory={selectedId===center.id?'check':'chevron'} onClick={busy?undefined:()=>choose(center)}/>)}</div>
-    {busy&&<p role="status">{t('Loading centers')}</p>}
-    {!busy&&!error&&!rows.length&&<p role="status">{t('No centers available')}</p>}
-    {error&&<><p role="alert">{t(centersErrorKey(error))}</p><Button type="button" onClick={()=>{setPage(null);setRetry(n=>n+1)}}>{t('Retry')}</Button></>}
-    {cursor&&<Button type="button" disabled={busy} onClick={()=>setPage(cursor)}>{t('Show more')}</Button>}
-  </div>
-}

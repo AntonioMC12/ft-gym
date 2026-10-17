@@ -7,6 +7,7 @@ vi.mock('../views/centers/TrainingProposals.jsx',()=>({default:()=>null}))
 vi.mock('../lib/centers-api.js',()=>({platformCenters:vi.fn(),centerMembers:vi.fn(),centerMember:vi.fn(),centerCommand:vi.fn(),trainingErrorKey:()=> 'Error'}))
 vi.mock('./ui.jsx',()=>({
  Section:({children})=><section>{children}</section>,
+ Row:({title,value,onClick,disabled})=><button disabled={disabled} onClick={onClick}>{title} {value}</button>,
  Button:({children,onClick,disabled})=><button disabled={disabled} onClick={onClick}>{children}</button>,
  SelectRow:({title,value,options,onChange})=><select aria-label={title} value={value} onChange={e=>onChange(e.target.value)}>{options.map(o=><option key={o.value} value={o.value}>{o.label}</option>)}</select>,
  MultiSelectRow:({title,options,values,onToggle})=><fieldset aria-label={title}>{options.map(o=><button key={o.value} aria-pressed={values.includes(o.value)} onClick={()=>onToggle(o.value)}>{o.label}</button>)}</fieldset>,

@@ -50,3 +50,8 @@ it('paginates the server directory and resets pagination on search',async()=>{
 it('does not render an old response after an account switch',async()=>{
  let resolve;localStorage.setItem(key('super'),'c1');centerDetail.mockImplementation(()=>new Promise(r=>{resolve=r}));await render();await act(async()=>useStore.setState({user:{id:'other'}}));await act(async()=>resolve({center:{id:'c1',name:'Private center'}}));expect(host.textContent).not.toContain('Private center');expect(host.textContent).toContain('Check in')
 })
+
+it('opens the existing routines view for the superadmin and hides it for technical admin alone',async()=>{
+ await render();expect(host.textContent).toContain('Routines');await click('Routines');expect(navigate).toHaveBeenCalledWith('/plan');expect(localStorage.getItem('gym_plan_view')).toBe('routines');
+ await act(async()=>useCenters.setState({platformCapabilities:[]}));expect(button('Routines')).toBeUndefined();
+});

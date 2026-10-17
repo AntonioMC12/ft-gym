@@ -1,3 +1,5 @@
+import {repReference} from '../lib/rep-reference.js'
+import {sessionHistory} from '../lib/backfill.js'
 import { useState } from 'react'
 import { useStore } from '../store/useStore.js'
 import { exOr } from '../lib/exercises.js'
@@ -10,7 +12,7 @@ import { effortColor, rirOf } from '../lib/effort.js'
 import { progressionGuidance } from '../lib/progression-copy.js'
 import {
   addCluster, addDrop, addSideCluster, addSideDrop, clustersOf, dropsOf,
-  isFailureSet, isSideSet, isWarmupRow, nextBurstReps, toggleFailure, nextDropWeight, setClusterAt,
+  isFailureSet, isSideSet, isWarmupRow, toggleFailure, nextDropWeight, setClusterAt,
   setDropAt, setSideClusterAt, setSideDropAt, setSideField,
 } from '../lib/workout-model.js'
 import { weightIncrement, stepWeight } from '../lib/progression.js'
@@ -51,17 +53,15 @@ const toggleWarmup = row => {
 }
 
 const addDropTo = (row, target) => {
-  if (isSideSet(row)) return addSideDrop(row, target?.intensifier?.pct)
+  if (isSideSet(row)) return addSideDrop(row, target?.intensifier?.pct,undefined,{blankReps:true})
   const drops = dropsOf(row).length ? dropsOf(row) : row.drops || []
   const base = drops.at(-1)?.w ?? row.w ?? 0
-  return addDrop(row, { w: nextDropWeight(base, target?.intensifier?.pct), r: row.r || 0 })
+  return addDrop(row, { w: nextDropWeight(base, target?.intensifier?.pct), r: null })
 }
 
 const addBurstTo = (row, restSec) => {
-  if (isSideSet(row)) return addSideCluster(row, restSec)
-  const clusters = clustersOf(row).length ? clustersOf(row) : row.clusters || []
-  const reps = nextBurstReps(clusters.at(-1)?.r ?? row.r ?? 0)
-  return { ...addCluster(row, { r: reps, restSec }), r: (row.r || 0) + reps }
+  if (isSideSet(row)) return addSideCluster(row, restSec,{blankReps:true})
+  return addCluster(row,{r:null,restSec})
 }
 
 function Prescription({ entry, setIdx, unit, fallbackRest, children }) {
@@ -179,19 +179,19 @@ export default function FocusView({
       </div>
       <Stepper label={t('Load ({0})', S.unit)} ariaLabel="load" value={sideSet.w || 0} step={loadStep} onStep={stepLoad} disabled={readOnly || sideSet.done}
         onChange={value => change('w', value)} />
-      <Stepper label={t('Reps')} ariaLabel="reps" value={sideSet.r || 0} step={1} decimal={false} disabled={readOnly || sideSet.done}
+      <Stepper label={t('Reps')} ariaLabel="reps" value={sideSet.r ?? ''} nullable placeholder={repReference(sessionHistory(S),entry,setIdx,side)||'—'} step={1} decimal={false} disabled={readOnly || sideSet.done}
         onChange={value => change('r', value)} />
       <div className="focus-extras">
         {sideDrops.map((drop, index) => <div className="focus-extra" key={`drop-${index}`}>
           <span>{t('Drop {0}', index + 1)}</span>
           <Stepper label={t('Load')} ariaLabel="load" value={drop.w || 0} step={loadStep} onStep={stepLoad} disabled={readOnly || sideSet.done}
             onChange={value => onMutateSet(setIdx, row => setSideDropAt(row, side, index, { w: value }))} />
-          <Stepper label={t('Reps')} ariaLabel="reps" value={drop.r || 0} step={1} decimal={false} disabled={readOnly || sideSet.done}
+          <Stepper label={t('Reps')} ariaLabel="reps" value={drop.r ?? ''} nullable placeholder={repReference(sessionHistory(S),entry,setIdx,side,['drops',index])||'—'} step={1} decimal={false} disabled={readOnly || sideSet.done}
             onChange={value => onMutateSet(setIdx, row => setSideDropAt(row, side, index, { r: value }))} />
         </div>)}
         {sideBursts.map((burst, index) => <div className="focus-extra" key={`burst-${index}`}>
           <span>{t('Burst {0}', index + 1)}</span>
-          <Stepper label={t('Reps')} ariaLabel="reps" value={burst.r || 0} step={1} decimal={false} disabled={readOnly || sideSet.done}
+          <Stepper label={t('Reps')} ariaLabel="reps" value={burst.r ?? ''} nullable placeholder={repReference(sessionHistory(S),entry,setIdx,side,['clusters',index])||'—'} step={1} decimal={false} disabled={readOnly || sideSet.done}
             onChange={value => onMutateSet(setIdx, row => setSideClusterAt(row, side, index, value))} />
           <span className="dim small">{burst.restSec}s</span>
         </div>)}
@@ -305,7 +305,7 @@ export default function FocusView({
             <strong>{t('{0}s hold', set.sec || entry.target?.sec || 45)}</strong>
             <Button icon="play" aria-label={t('Start set')} disabled={readOnly || busy}
               onClick={() => onStartTimed(setIdx, onProgress)}>{t('Start')}</Button>
-          </div> : <Stepper label={t('Reps')} ariaLabel="reps" value={set.r || 0} step={1} decimal={false} disabled={readOnly}
+          </div> : <Stepper label={t('Reps')} ariaLabel="reps" value={set.r ?? ''} nullable placeholder={repReference(sessionHistory(S),entry,setIdx,undefined)||'—'} step={1} decimal={false} disabled={readOnly}
             onChange={value => onField(setIdx, 'r', value)} />}</>}
         </>}
         <div className="focus-extras">
@@ -313,12 +313,12 @@ export default function FocusView({
             <span>{t('Drop {0}', index + 1)}</span>
             <Stepper label={t('Load')} ariaLabel="load" value={drop.w || 0} step={loadStep} onStep={stepLoad} disabled={readOnly}
               onChange={value => onMutateSet(setIdx, row => setDropAt(row, index, { w: value }))} />
-            <Stepper label={t('Reps')} ariaLabel="reps" value={drop.r || 0} step={1} decimal={false} disabled={readOnly}
+            <Stepper label={t('Reps')} ariaLabel="reps" value={drop.r ?? ''} nullable placeholder={repReference(sessionHistory(S),entry,setIdx,undefined,['drops',index])||'—'} step={1} decimal={false} disabled={readOnly}
               onChange={value => onMutateSet(setIdx, row => setDropAt(row, index, { r: value }))} />
           </div>)}
           {bursts.map((burst, index) => <div className="focus-extra" key={`burst-${index}`}>
             <span>{t('Burst {0}', index + 1)}</span>
-            <Stepper label={t('Reps')} ariaLabel="reps" value={burst.r || 0} step={1} decimal={false} disabled={readOnly}
+            <Stepper label={t('Reps')} ariaLabel="reps" value={burst.r ?? ''} nullable placeholder={repReference(sessionHistory(S),entry,setIdx,undefined,['clusters',index])||'—'} step={1} decimal={false} disabled={readOnly}
               onChange={value => onMutateSet(setIdx, row => {
                 const delta = (Number(value) || 0) - (clustersOf(row)[index]?.r ?? row.clusters?.[index]?.r ?? 0)
                 return { ...setClusterAt(row, index, { r: value }), r: Math.max(0, (row.r || 0) + delta) }

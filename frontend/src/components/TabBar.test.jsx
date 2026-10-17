@@ -8,8 +8,9 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import TabBar from './TabBar.jsx'
 import { DEF, useStore } from '../store/useStore.js'
 
+const navigation=vi.hoisted(()=>vi.fn())
 vi.mock('react-router-dom', () => ({
-  useNavigate: () => () => {},
+  useNavigate: () => navigation,
   useLocation: () => ({ pathname: '/home' }),
 }))
 
@@ -115,3 +116,10 @@ describe('the tab icons and labels', () => {
     } finally { vi.useRealTimers() }
   })
 })
+
+it('starts the only nonempty routine directly; multiple routines open the existing chooser',()=>{
+ const start=vi.fn();useStore.setState(s=>({S:{...s.S,routines:[{id:'only',ex:[{id:'e'}]},{id:'empty',ex:[]}]}}));
+ act(()=>root.render(<TabBar onStart={start}/>));act(()=>tabs()[2].click());expect(start).toHaveBeenCalledWith(['only']);
+ act(()=>useStore.setState(s=>({S:{...s.S,routines:[...s.S.routines,{id:'second',ex:[{id:'e'}]}]}})));
+ start.mockClear();navigation.mockClear();act(()=>tabs()[2].click());expect(start).not.toHaveBeenCalled();expect(navigation).toHaveBeenCalledWith('/workout');
+});

@@ -17,6 +17,7 @@ function cleanExercise(value,hasExercise){
   const out={id:value.id,sets:number(value.sets,1,50,true)};
   if(value.mode!=null){if(!['reps','time','cardio'].includes(value.mode))invalid('invalid exercise mode');out.mode=value.mode}
   for(const key of ['reps','repsMin','repsMax'])if(value[key]!=null)out[key]=number(value[key],1,1000,true);
+  if(out.repsMin!=null&&(out.reps==null||out.repsMin>out.reps||out.mode==='time'||out.mode==='cardio'))invalid('invalid repetition range');
   for(const key of ['weight','inc'])if(value[key]!=null)out[key]=number(value[key],0,10000);
   for(const key of ['sec','restSec','warmupRestSec'])if(value[key]!=null)out[key]=number(value[key],1,7200,true);
   if(value.min!=null)out.min=number(value.min,0.1,1440);

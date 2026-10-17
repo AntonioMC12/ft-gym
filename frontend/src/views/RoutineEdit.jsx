@@ -1,3 +1,4 @@
+import {plansOf,planOf,moveRoutineToPlan} from '../lib/training-plans.js'
 import { useNavigate, useParams } from 'react-router-dom'
 import { useEffect, useRef, useState } from 'react'
 import { useStore } from '../store/useStore.js'
@@ -473,6 +474,7 @@ export default function RoutineEdit() {
     </div>
 
     <div className="sect-b" style={{ marginBottom: 16 }}>
+      <SelectRow variant="field" title={t('Training plans')} value={planOf(S,r)||''} options={[{value:'',label:t('Unfiled')},...plansOf(S).map(p=>({value:p.id,label:p.name}))]} onChange={value=>update(s=>moveRoutineToPlan(s,id,value||null))}/>
       <SelectRow icon="chartLine" title={t('Progression')} sheetTitle={t('Progression')}
         value={r.prog || 'linear'} onChange={v => update(s => { s.routines.find(x => x.id === id).prog = v })}
         options={POLICIES_FOR.reps.map(p => ({ value: p, label: t(POLICY_NAME[p]), subtitle: t(POLICY_DESC[p]) }))} />

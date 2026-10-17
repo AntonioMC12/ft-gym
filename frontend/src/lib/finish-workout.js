@@ -1,7 +1,7 @@
 // The persisted boundary for a finished session. Keep this pure so compatibility tests can
 // exercise the exact shape the UI writes without mounting React or mutating store state.
-import { bestWeightForEntry, cleanupSg } from './history.js'
-import { hasCompletedWork, isSideSet } from './workout-model.js'
+import { bestWeightForEntry, cleanupSg, modeOf } from './history.js'
+import { hasCompletedWork, isSideSet, syncSideAggregate } from './workout-model.js'
 
 // planSec is live-session bookkeeping: a hold displaced before it finished puts its plan aside so
 // the row still knows what it is asking for (Workout.startTimed). A finished session keeps only
@@ -70,8 +70,14 @@ export function buildCompletedWorkout(active, { end = Date.now(), prs = [], snap
     const completed = {
       id: entry.id,
       // Only what was logged — the live-session bookkeeping on a row stays behind (finishedRow).
-      sets: (entry.sets || []).map(finishedRow),
-      topW: bestWeightForEntry(entry) || null,
+      sets: (entry.sets || []).map(row=>{
+        if(modeOf({...entry.target,id:entry.id})==='reps'&&(row.r===null||isSideSet(row)&&(row.sides.L.r===null||row.sides.R.r===null))){
+          const valid=s=>s?.r!==null
+          row=isSideSet(row)?syncSideAggregate({...row,sides:Object.fromEntries(Object.entries(row.sides).map(([side,s])=>[side,{...s,done:s.done&&valid(s)}]))}):{...row,done:row.done&&valid(row)}
+        }
+        return finishedRow(row)
+      }),
+      topW: null,
       target: entry.target || null,
       // Which routine this entry came from, and whether it counts for progression. Written
       // only when set/true, so a single-routine non-excluded session is byte-for-byte the
@@ -85,6 +91,7 @@ export function buildCompletedWorkout(active, { end = Date.now(), prs = [], snap
       // the workout forgot at finish what it had been all session.
       ...(entry.sg ? { sg: entry.sg } : {}),
     }
+    completed.topW=bestWeightForEntry({...entry,sets:completed.sets})||null
     const snapshot = typeof snapshotFor === 'function' ? snapshotFor(entry) : null
     if (snapshot && typeof snapshot === 'object' && !Array.isArray(snapshot) && Object.keys(snapshot).length) {
       completed.muscleSnapshot = { ...snapshot }

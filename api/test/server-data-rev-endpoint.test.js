@@ -41,9 +41,14 @@ test('GET /api/data/rev tracks PUT /api/data', async t => {
   const h = { cookie: cookie(), origin: 'http://localhost:8080', 'content-type': 'application/json' };
   assert.equal((await fetch(`${base}/api/data/rev`)).status, 401);
   assert.deepEqual(await (await fetch(`${base}/api/data/rev`, { headers: h })).json(), { rev: 0 });
-  const put = await fetch(`${base}/api/data`, { method: 'PUT', headers: h, body: JSON.stringify({ state: { workouts: [], routines: [] }, baseRev: 0 }) });
+  const put = await fetch(`${base}/api/data`, { method: 'PUT', headers: h, body: JSON.stringify({ state: { workouts: [], trainingPlans: { strength: { name: 'Strength' } }, routines: [{ id: 'r1', name: 'Push', planId: 'strength', ex: [{id:'0025',sets:3,repsMin:8,reps:12}] }] }, baseRev: 0 }) });
   assert.equal(put.status, 200);
   const after = await (await fetch(`${base}/api/data/rev`, { headers: h })).json();
   assert.equal(after.rev, 1);
   assert.match(after.wid, /^[0-9a-f]{16}$/, 'the write id of the stored document');
+  const stored=await (await fetch(`${base}/api/data?uid=someone-else`,{headers:h})).json();
+  assert.equal(stored.state.trainingPlans.strength.name,'Strength');
+  assert.equal(stored.state.routines[0].planId,'strength');
+  assert.equal(stored.state.routines[0].ex[0].repsMin,8);
+  assert.equal((await fetch(`${base}/api/data?uid=${uid}`)).status,401);
 });

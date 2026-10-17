@@ -49,3 +49,12 @@ test('durable delivery evidence must exactly match the accepted marker and all d
   assert.equal(appliedTrainingDelivery({...s,routines:[],deleted:{routines:{[id]:-123}}},delivery),null);
   assert.equal(appliedTrainingDelivery(null,delivery),null);
 });
+
+test('repetition ranges persist and reject incomplete, fractional, negative and inverted bounds',()=>{
+ const p=plan(),ex=p.routines[0].ex[0];ex.repsMin=8;ex.reps=12;
+ assert.equal(trainingPlan(p).routines[0].ex[0].repsMin,8);
+ for(const fields of [{repsMin:13},{repsMin:0},{repsMin:-2},{repsMin:8.5},{reps:undefined}]){
+  const next=structuredClone(p);Object.assign(next.routines[0].ex[0],fields);
+  assert.throws(()=>trainingPlan(next),{status:400,code:'invalid-training-plan'});
+ }
+});

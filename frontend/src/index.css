@@ -2183,3 +2183,15 @@ button.wl-summary{width:100%;padding:0 0 10px;text-align:start;border-radius:var
 .action-reason-trigger.btn{width:44px;min-height:44px;padding:10px;color:var(--label-2);border:1px solid var(--sep);border-radius:var(--r);background:var(--surface-2)}
 .action-reason-trigger:focus-visible{outline:2px solid var(--acc);outline-offset:2px}
 .action-reason-tip{position:fixed;box-sizing:border-box;max-width:calc(100vw - 32px);padding:12px 14px;background:var(--surface-2);color:var(--label);border:1px solid var(--sep);border-radius:var(--r);box-shadow:0 6px 20px #0005;z-index:60;font-size:14px;line-height:1.5;white-space:normal;text-align:start}
+
+/* Named plans organize the existing routine library; controls remain touch friendly. */
+.training-plan-library{padding:18px;border:1px solid var(--sep);border-radius:var(--r);background:var(--surface);margin:16px 0}
+.training-plan-library h2{font-size:18px;margin:0}
+.training-plan-actions{display:flex;gap:10px;flex-wrap:wrap;margin:14px 0}
+.training-plan-library .btn{min-height:44px;width:auto;padding:10px 14px;border:1px solid var(--sep);border-radius:var(--r)}
+.training-plan-library form{margin-top:14px}
+.rep-target-mode{margin:14px 0}
+.rep-range-fields{display:grid;grid-template-columns:1fr 1fr;gap:12px;margin:14px 0}
+.rep-range-fields label{display:grid;gap:8px;font-size:14px;color:var(--label-2)}
+.rep-range-fields input[aria-invalid="true"]{border-color:var(--red)}
+@media(max-width:550px){.training-plan-library{padding:12px}.training-plan-actions>.btn{flex:1}.training-plan-library>.row{gap:10px;flex-wrap:wrap}}

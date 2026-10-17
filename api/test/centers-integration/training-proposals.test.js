@@ -130,3 +130,14 @@ test('training pages bind cursors to actor/member/center and retain normal CSRF 
   for(const [uid,cid,member] of [[ids.manager,center,alice.id],[ids.trainer,center,bob.id],[ids.other,other,alice.id]])assert.equal((await req(`/api/centers/training?centerId=${cid}&memberId=${member}&cursor=${cursor}`,uid)).status,400);
   const cookie=h.headers(ids.alice).Authorization.slice(7),r=await fetch(h.base+'/api/centers/own/training/accept',{method:'POST',headers:{Cookie:'gymsid='+cookie,Origin:'https://foreign.invalid','Content-Type':'application/json'},body:JSON.stringify({centerId:center,id:a.body.proposal.id,versionId:a.body.proposal.versionId,requestId:p+'_csrf'})});assert.equal(r.status,403);
 });
+
+
+test('identical offers by the same authorized author are idempotent across different request ids',async t=>{
+ const f=await fixture(t);
+ const target=(await f.req('/api/centers/member?'+new URLSearchParams({centerId:f.center,id:f.alice.id}),f.ids.manager)).body.member;
+ const raw={centerId:f.center,memberId:target.id,memberVersion:target.version,bundle:bundle()};
+ const [a,b]=await Promise.all(['a','b'].map(key=>f.req('/api/centers/training/propose',f.ids.manager,{...raw,requestId:f.p+'_dedup_'+key})));
+ assert.equal(a.status,200,JSON.stringify(a));assert.equal(b.status,200,JSON.stringify(b));assert.equal(a.body.proposal.id,b.body.proposal.id);
+ const accepted=await f.req('/api/centers/own/training/accept',f.ids.alice,f.own(a.body.proposal));assert.equal(accepted.status,200);
+ const again=await f.req('/api/centers/training/propose',f.ids.manager,{...raw,requestId:f.p+'_dedup_after_accept'});assert.equal(again.status,200);assert.equal(again.body.proposal.id,a.body.proposal.id);
+});

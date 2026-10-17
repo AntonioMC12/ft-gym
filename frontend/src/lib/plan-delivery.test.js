@@ -103,3 +103,8 @@ describe('delivery convergence and server parity',()=>{
     }
   })
 })
+
+it('keeps an accepted bundle as one organizational plan and does not duplicate it on replay',()=>{
+ const s=state();applyPlanDelivery(s,delivery());const id=s.routines.find(r=>r.id===rid).planId;
+ expect(s.trainingPlans[id].name).toBe('Plan');applyPlanDelivery(s,delivery());expect(Object.keys(s.trainingPlans)).toEqual([id]);
+});

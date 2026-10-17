@@ -1,3 +1,5 @@
+import {t} from './i18n-core.js'
+import {createTrainingPlan} from './training-plans.js'
 import {parsePlan,mergePlan} from './plan-share.js'
 import {mergePlanDeliveries} from './plan-delivery-state.js'
 
@@ -18,6 +20,9 @@ export function applyPlanDelivery(state,delivery,{schedule=false}={}){
   const removed=new Set([...(Array.isArray(state.resetIds?.routines)?state.resetIds.routines:[]),...Object.keys(state.deleted?.routines||{}).filter(id=>Number(state.deleted.routines[id])>0)])
   const eligible={...bundle,routines:bundle.routines.filter(row=>!removed.has(ids[row.id]))}
   const result=mergePlan(state,eligible,{schedule,routineIds:ids})
+  const planId='delivery_'+key
+  createTrainingPlan(state,bundle.name||t('Plan'),planId)
+  for(const r of state.routines)if(marker.routineIds.includes(r.id))r.planId=planId
   state.planDeliveries=mergePlanDeliveries(previous,[marker])
   return {...result,removed:eligible.routines.length!==bundle.routines.length,alreadyApplied:false}
 }

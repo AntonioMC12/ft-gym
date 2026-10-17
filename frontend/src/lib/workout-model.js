@@ -89,13 +89,13 @@ export function extraVolumeOf(set) {
 /** Append a weight drop to a row, marking it a drop-set. */
 export function addDrop(set, drop) {
   const prev = Array.isArray(objectOf(set).drops) ? objectOf(set).drops : []
-  return { ...objectOf(set), type: 'dropset', drops: [...prev, { w: Number(drop?.w) || 0, r: Number(drop?.r) || 0 }] }
+  return { ...objectOf(set), type: 'dropset', drops: [...prev, { w: Number(drop?.w) || 0, r: drop?.r===null?null:Number(drop?.r)||0 }] }
 }
 
 /** Append a short-rest burst to a row, marking it a rest-pause set. */
 export function addCluster(set, cluster) {
   const prev = Array.isArray(objectOf(set).clusters) ? objectOf(set).clusters : []
-  return { ...objectOf(set), type: 'restpause', clusters: [...prev, { r: Number(cluster?.r) || 0, restSec: Number(cluster?.restSec) || 0 }] }
+  return { ...objectOf(set), type: 'restpause', clusters: [...prev, { r: cluster?.r===null?null:Number(cluster?.r)||0, restSec: Number(cluster?.restSec) || 0 }] }
 }
 
 /** Remove one drop by index. Clearing the last one reverts the row to a straight set. */
@@ -209,7 +209,7 @@ export function completedVolumeOf(set) {
 
 const sideOf = value => {
   const v = objectOf(value)
-  const out = { w: Number(v.w) || 0, r: Number(v.r) || 0, done: v.done === true }
+  const out = { w: Number(v.w) || 0, r: v.r===null?null:Number(v.r)||0, done: v.done === true }
   if (v.rir != null) out.rir = v.rir
   if (v.rpe != null) out.rpe = v.rpe
   if (v.weightOrigin === WEIGHT_ORIGIN_MANUAL) out.weightOrigin = WEIGHT_ORIGIN_MANUAL
@@ -226,7 +226,7 @@ const sideOf = value => {
 // target is always even, so the split is whole) at the same weight, carrying nothing done yet.
 export function makeSideSet(row = {}) {
   const base = objectOf(row)
-  const half = Math.round((Number(base.r) || 0) / 2)
+  const half = base.r===null?null:Math.round((Number(base.r)||0)/2)
   const w = Number(base.w) || 0
   const side = () => ({ w, r: half, done: false })
   const next = { ...base, sides: { L: side(), R: side() } }
@@ -267,6 +267,7 @@ export function setSideField(row, side, field, value) {
   const cur = { ...sideOf(base.sides[side]) }
   if (value == null && (field === 'rir' || field === 'rpe')) delete cur[field]
   else cur[field] = value
+  if(field==='r'&&value===null)cur.done=false
   return syncSideAggregate({ ...base, sides: { ...base.sides, [side]: cur } })
 }
 
@@ -300,11 +301,11 @@ function patchBothSides(row, fn) {
 
 // Append a drop to both sides, each seeded from its own side's weight (pct lighter) and reps.
 // `grid` as nextDropWeight's.
-export function addSideDrop(row, pct, grid) {
+export function addSideDrop(row, pct, grid, {blankReps=false}={}) {
   return patchBothSides(row, side => {
     const drops = dropsOf(side)
     const base = drops.length ? drops[drops.length - 1].w : (side.w || 0)
-    return addDrop(side, { w: nextDropWeight(base, pct, grid), r: side.r })
+    return addDrop(side, { w: nextDropWeight(base, pct, grid), r: blankReps?null:side.r })
   })
 }
 export function removeSideDropAt(row, i) {
@@ -317,12 +318,12 @@ export function setSideDropAt(row, side, i, patch) {
 // Append a rest-pause burst to both sides, each seeded from its own side's rep count. The side's
 // own `r` grows by the added burst, mirroring the non-per-side rule that a rest-pause row's `r`
 // is the running total across its bursts.
-export function addSideCluster(row, restSec) {
+export function addSideCluster(row, restSec, {blankReps=false}={}) {
   return patchBothSides(row, side => {
     const clusters = clustersOf(side)
     const base = clusters.length ? clusters[clusters.length - 1].r : (side.r || 0)
     const added = nextBurstReps(base)
-    return { ...addCluster(side, { r: added, restSec }), r: (side.r || 0) + added }
+    return { ...addCluster(side, { r: blankReps?null:added, restSec }), r: blankReps?side.r:(side.r || 0) + added }
   })
 }
 export function removeSideClusterAt(row, i) {

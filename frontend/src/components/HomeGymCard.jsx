@@ -1,3 +1,4 @@
+import {writePlanView} from '../lib/plan-view.js'
 import {useEffect,useState} from 'react'
 import {useNavigate} from 'react-router-dom'
 import {useStore} from '../store/useStore.js'
@@ -17,7 +18,7 @@ function writePreference(uid,id){try{if(id)localStorage.setItem(preferenceKey(ui
 export default function HomeGymCard(){
   const nav=useNavigate(),user=useStore(s=>s.user),enabled=useStore(s=>s.config?.centers?.enabled),checkIn=useStore(s=>s.S.checkIn)
   const {ownerUid,platformCapabilities}=useCenters()
-  if(enabled&&user&&ownerUid===user.id&&platformCapabilities.includes('centers.manage'))return <CenterShortcut key={user.id} uid={user.id}/>
+  if(enabled&&user&&ownerUid===user.id&&platformCapabilities.includes('centers.manage'))return <><section className="card"><Row icon="clipboard" title={t('Routines')} subtitle={t('Training plans')} accessory="chevron" onClick={()=>{writePlanView('routines');nav('/plan')}}/></section><CenterShortcut key={user.id} uid={user.id}/></>
   if(checkIn===false)return null
   return <div className="card tappable" style={{cursor:'pointer'}} {...tappable(()=>nav('/checkin'))}>
     <div className="row between"><div className="row" style={{gap:9}}><span className="lrow-i" style={{background:'var(--blue)'}}><Icon name="qr"/></span><div><div className="lbl2">{t('At the gym')}</div><div className="ttl">{t('Check in')}</div></div></div><Icon name="chevronRight" className="chev"/></div>

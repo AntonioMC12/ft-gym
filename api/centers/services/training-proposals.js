@@ -55,6 +55,8 @@ export function proposeTraining({database,user,checkSession,hasTrainingExercise}
       // The center advisory lock already serializes membership changes. A trainer
       // must not need UPDATE permission on the member just to offer a routine.
       member=await linkedMember(client,centerId,memberId);if(member.version!==version)conflict('version-conflict');recipient=member.account_uid;target=opaque('tp_');
+      const {rows:duplicates}=await client.query("SELECT p.id FROM centers.training_proposals p JOIN centers.training_versions v ON (v.center_id,v.proposal_id,v.revision)=(p.center_id,p.id,p.current_revision) WHERE p.center_id=$1 AND p.member_id=$2 AND p.recipient_uid=$3 AND p.actor_uid=$4 AND p.state='offered' AND v.bundle_hash=$5 AND v.state IN ('offered','accepted') LIMIT 1",[centerId,member.id,recipient,user.id,commandHash(bundle)]);
+      if(duplicates.length){const result={proposal:dto(await record(client,centerId,duplicates[0].id),{content:true})};await rememberCommand(client,centerId,user.id,operation,requestId,hash,result);checkSession();return result}
       checkSession();await client.query('INSERT INTO centers.training_proposals(id,center_id,member_id,recipient_uid,actor_uid) VALUES($1,$2,$3,$4,$5)',[target,centerId,member.id,recipient,user.id]);
     }
     await insertVersion(client,centerId,target,member.id,recipient,revision,bundle,user.id);

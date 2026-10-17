@@ -117,3 +117,19 @@ describe('exercise settings: a timed bodyweight hold', () => {
     expect(labels(host)).not.toContain('Added (kg)')
   })
 })
+
+describe('manual repetition ranges use the existing prescription fields',()=>{
+ beforeEach(()=>{globalThis.IS_REACT_ACT_ENVIRONMENT=true;useUI.setState({sheets:[]});useStore.setState(s=>({S:{...s.S,unit:'kg'}}));document.body.innerHTML=''})
+ afterEach(()=>act(()=>mounted.splice(0).forEach(root=>root.unmount())))
+ it('persists 8–12 without enabling a progression, and rejects empty, negative and inverted bounds',()=>{
+  const {host,onSave}=renderConfig({prog:'off',reps:12,repsMin:8})
+  const min=host.querySelector('input[aria-label="Reps from"]'),max=host.querySelector('input[aria-label="Reps up to"]')
+  expect(min.value).toBe('8');expect(max.value).toBe('12')
+  for(const bad of ['', '-2', '13', '8.5']){act(()=>type(min,bad));expect(host.querySelector('[role=alert]')).not.toBeNull();act(()=>save(host));expect(onSave).not.toHaveBeenCalled()}
+  act(()=>type(min,'8'));act(()=>save(host));expect(onSave.mock.calls[0][0]).toMatchObject({repsMin:8,reps:12,prog:'off'})
+ })
+ it('allows equal bounds and clears the range when switching to fixed repetitions',()=>{
+  const {host,onSave}=renderConfig({prog:'off',reps:8,repsMin:8});act(()=>save(host));expect(onSave.mock.calls[0][0]).toMatchObject({repsMin:8,reps:8})
+  const next=renderConfig({prog:'off',reps:12,repsMin:8});act(()=>[...next.host.querySelectorAll('button')].find(b=>b.textContent==='Fixed repetitions').click());act(()=>save(next.host));expect(next.onSave.mock.calls[0][0]).not.toHaveProperty('repsMin')
+ })
+})

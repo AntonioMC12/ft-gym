@@ -1,3 +1,4 @@
+import TrainingAdmin from './views/TrainingAdmin.jsx'
 import {useMembershipAccess,MembershipAccessScreen,MembershipGraceNotice} from './components/MembershipAccess.jsx'
 import { useEffect, useLayoutEffect, useRef } from 'react'
 import { HashRouter, Routes, Route, Navigate, useNavigate, useLocation, useNavigationType } from 'react-router-dom'
@@ -199,7 +200,7 @@ function Shell() {
   }, [inWorkout])
   // The chat owns the bottom of the screen as well: its composer sits where the tabs would be.
   // The first-launch card has no tabs either: they changed the route behind it.
-  const noTabs = !membershipAccess.allowed || inWorkout || loc.pathname === '/coach' || loc.pathname.startsWith('/centers') || needsMobileOnboarding
+  const noTabs = !membershipAccess.allowed || inWorkout || loc.pathname === '/coach' || loc.pathname.startsWith('/centers') || loc.pathname.startsWith('/training-admin') || needsMobileOnboarding
 
   const authed = user || isGuest
   if (!ready && !authed) return (
@@ -227,6 +228,8 @@ function Shell() {
               {/* Gym check-in — switched off in Settings, the route falls through to the
                   catch-all redirect below. */}
               {S.checkIn !== false && <Route path="/checkin" element={<CheckIn />} />}
+              <Route path="/training-admin" element={<TrainingAdmin />} />
+              <Route path="/training-admin/r/:id" element={<TrainingAdmin edit />} />
               <Route path="/plan" element={<Plan />} />
               <Route path="/plan/r/:id" element={<RoutineEdit />} />
               <Route path="/workout" element={<Workout />} />

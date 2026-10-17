@@ -22,7 +22,7 @@ beforeEach(()=>{
 });
 afterEach(()=>{act(()=>root.unmount());host.remove();vi.useRealTimers()});
 const flush=()=>act(async()=>vi.advanceTimersByTimeAsync(300));
-const mount=async()=>{await act(async()=>root.render(<><TrainingAssignments routineIds={['r']}/><Sheet/></>));await flush()};
+const mount=async(mode='all')=>{await act(async()=>root.render(<><TrainingAssignments routineIds={['r']} mode={mode}/><Sheet/></>));await flush()};
 const click=async label=>{await act(async()=>[...host.querySelectorAll('button')].find(b=>b.textContent.startsWith(label)).click());await flush()};
 const search=async value=>{await act(async()=>{const input=host.querySelector('input[aria-label="Search…"]');Object.getOwnPropertyDescriptor(HTMLInputElement.prototype,'value').set.call(input,value);input.dispatchEvent(new Event('input',{bubbles:true}))});await flush()};
 it('searches the full server directory inside the sheet and selects a result not in the initial page',async()=>{
@@ -48,4 +48,12 @@ it('keeps the member search focused and editable while requests are pending, and
  await act(async()=>resolveAn({members:[{id:'an',name:'Antonio',number:'M-1',state:'active',accountLinked:false}]}));
  await act(async()=>resolveA({members:[{id:'a',name:'Alberto',number:'M-2',state:'active',accountLinked:false}]}));
  expect(host.textContent).toContain('Antonio');expect(host.textContent).not.toContain('Alberto');expect(input.value).toBe('an');expect(document.activeElement).toBe(input);expect(host.querySelector('input[aria-label="Search members"]')).toBe(input);
+});
+
+it.each(['assign','proposals','accounts'])('shows only the requested administration panel: %s',async mode=>{
+ await mount(mode);const labels=[...host.querySelectorAll('.lrow-t')].map(el=>el.textContent);
+ expect(labels.includes('Routines')).toBe(mode==='assign');
+ expect(labels.includes('Training proposals')).toBe(mode==='proposals');
+ expect(host.textContent.includes('Propose routines')).toBe(mode==='assign');
+ expect(host.querySelector('.training-assignment-link')).toBeNull();
 });

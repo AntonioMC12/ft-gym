@@ -52,6 +52,6 @@ it('does not render an old response after an account switch',async()=>{
 })
 
 it('opens the existing routines view for the superadmin and hides it for technical admin alone',async()=>{
- await render();expect(host.textContent).toContain('Routines');await click('Routines');expect(navigate).toHaveBeenCalledWith('/plan');expect(localStorage.getItem('gym_plan_view')).toBe('routines');
+ await render();expect(host.textContent).toContain('Routines');await click('Routines');expect(navigate).toHaveBeenCalledWith('/training-admin');
  await act(async()=>useCenters.setState({platformCapabilities:[]}));expect(button('Routines')).toBeUndefined();
 });

@@ -503,3 +503,6 @@ C52 (17octubre): mensualidades siempre por mes natural, válidas hasta el5delmes
 
 
 C53 (17octubre): planes como contenedores únicos de rutinas, CRUD/movimiento con IDs e historial conservados; card Rutinas de superadmin y propuestas múltiples mediante autorización/aceptación existentes. Empezar permite elegir sin cambiar calendario. Rangos por ejercicio y referencias atenuadas de repeticiones, con entradas reales vacías y persistencia protegida. Implementación y pruebas focales terminadas; preview actualizada y revisión visual pendiente en CENTERS_PROGRESS.md. Sin migración SQL ni cambio de reglas de cobro/acceso.
+
+
+C54 (17octubre): gestión de rutinas en pantalla independiente /training-admin exclusiva de superadmin con comprobación vigente de capability del servidor; user.admin no autoriza. Biblioteca, asignación, propuestas y vinculación en paneles separados con CenterWorkspace escritorio/móvil. Editor reutilizado bajo ruta protegida; Plan personal sin formularios administrativos. Guardado/datos/permisos existentes y búsqueda con foco conservados. Implementación terminada; evidencia/preview y revisión visual pendiente en CENTERS_PROGRESS.md.

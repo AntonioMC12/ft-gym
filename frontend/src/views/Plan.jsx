@@ -1,8 +1,7 @@
 import {PLAN_VIEW_KEY,readPlanView as readView} from '../lib/plan-view.js'
 import TrainingPlanLibrary from '../components/TrainingPlanLibrary.jsx'
 import {planOf} from '../lib/training-plans.js'
-import {useCenters} from '../store/useCenters.js'
-import { useRef, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useStore } from '../store/useStore.js'
 import { useUI } from '../store/useUI.js'
@@ -379,14 +378,12 @@ function Schedule({ S, update, nav, mode }) {
 
 /* ================================ Routines ================================ */
 
-function Routines({ S, update, nav }) {
+export function Routines({ S, update, nav, management=false, initialPlanId='*', onPlanChange, onAssign, basePath='/plan' }) {
   const [edit, setEdit] = useState(false)
   const [flash, setFlash] = useState(null)
   const swipe = workoutControls(S).swipeSets
-  const [planId,setPlanId]=useState('*')
-  const {platformCapabilities,ownerUid,centers}=useCenters()
-  const owner=useStore(s=>s.user?.id)
-  const canAssign=ownerUid===owner&&(platformCapabilities.includes('centers.manage')||centers.some(c=>c.capabilities?.includes('training.assign')))
+  const [planId,setPlanId]=useState(initialPlanId)
+  useEffect(()=>{if(management)setPlanId(initialPlanId)},[management,initialPlanId])
   const selected=planId&&planId!=='*'&&!S.trainingPlans?.[planId]?null:planId
   const routines = S.routines.filter(r=>selected==='*'||planOf(S,r)===selected)
   // The order of this list is the order of `S.routines`, and every other screen reads the same
@@ -402,7 +399,7 @@ function Routines({ S, update, nav }) {
   const addRoutine = () => {
     const r = { id: uid(), name: t('New routine'), emoji: DEFAULT_GLYPH, ex: [],...(selected&&selected!=='*'?{planId:selected}:{}) }
     update(s => { s.routines.push(r) })
-    nav('/plan/r/' + r.id)
+    nav(basePath+'/r/' + r.id)
   }
   // The same delete as RoutineEdit's "Delete routine" button (lib/routines.js), with an Undo in
   // place of its confirm (v1.3.11): the swipe and the edit-mode minus both land here.
@@ -428,7 +425,7 @@ function Routines({ S, update, nav }) {
   const sub = r => [exCount(r.ex.length), daysOf(r.id).join(', ')].filter(Boolean).join(' · ')
 
   return <>
-    <TrainingPlanLibrary S={S} update={update} value={selected} onChange={setPlanId} canAssign={canAssign}/>
+    <>{management&&<TrainingPlanLibrary S={S} update={update} value={selected} onChange={id=>{setPlanId(id);onPlanChange?.(id)}} canAssign onAssign={onAssign}/>}</>
     <div className="row between plan-sec-h plan-routines-bar">
       {routines.length > 0
         ? <button className="plan-textbtn" aria-pressed={edit} onClick={() => setEdit(e => !e)}>{edit ? t('Done') : t('Edit')}</button>
@@ -446,7 +443,7 @@ function Routines({ S, update, nav }) {
               {...reorder.handle(i)}><Icon name="chevronsUpDown" /></button>}
           </div>)}</div>
         : <div className="list routine-list plan-routines">{routines.map(r => {
-          const row = <div key={r.id} className="item plan-routine" {...tappable(() => nav('/plan/r/' + r.id))}>
+          const row = <div key={r.id} className="item plan-routine" {...tappable(() => nav(basePath+'/r/' + r.id))}>
             <span className="lrow-i"><Icon name={glyphOf(r.emoji)} /></span>
             <div className="grow"><div className="tt">{r.name}</div><div className="ss">{sub(r)}</div></div>
             <Icon name="chevronRight" className="chev" /></div>

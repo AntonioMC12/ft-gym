@@ -3443,3 +3443,41 @@ describe('the workout screen chrome (v1.3.11)', () => {
     expect(container.querySelector('.wthumb')).toBeNull()
   })
 })
+
+
+describe('live comparison colours and personal-record check', () => {
+  const previous = { id: 'previous', d: '2026-10-18', entries: [exercise('plain-bench', [true, true, true], { sets: [0, 1, 2].map(() => ({ w: 60, r: 10, done: true })) })] }
+  const rerender = () => act(async () => { root.render(React.createElement(Workout)) })
+  it('shows three independent comparison states and leaves an empty rep input neutral', async () => {
+    await mount([exercise('plain-bench', [], { sets: [
+      { w: 65, r: 12, done: false }, { w: 60, r: 10, done: false }, { w: 55, r: 8, done: false }, { w: 60, r: null, done: false },
+    ] })], 0, { workouts: [previous] })
+    const rows = [...container.querySelectorAll('.setrow')]
+    expect(rows.slice(0, 3).map(row => [...row.querySelectorAll('.stp')].map(cell => cell.getAttribute('data-comparison')))).toEqual([['higher', 'higher'], ['equal', 'equal'], ['lower', 'lower']])
+    expect(rows[3].querySelector('.stp.r').hasAttribute('data-comparison')).toBe(false)
+    expect(container.querySelector('.set-record')).toBeNull()
+    await click(rows[1].querySelector('.stp.r button[aria-label="Increase"]'))
+    await rerender()
+    expect(container.querySelectorAll('.setrow')[1].querySelector('.stp.r').getAttribute('data-comparison')).toBe('higher')
+  })
+  it('awards the accessible crown only after completing a record, and removes it on undo', async () => {
+    await mount([exercise('plain-bench', [false], { sets: [{ w: 65, r: 11, done: false }] })], 0, { workouts: [previous] })
+    expect(container.querySelector('.set-record')).toBeNull()
+    await toggleSet(0)
+    await rerender()
+    expect(container.querySelector('.set-record')?.getAttribute('aria-label')).toContain('New personal record')
+    expect(container.querySelector('.set-record')?.getAttribute('aria-checked')).toBe('true')
+    await toggleSet(0)
+    await rerender()
+    expect(container.querySelector('.set-record')).toBeNull()
+  })
+})
+
+
+it('shows the same comparisons and historical crown in focus view', async () => {
+  const previous = { id: 'previous', d: '2026-10-18', entries: [exercise('plain-bench', [true], { sets: [{ w: 60, r: 10, done: true }] })] }
+  await mount([exercise('plain-bench', [true], { sets: [{ w: 65, r: 12, done: true }] })], 0, { workouts: [previous], active: { workoutView: 'focus' } })
+  expect([...container.querySelectorAll('[data-testid="focus-set"] .stp')].map(cell => cell.getAttribute('data-comparison'))).toEqual(['higher', 'higher'])
+  expect(container.querySelector('button[aria-label="Complete set · New personal record"]')).toBeTruthy()
+  expect(container.querySelector('.focus-dots .set-record')).toBeTruthy()
+})

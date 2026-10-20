@@ -2248,4 +2248,8 @@ export default {
   'Your sports watch, calling you back.': 'Ваши спортивные часы зовут вас обратно.',
   'Coach wants you back on the bar.': 'Тренер ждёт вас обратно у штанги.',
   'Gentle, for headphones or a quiet room.': 'Тихий, для наушников или спокойного зала.',
+  "Above previous set": "Above previous set",
+  "Matches previous set": "Matches previous set",
+  "Below previous set": "Below previous set",
+  "New personal record": "New personal record",
 }

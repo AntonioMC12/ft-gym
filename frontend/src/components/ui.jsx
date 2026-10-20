@@ -164,7 +164,7 @@ export function Segmented({ options, value, onChange, className = '', scrollable
 // `min` and `max` hold for the buttons at once, but for typing only once the field is left:
 // clamped on every keystroke, a field emptied to type a new number snapped to the minimum, and
 // the digits typed next landed after it (a 48 retyped as 75 saved 175).
-export function Stepper({ value, step = 1, min = 0, max = Infinity, onChange, decimal = true, className = '', label, unit, invalid = false, disabled = false, onStep, ariaLabel, nullable = false, placeholder }) {
+export function Stepper({ value, step = 1, min = 0, max = Infinity, onChange, decimal = true, className = '', label, unit, invalid = false, disabled = false, onStep, ariaLabel, nullable = false, placeholder, comparison, comparisonLabel }) {
   const clamp = v => Math.min(max, Math.max(min, v))
   const set = v => onChange(clamp(Math.round((v || 0) * 100) / 100))
   // Holding a button repeats the step; the latest value/step live in a ref so
@@ -204,7 +204,7 @@ export function Stepper({ value, step = 1, min = 0, max = Infinity, onChange, de
     onClick: () => click(dir),
   })
   const inner = (
-    <div className={'stp ' + className}>
+    <div className={'stp ' + className} data-comparison={comparison || undefined} title={comparisonLabel}>
       <button {...holdProps(-1)} aria-label={ariaLabel ? `Decrease ${ariaLabel}` : t('Decrease')} disabled={disabled}><Icon name="minus" /></button>
       <span className="val" onBlur={() => { const v = +value || 0; if (clamp(v) !== v) onChange(clamp(v)) }}>
         <NumberField value={value} decimal={decimal} nullable={nullable} placeholder={placeholder} aria-label={label || ariaLabel} onChange={onChange} disabled={disabled} aria-invalid={invalid ? 'true' : undefined} />
@@ -306,7 +306,7 @@ export function Slider({ value, min = 0, max = 100, step = 1, onChange, classNam
 
 /* ============================ checkbox ============================ */
 
-export function Check({ checked, onChange, className = '', size, label }) {
+export function Check({ checked, onChange, className = '', size, label, icon = 'check' }) {
   return (
     <button
       type="button"
@@ -317,7 +317,7 @@ export function Check({ checked, onChange, className = '', size, label }) {
       style={size ? { width: size, height: size } : null}
       onClick={() => onChange(!checked)}
     >
-      <Icon name="check" />
+      <Icon name={icon} />
     </button>
   )
 }

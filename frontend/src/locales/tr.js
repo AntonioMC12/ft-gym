@@ -2244,4 +2244,8 @@ export default {
   'Your sports watch, calling you back.': 'Spor saatin seni geri çağırıyor.',
   'Coach wants you back on the bar.': 'Koç seni bara geri bekliyor.',
   'Gentle, for headphones or a quiet room.': 'Sakin, kulaklık ya da sessiz bir oda için.',
+  "Above previous set": "Above previous set",
+  "Matches previous set": "Matches previous set",
+  "Below previous set": "Below previous set",
+  "New personal record": "New personal record",
 }

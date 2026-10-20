@@ -2244,4 +2244,8 @@ export default {
   'Your sports watch, calling you back.': 'Ta montre de sport te rappelle.',
   'Coach wants you back on the bar.': 'Le coach te veut de retour à la barre.',
   'Gentle, for headphones or a quiet room.': 'Tout doux, pour un casque ou une pièce calme.',
+  "Above previous set": "Above previous set",
+  "Matches previous set": "Matches previous set",
+  "Below previous set": "Below previous set",
+  "New personal record": "New personal record",
 }

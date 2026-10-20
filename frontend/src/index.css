@@ -1170,6 +1170,19 @@ body.chips-dragging *{cursor:inherit}
 .effpick .effpick-free .stp .num::placeholder{color:var(--label-3);font-weight:500}
 .setrow.done .n{background:var(--acc);color:var(--on-acc)}
 .setrow.done{opacity:.45}
+/* Live comparison with the matching previous work set. Insets preserve cell geometry. */
+:is(.setrow,.focus-view) .stp[data-comparison]{box-shadow:inset 0 0 0 1px color-mix(in srgb,var(--comparison) 40%,transparent);background:var(--surface-2);transition:box-shadow var(--med)}
+:is(.setrow,.focus-view) .stp[data-comparison="higher"]{--comparison:var(--teal);--comparison-symbol:'↑'}
+:is(.setrow,.focus-view) .stp[data-comparison="equal"]{--comparison:var(--blue);--comparison-symbol:'='}
+:is(.setrow,.focus-view) .stp[data-comparison="lower"]{--comparison:var(--orange);--comparison-symbol:'↓'}
+:is(.setrow,.focus-view) .stp[data-comparison] .val{position:relative}
+:is(.setrow,.focus-view) .stp[data-comparison] .val::after{content:var(--comparison-symbol);position:absolute;inset-inline-end:1px;top:2px;color:var(--comparison);font-size:11px;font-weight:700;line-height:12px;pointer-events:none}
+.setrow.done:has(.stp[data-comparison]),.setrow.side.done:has(.stp[data-comparison]),.setrow.done:has(.set-record){opacity:1}
+.set-record{--record-ink:var(--yellow)}
+:root[data-theme="light"] .set-record{--record-ink:#805600}
+.setrow .chk.set-record.on{background:color-mix(in srgb,var(--yellow) 18%,var(--surface-2));color:var(--record-ink);box-shadow:inset 0 0 0 1.5px var(--record-ink)}
+.set-record .icn{animation:set-record-crown 800ms var(--ease) both;--icon-stroke:2}
+@keyframes set-record-crown{0%{transform:scale(.4) rotate(-20deg);opacity:0}45%{transform:scale(1.3) rotate(8deg);opacity:1}70%{transform:scale(.95) rotate(-4deg)}100%{transform:scale(1) rotate(0)}}
 
 /* Swipe on sets (v1.3.11, components/SwipeRow.jsx). The row slides over two panes: Copy at the
    start of the line, Delete at its end, each as wide as the swipe has gone and zero wide at rest.

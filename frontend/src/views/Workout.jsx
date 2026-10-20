@@ -1,6 +1,6 @@
 import {tappable} from '../lib/use-sheet-keyboard.js'
 import {blankRepRows,repReference,repsEntered} from '../lib/rep-reference.js'
-import { Fragment, useEffect, useId, useRef, useState } from 'react'
+import { Fragment, useEffect, useId, useMemo, useRef, useState } from 'react'
 import SwipeCards from '../components/SwipeCards.jsx'
 import SwipeRow from '../components/SwipeRow.jsx'
 import { useNavigate } from 'react-router-dom'
@@ -41,6 +41,7 @@ import { routineChangesFromEntry, updateRoutineFromEntry } from '../lib/routines
 import { sessionNoProg, setSessionNoProg, setEntryNoProg, joinSessionNoProg } from '../lib/session-noprog.js'
 import { glyphOf } from '../lib/glyphs.js'
 import { markAllSetsDone, sessionHistory } from '../lib/backfill.js'
+import { setFeedbackHistory, feedbackForSet } from '../lib/set-feedback.js'
 import { bestSetFor } from '../lib/exercise-history.js'
 import { isWarmupRow, isFailureSet, toggleFailure, isDropSet, isRestPauseSet, dropsOf, clustersOf, addDrop, addCluster, removeDropAt, removeClusterAt, setDropAt, setClusterAt, nextDropWeight, isSideSet, makeSideSet, setSideField, toggleSide, addSideDrop, removeSideDropAt, setSideDropAt, addSideCluster, removeSideClusterAt, setSideClusterAt, WEIGHT_ORIGIN_MANUAL } from '../lib/workout-model.js'
 import { canMoveActiveWorkoutUnit, moveActiveWorkoutUnit, canMoveActiveWorkoutEntry, moveActiveWorkoutEntry } from '../lib/active-workout-order.js'
@@ -199,6 +200,26 @@ function ExerciseBlock({ entryIdx, compact, dense, editing, onToggle, onToggleSi
   // Read in the meaning this session logs a dumbbell weight in (lib/dumbbells.js), so a past
   // "40 total" is not a record a "22 each" set has to beat.
   const meaning = entryDbLoad(entry)
+  const feedbackHistory = useMemo(() => setFeedbackHistory({ workouts: H.workouts }, entry),
+    [H.workouts, entry.id, entry.rid, mode, meaning])
+  const feedbackRows = useMemo(() => entry.sets.map((row, i) => {
+    const earlier = S.active.entries.slice(0, entryIdx)
+    return { main: feedbackForSet(feedbackHistory, entry, i, undefined, earlier),
+      ...(isSideSet(row) ? { L: feedbackForSet(feedbackHistory, entry, i, 'L', earlier), R: feedbackForSet(feedbackHistory, entry, i, 'R', earlier) } : {}) }
+  }), [feedbackHistory, entry, S.active.entries, entryIdx])
+  const feedback = (i, side) => feedbackRows[i]?.[side || 'main'] || {}
+  const feedbackLabel = state => state === 'higher' ? t('Above previous set') : state === 'equal' ? t('Matches previous set') : state === 'lower' ? t('Below previous set') : ''
+  const feedbackProps = (i, field, side) => {
+    const state = feedback(i, side)[field]
+    return state ? { 'data-comparison': state, title: feedbackLabel(state) } : {}
+  }
+  const doneCheck = (s, i, label, side) => {
+    const done = side ? s.sides?.[side]?.done : s.done
+    const record = !!done && feedback(i, side).record
+    return <Check checked={done} className={record ? 'set-record' : ''}
+      icon={record ? 'crown' : 'check'} label={label + (record ? ' · ' + t('New personal record') : '')}
+      onChange={() => side ? onToggleSide(i, side) : onToggle(i)} />
+  }
   const bestHist = bestWeightFor(H, entry.id, meaning)
   const bestKept = (H.exWeights[entry.id] || {}).w || 0
   const best = cardio ? 0
@@ -322,7 +343,7 @@ function ExerciseBlock({ entryIdx, compact, dense, editing, onToggle, onToggleSi
   // switch brings one of the old always-visible button rows back.
   const wc = workoutControls(S)
   const cell = (s, i, col, cls) => (
-    <div className={'stp ' + cls + (wc.steppers ? '' : ' plain')}>
+    <div className={'stp ' + cls + (wc.steppers ? '' : ' plain')} {...feedbackProps(i, col.f)}>
       {wc.steppers && <button aria-label={t('Decrease')} onClick={() => bump(s, i, col, -1)}><Icon name="minus" /></button>}
       <span className="val"><NumberField decimal={col.dec} nullable={col.opt||col.f==='r'} placeholder={col.f==='r'?(repReference(sessionHistory(S),entry,i)||'—'):undefined} aria-label={col.hd} value={viewOf(col, s[col.f]) ?? ''}
         onChange={v => onField(i, col.f, col.store ? col.store(v) : v)} /></span>
@@ -508,7 +529,7 @@ function ExerciseBlock({ entryIdx, compact, dense, editing, onToggle, onToggleSi
     setSide(i, side, col.f, Math.max(0, Math.round(((cur || 0) + dir * step) * 100) / 100))
   }
   const sideCell = (sd, i, side, col, cls) => (
-    <div className={'stp ' + cls + (wc.steppers ? '' : ' plain')}>
+    <div className={'stp ' + cls + (wc.steppers ? '' : ' plain')} {...feedbackProps(i, col.f, side)}>
       {wc.steppers && <button aria-label={t('Decrease')} onClick={() => sideBump(i, side, col, -1)}><Icon name="minus" /></button>}
       <span className="val"><NumberField decimal={col.dec} nullable={col.f==='r'} placeholder={col.f==='r'?(repReference(sessionHistory(S),entry,i,side)||'—'):undefined} aria-label={col.hd} value={sd[col.f] ?? ''}
         onChange={v => setSide(i, side, col.f, v)} /></span>
@@ -544,7 +565,7 @@ function ExerciseBlock({ entryIdx, compact, dense, editing, onToggle, onToggleSi
       {sideCell(sd, i, side, col1, 'w')}
       {col2 && sideCell(sd, i, side, col2, 'r')}
       {col3 && sideEffortCell(sd, i, side, col3)}
-      <Check checked={sd.done} label={t('Set {0} ({1}) done', setNumOf(s, i), side === 'L' ? t('Left') : t('Right'))} onChange={() => onToggleSide(i, side)} />
+      {doneCheck(s, i, t('Set {0} ({1}) done', setNumOf(s, i), side === 'L' ? t('Left') : t('Right')), side)}
     </div>
   }
   // A side's own drop-set/rest-pause sub-rows (issue #60): the intensifier is logged per limb, so
@@ -600,7 +621,7 @@ function ExerciseBlock({ entryIdx, compact, dense, editing, onToggle, onToggleSi
           set off itself. The checkbox stays for anyone who timed it on their own watch. */}
       {timed && !editing && <button className="setgo" aria-label={t('Start set')} disabled={s.done || !!working}
         onClick={() => onStartTimed(i)}><Icon name="play" /></button>}
-      <Check checked={s.done} label={sideTagOf(s) ? t('Set {0} ({1}) done', setNumOf(s, i), sideTagOf(s)) : t('Set {0} done', setNumOf(s, i))} onChange={() => onToggle(i)} />
+      {doneCheck(s, i, sideTagOf(s) ? t('Set {0} ({1}) done', setNumOf(s, i), sideTagOf(s)) : t('Set {0} done', setNumOf(s, i)))}
     </div>
   )
   // Swipe on sets (v1.3.11, Settings → Workout): a set row swiped toward the start of the line is

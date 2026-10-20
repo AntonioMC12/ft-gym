@@ -1,7 +1,7 @@
 import {CentersError} from '../errors.js';
 import {objectBody,idField,requestField} from '../domain/validation.js';
 import {membershipDate} from '../domain/membership-transitions.js';
-import {billingPeriodStartFor,shiftBillingMonth} from '../domain/billing-calendar.js';
+import {billingPeriodStartFor,shiftBillingMonth,membershipReceiptDueOn} from '../domain/billing-calendar.js';
 import {businessTransaction} from './context.js';
 import {businessAudit,commandHash,commandReplay,rememberCommand} from './commands.js';
 import {issueReceipt} from './receipts.js';
@@ -62,7 +62,7 @@ export function pendingPeriods(row,fromOn,today,limit=3) {
   if(start<lower)start=shiftBillingMonth(start,row.interval_months,row.billing_day);
   const periods=[];
   while(periods.length<limit&&start<=today&&(!row.ends_on||start<row.ends_on)){
-    periods.push({periodStart:start,dueOn:start<row.starts_on?row.starts_on:start});
+    periods.push({periodStart:start,dueOn:membershipReceiptDueOn(start)});
     start=shiftBillingMonth(start,row.interval_months,row.billing_day);
   }
   return periods;

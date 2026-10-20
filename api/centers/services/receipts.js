@@ -1,5 +1,6 @@
 import {CentersError} from '../errors.js';
 import {objectBody,idField,requestField} from '../domain/validation.js';
+import {membershipReceiptDueOn} from '../domain/billing-calendar.js';
 import {membershipDate} from '../domain/membership-transitions.js';
 import {cursorScope,readCursor,nextCursor} from '../domain/pagination.js';
 import {businessTransaction} from './context.js';
@@ -14,11 +15,12 @@ const dto=row=>({id:row.id,centerId:row.center_id,memberId:row.member_id,subscri
 // Runs inside the caller's center lock/transaction. The scheduler shares the exact
 // calendar, historical membership and natural receipt key with manual issuance.
 export async function issueReceipt(client,{centerId,memberId,subscriptionId,periodStart,dueOn,uid,expectedQuoteHash=null,automatic=false}) {
+  // Caller dates are legacy input only; new membership receipts always use the fixed rule.
+  dueOn=membershipReceiptDueOn(periodStart);
   const member=await memberRecord(client,centerId,memberId);
   if(periodStart>member.local_today)throw new CentersError(400,'invalid-input','future receipt period');
   const {rows:existing}=await client.query(`SELECT ${projection} FROM centers.receipts WHERE center_id=$1 AND member_id=$2 AND subscription_id=$3 AND period_start=$4 AND concept='membership'`,[centerId,memberId,subscriptionId,periodStart]);
   if(existing.length){
-    if(!automatic&&existing[0].due_on!==dueOn)throw new CentersError(409,'receipt-exists','existing receipt due date differs');
     return {receipt:dto(existing[0]),alreadyExists:true};
   }
   const quote=await previewForContract(client,centerId,memberId,subscriptionId,periodStart);
@@ -33,7 +35,7 @@ export async function issueReceipt(client,{centerId,memberId,subscriptionId,peri
 }
 export function generateReceipt({database,user,checkSession},raw,{platform=false}={}) {
   objectBody(raw,['centerId','memberId','subscriptionId','periodStart','dueOn','requestId','expectedQuoteHash']);
-  const centerId=idField(raw.centerId),memberId=idField(raw.memberId),subscriptionId=idField(raw.subscriptionId),periodStart=membershipDate(raw.periodStart),dueOn=membershipDate(raw.dueOn),requestId=requestField(raw.requestId);
+  const centerId=idField(raw.centerId),memberId=idField(raw.memberId),subscriptionId=idField(raw.subscriptionId),periodStart=membershipDate(raw.periodStart),dueOn=raw.dueOn==null?membershipReceiptDueOn(periodStart):membershipDate(raw.dueOn),requestId=requestField(raw.requestId);
   if(dueOn<periodStart)throw new CentersError(400,'invalid-input','due date before period');
   const expectedQuoteHash=raw.expectedQuoteHash??null;
   if(expectedQuoteHash!==null&&(typeof expectedQuoteHash!=='string'||!/^[a-f0-9]{64}$/.test(expectedQuoteHash)))throw new CentersError(400,'invalid-input','invalid quote digest');

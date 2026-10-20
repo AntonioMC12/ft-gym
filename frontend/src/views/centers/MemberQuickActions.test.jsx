@@ -25,3 +25,14 @@ it('disables renewal before clicking for a covered period, with a keyboard and t
  await act(async()=>help.focus());expect(document.querySelector('[role=tooltip]').textContent).toContain('This period is already covered. 2026-10-01 → 2026-11-01');expect(centerCommand).not.toHaveBeenCalled();expect(button('Change membership plan').disabled).toBe(false);
  props.member.fee.renewalCovered=null;await render();expect(button('Renew').disabled).toBe(false);
 })
+
+it('compact directory shows paired fee and pass facts with only one available action',async()=>{
+ props.compact=true;props.onHistory=vi.fn();props.member.fee={hasContract:true,hasPass:true,name:'Monthly',status:'active',expiresOn:'2026-11-05',passRemaining:3,renewalCovered:{periodStart:'2026-10-01',periodEnd:'2026-11-01'}};
+ await render();expect(host.textContent).toContain('Monthly');expect(host.textContent).toContain('3 Credits remaining');expect(button('Renew')).toBeUndefined();expect(button('History')).toBeUndefined();expect(button('Change membership plan')).toBeUndefined();expect(button('Register day of use')).toBeTruthy();expect(centerCommand).not.toHaveBeenCalled();
+})
+it('compact directory displays covered information without a disabled renewal button',async()=>{
+ props.compact=true;props.member.fee.renewalCovered={periodStart:'2026-10-01',periodEnd:'2026-11-01'};await render();expect(button('Renew')).toBeUndefined();expect(host.textContent).toContain('This period is already covered.');expect(centerCommand).not.toHaveBeenCalled();
+})
+it('compact directory never offers a financial action without collection rights',async()=>{
+ props.compact=true;props.canCollect=false;await render();expect(button('Renew')).toBeUndefined();expect(button('Register day of use')).toBeUndefined();expect(centerCommand).not.toHaveBeenCalled();
+})

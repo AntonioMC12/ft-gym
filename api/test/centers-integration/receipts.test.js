@@ -14,11 +14,14 @@ test('receipt generation snapshots exact amounts once under concurrent natural-k
   const today=(await req(`/api/centers/member?centerId=${center}&id=${member.id}`,manager)).body.today;
   const contract=(await req('/api/centers/subscriptions/create',manager,{centerId:center,memberId:member.id,memberVersion:1,priceVersionId:plan.priceVersionId,effectiveOn:today,requestId:p+'_contract'})).body.subscriptions[0];
   const preview=(await req('/api/centers/billing/preview',manager,{centerId:center,memberId:member.id,id:contract.id,periodStart:contract.anchorOn})).body;
+  const {membershipReceiptDueOn}=await import('../../centers/domain/billing-calendar.js');assert.equal(preview.dueOn,membershipReceiptDueOn(contract.anchorOn));
   const input={centerId:center,memberId:member.id,subscriptionId:contract.id,periodStart:contract.anchorOn,dueOn:today,requestId:p+'_generate',expectedQuoteHash:preview.quoteHash};
   const outcomes=await Promise.all([req('/api/centers/receipts/generate',manager,input),req('/api/centers/receipts/generate',root,{...input,requestId:p+'_parallel'})]);assert.ok(outcomes.every(row=>row.status===200));assert.equal(outcomes[0].body.receipt.id,outcomes[1].body.receipt.id);
   const receipt=outcomes[0].body.receipt;assert.equal((await req('/api/centers/receipts/generate',manager,input)).body.receipt.id,receipt.id);
+  assert.equal(receipt.dueOn,membershipReceiptDueOn(contract.anchorOn));
+  const withoutDue={...input,requestId:p+'_without_due'};delete withoutDue.dueOn;const defaultDue=await req('/api/centers/receipts/generate',manager,withoutDue);assert.equal(defaultDue.status,200);assert.equal(defaultDue.body.receipt.dueOn,receipt.dueOn);
   assert.equal((await req('/api/centers/receipts/generate',manager,{...input,dueOn:'2099-01-01'})).status,409);
-  assert.equal((await req('/api/centers/receipts/generate',manager,{...input,dueOn:'2099-01-01',requestId:p+'_differentdue'})).body.code,'receipt-exists');
+  const repeated=await req('/api/centers/receipts/generate',manager,{...input,dueOn:'2099-01-01',requestId:p+'_differentdue'});assert.equal(repeated.status,200);assert.equal(repeated.body.receipt.id,receipt.id);assert.equal(repeated.body.receipt.dueOn,receipt.dueOn);
   assert.equal((await req('/api/centers/receipts/generate',manager,{...input,priceMinor:'1'})).status,400);
   await req('/api/centers/staff/assign',root,{centerId:center,version:1,accountUid:trainer});
   const query=`/api/centers/receipts?centerId=${center}&memberId=${member.id}`;assert.equal((await req(query,manager)).body.receipts.length,1);assert.equal((await req(query,trainer)).status,403);assert.equal((await req(query,other)).body.code,'account-activation-required');

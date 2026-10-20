@@ -34,3 +34,6 @@ export function billingPeriod(start,{anchorOn,billingDay,intervalMonths}) {
   const end=shiftBillingMonth(start,intervalMonths,billingDay),days=Math.round((Date.parse(end+'T00:00:00Z')-Date.parse(start+'T00:00:00Z'))/86400000);
   return {start,end,days};
 }
+
+// Payment deadline, independent of the exclusive coverage end or the issue day.
+export function membershipReceiptDueOn(periodStart){return shiftBillingMonth(periodStart,1,5)}

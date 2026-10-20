@@ -1,3 +1,4 @@
+import {memberDirectoryStrings} from './member-directory.js'
 import {accountAccessStrings} from './account-access.js'
 import {trainingRosterStrings} from './training-roster.js'
 // New business-module strings are merged into every existing locale pack.
@@ -36,5 +37,5 @@ const translations = {
 export function centersStrings(language) {
   const values = translations[language]
   if (!values || values.length !== keys.length) throw new Error('incomplete centers translations: ' + language)
-  return {...accountAccessStrings(language),...trainingRosterStrings(language), ...Object.fromEntries(keys.map((key, i) => [key, values[i]])), ...memberStrings(language), ...centersUsabilityStrings(language), ...freezeRequestStrings(language), ...classStrings(language) }
+  return {...memberDirectoryStrings(language),...accountAccessStrings(language),...trainingRosterStrings(language), ...Object.fromEntries(keys.map((key, i) => [key, values[i]])), ...memberStrings(language), ...centersUsabilityStrings(language), ...freezeRequestStrings(language), ...classStrings(language) }
 }

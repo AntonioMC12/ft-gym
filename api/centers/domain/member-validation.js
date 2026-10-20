@@ -15,5 +15,7 @@ export function memberListOptions(params) {
   const cursor=params.get('cursor')||'',unlinked=params.get('unlinked');
   if(unlinked!==null&&!['true','false'].includes(unlinked))invalid();
   if(cursor.length>2000)invalid();
-  return {query,state,limit:+raw,cursor,unlinked:unlinked==='true'};
+  const account=params.get('account')||'',feeStatus=params.get('feeStatus')||'';
+  if(!['','linked','unlinked'].includes(account)||!['','current','expired'].includes(feeStatus)||unlinked==='true'&&account==='linked')invalid();
+  return {query,state,limit:+raw,cursor,unlinked:unlinked==='true',account,feeStatus};
 }

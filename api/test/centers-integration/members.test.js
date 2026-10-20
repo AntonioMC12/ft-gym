@@ -57,3 +57,17 @@ test('member CRUD is idempotent, paginated, locally unique and role-filtered',as
   assert.ok(globalAudit.rows.some(r=>r.action==='platform.members.manage'));
   assert.equal((await db.platformTransaction(platform,client=>client.query('SELECT id FROM centers.role_assignments WHERE account_uid=$1',[platform]))).rows.length,0);
 });
+
+
+test('directory pages 600 records without accumulation, applies global filters and restricts document search',async t=>{
+ const {fixture}=await import('./class-fixture.mjs');const f=await fixture(t);
+ await f.db.transaction({uid:f.ids.manager,centerId:f.center},client=>client.query(`INSERT INTO centers.members(id,center_id,member_number,name,national_document,joined_on) SELECT $1||'_bulk_'||n,$2,'M-'||lpad((n+100)::text,6,'0'),'Directory person '||n,CASE WHEN n=1 THEN '12.345.678-z' ELSE NULL END,$3::date FROM generate_series(1,600)n`,[f.p,f.center,f.today]));
+ const list=(who,options={})=>f.req('/api/centers/members?'+new URLSearchParams({centerId:f.center,limit:20,...options}),who);
+ let cursor='',ids=new Set();
+ do{const page=await list(f.ids.trainer,cursor?{cursor}:{});assert.equal(page.status,200,JSON.stringify(page));assert.equal(page.body.total,603);assert.ok(page.body.members.length<=20);for(const row of page.body.members){assert.ok(!ids.has(row.id));ids.add(row.id)}cursor=page.body.nextCursor}while(cursor);assert.equal(ids.size,603);
+ assert.equal((await list(f.ids.manager,{account:'linked'})).body.total,3);assert.equal((await list(f.ids.manager,{account:'unlinked'})).body.total,600);
+ assert.equal((await list(f.ids.manager,{state:'preactive',query:'Directory person'})).body.total,600);
+ const doc=await list(f.ids.manager,{query:'12345678Z'});assert.equal(doc.body.total,1);assert.equal(doc.body.members[0].name,'Directory person 1');assert.equal((await list(f.ids.trainer,{query:'12345678Z'})).body.total,0);
+ const current=await list(f.ids.manager,{feeStatus:'current'});assert.equal(current.status,200,JSON.stringify(current));assert.equal(current.body.total,3);assert.ok(current.body.members.every(m=>['active','grace'].includes(m.fee.status)));assert.equal((await list(f.ids.manager,{feeStatus:'expired'})).body.total,0);assert.equal((await list(f.ids.trainer,{feeStatus:'current'})).status,403);
+ const first=await list(f.ids.trainer);assert.equal((await list(f.ids.trainer,{cursor:first.body.nextCursor,account:'unlinked'})).status,400);assert.equal((await f.req('/api/centers/members?'+new URLSearchParams({centerId:f.other,query:'Directory person'}),f.ids.root)).body.total,0);
+});

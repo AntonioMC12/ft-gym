@@ -69,3 +69,6 @@ Se accede desde el menú del centro → Bonos de acceso. Socios: busca por nombr
 
 
 C52: migraciones044/045 sustituyen validación de calendario de renovaciones y límite de admisión mensual, sin reescribir suscripciones ni ledger. Pruebas de dominio recorren todos los días de octubre, febrero bisiesto y diciembre, con día5 permitido/día6 bloqueado; SQL aislado valida altas/cambios/renovaciones con calendario antiguo, pagos atómicos y acceso QR en5/6. Las pruebas de gracia10/11anteriores quedan históricas, sustituidas por la nueva regla mensual.
+
+## Vencimiento fijo de recibos de cuota (C64,20octubre2026)
+Los nuevos recibos de suscripción vencen siempre el día5delmes siguiente al mes de periodStart. Regla compartida membershipReceiptDueOn en billing-calendar.js, independiente de la fecha de emisión y del fin exclusivo de cobertura. La previsualización devuelve dueOn calculado por servidor; la interfaz muestra información fija y no pide vencimiento. La emisión manual, renovación en efectivo y scheduler usan la misma función. El parámetro dueOn antiguo se acepta solo para compatibilidad de reintentos, sin poder cambiar la fecha de un recibo nuevo. Un recibo ya emitido se reutiliza con su fecha/snapshot originales; no se migra ni reescribe el ledger. Cobros de bonos y periodos de cobertura conservan sus reglas propias.

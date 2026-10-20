@@ -29,10 +29,15 @@ export async function feeSummary(client,c,member){
  if(!last)return {...renewal,hasContract:false,passOnly:availability.hasPass,...passes,today:member.local_today,...feeAccess(member.local_today,null)};
  const {rows}=await client.query(`SELECT max(CASE WHEN $5::boolean THEN (date_trunc('month',r.period_start)+interval '1 month')::date ELSE r.period_end END)::text AS until FROM centers.receipts r WHERE r.center_id=$1 AND r.member_id=$2 AND r.subscription_id=$3 AND r.period_start<=$4 AND r.total_minor=coalesce((SELECT sum(a.amount_minor) FROM centers.payment_allocations a WHERE a.center_id=r.center_id AND a.receipt_id=r.id),0)-coalesce((SELECT sum(f.amount_minor) FROM centers.refunds f WHERE f.center_id=r.center_id AND f.receipt_id=r.id),0)`,[c,member.id,last.id,member.local_today,last.interval_months===1]);
  const {rows:renewed}=await client.query(`SELECT max(CASE WHEN $5::boolean THEN (date_trunc('month',period_start)+interval '1 month')::date ELSE period_end END)::text AS until FROM centers.renewals WHERE center_id=$1 AND member_id=$2 AND subscription_id=$3 AND period_start<=$4 AND receipt_id IS NULL`,[c,member.id,last.id,member.local_today,last.interval_months===1]);
- let end=[initialCoverage({anchorOn:last.anchor_on,startsOn:last.starts_on,intervalMonths:last.interval_months,billingDay:last.billing_day}),rows[0].until,renewed[0].until].filter(Boolean).sort().at(-1);
- if(last.ends_on&&last.ends_on<end)end=last.ends_on;if(member.ends_on&&member.ends_on<end)end=member.ends_on;
- return {...renewal,hasContract:true,passOnly:false,...passes,name:last.name,subscriptionId:last.id,planId:last.plan_id,today:member.local_today,...feeAccess(member.local_today,end,{intervalMonths:last.interval_months}),...(last.starts_on>member.local_today?{status:'scheduled',blocked:false}:{})};
+ return {...renewal,hasContract:true,passOnly:false,...passes,name:last.name,subscriptionId:last.id,planId:last.plan_id,today:member.local_today,...contractFeeAccess(member,last,rows[0].until,renewed[0].until)};
 }
+// Shared by the per-member summary and batched directory filtering.
+export function contractFeeAccess(member,last,paidUntil,renewedUntil){
+ let end=[initialCoverage({anchorOn:last.anchor_on,startsOn:last.starts_on,intervalMonths:last.interval_months,billingDay:last.billing_day}),paidUntil,renewedUntil].filter(Boolean).sort().at(-1);
+ if(last.ends_on&&last.ends_on<end)end=last.ends_on;if(member.ends_on&&member.ends_on<end)end=member.ends_on;
+ return {...feeAccess(member.local_today,end,{intervalMonths:last.interval_months}),...(last.starts_on>member.local_today?{status:'scheduled',blocked:false}:{})};
+}
+
 async function prepare(client,scope,memberId,priceVersionId){
  const c=scope.centerId,member=await memberRecord(client,c,memberId),today=member.local_today,month=today.slice(0,7)+'-01';
  const covered=await coveredRenewalPeriod(client,c,memberId,today);if(covered)return covered;

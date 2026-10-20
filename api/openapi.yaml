@@ -2165,7 +2165,7 @@ paths:
         Exact quote, member name/number and calculationVersion are snapshotted in SQL. Unique
         center/subscription/period/concept plus center lock prevents duplicates under concurrency.
         Identical requestId returns committed result; another requestId for the same receipt returns
-        alreadyExists with the original snapshot. Different due date conflicts. No recalculation of
+        alreadyExists with the original snapshot and original due date. New membership receipts always fall due on the 5th of the month after periodStart; manual, renewal and scheduled issuance share this rule. No recalculation of
         issued history after a pause/plan change; adjustments belong to later ledger work.
         Zero charges return skipped/no-charge without creating a receipt. No payment is recorded,
         no paid flag and no electronic invoice or external transmission. The center interface
@@ -2178,13 +2178,13 @@ paths:
             schema:
               type: object
               additionalProperties: false
-              required: [centerId, memberId, subscriptionId, periodStart, dueOn, requestId]
+              required: [centerId, memberId, subscriptionId, periodStart, requestId]
               properties:
                 centerId: { type: string }
                 memberId: { type: string }
                 subscriptionId: { type: string }
                 periodStart: { type: string, format: date }
-                dueOn: { type: string, format: date, description: Explicit date at or after period start. }
+                dueOn: { type: string, format: date, deprecated: true, description: Legacy input retained for retry compatibility. Does not override the fixed server deadline. }
                 requestId: { type: string, pattern: '^[a-zA-Z0-9_-]{8,128}$' }
                 expectedQuoteHash: { type: [string, 'null'], pattern: '^[a-f0-9]{64}$', description: Optional server preview digest; mismatch refuses new issuance with quote-changed. Existing receipts always keep their snapshot. }
       responses:
@@ -2193,7 +2193,7 @@ paths:
         '401': { $ref: '#/components/responses/Unauthorized' }
         '403': { description: Financial management capability unavailable. }
         '404': { description: Contract inaccessible in selected member/center. }
-        '409': { description: Policy incomplete, canceled contract, idempotency or existing due-date conflict. }
+        '409': { description: Policy incomplete, canceled contract, idempotency conflict. }
   /api/centers/receipts:
     get:
       tags: [centers]
@@ -2265,6 +2265,7 @@ paths:
                 type: object
                 properties:
                   quote: { $ref: '#/components/schemas/ChargePreview' }
+                  dueOn: { type: string, format: date, description: Fixed 5th of the month following the quoted period start. }
                   quoteHash: { type: string, pattern: '^[a-f0-9]{64}$', description: Server digest for optional receipt confirmation guard. }
         '400': { description: Invalid calendar boundary or injected price/conditions. }
         '401': { $ref: '#/components/responses/Unauthorized' }
@@ -2682,7 +2683,7 @@ paths:
       summary: Paginated member list within the selected center
       description: |
         Requires members.read or members.operational.read. Trainers receive only operational
-        fields; managers also receive contact and document fields. Literal name/number search,
+        fields; managers also receive contact and document fields. Literal name/number search; normalized DNI/NIE search only with members.read,
         stable created_at/id keyset order. Cursor is bound to account, center and filters.
         Explicit superadmin accounts can administer members in every selected center;
         this global access is audited. Technical admin alone does not grant member access.
@@ -2691,12 +2692,17 @@ paths:
         revoked, exhausted, expired, not-started or payment-required. Reasons are advisory;
         commands recheck permissions, local business date and balance transactionally.
         With billing.read, fee.renewalCovered is null or an alreadyCovered result with periodStart and exclusive periodEnd from the same paid-receipt/renewal rules used by renewal preview. It does not infer payment from access expiry. fee.renewalUnavailableReason may be receipt-review-required after refunds or unsettled renewal receipts. These fields inform the disabled renewal button; preview and cash commands still revalidate under locks.
+        Account-link filtering requires members.read. Fee status filtering requires billing.read and uses the same fee validity/grace calculation as summaries.
+        The total counts ALL matching records before applying the keyset cursor.
       parameters:
         - { name: centerId, in: query, required: true, schema: { type: string } }
         - { name: query, in: query, schema: { type: string, maxLength: 120 } }
         - { name: state, in: query, schema: { type: string, enum: [preactive, active, frozen, ended] } }
         - { name: limit, in: query, schema: { type: integer, minimum: 1, maximum: 100, default: 50 } }
         - { name: cursor, in: query, schema: { type: string, maxLength: 2000 } }
+        - { name: account, in: query, schema: { type: string, enum: [linked, unlinked] } }
+        - { name: feeStatus, in: query, schema: { type: string, enum: [current, expired] } }
+        - { name: unlinked, in: query, schema: { type: boolean } }
       responses:
         '200':
           description: Role-filtered page and next cursor, null at the end.
@@ -2704,9 +2710,10 @@ paths:
             application/json:
               schema:
                 type: object
-                required: [members, nextCursor]
+                required: [members, total, nextCursor]
                 properties:
                   members: { type: array, items: { type: object } }
+                  total: { type: integer, minimum: 0 }
                   nextCursor: { type: [string, 'null'] }
         '400': { description: Invalid filter or cursor, including reuse in another account or center. }
         '401': { description: No current session. }

@@ -112,24 +112,24 @@ test('access rejects a genuinely expired QR using the database clock without rew
 
 test('access financial denial follows the real ledger while paying cannot release a separate manual hold',async t=>{
   const {db,ids,center,p,alice,req,policy,configure,issue,create,scan}=await fixture(t);
-  const today=new Date().toISOString().slice(0,10),tomorrow=new Date(Date.parse(today+'T12:00:00Z')+86400000).toISOString().slice(0,10);
-  const plan=(await req('/api/centers/plans/create',ids.manager,{centerId:center,name:'Fictional access fee',priceMinor:'1000',currency:'EUR',intervalMonths:1,priceIncludesTax:true,taxBasisPoints:0,proration:'none',requestId:p+'_fee'})).body.plan;
+  const today=new Date().toISOString().slice(0,10);
+  const plan=(await req('/api/centers/plans/create',ids.manager,{centerId:center,name:'Fictional access fee',priceMinor:'1000',currency:'EUR',intervalMonths:3,priceIncludesTax:true,taxBasisPoints:0,proration:'none',requestId:p+'_fee'})).body.plan;
   const subscribed=await req('/api/centers/subscriptions/create',ids.manager,{centerId:center,memberId:alice.id,memberVersion:alice.version,priceVersionId:plan.priceVersionId,effectiveOn:today,requestId:p+'_contract'});assert.equal(subscribed.status,200,JSON.stringify(subscribed));const subscription=subscribed.body.subscriptions[0],subscriptionId=subscription.id;
   const member=(await req(`/api/centers/member?centerId=${center}&id=${alice.id}`,ids.manager)).body.member;
   const receipt=await req('/api/centers/receipts/generate',ids.manager,{centerId:center,memberId:alice.id,subscriptionId,periodStart:subscription.anchorOn,dueOn:today,requestId:p+'_overdue'});assert.equal(receipt.status,200,JSON.stringify(receipt));assert.equal(receipt.body.receipt.totalMinor,'1000');
   const financial={...policy,requireSubscription:true,graceDays:0};await configure(financial);const d=(await create()).body,token=(await issue()).body.token;
   await configure({...financial,denyOverdue:true},1,'deny_overdue');
-  const nextDayDecision=()=>db.platformTransaction(ids.root,async client=>(await client.query('SELECT centers.access_decision($1,$2,$3) AS result',[center,alice.id,tomorrow+'T12:00:00Z'])).rows[0].result,center);
-  assert.equal(await nextDayDecision(),'account-review','real unpaid ledger becomes overdue after its actual due date');
+  const afterDueDecision=()=>db.platformTransaction(ids.root,async client=>(await client.query('SELECT centers.access_decision($1,$2,$3) AS result',[center,alice.id,new Date(Date.parse(receipt.body.receipt.dueOn+'T12:00:00Z')+86400000).toISOString()])).rows[0].result,center);
+  assert.equal(await afterDueDecision(),'account-review','real unpaid ledger becomes overdue after its actual due date');
   const hold=(await req('/api/centers/access/holds/create',ids.manager,{centerId:center,memberId:alice.id,memberVersion:member.version,reason:'Fictional manual safety hold',requestId:p+'_independent_hold'})).body.hold;
   const denied=await scan(d,token,'held');assert.equal(denied.body.admitted,false);assert.ok(!JSON.stringify(denied.body).includes('1000'));assert.ok(!JSON.stringify(denied.body).includes('account-review'));
   const payment={centerId:center,memberId:alice.id,amountMinor:'1000',currency:'EUR',paidOn:today,method:'cash',allocations:[{receiptId:receipt.body.receipt.id,amountMinor:'1000'}],requestId:p+'_settle'};
   assert.equal((await req('/api/centers/payments/record',ids.manager,payment)).status,200);
-  assert.equal(await nextDayDecision(),'manual-hold');
+  assert.equal(await afterDueDecision(),'manual-hold');
   const state=(await req(`/api/centers/access/member?centerId=${center}&memberId=${alice.id}`,ids.manager)).body;assert.equal(state.allowed,false);assert.equal(state.hold.id,hold.id,'ledger settlement does not remove the manual hold');
   assert.equal((await issue('paid_still_held')).body.code,'access-unavailable');
   assert.equal((await req('/api/centers/access/holds/release',ids.manager,{centerId:center,memberId:alice.id,id:hold.id,version:hold.version,requestId:p+'_release_paid'})).status,200);
-  assert.equal(await nextDayDecision(),'allowed','the real payment settles debt; only explicit hold release restores this independent condition');
+  assert.equal(await afterDueDecision(),'allowed','the real payment settles debt; only explicit hold release restores this independent condition');
   assert.equal((await scan(d,token,'paid_released')).body.admitted,true);
   assert.equal((await req('/api/centers/payments/record',ids.manager,payment)).status,200);
   await db.platformTransaction(ids.root,client=>client.query('UPDATE centers.subscriptions SET ends_on=$3,version=version+1 WHERE center_id=$1 AND id=$2',[center,subscriptionId,today]),center);

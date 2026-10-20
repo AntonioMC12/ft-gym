@@ -529,3 +529,7 @@ C58 (20octubre): Socios con rutina en Gestión de rutinas, listado paginado de p
 C59(20octubre): usuario privado único y contraseña en modo centros, nombre/apellidos y DNI/NIE obligatorios, correo opcional, recuperación asistida de cuenta y detección de solicitudes repetidas por documento. Implementación local; guía CENTERS_ACCOUNT_ACCESS.md. No cambia UID/historial ni publica preview externa como efecto secundario.
 
 C60(20octubre): sustituye usuario C59 por DNI/NIE único global para login/recuperación. Índice HMAC privado, clave independiente, migración legacy sin perder UID, validación de coincidencias y reservas concurrentes. Guía CENTERS_ACCOUNT_ACCESS.md actualizada; entrega local sin publicar preview persistente.
+
+C63(20octubre): directorio de socios paginado20por página, contador exacto y filtros servidor de afiliación/vínculo/cuota; búsqueda por DNI restringida a members.read. Cálculo de vigencia reutilizado en lote sin cambiar reglas C52. Implementado y publicado en preview externa tras pruebas aisladas; sin migración SQL. Evidencia CENTERS_PROGRESS.md.
+
+C64(20octubre): vencimiento de nuevos recibos de cuota fijo al5delmes siguiente a periodStart, calculado por servidor y sin selector. Misma regla para manual/renovación/scheduler; historial inmutable. Implementado y publicado en preview con117pruebas de integración correctas; sin migración SQL.

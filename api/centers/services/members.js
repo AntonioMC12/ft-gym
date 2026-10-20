@@ -1,4 +1,4 @@
-import {feeSummary} from './renewals.js';
+import {feeSummary,contractFeeAccess} from './renewals.js';
 import { createHash } from 'node:crypto';
 import { CentersError } from '../errors.js';
 import { memberDto } from '../authz.js';
@@ -58,17 +58,31 @@ export function getMember(database,uid,centerId,id,{platform=false}={}) {
     return {member:memberDto(member,context.capabilities),...await membershipHistory(client,context,member)};
   },{platform,allowInactive:platform});
 }
-export async function listMembers(database,uid,centerId,{query,state,limit,cursor,unlinked=false},{platform=false}={}) {
-  const scope=cursorScope([uid,centerId,query,state,unlinked]),after=readCursor(cursor,scope);
+export async function listMembers(database,uid,centerId,{query,state,limit,cursor,unlinked=false,account='',feeStatus=''},{platform=false}={}) {
+  const scope=cursorScope([uid,centerId,query,state,unlinked,account,feeStatus]),after=readCursor(cursor,scope);
   return businessTransaction(database,uid,centerId,'members.read',async(client,context)=>{
+    if(account&&!context.capabilities.includes('members.read'))throw new CentersError(403,'forbidden','forbidden');
+    if(feeStatus&&!context.capabilities.includes('billing.read'))throw new CentersError(403,'forbidden','forbidden');
     const pattern='%'+query.replace(/[\\%_]/g,'\\$&')+'%';
-    const {rows}=await client.query(`SELECT ${projection},created_at::text AS cursor_at FROM centers.member_profiles
-      WHERE center_id=$1 AND ($2='' OR name ILIKE $3 ESCAPE '\\' OR member_number ILIKE $3 ESCAPE '\\')
-        AND ($4='' OR state=$4) AND (NOT $8::boolean OR account_uid IS NULL) AND ($5::timestamptz IS NULL OR (created_at,id)<($5::timestamptz,$6::text))
-      ORDER BY created_at DESC,id DESC LIMIT $7`,[centerId,query,pattern,state,after?.at||null,after?.id||null,limit+1,unlinked]);
-    const page=rows.slice(0,limit),last=page.at(-1);
+    const normalized=query.toUpperCase().replace(/[ .-]/g,'');
+    const documentPattern='%'+normalized.replace(/[\\%_]/g,'\\$&')+'%';
+    let feeMembers=null;
+    if(feeStatus){
+      // Bulk source data only: no feeSummary call per directory candidate.
+      const {rows:candidates}=await client.query(`SELECT m.id,m.ends_on::text,m.local_today::text,s.anchor_on::text,s.starts_on::text,s.ends_on::text AS contract_end,s.billing_day,v.interval_months,s.id AS subscription_id,
+        (SELECT max(CASE WHEN v.interval_months=1 THEN (date_trunc('month',r.period_start)+interval '1 month')::date ELSE r.period_end END)::text FROM centers.receipts r WHERE r.center_id=m.center_id AND r.member_id=m.id AND r.subscription_id=s.id AND r.period_start<=m.local_today AND r.total_minor=coalesce((SELECT sum(a.amount_minor) FROM centers.payment_allocations a WHERE a.center_id=r.center_id AND a.receipt_id=r.id),0)-coalesce((SELECT sum(f.amount_minor) FROM centers.refunds f WHERE f.center_id=r.center_id AND f.receipt_id=r.id),0)) AS paid_until,
+        (SELECT max(CASE WHEN v.interval_months=1 THEN (date_trunc('month',r.period_start)+interval '1 month')::date ELSE r.period_end END)::text FROM centers.renewals r WHERE r.center_id=m.center_id AND r.member_id=m.id AND r.subscription_id=s.id AND r.period_start<=m.local_today AND r.receipt_id IS NULL) AS renewed_until
+        FROM centers.member_profiles m JOIN LATERAL(SELECT * FROM centers.subscriptions c WHERE c.center_id=m.center_id AND c.member_id=m.id AND c.canceled_at IS NULL ORDER BY (c.starts_on<=m.local_today) DESC,c.starts_on DESC,c.created_at DESC LIMIT 1)s ON true
+        JOIN centers.membership_plan_versions v ON (v.center_id,v.id)=(s.center_id,s.price_version_id) WHERE m.center_id=$1`,[centerId]);
+      feeMembers=candidates.filter(row=>{const status=contractFeeAccess(row,{...row,ends_on:row.contract_end},row.paid_until,row.renewed_until).status;return feeStatus==='current'?['active','grace'].includes(status):status==='expired'}).map(row=>row.id);
+    }
+    const {rows:result}=await client.query(`WITH filtered AS MATERIALIZED (SELECT ${projection},created_at::text AS cursor_at FROM centers.member_profiles
+      WHERE center_id=$1 AND ($2='' OR name ILIKE $3 ESCAPE '\\' OR member_number ILIKE $3 ESCAPE '\\' OR ($9::boolean AND $10<>'' AND regexp_replace(upper(coalesce(national_document,'')),'[ .-]','','g') LIKE $10 ESCAPE '\\'))
+        AND ($4='' OR state=$4) AND (NOT $8::boolean OR account_uid IS NULL)
+        AND ($11='' OR ($11='linked')=(account_uid IS NOT NULL)) AND ($12::text[] IS NULL OR id=ANY($12)))
+      SELECT (SELECT count(*)::int FROM filtered) AS total,coalesce((SELECT jsonb_agg(to_jsonb(p) ORDER BY p.cursor_at::timestamptz DESC,p.id DESC) FROM (SELECT * FROM filtered WHERE ($5::timestamptz IS NULL OR (cursor_at::timestamptz,id)<($5::timestamptz,$6::text)) ORDER BY cursor_at::timestamptz DESC,id DESC LIMIT $7)p),'[]'::jsonb) AS page`,[centerId,query,pattern,state,after?.at||null,after?.id||null,limit+1,unlinked,context.capabilities.includes('members.read'),normalized?documentPattern:'',account,feeMembers]);
+    const rows=result[0].page,page=rows.slice(0,limit),last=page.at(-1);
     const members=[];for(const row of page){const dto=memberDto(row,context.capabilities);if(context.capabilities.includes('billing.read'))dto.fee=await feeSummary(client,centerId,await memberRecord(client,centerId,row.id));members.push(dto)}
-    return {members,nextCursor:rows.length>limit?
-      nextCursor(scope,last):null};
+    return {members,total:result[0].total,nextCursor:rows.length>limit?nextCursor(scope,last):null};
   },{platform,allowInactive:platform});
 }

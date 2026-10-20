@@ -74,7 +74,7 @@ test('training RLS isolates centers and recipients, immutable payloads, role rev
   assert.ok([403,404].includes((await propose(alice,ids.trainer,'revoked')).status));
   assert.equal((await req('/api/centers/own/training/accept',ids.bob,own(proposal))).status,404);
   await db.platformTransaction(ids.root,client=>client.query('UPDATE centers.members SET account_uid=NULL,version=version+1 WHERE center_id=$1 AND id=$2',[center,alice.id]),center);
-  assert.equal((await req('/api/centers/own/training/accept',ids.alice,own(proposal))).status,404);
+  assert.equal((await req('/api/centers/own/training/accept',ids.alice,own(proposal))).body.code,'account-activation-required');
   await db.platformTransaction(ids.root,client=>client.query('UPDATE centers.members SET account_uid=$3,version=version+1 WHERE center_id=$1 AND id=$2',[center,alice.id,ids.technical]),center);
   assert.equal((await req(`/api/centers/own/training?centerId=${center}`,ids.technical)).body.proposals.length,0,'a replacement account does not inherit the previous recipient proposal');
   assert.equal((await req('/api/centers/own/training/accept',ids.technical,own(proposal))).status,404);

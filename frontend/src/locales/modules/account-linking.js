@@ -1,5 +1,5 @@
-const keys=["Link account","Search by name or email","The account holder must accept the invitation to complete the link."]
-const words={
+const baseKeys=["Link account","Search by name or email","The account holder must accept the invitation to complete the link."]
+const baseWords={
   "es": [
     "Vincular cuenta",
     "Buscar por nombre o correo",
@@ -91,4 +91,7 @@ const words={
     "帳號持有人必須接受邀請才能完成連結。"
   ]
 }
+const keys=[...baseKeys,"Change account","Confirm invitation","Choose a center member, with or without a linked account."]
+const additions={"es": ["Cambiar cuenta", "Confirmar invitación", "Elige un socio del centro, con cuenta vinculada o sin ella."], "fr": ["Changer de compte", "Confirmer l’invitation", "Choisissez un membre du centre, avec ou sans compte associé."], "de": ["Konto ändern", "Einladung bestätigen", "Wählen Sie ein Mitglied des Zentrums, mit oder ohne verknüpftes Konto."], "it": ["Cambia account", "Conferma invito", "Scegli un socio del centro, con o senza account collegato."], "pt": ["Alterar conta", "Confirmar convite", "Escolha um membro do centro, com ou sem conta associada."], "pt-BR": ["Alterar conta", "Confirmar convite", "Escolha um membro do centro, com ou sem conta vinculada."], "pl": ["Zmień konto", "Potwierdź zaproszenie", "Wybierz członka centrum, z połączonym kontem lub bez niego."], "hu": ["Fiók módosítása", "Meghívás megerősítése", "Válasszon tagot a központból, kapcsolt fiókkal vagy anélkül."], "tr": ["Hesabı değiştir", "Daveti onayla", "Merkezden bağlı hesabı olan veya olmayan bir üye seçin."], "ru": ["Изменить аккаунт", "Подтвердить приглашение", "Выберите участника центра с привязанным аккаунтом или без него."], "uk": ["Змінити обліковий запис", "Підтвердити запрошення", "Виберіть учасника центру з прив’язаним обліковим записом або без нього."], "ar": ["تغيير الحساب", "تأكيد الدعوة", "اختر عضوًا في المركز، سواء كان حسابه مرتبطًا أم لا."], "hi": ["खाता बदलें", "निमंत्रण की पुष्टि करें", "केंद्र का सदस्य चुनें, चाहे खाता जुड़ा हो या नहीं।"], "bn": ["অ্যাকাউন্ট পরিবর্তন করুন", "আমন্ত্রণ নিশ্চিত করুন", "কেন্দ্রের সদস্য বাছুন, অ্যাকাউন্ট যুক্ত থাকুক বা না থাকুক।"], "th": ["เปลี่ยนบัญชี", "ยืนยันคำเชิญ", "เลือกสมาชิกของศูนย์ ทั้งที่เชื่อมโยงบัญชีแล้วหรือยังไม่ได้เชื่อมโยง"], "ko": ["계정 변경", "초대 확인", "계정 연결 여부와 관계없이 센터 회원을 선택하세요."], "zh": ["更换账号", "确认邀请", "选择中心会员，无论是否已关联账号。"], "zh-TW": ["更換帳號", "確認邀請", "選擇中心會員，無論是否已連結帳號。"]}
+const words=Object.fromEntries(Object.entries(baseWords).map(([lang,values])=>[lang,[...values,...additions[lang]]]))
 export function accountLinkingStrings(lang){const values=words[lang];if(values?.length!==keys.length)throw new Error('incomplete account linking: '+lang);return Object.fromEntries(keys.map((key,i)=>[key,values[i]]))}

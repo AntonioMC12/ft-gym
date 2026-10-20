@@ -2160,12 +2160,19 @@ button.wl-summary{width:100%;padding:0 0 10px;text-align:start;border-radius:var
 .list .similar-label{margin:16px 2px 6px;grid-column:1/-1}
 
 /* Home: the same card and controls as the rest of the application. */
-.home-center-shortcut { display:grid; gap:16px; }
-.home-center-shortcut .ttl { overflow-wrap:anywhere; }
-.home-center-shortcut-actions { display:flex; flex-wrap:wrap; gap:10px; }
-.home-center-choices { display:grid; gap:10px; border-top:1px solid var(--sep); padding-top:16px; }
-.home-center-choices .lrow { min-width:0; }
-@media(max-width:480px) { .home-center-shortcut-actions > button { flex:1 1 auto; } }
+.home-center-shortcut{display:grid;gap:16px;padding:18px}
+.home-center-shortcut-header{display:flex;align-items:center;gap:12px;min-width:0}
+.home-center-shortcut .home-center-shortcut-icon{width:42px;height:42px;border-radius:12px;font-size:24px}
+.home-center-shortcut-heading{min-width:0;flex:1}
+.home-center-shortcut-label{color:var(--label-2);font-size:13px;line-height:1.4;margin-bottom:3px}
+.home-center-shortcut .home-center-shortcut-heading h2{color:var(--label);margin:0;font-size:21px;font-weight:650;line-height:1.25;letter-spacing:-.02em;overflow-wrap:anywhere}
+.home-center-shortcut-actions{display:flex;align-items:stretch;gap:10px}
+.home-center-shortcut-actions>.btn{width:auto;min-width:0;min-height:44px;padding:11px 14px;font-size:14px;border-radius:12px}
+.home-center-shortcut-actions>.btn.primary,.home-center-shortcut-actions>.btn:only-child{flex:1}
+.home-center-shortcut-actions>.btn.plain{flex:0 0 auto;background:var(--surface-2);border:1px solid var(--sep);color:var(--label);font-weight:500}
+.home-center-choices{display:grid;gap:10px;border-top:1px solid var(--sep);padding-top:16px}
+.home-center-choices .lrow{min-width:0}
+@media(max-width:360px){.home-center-shortcut{padding:16px}.home-center-shortcut-actions{gap:8px}.home-center-shortcut-actions>.btn{padding:10px;font-size:13px}}
 
 /* Form variant of the existing sheet selector: visible without hover. */
 .lrow.select-field{display:grid;grid-template-columns:minmax(0,1fr) 24px;gap:5px 12px;width:100%;min-height:74px;padding:12px 16px;background:var(--surface-2);border:1px solid var(--sep);border-radius:var(--r);text-align:start}
@@ -2216,3 +2223,14 @@ button.wl-summary{width:100%;padding:0 0 10px;text-align:start;border-radius:var
 .training-admin-page .training-assignments{margin:0}
 .training-admin-page .training-assignment-blocked{margin-top:16px}
 .training-admin-page .centers-workspace-content>.select-field{margin-bottom:16px}
+
+.home-training-card{border:1px solid var(--sep);overflow:hidden}
+.home-training-card .lrow{background:transparent;min-height:76px}
+.home-training-card.has-updates{border-color:var(--acc);box-shadow:inset 4px 0 var(--acc);background:color-mix(in srgb,var(--acc) 8%,var(--surface))}
+.home-training-card.has-updates .lrow-v{color:var(--acc)}
+.home-training-card>.btn{margin:0 16px 12px}
+
+/* Home administration: distinct category colors; primary actions keep the application accent. */
+.home-activation-card.has-updates{border-color:var(--orange);box-shadow:inset 4px 0 var(--orange);background:color-mix(in srgb,var(--orange) 8%,var(--surface))}
+.home-activation-card.has-updates .lrow-v{color:var(--orange)}
+.home-activation-card .lrow-i{color:#000}

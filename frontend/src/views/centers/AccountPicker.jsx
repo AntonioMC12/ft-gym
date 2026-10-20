@@ -5,7 +5,7 @@ import {useStore} from '../../store/useStore.js'
 import {useCenters} from '../../store/useCenters.js'
 import {t} from '../../lib/i18n.js'
 
-export default function AccountPicker({selected,choose}){
+export default function AccountPicker({selected,choose,showSelection=true}){
   const ownerUid=useStore(s=>s.user?.id)
   const [query,setQuery]=useState(''),[rows,setRows]=useState([]),[cursor,setCursor]=useState(null),[busy,setBusy]=useState(true),[error,setError]=useState(null),[retry,setRetry]=useState(0)
   const epoch=useRef(0),pending=useRef(false),applied=useRef('')
@@ -25,7 +25,7 @@ export default function AccountPicker({selected,choose}){
   }
   return <div className="centers-account-picker">
     <label className="centers-field"><span>{t('Search by name or email')}</span><SearchField value={query} onChange={e=>setQuery(e.target.value)} onClear={()=>setQuery('')} onKeyDown={e=>{if(e.key==='Enter')e.preventDefault()}}/></label>
-    {selected&&<div className="centers-selected"><div><strong>{selected.name}</strong><div className="small muted">{selected.email||selected.id}</div></div><Button type="button" onClick={()=>choose(null)}>{t('Cancel')}</Button></div>}
+    {showSelection&&selected&&<div className="centers-selected"><div><strong>{selected.name}</strong><div className="small muted">{selected.email||selected.id}</div></div><Button type="button" onClick={()=>choose(null)}>{t('Cancel')}</Button></div>}
     <div className="centers-accounts-list" aria-busy={busy}>
       {rows.map(account=><div key={account.id} className={account.disabled?'centers-account-disabled':''}>
         <Row title={account.name} subtitle={(account.email||account.id)+(account.disabled?' · '+t('Disabled'):'')} value={selected?.id===account.id?t('Selected'):null} accessory={selected?.id===account.id?'check':null}

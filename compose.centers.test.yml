@@ -68,11 +68,13 @@ services:
       - test/centers-integration/platform-pages.test.js
       - test/centers-integration/training-proposals.test.js
       - test/centers-integration/shared-progress.test.js
+      - test/centers-integration/community.test.js
       - test/centers-integration/access.test.js
       - test/centers-integration/metrics.test.js
       - test/centers-integration/retention.test.js
       - test/centers-integration/passes.test.js
       - test/centers-integration/member-imports.test.js
+      - test/centers-integration/activations.test.js
       - test/centers-integration/role-time.test.js
       - test/centers-integration/freeze-requests.test.js
       - test/centers-integration/maintenance.test.js

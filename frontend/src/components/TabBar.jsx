@@ -19,8 +19,9 @@ function Tab({ active, icon, label, onClick, dot }) {
   )
 }
 
-export default function TabBar({ onStart }) {
-  const nav = useNavigate()
+export default function TabBar({ onStart, requestNavigation = action => action() }) {
+  const routerNav = useNavigate()
+  const nav = (...args) => requestNavigation(() => routerNav(...args))
   const loc = useLocation()
   const S = useStore(s => s.S)
   const user = useStore(s => s.user)
@@ -35,7 +36,7 @@ export default function TabBar({ onStart }) {
   const running = !!S.active && cur !== 'workout' && !S.active.editingWorkoutId && !S.active.backfill && S.active.start > 0
   const startWorkout = () => {
     const available=S.routines.filter(r=>r.ex?.length)
-    if(!S.active&&available.length===1){onStart([available[0].id]);return}
+    if(!S.active&&available.length===1){requestNavigation(()=>onStart([available[0].id]));return}
     nav('/workout')
   }
 

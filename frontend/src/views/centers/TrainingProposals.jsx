@@ -1,3 +1,4 @@
+import {nav} from '../../lib/nav.js'
 import {useCenterNavigation,useUnsavedCenterForm} from './NavigationGuard.jsx'
 import {useEffect,useRef,useState} from 'react'
 import {Section,Row,Button,TextField,MultiSelectRow,Switch} from '../../components/ui.jsx'
@@ -13,7 +14,7 @@ import {useStore} from '../../store/useStore.js'
 import {useCenters} from '../../store/useCenters.js'
 import {confirmSheet} from '../../sheets.jsx'
 
-export default function TrainingProposals({centerId,member,ownerUid,own=false,active=true,canAssign=false,onLinkAccount}){
+export default function TrainingProposals({centerId,member,ownerUid,own=false,active=true,canAssign=false,onLinkAccount,initialProposalId=null,initialVersionId=null,onCloseProposal}){
   const S=useStore(s=>s.S),[rows,setRows]=useState([]),[cursor,setCursor]=useState(null),[detail,setDetail]=useState(null),[error,setError]=useState(null),[busy,setBusy]=useState(false),[revision,setRevision]=useState(0)
   const [selected,setSelected]=useState([]),[name,setName]=useState(''),[schedule,setSchedule]=useState(false)
   const accountRequired=!own&&(member?.accountLinked===false||(error?.data?.code||error?.code)==='training-account-required')
@@ -29,9 +30,9 @@ export default function TrainingProposals({centerId,member,ownerUid,own=false,ac
   const options=own?{}:{memberId:member.id}
   useEffect(()=>{
     const epoch=++life.current;pending.current=true;setBusy(true);setRows([]);setCursor(null);setDetail(null);setError(null);setSchedule(false)
-    centerTraining(centerId,options,own).then(data=>{if(current(epoch)){setRows(data.proposals);setCursor(data.nextCursor)}}).catch(e=>{if(current(epoch))failure(e)}).finally(()=>{if(current(epoch)){pending.current=false;setBusy(false)}})
+    centerTraining(centerId,options,own).then(async data=>{if(!current(epoch))return;setRows(data.proposals);setCursor(data.nextCursor);if(own&&initialProposalId){const result=await centerTrainingProposal(centerId,initialProposalId,true,initialVersionId);if(current(epoch))setDetail(result.proposal)}}).catch(e=>{if(current(epoch))failure(e)}).finally(()=>{if(current(epoch)){pending.current=false;setBusy(false)}})
     return()=>{life.current++;pending.current=false}
-  },[centerId,member?.id,member?.version,ownerUid,own,active,canAssign,revision])
+  },[centerId,member?.id,member?.version,ownerUid,own,active,canAssign,revision,initialProposalId,initialVersionId])
   const more=async()=>{
     if(pending.current||!cursor)return;const epoch=life.current;pending.current=true;setBusy(true)
     try{const data=await centerTraining(centerId,{...options,cursor},own);if(current(epoch)){setRows(old=>[...old,...data.proposals]);setCursor(data.nextCursor)}}catch(e){if(current(epoch))failure(e)}finally{if(current(epoch)){pending.current=false;setBusy(false)}}
@@ -81,10 +82,10 @@ export default function TrainingProposals({centerId,member,ownerUid,own=false,ac
     }})
   }
   const sourceRoutines=S?.routines||[]
-  return <Section title={t('Training proposals')}><div className="centers-form">
+  return <Section className={own?'own-training-proposals':''} title={t('Training proposals')}><div className="centers-form">
     {detail?<>
       <Row title={detail.name} subtitle={t('Proposal version')+' '+detail.revision} value={detail.unit}/>
-      {detail.bundle.routines.map(row=><div key={row.id}><h3>{row.name}</h3>{row.prog&&<p className="small muted">{t('Progression')}: {t(POLICY_NAME[row.prog]||'Off')}</p>}{row.ex.map((ex,index)=><div key={index}>
+      {detail.bundle.routines.map(row=><details className="training-proposal-routine" key={row.id}><summary><strong>{row.name}</strong><span className="small muted">{row.ex.length} {t('Exercises')}</span></summary>{row.prog&&<p className="small muted">{t('Progression')}: {t(POLICY_NAME[row.prog]||'Off')}</p>}{row.ex.map((ex,index)=><div key={index}>
         <Row title={exerciseNameFor(EXIDX[ex.id])} subtitle={exLine(ex,detail.bundle.unit,S?.speedUnit)}/>
         {ex.note&&<p className="small">{ex.note}</p>}
         {ex.restSec>0&&<Row title={t('Rest (s)')} value={ex.restSec}/>}{ex.warmupSets>0&&<Row title={t('Warm-up sets')} value={ex.warmupSets}/>}
@@ -92,17 +93,17 @@ export default function TrainingProposals({centerId,member,ownerUid,own=false,ac
         {ex.pyramidWeight?.some(w=>w>0)&&<p className="small muted">{ex.pyramidWeight.map(w=>w||'–').join(' · ')} {detail.bundle.unit}</p>}
         {ex.intensifier?.type==='dropset'&&<p className="small muted">{t('Every set becomes a drop-set: after the main set, {0} drop(s) with no rest, each about {1}% lighter.',ex.intensifier.count,ex.intensifier.pct)}</p>}
         {ex.intensifier?.type==='restpause'&&<p className="small muted">{t('Every set becomes rest-pause: {0} reps to start, then {1} more split into short bursts, {2}s rest before each, roughly halving each time.',ex.reps||0,ex.intensifier.totalReps,ex.intensifier.restSec)}</p>}
-      </div>)}</div>)}
+      </div>)}</details>)}
       {detail.acceptedAt&&<p role="status">{t('Proposal accepted')}</p>}{detail.deliveryResult&&<p role="status">{t('Delivery confirmed')}</p>}
       {!detail.acceptedAt&&(detail.state!=='offered'||detail.proposalState!=='offered')&&<p role="status">{t('This training proposal is not available. Reload it.')}</p>}
       {own&&!detail.deliveryResult&&<>
         {!detail.acceptedAt&&detail.bundle.week&&Object.keys(detail.bundle.week).length>0&&<Row title={t('Use this weekly schedule')} subtitle={t('Replaces your current Mon–Sun assignments.')} value={<Switch checked={schedule} aria-label={t('Use this weekly schedule')} onChange={setSchedule}/>}/>}
-        {(detail.acceptedAt||active&&detail.state==='offered'&&detail.proposalState==='offered')&&<Button disabled={busy} onClick={deliver}>{t(detail.acceptedAt?'Retry delivery':'Accept routines')}</Button>}
+        {(detail.acceptedAt||active&&detail.state==='offered'&&detail.proposalState==='offered')&&<Button variant="primary" disabled={busy} onClick={deliver}>{t(detail.acceptedAt?'Retry delivery':'Accept routines')}</Button>}
       </>}
       {canOffer&&detail.proposalState==='offered'&&!detail.acceptedAt&&<Button disabled={busy} onClick={withdraw}>{t('Withdraw proposal')}</Button>}
-      <Button disabled={busy} onClick={()=>{life.current++;setDetail(null);setSchedule(false)}}>{t('Back')}</Button>
+      <Button disabled={busy} onClick={()=>{life.current++;setDetail(null);setSchedule(false);if(own&&initialProposalId)onCloseProposal?.()}}>{t('Back')}</Button>
     </>:<>
-      {rows.map(row=><Row key={row.versionId} title={row.name} subtitle={t('Proposal version')+' '+row.revision+(row.acceptedAt?' · '+t('Proposal accepted'):'')} value={row.deliveryResult?t('Delivery confirmed'):''} accessory="chevron" onClick={()=>open(row)}/>)}
+      {rows.map(row=><Row className="centers-entity-row" key={row.versionId} title={row.name} subtitle={t('Proposal version')+' '+row.revision+(row.acceptedAt?' · '+t('Proposal accepted'):'')} value={t(row.deliveryResult?'Delivery confirmed':row.acceptedAt?'Retry delivery':row.state==='offered'&&row.proposalState==='offered'?'Pending acceptance':'This training proposal is not available. Reload it.')} accessory="chevron" onClick={()=>open(row)}/>)}
       {!rows.length&&!busy&&!error&&<p className="muted">{t('No training proposals')}</p>}
       {cursor&&<Button ref={moreRef} disabled={busy} onClick={more}>{t('Show more')}</Button>}
     </>}
@@ -114,7 +115,7 @@ export default function TrainingProposals({centerId,member,ownerUid,own=false,ac
       <Button type="submit" disabled={busy||!selected.length||selected.length>20}>{t(detail?'New proposal version':'Propose routines')}</Button>
     </form>}
     {draftDirty&&<Button type="button" disabled={busy} onClick={()=>requestNavigation(clearDraft)}>{t('Cancel')}</Button>}
-    <Button disabled={busy} onClick={()=>setRevision(n=>n+1)}>{t('Reload centers')}</Button>
+    {own?<Button variant="primary" icon="play" disabled={busy} onClick={()=>requestNavigation(()=>nav('/workout'))}>{t('Start training')}</Button>:<Button disabled={busy} onClick={()=>setRevision(n=>n+1)}>{t('Reload centers')}</Button>}
     {busy&&<p role="status">{t('Loading…')}</p>}{error&&<p role="alert">{t(trainingErrorKey(error))}</p>}
   </div></Section>
 }

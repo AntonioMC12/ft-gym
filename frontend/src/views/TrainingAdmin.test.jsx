@@ -25,8 +25,8 @@ const click=async name=>act(async()=>[...host.querySelectorAll('button')].find(b
 it('verifies server capability before showing the management library and separates each panel',async()=>{
  await mount();expect(centersMe).toHaveBeenCalledOnce();expect(host.textContent).toContain('Library true /training-admin');expect(host.textContent).not.toContain('Panel assign');
  await click('Assign selected plan');expect(host.textContent).toContain('Panel assign Strength');expect(host.textContent).not.toContain('Library true');
- await click('Training proposals');expect(host.textContent).toContain('Panel proposals');expect(host.textContent).not.toContain('Panel assign');
- await click('Link account');expect(host.textContent).toContain('Panel accounts');
+ await click('Sent proposals');expect(host.textContent).toContain('Panel proposals');expect(host.textContent).not.toContain('Panel assign');
+ await click('Pending activations');expect(host.textContent).toContain('Panel accounts');
 });
 it.each(['/training-admin','/training-admin/r/r'])('rejects direct access for technical admin without server platform capability: %s',async path=>{
  centersMe.mockResolvedValue({platformCapabilities:[]});await mount(path);expect(host.textContent).toContain('Home screen');expect(host.textContent).not.toContain('Library');expect(host.textContent).not.toContain('Routine editor');

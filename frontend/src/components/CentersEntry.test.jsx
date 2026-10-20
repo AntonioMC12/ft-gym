@@ -14,7 +14,7 @@ beforeEach(()=>{useCenters.getState().centers=[];useCenters.getState().platformC
 afterEach(()=>{act(()=>root.unmount());host.remove()})
 const render=()=>act(async()=>root.render(<MemoryRouter><CentersEntry/></MemoryRouter>))
 it('a member gets a personal center entry rather than an administrative menu',async()=>{
-  useCenters.getState().centers=[{id:'c',capabilities:['membership.own.read']}];await render();expect(host.textContent).toBe('My centers')
+  useCenters.getState().centers=[{id:'c',capabilities:['membership.own.read']}];await render();expect(host.textContent).toBe('Training proposals')
 })
 it('a staff member with their own membership gets both explicit destinations',async()=>{
   useCenters.getState().centers=[{id:'c',capabilities:['center.read','membership.own.read']}];await render();expect(host.textContent).toContain('My centers');expect(host.textContent).toContain('Manage centers')

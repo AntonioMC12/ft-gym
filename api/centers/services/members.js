@@ -58,14 +58,14 @@ export function getMember(database,uid,centerId,id,{platform=false}={}) {
     return {member:memberDto(member,context.capabilities),...await membershipHistory(client,context,member)};
   },{platform,allowInactive:platform});
 }
-export async function listMembers(database,uid,centerId,{query,state,limit,cursor},{platform=false}={}) {
-  const scope=cursorScope([uid,centerId,query,state]),after=readCursor(cursor,scope);
+export async function listMembers(database,uid,centerId,{query,state,limit,cursor,unlinked=false},{platform=false}={}) {
+  const scope=cursorScope([uid,centerId,query,state,unlinked]),after=readCursor(cursor,scope);
   return businessTransaction(database,uid,centerId,'members.read',async(client,context)=>{
     const pattern='%'+query.replace(/[\\%_]/g,'\\$&')+'%';
     const {rows}=await client.query(`SELECT ${projection},created_at::text AS cursor_at FROM centers.member_profiles
       WHERE center_id=$1 AND ($2='' OR name ILIKE $3 ESCAPE '\\' OR member_number ILIKE $3 ESCAPE '\\')
-        AND ($4='' OR state=$4) AND ($5::timestamptz IS NULL OR (created_at,id)<($5::timestamptz,$6::text))
-      ORDER BY created_at DESC,id DESC LIMIT $7`,[centerId,query,pattern,state,after?.at||null,after?.id||null,limit+1]);
+        AND ($4='' OR state=$4) AND (NOT $8::boolean OR account_uid IS NULL) AND ($5::timestamptz IS NULL OR (created_at,id)<($5::timestamptz,$6::text))
+      ORDER BY created_at DESC,id DESC LIMIT $7`,[centerId,query,pattern,state,after?.at||null,after?.id||null,limit+1,unlinked]);
     const page=rows.slice(0,limit),last=page.at(-1);
     const members=[];for(const row of page){const dto=memberDto(row,context.capabilities);if(context.capabilities.includes('billing.read'))dto.fee=await feeSummary(client,centerId,await memberRecord(client,centerId,row.id));members.push(dto)}
     return {members,nextCursor:rows.length>limit?

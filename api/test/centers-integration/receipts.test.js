@@ -21,7 +21,7 @@ test('receipt generation snapshots exact amounts once under concurrent natural-k
   assert.equal((await req('/api/centers/receipts/generate',manager,{...input,dueOn:'2099-01-01',requestId:p+'_differentdue'})).body.code,'receipt-exists');
   assert.equal((await req('/api/centers/receipts/generate',manager,{...input,priceMinor:'1'})).status,400);
   await req('/api/centers/staff/assign',root,{centerId:center,version:1,accountUid:trainer});
-  const query=`/api/centers/receipts?centerId=${center}&memberId=${member.id}`;assert.equal((await req(query,manager)).body.receipts.length,1);assert.equal((await req(query,trainer)).status,403);assert.equal((await req(query,other)).status,404);
+  const query=`/api/centers/receipts?centerId=${center}&memberId=${member.id}`;assert.equal((await req(query,manager)).body.receipts.length,1);assert.equal((await req(query,trainer)).status,403);assert.equal((await req(query,other)).body.code,'account-activation-required');
   const trainerRows=await db.transaction({uid:trainer,centerId:center},client=>client.query('SELECT id FROM centers.receipts WHERE center_id=$1',[center]));assert.equal(trainerRows.rows.length,0);
   await assert.rejects(db.platformTransaction(root,client=>client.query(`INSERT INTO centers.receipts(id,center_id,member_id,subscription_id,period_start,period_end,due_on,currency,net_minor,tax_minor,total_minor,snapshot,actor_uid)
     SELECT $2,center_id,member_id,subscription_id,period_start,period_end,due_on,currency,net_minor,tax_minor,total_minor,snapshot,$3 FROM centers.receipts WHERE id=$1`,[receipt.id,p+'_directduplicate',root]),center),{code:'23505'});

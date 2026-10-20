@@ -102,5 +102,5 @@ test('a changed duplicate set requires a fresh explicit review and role revocati
   assert.equal((await commit(old)).body.code,'import-review-changed');const fresh=(await detail(old.id)).body;assert.equal(fresh.summary.skipped,1);assert.notEqual(fresh.reviewHash,old.reviewHash);assert.equal((await commit(fresh)).body.result.imported,0);
   const pending=(await prepare('name,email\nPending,pending@example.com','revoked')).body;
   await db.platformTransaction(ids.root,async client=>{await client.query("INSERT INTO centers.role_assignments(id,center_id,account_uid,role) VALUES($1,$2,$3,'manager')",[p+'_replacement',center,ids.other]);await client.query("UPDATE centers.role_assignments SET revoked_at=clock_timestamp(),version=version+1 WHERE center_id=$1 AND account_uid=$2 AND role='manager' AND revoked_at IS NULL",[center,ids.manager])},center);
-  assert.equal((await commit(pending)).status,404);assert.equal((await detail(pending.id)).status,404);
+  assert.equal((await commit(pending)).body.code,'account-activation-required');assert.equal((await detail(pending.id)).body.code,'account-activation-required');
 });

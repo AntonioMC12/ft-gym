@@ -1,3 +1,4 @@
+import {useCenters} from './store/useCenters.js'
 import { useDeferredValue, useEffect, useMemo, useRef, useState, useId } from 'react'
 import { useStore } from './store/useStore.js'
 import { useUI } from './store/useUI.js'
@@ -3312,6 +3313,9 @@ function CardioDone({ st, w }) {
 }
 
 function FinishSummary({ w, prs, e1prs = [], close }) {
+  const communityEnabled=useStore(s=>!!s.user&&!!s.config?.centers?.enabled)
+  const communityState=useCenters()
+  const communityCenters=communityState.ownerUid===useStore.getState().user?.id?communityState.centers.filter(c=>c.capabilities?.includes('membership.own.read')):[]
   const st = useStore(s => s.S)
   return <div style={{ textAlign: 'center', padding: '8px 0' }}>
     <div style={{ fontSize: 44, display: 'flex', justifyContent: 'center', color: 'var(--acc)' }}><Icon name="trophy" /></div>
@@ -3334,6 +3338,7 @@ function FinishSummary({ w, prs, e1prs = [], close }) {
     {/* The moment for a progress photo or the clip of a set: the workout is already saved, so
         what is added here goes straight onto its record. */}
     <div style={{ textAlign: 'start' }}><WorkoutMediaSection w={w} hint /></div>
+    {communityEnabled&&w.id&&communityCenters.length>0&&<Button icon="chat" onClick={()=>closeThenNav(close,'/community?'+new URLSearchParams({pane:'own',new:'1',workoutId:String(w.id),...(communityCenters.length===1?{centerId:communityCenters[0].id}:{})}))}>{t('Comment on this workout')}</Button>}
     <Button variant="primary" onClick={() => closeThenNav(close, '/home')}>{t('Nice!')}</Button>
   </div>
 }

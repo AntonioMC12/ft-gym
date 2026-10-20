@@ -157,7 +157,7 @@ export function classesErrorKey(error){
 
 export function centersErrorKey(error) {
   const code = error?.data?.code || error?.code
-  if (code === 'version-conflict' || code === 'account-busy' || code === 'idempotency-conflict') return 'Center changed. Reload and try again.'
+  if (['version-conflict','account-busy','idempotency-conflict','activation-changed','activation-document-changed','activation-account-unavailable','account-linked'].includes(code)) return 'Center changed. Reload and try again.'
   if (code === 'last-manager') return 'Assign a replacement before removing the last manager.'
   if (code === 'duplicate') return 'This assignment already exists.'
   if (code === 'invalid-input' || code === 'invalid-state') return 'Check the center details.'

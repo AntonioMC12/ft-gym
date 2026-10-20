@@ -1,3 +1,5 @@
+import {communityRead,communityCommand,communitySummary} from './services/community.js';
+import {registrationCenter,requestActivation,ownActivations,listActivations,decideActivation,platformActivationSummary} from './services/activations.js';
 import {previewRenewal,renewCash} from './services/renewals.js';
 import {registerPassDay,passHistory,passHistoryOptions} from './services/pass-days.js';
 import {applicationAccess} from './services/application-access.js';
@@ -113,6 +115,14 @@ export function centersRoutes({ config, database, json, readSession, readBody, a
     }catch(error){return failure(res,error)}
   };
   return {
+    'GET /api/community':async(req,res)=>{
+      const user=guard(req,res);if(!user)return;const sv=user.sv||0;const checkSession=()=>{if(!current(req,user,sv))throw new CentersError(401,'not-signed-in','not signed in')};
+      try{const params=new URL(req.url,'http://x').searchParams;const result=await communityRead({database,user,config,lookupAccount,readOwnTraining,accountLocks,disabledAccountIds:accountDirectory().filter(a=>a.disabled).map(a=>a.id),checkSession},params.get('centerId'),params.get('kind')||'meta',params);checkSession();return json(res,200,result)}catch(error){return failure(res,error)}
+    },
+    'GET /api/community/summary':async(req,res)=>{
+      const user=guard(req,res);if(!user)return;const sv=user.sv||0;try{if(new URL(req.url,'http://x').search)throw new CentersError(400,'invalid-input','invalid input');const result=await communitySummary({database,user,config,lookupAccount,readOwnTraining,disabledAccountIds:accountDirectory().filter(a=>a.disabled).map(a=>a.id),checkSession:()=>{if(!current(req,user,sv))throw new CentersError(401,'not-signed-in','not signed in')}});if(!current(req,user,sv))return json(res,401,{error:'not signed in'});return json(res,200,result)}catch(error){return failure(res,error)}
+    },
+    'POST /api/community/command':mutate(false,(context,body)=>communityCommand({...context,disabledAccountIds:accountDirectory().filter(a=>a.disabled).map(a=>a.id)},body)),
     'POST /api/centers/members/imports/prepare':mutate(false,(context,body)=>prepareMemberImport(context,body,{platform:isPlatformUser(config,context.user)})),
     'POST /api/centers/members/imports/commit':mutate(false,(context,body)=>commitMemberImport(context,body,{platform:isPlatformUser(config,context.user)})),
     'GET /api/centers/members/imports/detail':async(req,res)=>{
@@ -121,6 +131,16 @@ export function centersRoutes({ config, database, json, readSession, readBody, a
       if(!recordId(params.get('centerId'))||!recordId(params.get('id')))return json(res,404,{code:'not-found',error:'not found'});
       try{const result=await getMemberImport(database,user.id,params.get('centerId'),params.get('id'),{platform:isPlatformUser(config,user)});if(!current(req,user,sv))return json(res,401,{error:'not signed in'});return json(res,200,result)}catch(error){return failure(res,error)}
     },
+    'GET /api/centers/join':async(req,res)=>{if(!config.enabled)return json(res,404,{code:'not-found'});try{return json(res,200,{center:await registrationCenter(database,new URL(req.url,'http://x').searchParams.get('centerId'))})}catch(error){return failure(res,error)}},
+    'GET /api/centers/activation/status':async(req,res)=>{const user=guard(req,res);if(!user)return;const sv=user.sv||0;try{const result=await ownActivations(database,user.id);if(!current(req,user,sv))return json(res,401,{error:'not signed in'});return json(res,200,result)}catch(error){return failure(res,error)}},
+    'POST /api/centers/activation/request':mutate(false,async(context,body)=>{const result=await requestActivation(database,context.user,body,context);context.checkSession();return result}),
+    'GET /api/platform/centers/activations/summary':async(req,res)=>{
+      const user=guard(req,res);if(!user)return;const sv=user.sv||0;if(!isPlatformUser(config,user))return json(res,403,{error:'forbidden',code:'forbidden'});
+      if(new URL(req.url,'http://x').search) return json(res,400,{error:'invalid input',code:'invalid-input'});
+      try{const result=await platformActivationSummary(database,user.id);if(!current(req,user,sv))return json(res,401,{error:'not signed in'});return json(res,200,result)}catch(error){return failure(res,error)}
+    },
+    'GET /api/centers/activations':async(req,res)=>{const user=guard(req,res);if(!user)return;const sv=user.sv||0;try{const params=new URL(req.url,'http://x').searchParams,result=await listActivations(database,user,params.get('centerId'),params,accountDirectory(),{platform:isPlatformUser(config,user)});if(!current(req,user,sv))return json(res,401,{error:'not signed in'});return json(res,200,result)}catch(error){return failure(res,error)}},
+    'POST /api/centers/activations/decide':mutate(false,(context,body)=>decideActivation(context,body,{platform:isPlatformUser(config,context.user)})),
     'GET /api/centers/metrics':async(req,res)=>{
       const user=guard(req,res);if(!user)return;const sv=user.sv||0,params=new URL(req.url,'http://x').searchParams,centerId=params.get('centerId');
       if(!recordId(centerId))return json(res,404,{error:'not found',code:'not-found'});

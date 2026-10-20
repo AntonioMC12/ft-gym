@@ -29,12 +29,12 @@ test('own notice verification is separate from identity and receipt delivery is 
   let state=await inspect();assert.equal(state.sink.length,1);const token=state.sink[0].message.text.match(/[a-f0-9]{64}/)[0];
   assert.equal(state.deliveries[0].payload.token,undefined,'sent verification challenge is removed from delivery payload');
   const verify={centerId:center,token,requestId:p+'_verify'};
-  assert.equal((await req('/api/centers/own/notifications/verify',bob,verify)).status,404);
+  assert.equal((await req('/api/centers/own/notifications/verify',bob,verify)).body.code,'account-activation-required');
   const confirmed=await req('/api/centers/own/notifications/verify',alice,verify);assert.equal(confirmed.status,200);assert.equal(confirmed.body.contact.verified,true);
   assert.equal((await req('/api/centers/own/notifications/verify',alice,{...verify,requestId:p+'_used'})).status,409);
   assert.equal((await req('/api/centers/own/notifications/verify',alice,verify)).body.contact.version,2);
   const info=(await req(`/api/centers/member?centerId=${center}&id=${member.id}`,manager)).body;
-  const plan=(await req('/api/centers/plans/create',manager,{centerId:center,name:'Fictional notice fee',priceMinor:'3100',currency:'EUR',intervalMonths:1,priceIncludesTax:true,taxBasisPoints:0,proration:'none',requestId:p+'_plan'})).body.plan;
+  const plan=(await req('/api/centers/plans/create',manager,{centerId:center,name:'Fictional notice fee',priceMinor:'3100',currency:'EUR',intervalMonths:3,priceIncludesTax:true,taxBasisPoints:0,proration:'none',requestId:p+'_plan'})).body.plan;
   const contract=(await req('/api/centers/subscriptions/create',manager,{centerId:center,memberId:member.id,memberVersion:info.member.version,priceVersionId:plan.priceVersionId,effectiveOn:info.today,requestId:p+'_contract'})).body.subscriptions[0];
   const receipt=(await req('/api/centers/receipts/generate',manager,{centerId:center,memberId:member.id,subscriptionId:contract.id,periodStart:contract.anchorOn,dueOn:'2099-01-01',requestId:p+'_receipt'})).body.receipt;
   assert.equal((await req('/api/centers/payments/record',manager,{centerId:center,memberId:member.id,amountMinor:'1000',currency:'EUR',paidOn:info.today,method:'cash',allocations:[{receiptId:receipt.id,amountMinor:'1000'}],requestId:p+'_payment'})).status,200);

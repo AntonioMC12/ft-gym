@@ -1,7 +1,7 @@
 import {CentersError} from '../errors.js';
 import {memberFields} from './member-validation.js';
 
-export const CSV_MAX_BYTES=256*1024,CSV_MAX_ROWS=200;
+export const CSV_MAX_BYTES=2*1024*1024,CSV_MAX_ROWS=1000;
 const invalid=()=>{throw new CentersError(400,'invalid-member-csv','invalid UTF-8 member CSV, headers or limits')};
 const aliases={name:'name',nombre:'name',nombresocio:'name',nombrecompleto:'name',email:'email',correo:'email',correoelectronico:'email',phone:'phone',telefono:'phone',nationaldocument:'nationalDocument',documento:'nationalDocument',documentodeidentidad:'nationalDocument',dni:'nationalDocument',nif:'nationalDocument',marcatemporal:'submittedAt','nºabonado':'subscriberNumber','noabonado':'subscriberNumber',direccion:'address',fechanacimiento:'birthDate'};
 const conditionsTitle='Condiciones de Inscripción y protección de datos';

@@ -18,3 +18,10 @@ it('explains the server reason even when a pass still has credits, and keeps hel
 it('monthly and pass actions coexist and their histories open without writing',async()=>{
  props.member.fee={hasContract:true,hasPass:true,passOnly:false,name:'Monthly',status:'active',passRemaining:3,passDayReason:null};props.onHistory=vi.fn();await render();expect(button('Renew')).toBeTruthy();expect(button('Register day of use')).toBeTruthy();expect(host.querySelectorAll('.centers-member-entitlement')).toHaveLength(2);await click('History');expect(props.onHistory).toHaveBeenCalledOnce();expect(centerCommand).not.toHaveBeenCalled();centerCommand.mockResolvedValueOnce({usedOn:'2026-10-16',remaining:2});await click('Register day of use');expect(centerCommand).toHaveBeenCalledWith('/api/centers/passes/day',expect.objectContaining({memberId:'m'}));expect(confirmSheet).not.toHaveBeenCalled();
 })
+
+it('disables renewal before clicking for a covered period, with a keyboard and touch accessible explanation',async()=>{
+ props.member.fee.renewalCovered={alreadyCovered:true,periodStart:'2026-10-01',periodEnd:'2026-11-01'};
+ await render();expect(button('Renew').disabled).toBe(true);const help=host.querySelector('[aria-label="Why is this unavailable?"]');
+ await act(async()=>help.focus());expect(document.querySelector('[role=tooltip]').textContent).toContain('This period is already covered. 2026-10-01 → 2026-11-01');expect(centerCommand).not.toHaveBeenCalled();expect(button('Change membership plan').disabled).toBe(false);
+ props.member.fee.renewalCovered=null;await render();expect(button('Renew').disabled).toBe(false);
+})

@@ -388,3 +388,97 @@ fieldset.centers-fields{border:0;padding:0;min-width:0}
 .centers-profile-management>summary>svg{flex:none;margin:0}
 .centers-profile-management[open]>summary>svg:first-child{transform:rotate(90deg)}
 .centers-profile-management>summary:focus-visible{outline:2px solid var(--acc);outline-offset:-3px;border-radius:var(--r)}
+
+/* Dedicated account-linking workflow: member results, one identity and clear actions. */
+.training-member-results .centers-accounts-list{max-height:240px;margin:8px 0 12px}
+.training-member-toolbar{display:flex;justify-content:flex-end}
+.training-member-toolbar>.btn{width:auto;min-height:44px;padding:10px 16px;border:1px solid var(--sep);border-radius:var(--r);background:var(--surface-2)}
+.training-link-editor{padding:18px;border:1px solid var(--sep);border-radius:var(--r);background:var(--surface-2);scroll-margin-top:24px}
+.training-link-editor>h3{margin:0 0 16px;font-size:var(--text-lg,18px);overflow-wrap:anywhere}
+.training-link-editor .sect{margin:0}
+.training-link-form .centers-selected{margin-bottom:16px;padding:14px;border:1px solid var(--sep);border-radius:var(--r);background:var(--surface)}
+.training-link-form .centers-selected>div{display:grid;gap:4px;min-width:0;overflow-wrap:anywhere}
+.training-link-form .centers-form>form{display:grid;gap:14px}
+.training-link-form .centers-form>form>p{margin:0;line-height:1.5}
+.training-link-form .centers-form-actions{margin-top:0}
+.training-link-form .centers-account-picker .centers-accounts-list{margin-bottom:0}
+@media(max-width:600px){.training-link-editor{padding:14px}.training-member-toolbar>.btn{width:100%}}
+
+.training-link-form>.centers-form{padding:0}
+
+.training-link-form .centers-selected>.btn{width:auto;min-height:44px;border:1px solid var(--sep);background:var(--surface-2)}
+
+.centers-invitation-link>.centers-field{flex:1 1 320px;min-width:0}
+.centers-invitation-link textarea.field{display:block;width:100%;min-height:88px;resize:vertical;overflow-wrap:anywhere;word-break:break-all;font-size:14px;line-height:1.5;color:var(--label)}
+.centers-invitation-link>.btn{width:auto;min-height:44px;align-self:flex-end;padding:12px 16px;border:1px solid var(--sep);background:var(--surface-2)}
+@media(max-width:600px){.centers-invitation-link>.centers-field{flex-basis:100%}.centers-invitation-link>.btn{width:100%}}
+
+.training-recipient-picker>p{margin:8px 0 12px;line-height:1.5}
+.training-recipient-heading{display:flex;justify-content:space-between;align-items:center;gap:12px}
+.training-recipient-heading>h3{margin:0;font-size:18px}
+.training-recipient-list{display:grid;gap:8px}
+.training-recipient{border:1px solid var(--sep);border-radius:var(--r);overflow:hidden;background:var(--surface-2)}
+.training-recipient.is-selected{border-color:var(--acc);background:var(--acc-soft)}
+.training-recipient .lrow{min-height:64px;background:transparent}
+.training-recipient-mark{display:flex;flex:none;align-items:center;justify-content:center;width:24px;height:24px;border:2px solid var(--label-3);border-radius:7px;margin-inline-start:12px}
+.training-recipient-mark.on{background:var(--acc);border-color:var(--acc);color:var(--on-acc)}
+.training-recipient-reason{padding:0 16px 12px}
+.training-recipient-reason>p{margin:0 0 8px;line-height:1.5}
+.training-recipient-reason>.btn{border:1px solid var(--sep);background:var(--surface)}
+.training-recipient-selection{display:flex;flex-wrap:wrap;gap:8px;margin:12px 0}
+.training-recipient-selection>.btn{border:1px solid var(--acc);background:var(--acc-soft);color:var(--acc);max-width:100%;white-space:normal}
+.training-recipient-more{display:flex;gap:10px;margin-top:12px}
+.training-recipient-more>.btn,.training-refresh-members.btn{min-height:44px;border:1px solid var(--sep);background:var(--surface-2)}
+.training-assignment-actions>.action-reason{flex:1}
+.training-assignment-actions .action-reason>.btn{width:100%}
+@media(max-width:600px){.training-recipient-more{flex-wrap:wrap}.training-recipient-more>.btn{flex-basis:100%}}
+
+.training-routine-choice{border:1px solid var(--sep);border-radius:var(--r);background:var(--surface-2);overflow:hidden}
+.training-routine-choice>.lrow{min-height:56px;background:transparent}
+
+.own-centers-page{max-width:1200px}
+.own-center-header{display:flex;align-items:center;justify-content:space-between;gap:16px;margin:16px 0 24px}
+.own-center-header h2{margin:4px 0;font-size:28px}
+.own-center-header p{margin:0;color:var(--label-2)}
+.own-center-header>.btn{border:1px solid var(--sep);background:var(--surface)}
+.own-center-stats{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px}
+.own-center-stats>div{display:grid;gap:8px;padding:16px;background:var(--surface-2);border:1px solid var(--sep);border-radius:var(--r)}
+.own-center-stats span{font-size:13px;color:var(--label-2)}
+.own-center-stats strong{font-size:24px;overflow-wrap:anywhere}
+.own-center-shortcuts{display:flex;flex-wrap:wrap;gap:10px;margin-top:18px}
+.own-center-shortcuts>.btn{width:auto;flex:1 1 160px;min-height:48px;border:1px solid var(--sep)}
+.own-contract{border:1px solid var(--sep);border-radius:var(--r);background:var(--surface-2);margin-bottom:12px;overflow:hidden}
+.own-contract .lrow{background:transparent;flex-wrap:wrap;gap:8px}
+.own-contract details>summary{padding:12px 16px;font-size:14px;color:var(--acc);cursor:pointer}
+.own-center-disclosure{border:1px solid var(--sep);border-radius:var(--r);background:var(--surface);margin:16px 0;overflow:hidden}
+.own-center-disclosure>summary{padding:16px;font-weight:600;cursor:pointer}
+.own-center-disclosure>.sect{margin:0 12px 12px}
+.training-proposal-routine{margin:12px 0;border:1px solid var(--sep);border-radius:var(--r);background:var(--surface-2);overflow:hidden}
+.training-proposal-routine>summary{padding:16px;cursor:pointer;min-height:48px}
+.training-proposal-routine>summary>span{display:block;margin-top:6px;margin-inline-start:18px}
+.training-proposal-routine>div{padding:0 12px 12px}
+.own-training-proposals .centers-form>.btn{min-height:44px;border:1px solid var(--sep);margin-top:12px}
+.own-training-proposals .centers-form>.btn.plain{background:var(--surface-2)}
+.own-contract summary:focus-visible,.own-center-disclosure>summary:focus-visible,.training-proposal-routine>summary:focus-visible{outline:2px solid var(--acc);outline-offset:-3px}
+@media(max-width:600px){.own-center-header{align-items:flex-start;flex-wrap:wrap}.own-center-stats strong{font-size:20px}.own-center-shortcuts>.btn{flex-basis:100%}}
+
+.centers-activations .centers-import-notice p{margin:0 0 12px}
+.centers-activations .training-link-editor{padding:16px;border:1px solid var(--sep);border-radius:var(--r);background:var(--surface-2);margin-top:16px}
+.centers-activations .training-link-editor>h3{margin:0 0 8px}
+.centers-activations .training-link-editor>.searchf{margin:16px 0}
+.centers-activations .centers-form-actions{display:flex;flex-wrap:wrap;gap:8px;margin-top:16px}
+.centers-activations .centers-form-actions>.btn.primary{flex:1}
+@media(max-width:600px){.centers-activations .centers-form-actions>.btn{flex:1 1 100%}.centers-activations .centers-form-actions>.btn.primary{order:-1}}
+
+/* Pending activation: separate guidance, search, feedback and actions. */
+.centers-activations>.sect-b>.centers-form{display:flex;flex-direction:column;gap:20px}
+.centers-activations>.sect-b>.centers-form>.centers-import-notice{margin:0;line-height:1.5}
+.centers-activations>.sect-b>.centers-form>.searchf{margin:0}
+.centers-activations>.sect-b>.centers-form>.training-link-editor{margin-top:0}
+.centers-activation-empty{display:flex;align-items:center;gap:12px;padding:16px;border:1px solid color-mix(in srgb,var(--blue) 35%,var(--sep));border-radius:var(--r);background:color-mix(in srgb,var(--blue) 8%,var(--surface));color:var(--label);line-height:1.5}
+.centers-activation-empty>.icn{flex-shrink:0;color:var(--blue);width:22px;height:22px}
+.centers-activation-empty>p{margin:0;font-weight:500}
+.centers-activation-refresh{display:flex;justify-content:flex-end;padding-top:16px;border-top:1px solid var(--sep)}
+.centers-activation-refresh>.btn{width:auto;min-height:44px;padding:10px 18px;border:1px solid var(--sep);border-radius:var(--r);background:var(--surface-2)}
+
+.centers-activations .training-link-editor>.centers-activation-empty{margin:16px 0}

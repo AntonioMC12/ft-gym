@@ -12,7 +12,7 @@ import { useStore } from '../../store/useStore.js'
 import { useCenters } from '../../store/useCenters.js'
 import { useUI } from '../../store/useUI.js'
 import MembershipActions from './MembershipActions.jsx'
-import Invitations from './Invitations.jsx'
+import {nav} from '../../lib/nav.js'
 import Subscriptions from './Subscriptions.jsx'
 import Receipts from './Receipts.jsx'
 import Payments from './Payments.jsx'
@@ -62,13 +62,13 @@ function MemberForm({centerId,member,lifecycle,ownerUid,close,saved,canBilling,c
     </header>
     <CenterWorkspace label={t('Member sections')} options={sections} value={pane} onChange={changePane}>
         {pane==='overview'&&<Section title={t('Member overview')}><div className="centers-form">
-          <div className="centers-member-summary"><Row title={t('Member details')} value={stateText(currentMember.state)}/><Row title={t('Center invitations')} value={t(currentMember.accountLinked?'Account linked':'No linked account')}/></div>
+          <div className="centers-member-summary"><Row title={t('Member details')} value={stateText(currentMember.state)}/><Row title={t('Link account')} value={t(currentMember.accountLinked?'Account linked':'No linked account')}/></div>
           <Row title={t('Contact email')} value={currentMember.email||'—'}/><Row title={t('Phone')} value={currentMember.phone||'—'}/>
           <div className="centers-member-quick-actions">{canBilling&&<Button variant="primary" onClick={()=>changePane('billing')}>{t('Fees and payments')}</Button>}<Button onClick={()=>changePane('details')}>{t('Member details')}</Button><Button onClick={()=>changePane('access')}>{t('Access and membership')}</Button></div>
         </div></Section>}
         {pane==='details'&&<>{editingDetails?contactForm:<Section title={t('Member details')}><div className="centers-form"><Row title={t('Member name')} value={currentMember.name}/><Row title={t('Contact email')} value={currentMember.email||'—'}/><Row title={t('Phone')} value={currentMember.phone||'—'}/><Row title={t('National document')} value={currentMember.nationalDocument||'—'}/><Button variant="tinted" onClick={()=>setEditingDetails(true)}>{t('Edit contact details')}</Button></div></Section>}
           {currentMember.sourceRegistration&&<details className="centers-member-source"><summary>{t('Source registration (CSV)')}</summary><SourceRegistration value={currentMember.sourceRegistration}/></details>}
-          <Invitations canSearchAccounts={platform} centerId={centerId} ownerUid={ownerUid} memberId={currentMember.id} linked={currentMember.accountLinked}/>
+          <Section title={t('Link account')}><div className="centers-form"><Row title={currentMember.name} value={t(currentMember.accountLinked?'Account linked':'No linked account')}/>{!currentMember.accountLinked&&(platform||capabilities.includes('members.manage'))&&<Button onClick={()=>requestNavigation(()=>nav('/centers?'+new URLSearchParams({centerId,pane:'activations'})))}>{t('Pending activations')}</Button>}</div></Section>
         </>}
         {pane==='access'&&<>{info?.today&&<><MembershipActions key={currentMember.version} centerId={centerId} member={currentMember} info={info} ownerUid={ownerUid} changed={result=>{setCurrentMember(result.member);setInfo({today:result.today,changes:result.changes})}}/><FreezeRequests centerId={centerId} ownerUid={ownerUid} memberId={currentMember.id} memberVersion={currentMember.version} today={info.today} active={active} changed={result=>{setCurrentMember(result.member);setInfo({today:result.today,changes:result.changes})}}/></>}
           {capabilities.includes('access.manage')&&<MemberAccess key={'access:'+currentMember.id} centerId={centerId} memberId={currentMember.id} ownerUid={ownerUid} canManage/>}

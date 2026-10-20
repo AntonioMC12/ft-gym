@@ -79,7 +79,7 @@ test('access rechecks manual holds, recipient links and policy after issuance an
   await configure(policy,2,'enable');const linked=(await issue('link_change')).body.token;
   await db.platformTransaction(ids.root,client=>client.query('UPDATE centers.members SET account_uid=NULL,version=version+1 WHERE center_id=$1 AND id=$2',[center,alice.id]),center);
   assert.equal((await scan(d,linked,'unlinked')).body.admitted,false);
-  assert.equal((await req('/api/centers/own/access?centerId='+center,ids.alice)).status,404);
+  assert.equal((await req('/api/centers/own/access?centerId='+center,ids.alice)).body.code,'account-activation-required');
 });
 
 test('SQL access decision agrees with pure local-time rules through DST and malformed opening hours',async t=>{

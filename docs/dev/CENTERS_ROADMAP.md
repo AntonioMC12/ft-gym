@@ -506,3 +506,20 @@ C53 (17octubre): planes como contenedores únicos de rutinas, CRUD/movimiento co
 
 
 C54 (17octubre): gestión de rutinas en pantalla independiente /training-admin exclusiva de superadmin con comprobación vigente de capability del servidor; user.admin no autoriza. Biblioteca, asignación, propuestas y vinculación en paneles separados con CenterWorkspace escritorio/móvil. Editor reutilizado bajo ruta protegida; Plan personal sin formularios administrativos. Guardado/datos/permisos existentes y búsqueda con foco conservados. Implementación y preview terminadas; evidencia y revisión visual pendiente en CENTERS_PROGRESS.md.
+
+C55 (19octubre): card de propuestas propias en Inicio con pendientes/cambios de estado/entregas pendientes resaltados; acceso directo y paginación de membresías propias. Mis centros progresivo con CenterWorkspace, resumen visual, paneles independientes e historial/ejercicios colapsados; aceptación explícita conservada. Implementación, pruebas focales y preview terminadas; revisión visual real pendiente. Evidencia en CENTERS_PROGRESS.md.
+
+C56 (19octubre): registro de cuentas pendiente de activación, enlace de registro por centro, bandeja para vincular directamente con fichas importadas y acceso revalidado en API. CSV1000registros/2MiB. Unificar accesos de vinculación de ficha y Gestión de rutinas con esta bandeja; conservar enlaces antiguos y personal. No modificar estado de afiliación, cuotas, pagos ni entrenamiento al activar. Implementado y verificado en PostgreSQL aislado; schema046 en preview test con backup. Revisión visual real pendiente. Esta entrega no implementa el alta pública financiera C35. Guía CENTERS_ACTIVATION.md y evidencia CENTERS_PROGRESS.md.
+
+C54/C55 (19octubre, ajuste): gestión renombrada Enviar plan / Propuestas enviadas. En propuestas, buscador con lista inicial de5socios, expansión/paginación y selección directa del historial, reutilizando el picker de envío; foco y selección conservados. Sin cambios de API/permisos ni datos. Evidencia focal y publicación en CENTERS_PROGRESS.md.
+
+C56 (19octubre, corrección acceso): config público refleja activación de centros con invite_only:false; Login/registro sin códigos y contraseña inicial, aviso de centro/aprobación y método passkey alternativo. Login pendiente conserva sesión sin error falso ni adopción privada. Contrato, pruebas focales, publicación y revisión visual de registro documentados en CENTERS_PROGRESS.md.
+
+
+C56 (19 octubre, DNI): registro de centro requiere DNI/NIE válido en contraseña/passkey; SQL047 guarda documento en solicitud y queue autorizada ofrece solo la coincidencia única del mismo centro. Sin coincidencia/legacy mantiene búsqueda manual5; duplicado/vinculado bloquea y avisa. Revalidación en aprobación, sin activación automática ni cambios de cuotas. SQL100/100 y repetición final7/7, UI63/63, preview migrada con backup; evidencia en CENTERS_PROGRESS.md.
+
+
+C56/C55 (19 octubre, inicio superadmin): Gestionar centros pasa a primera card, seguida de aviso condicional de activaciones y Rutinas. Resumen global exclusivo de plataforma con count/centro más antiguo, enlace directo a bandeja, refresco y protección de sesión. Sin SQL/migración nueva. UI64/64, C56SQL8/8 y contrato OpenAPI3/3; operación/visual en CENTERS_PROGRESS.md.
+
+
+C57 (19octubre, autorización expresa del punto6 del documento de Comunidad): implementadas las tres fases en desarrollo: consultas privadas/avisos, asignación opcional y contexto voluntario de entrenamiento, logros privados/publicaciones/reacciones. Capacidades específicas delegadas por plataforma, SQL052/RLS/versiones/auditoría, paginación y card compacta sin sexta pestaña. Mantener activación, acceso económico e historial personal. Guía CENTERS_COMMUNITY.md y evidencia en CENTERS_PROGRESS.md. Preview solo local5179 con CI/datos ficticios; sin migración ni publicación en el túnel persistente. Ampliaciones de catálogo, canales externos y políticas de purga quedan fuera de esta entrega.

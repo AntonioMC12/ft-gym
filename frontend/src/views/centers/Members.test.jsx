@@ -77,8 +77,8 @@ it('shows a concise overview and mounts only the selected operational section',a
   expect(host.textContent).toContain('Member overview');expect(host.textContent).toContain(sample.email);
   expect(host.querySelector('form')).toBeNull();expect(centerInvitations).not.toHaveBeenCalled();
   expect(host.textContent).not.toContain('Fees and payments');expect(host.textContent).not.toContain('Training proposals');
-  await click('Member details');expect(host.querySelector('input')).not.toBeNull();
-  expect(centerInvitations).toHaveBeenCalledOnce();expect(host.querySelector('form[aria-label="Member details"]')).toBeNull();
+  await click('Member details');expect(host.querySelector('input')).toBeNull();
+  expect(host.textContent).toContain('Pending activations');expect(centerInvitations).not.toHaveBeenCalled();expect(host.querySelector('form[aria-label="Member details"]')).toBeNull();
   await click('Edit contact details');expect(host.querySelector('form[aria-label="Member details"]')).not.toBeNull();
 })
 it('protects contact edits on section changes and really discards them only after confirmation',async()=>{

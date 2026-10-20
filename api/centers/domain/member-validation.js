@@ -12,7 +12,8 @@ export function memberListOptions(params) {
   const query=(params.get('query')||'').trim(),state=params.get('state')||'',raw=params.get('limit')||'50';
   if(query.length>120||/[\u0000-\u001f\u007f]/.test(query)||!/^\d{1,3}$/.test(raw)||+raw<1||+raw>100||
     (state&&!['preactive','active','frozen','ended'].includes(state)))invalid();
-  const cursor=params.get('cursor')||'';
+  const cursor=params.get('cursor')||'',unlinked=params.get('unlinked');
+  if(unlinked!==null&&!['true','false'].includes(unlinked))invalid();
   if(cursor.length>2000)invalid();
-  return {query,state,limit:+raw,cursor};
+  return {query,state,limit:+raw,cursor,unlinked:unlinked==='true'};
 }

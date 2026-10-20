@@ -65,7 +65,7 @@ test('real PostgreSQL + HTTP: availability recovers without rebooting or breakin
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'gym-centers-http-'));
   const secret = randomBytes(32).toString('hex');
   fs.writeFileSync(path.join(dir, 'secret'), secret);
-  fs.writeFileSync(path.join(dir, 'db.json'), JSON.stringify({ users: [{ id: 'fixture_personal', name: 'Fictitious' }], creds: [], subs: [], invites: [] }));
+  fs.writeFileSync(path.join(dir, 'db.json'), JSON.stringify({ users: [{ id: 'fixture_personal', name: 'Fictitious', admin: true }], creds: [], subs: [], invites: [] }));
   const apiDir = fileURLToPath(new URL('../../', import.meta.url));
   const child = spawn(process.execPath, ['server.js'], { cwd: apiDir, stdio: ['ignore', 'pipe', 'pipe'], env: {
     ...process.env, PORT: '0', DATA_DIR: dir, CENTERS_ENABLED: '1', CENTERS_DATABASE_URL: app,

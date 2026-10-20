@@ -37,7 +37,7 @@ test('CSV validation reports rows and physical lines without silently importing 
   assert.deepEqual(rows.map(row=>[row.record,row.line,row.error]),[[1,2,'invalid-fields'],[2,4,'invalid-fields'],[3,5,'invalid-columns'],[4,6,null]]);
 });
 test('CSV rejects identity/financial columns, malformed quotes, ambiguous headers, invalid encoding and unbounded input',()=>{
-  for(const csv of ['name,role\nAna,manager','name,constructor\nAna,test','name,nombre\nAna,Ana','email\na@example.com','name\n"unclosed','name\nA"B','name\n"A"junk','name\nA\rB','name\n\uD800','name\n\0','name','name\n'+Array(201).fill('A').join('\n'),'name\n'+'a'.repeat(CSV_MAX_BYTES)])assert.throws(()=>parseMemberCsv(csv),{code:'invalid-member-csv'});
+  for(const csv of ['name,role\nAna,manager','name,constructor\nAna,test','name,nombre\nAna,Ana','email\na@example.com','name\n"unclosed','name\nA"B','name\n"A"junk','name\nA\rB','name\n\uD800','name\n\0','name','name\n'+Array(1001).fill('A').join('\n'),'name\n'+'a'.repeat(CSV_MAX_BYTES)])assert.throws(()=>parseMemberCsv(csv),{code:'invalid-member-csv'});
   assert.equal(parseMemberCsv('name\n""')[0].error,'invalid-fields');
 });
 
@@ -54,3 +54,5 @@ test('an expired prepared import cannot mutate members even with a previously va
   const database={platformTransaction:async(_uid,work)=>work(client)};
   await assert.rejects(commitMemberImport({database,user:{id:'root'},checkSession(){}},{centerId:'c',id:'mi_test',reviewHash:'a'.repeat(64)},{platform:true}),{code:'import-expired'});assert.equal(mutations,0);
 });
+
+test('CSV accepts exactly 1000 members plus the header',()=>{assert.equal(parseMemberCsv('name\n'+Array(1000).fill('Member').join('\n')).length,1000)});

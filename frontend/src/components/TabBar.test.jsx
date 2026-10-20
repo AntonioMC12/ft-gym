@@ -123,3 +123,10 @@ it('starts the only nonempty routine directly; multiple routines open the existi
  act(()=>useStore.setState(s=>({S:{...s.S,routines:[...s.S.routines,{id:'second',ex:[{id:'e'}]}]}})));
  start.mockClear();navigation.mockClear();act(()=>tabs()[2].click());expect(start).not.toHaveBeenCalled();expect(navigation).toHaveBeenCalledWith('/workout');
 });
+
+it('lets the member workspace guard both tab navigation and starting a routine',()=>{
+ const actions=[],start=vi.fn();navigation.mockClear();useStore.setState(s=>({S:{...s.S,routines:[{id:'only',ex:[{id:'e'}]}],active:null}}));
+ act(()=>root.render(<TabBar onStart={start} requestNavigation={action=>actions.push(action)}/>));
+ act(()=>tabs()[0].click());expect(navigation).not.toHaveBeenCalled();act(()=>actions.shift()());expect(navigation).toHaveBeenCalledWith('/home');
+ act(()=>tabs()[2].click());expect(start).not.toHaveBeenCalled();act(()=>actions.shift()());expect(start).toHaveBeenCalledWith(['only']);
+})

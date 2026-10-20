@@ -47,7 +47,7 @@ test('center metrics separate current stock from bounded flows and never multipl
     await client.query("INSERT INTO centers.role_assignments(id,center_id,account_uid,role) VALUES($1,$2,$3,'manager')",[center+'_backup',center,ids.other]);
     await client.query("UPDATE centers.role_assignments SET revoked_at=NOW(),version=version+1 WHERE center_id=$1 AND account_uid=$2 AND role='manager' AND revoked_at IS NULL",[center,ids.manager]);
   },center);
-  assert.equal((await req(route,ids.manager)).status,404,'an earlier successful report must not retain authority after role revocation');
+  assert.equal((await req(route,ids.manager)).body.code,'account-activation-required','an earlier successful report must not retain authority after role revocation');
   assert.equal((await req(route,ids.root)).status,200,'the explicit platform identity remains independent of the revoked local role');
 });
 

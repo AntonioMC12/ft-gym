@@ -31,7 +31,7 @@ export default function CsvImport({centerId,ownerUid,active=true,jobId,onJob,clo
     const file=e.target.files?.[0];e.target.value='';if(!file||pending.current||!active)return
     const epoch=++life.current;pending.current=true;setBusy(true);setError(null);setJob(null);setCsv('');setName(file.name);retry.current=null;callbacks.current.onJob?.(null)
     try{
-      if(file.size>256*1024)throw {code:'invalid-member-csv'}
+      if(file.size>2*1024*1024)throw {code:'invalid-member-csv'}
       const text=new TextDecoder('utf-8',{fatal:true}).decode(await file.arrayBuffer());if(!text.trim())throw {code:'invalid-member-csv'};if(current(epoch))setCsv(text)
     }catch{if(current(epoch))setError({code:'invalid-member-csv'})}finally{if(current(epoch)){pending.current=false;setBusy(false)}}
   }
@@ -54,7 +54,7 @@ export default function CsvImport({centerId,ownerUid,active=true,jobId,onJob,clo
   const done=job?.state==='completed',counts=done?job.result:job?.summary
   const details=fields=>fields?[[t('Contact email'),fields.email],[t('Phone'),fields.phone],[t('National document'),fields.nationalDocument]].filter(([,value])=>value).map(([label,value])=>label+': '+value).join(' · '):undefined
   return <Section title={t('Import members (CSV)')}><div className="centers-form">
-    <p className="small muted">{t('Use UTF-8 CSV, up to 200 rows and 256 KiB.')}</p>
+    <p className="small muted">{t('Use UTF-8 CSV, up to 1000 members and 2 MiB.')}</p>
     <p className="small muted">{t('The socio.csv template is supported, including its multiline conditions header.')}</p>
     <p className="small muted">{t('Duplicates match email or document; names alone are not merged.')}</p>
     <p className="small muted">{t('Import creates pending members, without accounts, contracts or payments.')}</p>

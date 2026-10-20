@@ -52,7 +52,7 @@ it('renders a physically expired review without private rows or a fabricated sum
   expect(host.querySelectorAll('.centers-import-rows .lrow')).toHaveLength(0)
 })
 it('rejects oversized or invalid UTF-8 files before calling the API',async()=>{
-  await render();const read=vi.fn();await upload({name:'large.csv',size:256*1024+1,arrayBuffer:read});expect(read).not.toHaveBeenCalled();expect(host.querySelector('[role=alert]').textContent).toBe('invalid-member-csv');await upload({name:'bad.csv',size:1,arrayBuffer:async()=>new Uint8Array([255]).buffer});expect(centerCommand).not.toHaveBeenCalled();expect(button('Review import')).toBeUndefined()
+  await render();const read=vi.fn();await upload({name:'large.csv',size:2*1024*1024+1,arrayBuffer:read});expect(read).not.toHaveBeenCalled();expect(host.querySelector('[role=alert]').textContent).toBe('invalid-member-csv');await upload({name:'bad.csv',size:1,arrayBuffer:async()=>new Uint8Array([255]).buffer});expect(centerCommand).not.toHaveBeenCalled();expect(button('Review import')).toBeUndefined()
 })
 it('never exposes a previous job confirmation after a different URL job fails to load',async()=>{
   centerMemberImport.mockResolvedValueOnce(review).mockRejectedValueOnce(new Error('offline')).mockResolvedValueOnce({...review,id:'other'});

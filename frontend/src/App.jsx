@@ -1,3 +1,4 @@
+import Community from './views/Community.jsx'
 import TrainingAdmin from './views/TrainingAdmin.jsx'
 import {useMembershipAccess,MembershipAccessScreen,MembershipGraceNotice} from './components/MembershipAccess.jsx'
 import { useEffect, useLayoutEffect, useRef } from 'react'
@@ -223,13 +224,14 @@ function Shell() {
             <Routes>
               <Route path="/home" element={<Home />} />
               <Route path="/centers" element={<Centers />} />
-              <Route path="/centers/membership" element={<MyCenters />} />
+              <Route path="/centers/membership" element={<MyCenters onStart={startFlow} />} />
               <Route path="/centers/invite" element={<InviteAccept />} />
               {/* Gym check-in — switched off in Settings, the route falls through to the
                   catch-all redirect below. */}
               {S.checkIn !== false && <Route path="/checkin" element={<CheckIn />} />}
               <Route path="/training-admin" element={<TrainingAdmin />} />
               <Route path="/training-admin/r/:id" element={<TrainingAdmin edit />} />
+              <Route path="/community" element={<Community />} />
               <Route path="/plan" element={<Plan />} />
               <Route path="/plan/r/:id" element={<RoutineEdit />} />
               <Route path="/workout" element={<Workout />} />
@@ -259,7 +261,7 @@ function Shell() {
       {/* Outside #app: the view's fade-in animates a transform, and a fixed element inside it
           would ride along with the page for the length of it. Decides for itself when to show —
           including on the sign-in screen, when the server has just ended the session. */}
-      <SyncBanner />
+      {(!user||membershipAccess.allowed)&&<SyncBanner />}
       {!noTabs && <TabBar onStart={startFlow} />}
       {membershipAccess.allowed&&<RestTimer />}
       <Modals />

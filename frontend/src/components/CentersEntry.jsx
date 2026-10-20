@@ -12,5 +12,5 @@ export default function CentersEntry() {
   if (!enabled || !user || ownerUid !== user.id || (!centers.length && !platformCapabilities.length)) return null
   const manage=platformCapabilities.includes('centers.manage')||centers.some(c=>c.capabilities.includes('center.read'))
   const own=centers.some(c=>c.capabilities.includes('membership.own.read'))
-  return <>{manage&&<Row icon="personCircle" title={t('Manage centers')} accessory="chevron" onClick={() => nav('/centers')} />}{own&&<Row icon="personCircle" title={t('My centers')} accessory="chevron" onClick={() => nav('/centers/membership')} />}</>
+  return <>{manage&&<Row icon="personCircle" title={t('Manage centers')} accessory="chevron" onClick={() => nav('/centers')} />}{own&&<Row icon="personCircle" title={t(manage?'My centers':'Training proposals')} accessory="chevron" onClick={() => nav('/centers/membership')} />}</>
 }

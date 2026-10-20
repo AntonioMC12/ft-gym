@@ -6,7 +6,8 @@ import {isPlatformUser} from '../authz.js';
 export async function applicationAccess(database,config,user){
  if(!config.enabled||user.admin||isPlatformUser(config,user))return {blocked:false,warnings:[]};
  const linked=await affiliations(database,config,user);
- if(linked.centers.some(c=>c.capabilities.includes('billing.manage')))return {blocked:false,warnings:[]};
+ if(linked.centers.some(c=>c.capabilities.includes('center.read')))return {blocked:false,warnings:[]};
+ if(!linked.centers.some(c=>c.capabilities.includes('membership.own.read')))return {blocked:true,reason:'activation-pending',registrationCenterId:user.registrationCenterId||null,warnings:[]};
  const terms=[];
  for(const center of linked.centers){
   if(!center.capabilities.includes('membership.own.read'))continue;
@@ -19,5 +20,5 @@ export async function applicationAccess(database,config,user){
  return {blocked:terms.length>0&&terms.every(t=>t.blocked),warnings:terms.filter(t=>t.status==='grace'),memberships:terms};
 }
 export function renewalGateExempt(key){
- return /^(GET \/api\/(health|config|me|centers\/app-access)|POST \/api\/logout(?:\/all)?)$/.test(key)||/^(GET|POST) \/api\/(login|register|device-link|pair)\//.test(key)||key==='GET /api/centers/me';
+ return /^(GET \/api\/(health|config|me|centers\/app-access)|POST \/api\/logout(?:\/all)?)$/.test(key)||/^(GET|POST) \/api\/(login|register|device-link|pair)\//.test(key)||key==='GET /api/centers/me'||key==='GET /api/centers/activation/status'||key==='POST /api/centers/activation/request'||key==='POST /api/centers/invitations/inspect'||key==='GET /api/centers/join'||key==='POST /api/centers/invitations/accept';
 }

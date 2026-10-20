@@ -6,6 +6,8 @@ test('member contact fields are bounded, optional and never imply account owners
   for(const body of [{name:''},{name:'x',email:'broken'},{name:'x',phone:'bad\ncontact'},{name:'x',nationalDocument:'x'.repeat(41)}])assert.throws(()=>memberFields(body),{status:400});
 });
 test('member list limits and state filters are explicit and bounded',()=>{
-  assert.deepEqual(memberListOptions(new URLSearchParams()),{query:'',state:'',limit:50,cursor:''});
-  for(const query of ['limit=101','limit=0','limit=1.5','state=deleted','cursor='+'x'.repeat(2001)])assert.throws(()=>memberListOptions(new URLSearchParams(query)),{status:400});
+  assert.deepEqual(memberListOptions(new URLSearchParams()),{query:'',state:'',limit:50,cursor:'',unlinked:false});
+  for(const query of ['unlinked=yes','limit=101','limit=0','limit=1.5','state=deleted','cursor='+'x'.repeat(2001)])assert.throws(()=>memberListOptions(new URLSearchParams(query)),{status:400});
 });
+
+test('member activation candidates can be limited to unlinked records',()=>{assert.equal(memberListOptions(new URLSearchParams('unlinked=true')).unlinked,true)});

@@ -1,3 +1,7 @@
+import RegistrationDocument from './RegistrationDocument.jsx'
+import {normalizeNationalDocument,validNationalDocument} from '../lib/national-document.js'
+import RegistrationCenter from './RegistrationCenter.jsx'
+import {registrationCenterId} from '../lib/registration-center.js'
 // Name-and-password sign-in next to passkeys (#118), on an instance that offers it
 // (GET /api/config → `password_login`). Everything a password needs on screen lives here:
 // signing in, redeeming the one-time code an admin hands out, creating a profile with a
@@ -56,7 +60,10 @@ export function passwordError(e) {
     case 'name-taken': return t('Another profile already signs in with this name.')
     case 'email-invalid': return t('That is not an e-mail address.')
     case 'email-taken': return t('Another profile already uses this e-mail address.')
+    case 'national-document-invalid': return t('Enter a valid DNI or NIE.')
     case 'invite': return t('That invite code is not valid.')
+    case 'registration-center-required': return t('Ask your center manager for the registration link.')
+    case 'registration-center-unavailable': return t('The center registration link is unavailable.')
     case 'current-required': case 'current-wrong': return t('Your current password is not right.')
     case 'passkey': case 'passkey-required': return t('Your passkey could not be confirmed.')
     case 'last-way-in': return t('This password is the only way into your profile, so it cannot be removed.')
@@ -71,10 +78,15 @@ const dismissed = e => e?.name === 'NotAllowedError' || e?.name === 'AbortError'
 
 // Signed in: the same steps as a passkey sign-in (Login.jsx) — and the same account coming back
 // merges what this device kept for it (adoptProfile).
-async function signedIn(u, close) {
+export async function finishSignIn(u, close) {
   const st = useStore.getState()
   st.setUser(u, { adopt: true })
   close()
+  if(st.config?.centers?.enabled){
+    // Authentication succeeded. Pending admission/fee recovery belongs to the access screen,
+    // and must not be reported as a failed password or passkey sign-in. Keep adoption held.
+    try{const access=await api('/api/centers/app-access');if(access.blocked!==false)return}catch{return}
+  }
   await st.adoptProfile(askAddDeviceData)
   toast(t('Welcome back, {0}', u.name))
 }
@@ -110,7 +122,7 @@ export function PasswordSignInSheet({ close, onPasskey }) {
       : null
     if (bad) { setErr(bad); return }
     setBusy(true); setErr(null)
-    try { await signedIn(reset ? await passwordResetRedeem(n, code.trim(), next) : await passwordLogin(n, pw), close) }
+    try { await finishSignIn(reset ? await passwordResetRedeem(n, code.trim(), next) : await passwordLogin(n, pw), close) }
     catch (e) { setErr(passwordError(e)) }
     finally { setBusy(false) }
   }
@@ -154,7 +166,11 @@ export const openPasswordSignIn = onPasskey => ui().openSheet(close => <Password
 
 /* The password half of creating a profile. Name and invite code are the caller's state, so
    switching between passkey and password on the sign-up sheet keeps what was typed. */
-export function PasswordRegisterForm({ close, inviteOnly, name, setName, code, setCode }) {
+export function PasswordRegisterForm({ close, inviteOnly, name, setName, code, setCode, nationalDocument: documentProp, setNationalDocument: setDocumentProp }) {
+  const [documentLocal,setDocumentLocal]=useState('')
+  const nationalDocument=documentProp??documentLocal,setNationalDocument=setDocumentProp??setDocumentLocal
+  const config=useStore(s=>s.config),centerRegistration=!!config?.centers?.enabled
+  if(centerRegistration)inviteOnly=false
   const [email, setEmail] = useState('')
   const [pw, setPw] = useState('')
   const [again, setAgain] = useState('')
@@ -166,6 +182,7 @@ export function PasswordRegisterForm({ close, inviteOnly, name, setName, code, s
     const n = name.trim()
     const mail = email.trim()
     const bad = !n ? t('Enter a name')
+      : centerRegistration&&!validNationalDocument(nationalDocument) ? t('Enter a valid DNI or NIE.')
       : mail && !looksLikeEmail(mail) ? t('That is not an e-mail address.')
       : inviteOnly && !code.trim() ? t('An invite code is required')
       : length(pw) < MIN_PASSWORD ? t('Use at least {0} characters.', MIN_PASSWORD)
@@ -174,21 +191,26 @@ export function PasswordRegisterForm({ close, inviteOnly, name, setName, code, s
     if (bad) { setErr(bad); return }
     setBusy(true); setErr(null)
     try {
-      const u = await passwordRegister(n, pw, code.trim(), mail)
+      const u = await passwordRegister(n, pw, code.trim(), mail,...(centerRegistration?[normalizeNationalDocument(nationalDocument)]:[]))
       const st = useStore.getState()
       st.setUser(u); close()
+      if(centerRegistration)return
       if (hasData(useStore.getState().S)) { await st.pushState(); toast(t('Profile created, and this device’s data moved into it')) }
       else { await st.pullState(); toast(t('Welcome, {0}', u.name)) }
     } catch (e) { setErr(passwordError(e)) }
     finally { setBusy(false) }
   }
+  if(config==null)return <p role="status">{t('Loading…')}</p>
+  if(centerRegistration&&!registrationCenterId())return <RegistrationCenter/>
   return <form onSubmit={submit} noValidate>
+    {centerRegistration&&<RegistrationCenter/>}
     <input className="input" name="username" autoComplete="username" placeholder={t('Your name')} maxLength={40}
       value={name} onChange={e => setName(e.target.value)} {...field} />
     <div style={{ height: 10 }} />
     <input className="input" type="email" name="email" autoComplete="email" inputMode="email" placeholder={t('E-mail (optional)')} maxLength={254}
       value={email} onChange={e => setEmail(e.target.value)} {...field} />
     <div className="dim small" style={{ marginTop: 6 }}>{t('Lets you sign in with it instead of your name. Nothing is ever sent to it.')}</div>
+    {centerRegistration&&<RegistrationDocument value={nationalDocument} onChange={setNationalDocument}/>}
     {inviteOnly && <>
       <div style={{ height: 10 }} />
       <input className="input" placeholder={t('Invite code')} maxLength={40} value={code}
@@ -204,7 +226,7 @@ export function PasswordRegisterForm({ close, inviteOnly, name, setName, code, s
     <div className="dim small" style={{ marginTop: 6 }}>{t('At least {0} characters. A few unrelated words make a good one.', MIN_PASSWORD)}</div>
     {err && <div className="small" role="alert" style={errStyle}>{err}</div>}
     <div style={{ height: 12 }} />
-    <Button type="submit" variant="primary" disabled={busy}>{t('Create profile')}</Button>
+    <Button type="submit" variant="primary" disabled={busy}>{t(centerRegistration?'Create account and request access':'Create profile')}</Button>
   </form>
 }
 

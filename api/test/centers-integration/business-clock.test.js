@@ -46,7 +46,7 @@ test('a transaction queued over civil midnight uses the current membership state
   assert.equal(await begun,f.days.before_day,'the transaction really begins before this fixture midnight');
   await f.afterBoundary();unlock();await blocker;
   const outcome=await queued;if(outcome.error)throw outcome.error;
-  assert.deepEqual(outcome.result,{state:'ended',today:f.days.after_day,periodStart:f.days.after_day});
+  assert.deepEqual(outcome.result,{state:'ended',today:f.days.after_day,periodStart:f.days.after_day.slice(0,7)+'-01'});
 });
 test('a raw queued cancellation cannot cancel an end that became effective while waiting for its row lock',async t=>{
   const f=await fixture(t);let unlock,locked;const held=new Promise(resolve=>unlock=resolve),entered=new Promise(resolve=>locked=resolve);f.registerRelease(unlock);

@@ -18,7 +18,7 @@ import ConfigPending from './centers/ConfigPending.jsx'
 function Content({edit}){
  const nav=useNavigate(),[params,setParams]=useSearchParams(),requestNavigation=useCenterNavigation()
  const S=useStore(s=>s.S),update=useStore(s=>s.update)
- const options=[{value:'library',label:t('Routines')},{value:'assign',label:t('Assign plan')},{value:'proposals',label:t('Training proposals')},{value:'accounts',label:t('Link account')}]
+ const options=[{value:'library',label:t('Routines')},{value:'assign',label:t('Send plan')},{value:'proposals',label:t('Sent proposals')},{value:'accounts',label:t('Pending activations')}]
  const pane=edit?'library':options.some(o=>o.value===params.get('pane'))?params.get('pane'):'library'
  const rawPlan=params.has('plan')?params.get('plan')||null:'*'
  const planId=rawPlan&&rawPlan!=='*'&&!S.trainingPlans?.[rawPlan]?null:rawPlan
@@ -32,7 +32,7 @@ function Content({edit}){
   <nav className="centers-navigation"><Button icon="house" onClick={()=>requestNavigation(()=>nav('/home'))}>{t('Home')}</Button><Button icon="list" onClick={()=>requestNavigation(()=>nav('/centers'))}>{t('Centers')}</Button></nav>
   <CenterWorkspace label={t('Manage routines')} options={options} value={pane} onChange={go}>
    {pane==='library'&&(edit?<RoutineEdit basePath="/training-admin"/>:<Routines S={S} update={update} nav={nav} management initialPlanId={planId} onPlanChange={selectPlan} onAssign={assign} basePath="/training-admin"/>)}
-   {pane!=='library'&&(pane==='assign'&&!routineIds.length?<Section title={t('Assign plan')}><div className="centers-form"><p>{t('No routines yet.')}</p><Button onClick={()=>go('library')}>{t('Routines')}</Button></div></Section>:<TrainingAssignments routineIds={routineIds} planName={plan?.name||''} mode={pane} onManageAccounts={()=>go('accounts')} planPicker={<SelectRow variant="field" title={t('Training plans')} value={planId??''} options={[{value:'*',label:t('All routines')},{value:'',label:t('Unfiled')},...plansOf(S).map(p=>({value:p.id,label:p.name}))]} onChange={id=>selectPlan(id||null)}/>}/>)}
+   {pane!=='library'&&(pane==='assign'&&!routineIds.length?<Section title={t('Send plan')}><div className="centers-form"><p>{t('No routines yet.')}</p><Button onClick={()=>go('library')}>{t('Routines')}</Button></div></Section>:<TrainingAssignments routineIds={routineIds} planName={plan?.name||''} mode={pane} onManageAccounts={()=>go('accounts')} planPicker={<SelectRow variant="field" title={t('Training plans')} value={planId??''} options={[{value:'*',label:t('All routines')},{value:'',label:t('Unfiled')},...plansOf(S).map(p=>({value:p.id,label:p.name}))]} onChange={id=>selectPlan(id||null)}/>}/>)}
   </CenterWorkspace>
  </div>
 }

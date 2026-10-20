@@ -911,7 +911,7 @@ paths:
       operationId: prepareCenterMemberCsvImport
       summary: Prepare an actor-owned member CSV review without creating members
       x-retention: Expired reviews return no private rows. Optional bounded maintenance clears records and preserves expired replay metadata; completed results remain unchanged. Earlier backups need a separate retention policy.
-      description: Current members.manage in an active selected center or explicit platform allowlist. UTF-8 CSV up to256KiB and200records, comma/semicolon with RFC4180 quoting, known name/email/phone/nationalDocument headers or documented Spanish aliases including Nombre Completo. Also accepts the eight-column socio.csv template with a quoted multiline conditions header. Address, calendar-validated birth date, original subscriber number, source timestamp and source conditions/response are preserved as sourceRegistration in review rows and in a private historical member snapshot. External numbers do not replace internal numbers or establish duplicates. Source conditions do not configure policies or establish verified consent. Snapshot is returned only to members.manage in member detail, never in member lists or completed-job results. Unknown identity/role/financial columns rejected. Explicit duplicatePolicy skip, matched using existing SQL email/document normalization. Names alone never establish identity. Invalid rows prevent completion. No accounts, roles, balances, contracts or payments created. A durable bounded job expires after24hours. Same actor/center/requestId replays; changed content conflicts.
+      description: Current members.manage in an active selected center or explicit platform allowlist. UTF-8 CSV up to2MiB and1000records, comma/semicolon with RFC4180 quoting, known name/email/phone/nationalDocument headers or documented Spanish aliases including Nombre Completo. Also accepts the eight-column socio.csv template with a quoted multiline conditions header. Address, calendar-validated birth date, original subscriber number, source timestamp and source conditions/response are preserved as sourceRegistration in review rows and in a private historical member snapshot. External numbers do not replace internal numbers or establish duplicates. Source conditions do not configure policies or establish verified consent. Snapshot is returned only to members.manage in member detail, never in member lists or completed-job results. Unknown identity/role/financial columns rejected. Explicit duplicatePolicy skip, matched using existing SQL email/document normalization. Names alone never establish identity. Invalid rows prevent completion. No accounts, roles, balances, contracts or payments created. A durable bounded job expires after24hours. Same actor/center/requestId replays; changed content conflicts.
       requestBody:
         required: true
         content:
@@ -2638,6 +2638,7 @@ paths:
         availability rules as passes/day: null, used-today, member-inactive, no-pass,
         revoked, exhausted, expired, not-started or payment-required. Reasons are advisory;
         commands recheck permissions, local business date and balance transactionally.
+        With billing.read, fee.renewalCovered is null or an alreadyCovered result with periodStart and exclusive periodEnd from the same paid-receipt/renewal rules used by renewal preview. It does not infer payment from access expiry. fee.renewalUnavailableReason may be receipt-review-required after refunds or unsettled renewal receipts. These fields inform the disabled renewal button; preview and cash commands still revalidate under locks.
       parameters:
         - { name: centerId, in: query, required: true, schema: { type: string } }
         - { name: query, in: query, schema: { type: string, maxLength: 120 } }
@@ -3112,8 +3113,10 @@ paths:
       operationId: getConfig
       summary: Instance configuration
       description: |
-        The flags the login screen needs before anyone is signed in. Both reflect
-        environment variables on the server (`INVITE_ONLY`, `ALLOW_GUEST`), and so does
+        The flags the login screen needs before anyone is signed in. They reflect the
+        effective registration policy and `ALLOW_GUEST`; when centers are enabled,
+        `invite_only` is false because center admission replaces invite codes. Otherwise
+        it follows `INVITE_ONLY`. The same environment configuration determines
         `password_login`, which is there only when `PASSWORD_LOGIN=1`, and `default_lang`,
         which is there only when `DEFAULT_LANG` is set.
 
@@ -3144,7 +3147,7 @@ paths:
                 properties:
                   invite_only:
                     type: boolean
-                    description: When true, registration requires a valid invite code.
+                    description: Effective classic invite-code requirement. False with centers enabled, where registration instead requires a center link and manager approval.
                   centers:
                     type: object
                     description: Present only when the centers module is enabled. Does not query SQL.
@@ -3232,6 +3235,7 @@ paths:
       operationId: registerOptions
       summary: 'Start passkey registration (WebAuthn ceremony, step 1)'
       description: |
+        When centers are enabled, requires centerId from an active center registration link plus nationalDocument (Spanish DNI or NIE with a valid control letter), and creates a pending admission request. national-document-invalid rejects missing/invalid documents with HTTP400. The normalized document is stored only in center-scoped SQL admission data, never in the public account response or personal training. Passkey options bind it to the server challenge; verify cannot replace it. No first-account admin or automatic member link is granted. A center link replaces the classic invite-code requirement; the manager links an existing imported member before private app access.
         Returns `PublicKeyCredentialCreationOptions` (from
         `@simplewebauthn/server`'s `generateRegistrationOptions`) plus a challenge id
         `cid`. The client passes `options` to
@@ -3249,6 +3253,8 @@ paths:
               type: object
               required: [name]
               properties:
+                centerId: { type: string, description: Active registration center; required when centers enabled. }
+                nationalDocument: { type: string, maxLength: 40, description: DNI or NIE including control letter; required when centers enabled. Spaces/dots/hyphens and case are normalized. }
                 name:
                   type: string
                   maxLength: 40
@@ -3618,6 +3624,7 @@ paths:
       operationId: registerPassword
       summary: Create a profile with a name and password
       description: |
+        When centers are enabled, requires centerId from an active center registration link plus nationalDocument (Spanish DNI or NIE with a valid control letter), and creates a pending admission request. national-document-invalid rejects missing/invalid documents with HTTP400. The normalized document is stored only in center-scoped SQL admission data, never in the public account response or personal training. Passkey options bind it to the server challenge; verify cannot replace it. No first-account admin or automatic member link is granted. A center link replaces the classic invite-code requirement; the manager links an existing imported member before private app access.
         For browsers that cannot make a passkey (plain http on a LAN address, some Firefox
         setups). Creates the profile and signs it in. The same invite rules as passkey
         registration apply: on an invite-only instance the code is checked first, checked
@@ -3638,6 +3645,8 @@ paths:
               type: object
               required: [name, password]
               properties:
+                centerId: { type: string, description: Active registration center; required when centers enabled. }
+                nationalDocument: { type: string, maxLength: 40, description: DNI or NIE including control letter; required when centers enabled. Spaces/dots/hyphens and case are normalized. }
                 name: { type: string, maxLength: 40 }
                 password: { type: string, minLength: 10, maxLength: 256 }
                 code: { type: string, description: Invite code (INVITE_ONLY only). }
@@ -5872,12 +5881,114 @@ paths:
         '401': { $ref: '#/components/responses/Unauthorized' }
         '403': { $ref: '#/components/responses/Forbidden' }
 
+  /api/centers/join:
+    get:
+      tags: [centers]
+      operationId: getRegistrationCenter
+      summary: Public registration link target
+      description: Exact active centerId only; returns id and name. No directory, members or private center data.
+      parameters:
+        - { in: query, name: centerId, required: true, schema: { type: string } }
+      responses:
+        '200': { description: Active registration center id and name }
+        '404': { description: Center unavailable }
+  /api/centers/activation/status:
+    get:
+      tags: [centers]
+      operationId: getOwnActivationStatus
+      summary: Current account admission requests
+      description: Available while pending; account scoped. Returns own request id, centerId and pending/approved/rejected status only.
+      responses:
+        '200': { description: Own requests }
+        '401': { description: Not signed in }
+  /api/centers/activation/request:
+    post:
+      tags: [centers]
+      operationId: requestCenterActivation
+      summary: Request admission to an active center
+      description: Body centerId and optional nationalDocument for existing accounts (validated when provided). Creates one pending request per account and center, with consent expressed by registration/request. Repeats preserve the existing decision. Does not grant a role, link a member or change fees. Cookie CSRF and current session required; accessible before activation to recover an interrupted registration.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { type: object, required: [centerId], additionalProperties: false, properties: { centerId: { type: string }, nationalDocument: { type: string, maxLength: 40 } } }
+      responses:
+        '200': { description: Pending or existing approved/rejected status }
+        '404': { description: Active center unavailable }
+  /api/platform/centers/activations/summary:
+    get:
+      tags: [centers]
+      operationId: platformActivationSummary
+      summary: Pending activation count for the superadmin home shortcut
+      description: Explicit platform allowlist only; user.admin, managers and trainers do not qualify. No query selectors. Counts pending requests in active centers globally (not only a favorite or the current directory page). Returns only total and the center id/name of the oldest pending request, or null for zero. No account identities or documents are returned. Current session is rechecked before replying.
+      responses:
+        '200':
+          description: Minimal global summary; no new permissions or activation side effects.
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [total, center]
+                properties:
+                  total: { type: integer, minimum: 0 }
+                  center:
+                    oneOf:
+                      - { type: 'null' }
+                      - type: object
+                        required: [id, name]
+                        properties:
+                          id: { type: string }
+                          name: { type: string }
+        '401': { description: No current session }
+        '403': { description: Explicit platform access required }
+        '400': { description: Query selectors are not supported }
+  /api/centers/activations:
+    get:
+      tags: [centers]
+      operationId: listCenterActivations
+      summary: Pending accounts in a selected center
+      description: Current members.manage or explicit platform allowlist, active center. Returns request id/version and account id/name/email, at most20 per page, with a real cursor bound to actor, center and query. Does not expose other-center requests. Each request includes documentMatch (legacy, none, unique, duplicate or linked) and matchedMember (id/name/number/version/accountLinked=false only for a unique unlinked match). Matching uses normalized DNI/NIE within this center, includes already-linked records when detecting ambiguity, and never returns the submitted document. Legacy requests without documents remain manually reviewable.
+      parameters:
+        - { in: query, name: centerId, required: true, schema: { type: string } }
+        - { in: query, name: query, schema: { type: string, maxLength: 120 } }
+        - { in: query, name: cursor, schema: { type: string } }
+      responses:
+        '200': { description: Requests and nextCursor }
+        '403': { description: Forbidden }
+        '404': { description: Center unavailable }
+  /api/centers/activations/decide:
+    post:
+      tags: [centers]
+      operationId: decideCenterActivation
+      summary: Link and activate an account or reject its admission request
+      description: Current members.manage or explicit platform allowlist. Requires centerId, request id/version and requestId. Approval requires memberId/memberVersion for an unlinked existing member of the same center. Reject true leaves the member unchanged. Account lock, center lock, optimistic versions, idempotency and audit share one SQL transaction; approval links account_uid and resolves pending invitations. It does not alter member state, fees, receipts, payments or personal training. Existing fee access rules still apply. A linked member/account cannot be overwritten. Document matches are recomputed within the center lock; duplicate or already-linked documents and selection of another member when there is a unique match reject with 409 activation-document-changed. No automatic activation by document alone. Current session and cookie CSRF required.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties: false
+              required: [centerId, id, version, requestId]
+              properties:
+                centerId: { type: string }
+                id: { type: string }
+                version: { type: integer, minimum: 1 }
+                requestId: { type: string }
+                memberId: { type: string }
+                memberVersion: { type: integer, minimum: 1 }
+                reject: { type: boolean }
+      responses:
+        '200': { description: Approved/rejected status and memberId; same command replays }
+        '409': { description: Request/member changed, account already linked or unavailable }
+        '403': { description: Forbidden }
+        '404': { description: Request/member/center unavailable }
   /api/centers/app-access:
     get:
       tags: [centers]
       operationId: getApplicationMembershipAccess
-      summary: Current account application access and ten-day grace deadlines
-      description: Account-bound, no selectors. Civil expiry is exclusive period end minus one day; blocked after expiry plus ten days. Administrators and fee managers are exempt. Pass-only memberships do not require a monthly contract. Rechecked on private API requests and frontend focus/30 seconds. All private APIs can return 403 membership-renewal-required; logout, authentication and this recovery status remain accessible.
+      summary: Current account activation and fee access
+      description: Account-bound, no selectors. Unlinked normal accounts are blocked with reason activation-pending. Technical administrators, explicit platform accounts and current center staff are exempt; a member link grants admission without changing fee coverage. Registration persists its centerId server-side for recovery. Private APIs return403 account-activation-required while pending; activation status/request, registration center lookup, invitation acceptance and authentication remain accessible. Civil expiry is exclusive period end minus one day; blocked after expiry plus ten days. Administrators and center staff are exempt. Pass-only memberships do not require a monthly contract. Rechecked on private API requests and frontend focus/30 seconds. All private APIs can return 403 membership-renewal-required; logout, authentication and this recovery status remain accessible.
       responses:
         '200': { description: "blocked flag, grace warnings and own membership deadlines" }
         '401': { description: "Not signed in" }
@@ -5949,6 +6060,116 @@ paths:
         '200': { description: "passes or uses with nextCursor" }
         '403': { description: "Current capability required" }
         '404': { description: "Center unavailable" }
+  /api/community:
+    get:
+      tags: [centers]
+      summary: Read authorized private community or public center projections
+      description: |
+        Requires an active application session, current activation and economic access,
+        selected active center and current SQL community permissions. Technical admin alone
+        grants nothing. Every query revalidates role, delegation, assignment and member link.
+        Own/team lists and messages use keyset cursors, default 5 (messages UI 20), max 50.
+        Cursors are bound to actor, center, kind, filters and view. Notices sort pinned first,
+        then newest; published dates are inclusive in the center timezone. Loading never
+        acknowledges a message or a notice. Staff directory is restricted to community
+        management and returns only live eligible staff names and delegation metadata.
+        Feed contains only explicitly published, currently valid declared achievements;
+        private messages, workout loads, identifiers and administrative data are excluded.
+      parameters:
+        - { name: centerId, in: query, required: true, schema: { type: string } }
+        - name: kind
+          in: query
+          required: true
+          schema: { type: string, enum: [meta, threads, thread, notices, achievements, feed, members, staff] }
+        - { name: id, in: query, schema: { type: string }, description: Required for thread detail. }
+        - { name: view, in: query, schema: { type: string, enum: [own, team] } }
+        - { name: query, in: query, schema: { type: string, maxLength: 120 } }
+        - { name: status, in: query, schema: { type: string, enum: [all, pending, answered, closed] } }
+        - { name: limit, in: query, schema: { type: integer, minimum: 1, maximum: 50, default: 5 } }
+        - { name: cursor, in: query, schema: { type: string } }
+      responses:
+        '200':
+          description: Kind-specific authorized projection; lists return items and nextCursor. Meta returns center, today, capabilities, unread, memberId and trainerName. Thread includes immutable context and versioned thread metadata.
+        '400': { description: Invalid input or scope-bound cursor. }
+        '401': { description: Session invalid or expired. }
+        '403': { description: No current permission, activation or application access. }
+        '404': { description: Thread unavailable to this participant. }
+        '503': { description: Centers database or account storage unavailable. }
+  /api/community/summary:
+    get:
+      tags: [centers]
+      summary: Compact Community home card counts and destination
+      description: Counts unread conversations and published scheduled notice versions per actor. Platform summary is a narrow SQL aggregate; others use authorized affiliations only. No read acknowledgment, message contents or member directory. No query selectors accepted.
+      responses:
+        '200':
+          description: Availability, total unread and optional center destination.
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [available, total, target]
+                properties:
+                  available: { type: boolean }
+                  total: { type: integer, minimum: 0 }
+                  target: { type: [object, 'null'], properties: { id: { type: string }, name: { type: string } } }
+        '401': { description: Invalid session. }
+        '403': { description: Pending activation or application access blocked. }
+        '503': { description: Database unavailable. }
+  /api/community/command:
+    post:
+      tags: [centers]
+      summary: Versioned, idempotent and audited community command
+      description: |
+        Browser writes require existing same-origin CSRF rules. Every command takes the
+        center lock, revalidates live permissions and writes its idempotency result and audit
+        metadata in the same transaction. Limit 40 successful commands per actor/center/minute;
+        exact retries return the previous result before spending the budget. Reusing requestId
+        with changed action/fields returns idempotency-conflict. Unknown fields are refused.
+        create(title<=120,body1..1000,optional workoutId/includeLoads/contextConsent=true)
+        resolves only the actor's synchronized saved workout, never a supplied uid.
+        reply(id,version,body1..1000) updates pending/answered, closed refuses replies.
+        state(id,version,state=closed|pending) permits pending only as explicit reopen.
+        read(id,lastSeq) is monotonic; notice-read(id,version) acknowledges only that version.
+        edit-message(id,messageId,version,body) and delete-message(...,reason<=200)
+        preserve old contents in private history; routine physical deletion is unavailable.
+        notice(optional id/version,title,body<=3000,state=draft|published|archived,pinned,
+        startsOn,endsOn) requires manage. grant(accountUid,version,respond,manage,revoked,
+        validUntil) is platform-only and requires a live manager/trainer role. assign(memberId,
+        trainerUid or null,version) requires community management and an authorized trainer.
+        reconcile({}) computes own four versioned badges from saved declared records.
+        preference(version,enabled) is separate consent; revocation withdraws all publications.
+        publish(id=achievementId,version,nickname<=40,consent=true) explicitly selects one
+        valid badge; opt-in alone never publishes history. withdraw(id,version) is owner's;
+        remove(id,version) is moderator's and blocks republication. hide(id,hidden) is personal.
+        reaction(id,kind=clap|strength|fire|party|heart,active) uses desired state; one active
+        reaction per actor/publication/type, multiple distinct types allowed.
+        congratulate(id,body1..280) requires an explicit editor submission.
+        delete-congratulation(id,commentId,version) is own or moderator soft deletion.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties: false
+              required: [centerId, action, requestId, fields]
+              properties:
+                centerId: { type: string }
+                requestId: { type: string, minLength: 8, maxLength: 128 }
+                action:
+                  type: string
+                  enum: [create, reply, state, read, edit-message, delete-message, notice, notice-read, grant, assign, reconcile, preference, publish, withdraw, remove, hide, reaction, congratulate, delete-congratulation]
+                fields: { type: object, description: Strict action-specific fields described above. }
+      responses:
+        '200': { description: Committed command result with affected id; exact retries replay that result. }
+        '400': { description: community-invalid or invalid-input. }
+        '401': { description: Invalidated session. }
+        '403': { description: forbidden, CSRF refused, no consent or current access. }
+        '404': { description: not-found; resource not visible to actor. }
+        '409': { description: version-conflict, idempotency-conflict, community-closed or community-workout-unavailable. Reload and explicitly review changes before a new intent. }
+        '429': { description: community-rate-limit; wait before another command. }
+        '503': { description: Centers database or own training unavailable. }
+
 components:
   securitySchemes:
     cookieAuth:

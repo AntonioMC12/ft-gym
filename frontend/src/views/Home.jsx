@@ -1,4 +1,6 @@
+import CommunityCard from '../components/CommunityCard.jsx'
 import { useState } from 'react'
+import HomeTrainingCard from '../components/HomeTrainingCard.jsx'
 import HomeGymCard from '../components/HomeGymCard.jsx'
 import BrandHeader from '../components/BrandHeader.jsx'
 import { BRAND_SHORT_NAME } from '../lib/brand.js'
@@ -110,6 +112,8 @@ export default function Home() {
       <button className="iconbtn" onClick={() => nav('/settings')} aria-label={trouble ? t('Settings') + ', ' + t('Connection problem') : t('Settings')}><Icon name="gear" />{trouble && <span className="tab-dot" aria-hidden="true" />}</button>
     </div>
 
+    <HomeGymCard />
+
     <div className="card">
       {/* A coach week runs by order, not by weekday, so its progress row stands in for the
           seven dots (components/QueueRow.jsx). The today row below stays as it is: the queue's
@@ -162,7 +166,8 @@ export default function Home() {
       </div>}
     </div>
 
-    <HomeGymCard />
+    <HomeTrainingCard />
+    <CommunityCard />
 
     {!S.routines.length && !S.active && (
       <div className="card">

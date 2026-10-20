@@ -2,6 +2,7 @@
 import React,{act} from 'react'
 import {createRoot} from 'react-dom/client'
 import {beforeEach,afterEach,it,expect,vi} from 'vitest'
+vi.mock('../../lib/nav.js',async load=>({...await load(),nav:vi.fn()}))
 vi.mock('../../lib/i18n.js',()=>({t:key=>key,exerciseNameFor:ex=>ex?.n||''}))
 vi.mock('../../sheets.jsx',()=>({confirmSheet:vi.fn()}))
 vi.mock('../../lib/centers-api.js',()=>({centerTraining:vi.fn(),centerTrainingProposal:vi.fn(),centerCommand:vi.fn(),trainingErrorKey:()=> 'Delivery error'}))
@@ -11,6 +12,7 @@ vi.mock('../../components/ui.jsx',async original=>({...await original(),MultiSel
 import {centerTraining,centerTrainingProposal,centerCommand} from '../../lib/centers-api.js'
 import {confirmSheet} from '../../sheets.jsx'
 import {useStore} from '../../store/useStore.js'
+import {nav} from '../../lib/nav.js'
 import TrainingProposals from './TrainingProposals.jsx'
 import Guard from './NavigationGuard.jsx'
 
@@ -104,4 +106,17 @@ it('invalidates a captured offer confirmation when its draft is cancelled',async
   await render({own:false,member,canAssign:true});await click('Choose routine');await click('Propose routines');const offer=confirm();
   await click('Cancel');await act(async()=>confirm().onConfirm());await act(async()=>offer.onConfirm());
   expect(centerCommand).not.toHaveBeenCalled();expect(host.querySelector('.centers-unsaved-indicator')).toBeNull();
+})
+
+it('opens a deep-linked own proposal ready for acceptance without an intermediate selection',async()=>{
+ const close=vi.fn();await render({initialProposalId:'proposal',initialVersionId:'version1',onCloseProposal:close});
+ expect(centerTrainingProposal).toHaveBeenCalledWith('center1','proposal',true,'version1');expect(button('Accept routines')).toBeTruthy();expect(centerCommand).not.toHaveBeenCalled();
+ await click('Back');expect(close).toHaveBeenCalledOnce();expect(button('Accept routines')).toBeUndefined();
+})
+it('rejects an unavailable direct proposal without importing or accepting anything',async()=>{
+ centerTrainingProposal.mockRejectedValue({status:404});await render({initialProposalId:'foreign',initialVersionId:'old'});expect(host.textContent).toContain('Delivery error');expect(button('Accept routines')).toBeUndefined();expect(centerCommand).not.toHaveBeenCalled();
+})
+
+it('opens the workout chooser from the personal proposal view instead of reloading centers',async()=>{
+ await render();expect(button('Reload centers')).toBeUndefined();await click('Start training');expect(nav).toHaveBeenCalledWith('/workout');expect(centerCommand).not.toHaveBeenCalled();
 })

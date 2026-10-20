@@ -12,22 +12,30 @@ import {previewForContract} from './billing-preview.js';
 import {issueReceipt} from './receipts.js';
 import {appendPayment,receiptBalance} from './payments.js';
 const fail=code=>{throw new CentersError(409,code,'renewal requires review')};
-export async function feeSummary(client,c,member){
- const {rows:contracts}=await client.query('SELECT s.*,s.starts_on::text,s.ends_on::text,s.anchor_on::text,v.name,v.interval_months FROM centers.subscriptions s JOIN centers.membership_plan_versions v ON (v.center_id,v.id)=(s.center_id,s.price_version_id) WHERE s.center_id=$1 AND s.member_id=$2 AND s.canceled_at IS NULL ORDER BY (s.starts_on<=$3) DESC,s.starts_on DESC,s.created_at DESC LIMIT 1',[c,member.id,member.local_today]);const last=contracts[0];
- const availability=await passDayAvailability(client,c,member),passes={hasPass:availability.hasPass,passRemaining:availability.remaining,passDayReason:availability.reason};
- if(!last)return {hasContract:false,passOnly:availability.hasPass,...passes,today:member.local_today,...feeAccess(member.local_today,null)};
- const {rows}=await client.query(`SELECT max(CASE WHEN $5::boolean THEN (date_trunc('month',r.period_start)+interval '1 month')::date ELSE r.period_end END)::text AS until FROM centers.receipts r WHERE r.center_id=$1 AND r.member_id=$2 AND r.subscription_id=$3 AND r.period_start<=$4 AND r.total_minor=coalesce((SELECT sum(a.amount_minor) FROM centers.payment_allocations a WHERE a.center_id=r.center_id AND a.receipt_id=r.id),0)-coalesce((SELECT sum(f.amount_minor) FROM centers.refunds f WHERE f.center_id=r.center_id AND f.receipt_id=r.id),0)`,[c,member.id,last.id,member.local_today,last.interval_months===1]);
- const {rows:renewed}=await client.query(`SELECT max(CASE WHEN $5::boolean THEN (date_trunc('month',period_start)+interval '1 month')::date ELSE period_end END)::text AS until FROM centers.renewals WHERE center_id=$1 AND member_id=$2 AND subscription_id=$3 AND period_start<=$4 AND receipt_id IS NULL`,[c,member.id,last.id,member.local_today,last.interval_months===1]);
- let end=[initialCoverage({anchorOn:last.anchor_on,startsOn:last.starts_on,intervalMonths:last.interval_months,billingDay:last.billing_day}),rows[0].until,renewed[0].until].filter(Boolean).sort().at(-1);
- if(last.ends_on&&last.ends_on<end)end=last.ends_on;if(member.ends_on&&member.ends_on<end)end=member.ends_on;
- return {hasContract:true,passOnly:false,...passes,name:last.name,subscriptionId:last.id,planId:last.plan_id,today:member.local_today,...feeAccess(member.local_today,end,{intervalMonths:last.interval_months}),...(last.starts_on>member.local_today?{status:'scheduled',blocked:false}:{})};
-}
-async function prepare(client,scope,memberId,priceVersionId){
- const c=scope.centerId,member=await memberRecord(client,c,memberId),today=member.local_today,month=today.slice(0,7)+'-01';
+async function coveredRenewalPeriod(client,c,memberId,today){
+ const month=today.slice(0,7)+'-01';
  const {rows:done}=await client.query(`SELECT r.*,r.period_start::text,r.period_end::text FROM centers.renewals r JOIN centers.subscriptions s ON (s.center_id,s.id)=(r.center_id,r.subscription_id) JOIN centers.membership_plan_versions v ON (v.center_id,v.id)=(s.center_id,s.price_version_id) WHERE r.center_id=$1 AND r.member_id=$2 AND (r.renewal_month=$3 OR v.interval_months<>1 AND r.period_start<=$4 AND r.period_end>$4) ORDER BY r.period_end DESC LIMIT 1`,[c,memberId,month,today]);
  if(done.length){if(done[0].receipt_id&&(await receiptBalance(client,c,memberId,done[0].receipt_id)).balanceMinor!=='0')fail('receipt-review-required');return {alreadyCovered:true,periodStart:done[0].period_start,periodEnd:done[0].period_end,amountMinor:'0',today}}
  const {rows:paid}=await client.query("SELECT r.period_start::text,r.period_end::text FROM centers.receipts r JOIN centers.subscriptions s ON (s.center_id,s.id)=(r.center_id,r.subscription_id) JOIN centers.membership_plan_versions v ON (v.center_id,v.id)=(s.center_id,s.price_version_id) WHERE r.center_id=$1 AND r.member_id=$2 AND r.concept='membership' AND (v.interval_months=1 AND date_trunc('month',r.period_start)=$4::date OR v.interval_months<>1 AND r.period_start<=$3 AND r.period_end>$3) AND r.total_minor=coalesce((SELECT sum(a.amount_minor) FROM centers.payment_allocations a WHERE a.center_id=r.center_id AND a.receipt_id=r.id),0)-coalesce((SELECT sum(f.amount_minor) FROM centers.refunds f WHERE f.center_id=r.center_id AND f.receipt_id=r.id),0) ORDER BY r.period_end DESC LIMIT 1",[c,memberId,today,month]);
  if(paid.length)return {alreadyCovered:true,periodStart:paid[0].period_start,periodEnd:paid[0].period_end,amountMinor:'0',today};
+ return null;
+}
+export async function feeSummary(client,c,member){
+ const {rows:contracts}=await client.query('SELECT s.*,s.starts_on::text,s.ends_on::text,s.anchor_on::text,v.name,v.interval_months FROM centers.subscriptions s JOIN centers.membership_plan_versions v ON (v.center_id,v.id)=(s.center_id,s.price_version_id) WHERE s.center_id=$1 AND s.member_id=$2 AND s.canceled_at IS NULL ORDER BY (s.starts_on<=$3) DESC,s.starts_on DESC,s.created_at DESC LIMIT 1',[c,member.id,member.local_today]);const last=contracts[0];
+ let renewalCovered=null,renewalUnavailableReason=null;
+ try{renewalCovered=await coveredRenewalPeriod(client,c,member.id,member.local_today)}catch(error){if(error.code!=='receipt-review-required')throw error;renewalUnavailableReason=error.code}
+ const renewal={renewalCovered,renewalUnavailableReason};
+ const availability=await passDayAvailability(client,c,member),passes={hasPass:availability.hasPass,passRemaining:availability.remaining,passDayReason:availability.reason};
+ if(!last)return {...renewal,hasContract:false,passOnly:availability.hasPass,...passes,today:member.local_today,...feeAccess(member.local_today,null)};
+ const {rows}=await client.query(`SELECT max(CASE WHEN $5::boolean THEN (date_trunc('month',r.period_start)+interval '1 month')::date ELSE r.period_end END)::text AS until FROM centers.receipts r WHERE r.center_id=$1 AND r.member_id=$2 AND r.subscription_id=$3 AND r.period_start<=$4 AND r.total_minor=coalesce((SELECT sum(a.amount_minor) FROM centers.payment_allocations a WHERE a.center_id=r.center_id AND a.receipt_id=r.id),0)-coalesce((SELECT sum(f.amount_minor) FROM centers.refunds f WHERE f.center_id=r.center_id AND f.receipt_id=r.id),0)`,[c,member.id,last.id,member.local_today,last.interval_months===1]);
+ const {rows:renewed}=await client.query(`SELECT max(CASE WHEN $5::boolean THEN (date_trunc('month',period_start)+interval '1 month')::date ELSE period_end END)::text AS until FROM centers.renewals WHERE center_id=$1 AND member_id=$2 AND subscription_id=$3 AND period_start<=$4 AND receipt_id IS NULL`,[c,member.id,last.id,member.local_today,last.interval_months===1]);
+ let end=[initialCoverage({anchorOn:last.anchor_on,startsOn:last.starts_on,intervalMonths:last.interval_months,billingDay:last.billing_day}),rows[0].until,renewed[0].until].filter(Boolean).sort().at(-1);
+ if(last.ends_on&&last.ends_on<end)end=last.ends_on;if(member.ends_on&&member.ends_on<end)end=member.ends_on;
+ return {...renewal,hasContract:true,passOnly:false,...passes,name:last.name,subscriptionId:last.id,planId:last.plan_id,today:member.local_today,...feeAccess(member.local_today,end,{intervalMonths:last.interval_months}),...(last.starts_on>member.local_today?{status:'scheduled',blocked:false}:{})};
+}
+async function prepare(client,scope,memberId,priceVersionId){
+ const c=scope.centerId,member=await memberRecord(client,c,memberId),today=member.local_today,month=today.slice(0,7)+'-01';
+ const covered=await coveredRenewalPeriod(client,c,memberId,today);if(covered)return covered;
  if(!['active','preactive'].includes(member.state)||member.ends_on&&member.ends_on<=today)fail('renewal-member-inactive');
  const subs=await subscriptionRows(client,c,memberId,10000),existing=subs.find(s=>!s.canceled_at&&s.starts_on<=today&&(!s.ends_on||s.ends_on>today));
  if(subs.some(s=>!s.canceled_at&&s.starts_on>today))fail('pending-subscription');

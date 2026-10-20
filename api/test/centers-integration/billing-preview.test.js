@@ -19,7 +19,7 @@ test('billing preview trusts SQL terms and dated states, requires policy and kee
   assert.equal(BigInt(quote.body.quote.netMinor)+BigInt(quote.body.quote.taxMinor),BigInt(quote.body.quote.totalMinor));
   assert.equal((await req('/api/centers/billing/preview',root,body)).status,200);
   await req('/api/centers/staff/assign',root,{centerId:center,version:1,accountUid:trainer});assert.equal((await req('/api/centers/billing/preview',trainer,body)).status,403);
-  assert.equal((await req('/api/centers/billing/preview',other,body)).status,404);
+  assert.equal((await req('/api/centers/billing/preview',other,body)).body.code,'account-activation-required');
   assert.equal((await req('/api/centers/billing/preview',manager,{...body,priceMinor:'1'})).status,400);
   assert.equal((await req('/api/centers/billing/preview',manager,{...body,memberId:'external_member'})).status,404);
   await req('/api/centers/members/transition',manager,{centerId:center,id:member.id,version:2,action:'freeze',effectiveOn:today,reason:'Synthetic pause',requestId:p+'_freeze'});

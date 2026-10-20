@@ -59,7 +59,7 @@ test('business SQL and HTTP enforce center isolation, role projections, revocati
 
   await db.platformTransaction(platform,client => client.query('UPDATE centers.role_assignments SET revoked_at=NOW() WHERE id=$1',[id('ra')]));
   assert.deepEqual((await request('/api/centers/me',managerA)).body.centers,[]);
-  assert.equal((await request(`/api/centers/member?centerId=${centerA}&id=${id('ma')}`,managerA)).status,404);
+  assert.equal((await request(`/api/centers/member?centerId=${centerA}&id=${id('ma')}`,managerA)).body.code,'account-activation-required');
   const disabled = await startHttp(t,{app,enabled:false,attached:true,users:[{id:technical,name:technical,admin:true},{id:multi,name:multi}]});
   assert.equal((await fetch(disabled.base+'/api/centers/me',{headers:disabled.headers(multi)})).status,404);
   assert.equal((await fetch(disabled.base+'/api/admin/user/delete',{method:'POST',headers:disabled.headers(technical),body:JSON.stringify({id:multi})})).status,409);

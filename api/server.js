@@ -1,3 +1,5 @@
+import {normalizeNationalDocument,validNationalDocument} from './centers/domain/national-document.js';
+import {registrationCenter,requestActivation} from './centers/services/activations.js';
 import {applicationAccess,renewalGateExempt} from './centers/services/application-access.js';
 /* opengym-api — passkey (WebAuthn) auth + per-user state storage for openGym
    No framework, JSON-file storage, signed session cookies.               */
@@ -1310,10 +1312,13 @@ const passwordRoutes = {
     const body = await readBody(req);
     const name = text(body.name).trim().slice(0, 40);
     if (!name) return json(res, 400, { error: 'name required', code: 'missing' });
+    const center=await signupCenter(res,body.centerId);if(center===false)return;
+    const nationalDocument=center?normalizeNationalDocument(body.nationalDocument):null;
+    if(center&&!validNationalDocument(body.nationalDocument))return json(res,400,{error:'A valid DNI or NIE is required.',code:'national-document-invalid'});
     const code = text(body.code).trim().toUpperCase();
     const invite = () => db.invites.find(i => i.code === code && !i.usedBy && !i.revoked);
-    if (INVITE_ONLY && addressPaused(req, res, 'signup')) return;
-    if (INVITE_ONLY && !invite()) {
+    if (!center && INVITE_ONLY && addressPaused(req, res, 'signup')) return;
+    if (!center && INVITE_ONLY && !invite()) {
       audit(req, 'auth.register.denied', { ok: false, name, msg: 'invite-rejected' });
       strikeAddress(req, 'signup');
       return json(res, 403, { error: 'a valid invite code is required', code: 'invite' });
@@ -1337,7 +1342,7 @@ const passwordRoutes = {
     if (email && addressPaused(req, res, 'email')) return;
     const h = await hashPassword(body.password);
     let inv = null;
-    if (INVITE_ONLY) {
+    if (!center && INVITE_ONLY) {
       inv = invite();
       if (!inv) {
         audit(req, 'auth.register.fail', { ok: false, name, msg: 'invite-invalid' });
@@ -1350,7 +1355,12 @@ const passwordRoutes = {
     const created = new Date().toISOString();
     const user = { id: crypto.randomBytes(12).toString('base64url'), name, created, pw: { h, set: created }, ...(email ? { email } : {}) };
     if (inv) { user.invitedBy = inv.code; inv.usedBy = user.id; inv.usedAt = created; }
-    claimFirstAdmin(req, user);
+    if(center)user.registrationCenterId=center.id;
+    if(!CENTERS_CONFIG.enabled)claimFirstAdmin(req, user);
+    if(center&&!await saveSignupActivation(res,user,center,nationalDocument))return;
+    // SQL admission yields; re-check identity uniqueness before publishing credentials.
+    if(nameTaken(name))return taken();
+    if(email&&emailTaken(email))return emailRefused();
     db.users.push(user);
     saveDb();
     audit(req, 'auth.register.ok', { user, msg: inv ? inv.code + ' · password' : 'password' });
@@ -1930,6 +1940,15 @@ function dataWritable() {
   return ok;
 }
 
+async function signupCenter(res,id){
+ if(!CENTERS_CONFIG.enabled)return null;
+ if(!id){json(res,400,{error:'Use your center registration link.',code:'registration-center-required'});return false}
+ try{return await registrationCenter(CENTERS_DATABASE,id)}catch(error){json(res,error.status||503,{error:'The center registration link is unavailable.',code:error.code||'centers-unavailable'});return false}
+}
+async function saveSignupActivation(res,user,center,nationalDocument){
+ if(!center)return true;
+ try{await requestActivation(CENTERS_DATABASE,user,{centerId:center.id,nationalDocument},{accountLocks:CENTERS_ACCOUNT_LOCKS,newAccount:true});return true}catch{json(res,503,{error:'Registration is temporarily unavailable. Please retry.',code:'centers-unavailable'});return false}
+}
 const routes = {
   // 503 rather than a flag in a 200: the container healthcheck is `wget --spider`, which reads
   // the status and nothing else, and an instance that cannot write its data directory is exactly
@@ -1959,7 +1978,7 @@ const routes = {
     // were not signed in when you asked", and would re-ask on every sign-in on every instance
     // that has no Coach. The key's absence is that answer.
     json(res, 200, {
-      invite_only: INVITE_ONLY, allow_guest: ALLOW_GUEST,
+      invite_only: INVITE_ONLY && !CENTERS_CONFIG.enabled, allow_guest: ALLOW_GUEST,
       // Only when on, so an instance without passwords answers exactly as it did before (#118).
       ...(PASSWORD_LOGIN ? { password_login: true } : {}),
       // Public: the sign-in screen is the first thing that reads it.
@@ -1991,8 +2010,11 @@ const routes = {
     const body = await readBody(req);
     const name = text(body.name).trim().slice(0, 40);
     if (!name) return json(res, 400, { error: 'name required' });
+    const center=await signupCenter(res,body.centerId);if(center===false)return;
+    const nationalDocument=center?normalizeNationalDocument(body.nationalDocument):null;
+    if(center&&!validNationalDocument(body.nationalDocument))return json(res,400,{error:'A valid DNI or NIE is required.',code:'national-document-invalid'});
     const code = text(body.code).trim().toUpperCase();
-    if (INVITE_ONLY && !db.invites.some(i => i.code === code && !i.usedBy && !i.revoked)) {
+    if (!center && INVITE_ONLY && !db.invites.some(i => i.code === code && !i.usedBy && !i.revoked)) {
       // The rejected code itself is never recorded — a near-miss guess in the log is a liability.
       audit(req, 'auth.register.denied', { ok: false, name, msg: 'invite-rejected' });
       return json(res, 403, { error: 'a valid invite code is required', code: 'invite' });
@@ -2005,7 +2027,7 @@ const routes = {
       authenticatorSelection: { residentKey: 'required', userVerification: 'preferred' },
       excludeCredentials: []
     });
-    const cid = putChallenge({ kind: 'register', challenge: options.challenge, name, uid, code });
+    const cid = putChallenge({ kind: 'register', challenge: options.challenge, name, uid, code, centerId:center?.id||null,nationalDocument });
     json(res, 200, { cid, options });
   },
 
@@ -2016,6 +2038,7 @@ const routes = {
       auditFail(req, 'auth.register.fail', { ok: false, msg: 'challenge-expired' });
       return json(res, 400, { error: 'challenge expired, try again', code: 'challenge-expired' });
     }
+    const center=await signupCenter(res,c.centerId);if(center===false)return;
     let verification;
     try {
       verification = await verifyRegistrationResponse({
@@ -2041,7 +2064,7 @@ const routes = {
     }
     // Re-check the invite at the last moment (it may have been used/revoked since options), then burn it.
     let invite = null;
-    if (INVITE_ONLY) {
+    if (!center && INVITE_ONLY) {
       invite = db.invites.find(i => i.code === c.code && !i.usedBy && !i.revoked);
       if (!invite) {
         audit(req, 'auth.register.fail', { ok: false, name: c.name, msg: 'invite-invalid' });
@@ -2050,7 +2073,10 @@ const routes = {
     }
     const user = { id: c.uid, name: c.name, created: new Date().toISOString() };
     if (invite) { user.invitedBy = invite.code; invite.usedBy = user.id; invite.usedAt = user.created; }
-    claimFirstAdmin(req, user);
+    if(center)user.registrationCenterId=center.id;
+    if(!CENTERS_CONFIG.enabled)claimFirstAdmin(req, user);
+    if(center&&!await saveSignupActivation(res,user,center,c.nationalDocument))return;
+    if(db.creds.some(x=>x.id===credential.id))return json(res,409,{error:'credential already registered'});
     db.users.push(user);
     db.creds.push({
       id: credential.id, userId: user.id,
@@ -2763,7 +2789,7 @@ const server = http.createServer(async (req, res) => {
       const sv=gatedUser.sv||0;let access;
       try{access=await applicationAccess(CENTERS_DATABASE,CENTERS_CONFIG,gatedUser)}catch{return json(res,503,{error:'centers temporarily unavailable',code:'centers-unavailable'})}
       if(readSession(req)!==gatedUser||(gatedUser.sv||0)!==sv)return notSignedIn(res);
-      if(access.blocked)return json(res,403,{error:'renew membership to continue',code:'membership-renewal-required',access});
+      if(access.blocked)return json(res,403,{error:access.reason==='activation-pending'?'pending center activation':'renew membership to continue',code:access.reason==='activation-pending'?'account-activation-required':'membership-renewal-required',access});
     }
     await handler(req,res);
   }

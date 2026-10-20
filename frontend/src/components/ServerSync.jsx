@@ -129,10 +129,11 @@ export function connectServer() {
 // first, with the passkey one tap away on it: which of the two this account has is not
 // something this browser can know.
 export function signInAgain() {
-  if (pwOn()) { openPasswordSignIn(webauthnOK() ? passkeySignIn : undefined); return }
+  if (pwOn()) { openPasswordSignIn(!useStore.getState().config?.document_login&&webauthnOK() ? passkeySignIn : undefined); return }
   return passkeySignIn()
 }
 export async function passkeySignIn() {
+  if(useStore.getState().config?.document_login){openPasswordSignIn();return}
   const st = useStore.getState()
   try {
     const u = await passkeyLogin()

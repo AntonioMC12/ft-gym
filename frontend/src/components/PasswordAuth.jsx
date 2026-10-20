@@ -53,10 +53,12 @@ export function passwordError(e) {
   const code = e?.data?.code
   if (e?.status === 429 || code === 'locked') return t('Too many attempts. Try again {0}.', fmtIn(e?.data?.retryAfter || 60))
   switch (code) {
-    case 'bad-credentials': return t('Wrong name, e-mail or password.')
+    case 'bad-credentials': return t(useStore.getState().config?.document_login?'Wrong DNI/NIE or password.':'Wrong name, e-mail or password.')
     case 'too-short': return t('Use at least {0} characters.', MIN_PASSWORD)
     case 'too-long': return t('That password is too long.')
     case 'too-common': return t('That password is too easy to guess. Try a longer one, or a few random words strung together.')
+    case 'document-taken': return t('This DNI/NIE already has an account or requires review. Recover your existing account or contact your center manager.')
+    case 'full-name-required': return t('Enter your first and last name.')
     case 'name-taken': return t('Another profile already signs in with this name.')
     case 'email-invalid': return t('That is not an e-mail address.')
     case 'email-taken': return t('Another profile already uses this e-mail address.')
@@ -108,12 +110,13 @@ export function PasswordSignInSheet({ close, onPasskey }) {
   const [err, setErr] = useState(null)
   const nameRef = useRef(null)
   useEffect(() => { setTimeout(() => nameRef.current?.focus(), 250) }, [])
+  const config=useStore(s=>s.config)
   const reset = mode === 'reset'
   const submit = async ev => {
     ev.preventDefault()
     if (busy) return
     const n = name.trim()
-    const bad = !n ? t('Enter your name or e-mail.')
+    const bad = config?.document_login&&!validNationalDocument(n) ? t('Enter a valid DNI or NIE.') : !n ? t('Enter your name or e-mail.')
       : !reset && !pw ? t('Enter your password.')
       : reset && !code.trim() ? t('Enter the reset code.')
       : reset && length(next) < MIN_PASSWORD ? t('Use at least {0} characters.', MIN_PASSWORD)
@@ -122,19 +125,22 @@ export function PasswordSignInSheet({ close, onPasskey }) {
       : null
     if (bad) { setErr(bad); return }
     setBusy(true); setErr(null)
-    try { await finishSignIn(reset ? await passwordResetRedeem(n, code.trim(), next) : await passwordLogin(n, pw), close) }
+    try {
+      const user=reset ? await passwordResetRedeem(n, code.trim(), next) : await passwordLogin(n, pw)
+      await finishSignIn(user, close)
+    }
     catch (e) { setErr(passwordError(e)) }
     finally { setBusy(false) }
   }
   return <>
     <h3>{reset ? t('Reset your password') : t('Sign in with password')}</h3>
     <div className="muted small" style={{ marginBottom: 14 }}>{reset
-      ? t('Enter the code your admin gave you and choose a new password. It signs you out everywhere else.')
-      : t('Use your profile name (or the e-mail you added to it) and your password.')}</div>
+      ? t(config?.document_login?'Ask your center manager to verify your identity and give you a recovery code. Enter your DNI/NIE and the code, which expires in 30 minutes.':'Enter the code your admin gave you and choose a new password. It signs you out everywhere else.')
+      : t(config?.document_login?'Use your DNI/NIE and password.':'Use your profile name (or the e-mail you added to it) and your password.')}</div>
     <form onSubmit={submit} noValidate>
       {/* One field for both: the server looks an entry with an "@" up as an e-mail first. Not
           type="email", which would refuse a plain name. */}
-      <input ref={nameRef} className="input" name="username" autoComplete="username" placeholder={t('Name or e-mail')} maxLength={254}
+      <input ref={nameRef} className="input" name="username" autoComplete="username" placeholder={t(config?.document_login?'DNI / NIE':'Name or e-mail')} aria-label={t(config?.document_login?'DNI / NIE':'Name or e-mail')} maxLength={config?.document_login?20:254} autoCapitalize={config?.document_login?'characters':'none'} spellCheck={false}
         value={name} onChange={e => setName(e.target.value)} {...field} />
       <div style={{ height: 10 }} />
       {reset ? <>
@@ -155,8 +161,8 @@ export function PasswordSignInSheet({ close, onPasskey }) {
     </form>
     <div style={{ height: 8 }} />
     <Button type="button" variant="ghost" className="dim" onClick={() => { setErr(null); setMode(reset ? 'signin' : 'reset') }}>
-      {reset ? t('Sign in with password') : t('Have a reset code from your admin?')}</Button>
-    {onPasskey && !reset && webauthnOK() && <>
+      {reset ? t('Sign in with password') : t(config?.document_login?'Recover my account':'Have a reset code from your admin?')}</Button>
+    {onPasskey && !config?.document_login && !reset && webauthnOK() && <>
       <div style={{ height: 8 }} />
       <Button type="button" icon="fingerprint" onClick={() => { close(); onPasskey() }}>{t('Sign in with passkey')}</Button>
     </>}
@@ -181,7 +187,8 @@ export function PasswordRegisterForm({ close, inviteOnly, name, setName, code, s
     if (busy) return
     const n = name.trim()
     const mail = email.trim()
-    const bad = !n ? t('Enter a name')
+    const bad = config?.document_login&&n.split(/\s+/).length<2 ? t('Enter your first and last name.')
+      : !n ? t('Enter a name')
       : centerRegistration&&!validNationalDocument(nationalDocument) ? t('Enter a valid DNI or NIE.')
       : mail && !looksLikeEmail(mail) ? t('That is not an e-mail address.')
       : inviteOnly && !code.trim() ? t('An invite code is required')
@@ -204,12 +211,12 @@ export function PasswordRegisterForm({ close, inviteOnly, name, setName, code, s
   if(centerRegistration&&!registrationCenterId())return <RegistrationCenter/>
   return <form onSubmit={submit} noValidate>
     {centerRegistration&&<RegistrationCenter/>}
-    <input className="input" name="username" autoComplete="username" placeholder={t('Your name')} maxLength={40}
-      value={name} onChange={e => setName(e.target.value)} {...field} />
+    <label className="account-auth-field"><span>{t(config?.document_login?'First and last name':'Your name')}</span><input className="input" name="name" autoComplete="name" placeholder={t(config?.document_login?'First and last name':'Your name')} required maxLength={config?.document_login?120:40}
+      value={name} onChange={e => setName(e.target.value)} {...field} /></label>
     <div style={{ height: 10 }} />
     <input className="input" type="email" name="email" autoComplete="email" inputMode="email" placeholder={t('E-mail (optional)')} maxLength={254}
       value={email} onChange={e => setEmail(e.target.value)} {...field} />
-    <div className="dim small" style={{ marginTop: 6 }}>{t('Lets you sign in with it instead of your name. Nothing is ever sent to it.')}</div>
+    <div className="dim small" style={{ marginTop: 6 }}>{t(config?.document_login?'Optional contact address. Account recovery is handled by your center manager.':'Lets you sign in with it instead of your name. Nothing is ever sent to it.')}</div>
     {centerRegistration&&<RegistrationDocument value={nationalDocument} onChange={setNationalDocument}/>}
     {inviteOnly && <>
       <div style={{ height: 10 }} />
@@ -237,7 +244,7 @@ function PasswordRegisterSheet({ close }) {
   const [code, setCode] = useState('')
   return <>
     <h3>{t('Create your profile')}</h3>
-    <div className="muted small" style={{ marginBottom: 14 }}>{t('Pick a name and a password. You sign in with both.')}</div>
+    <div className="muted small" style={{ marginBottom: 14 }}>{t(config?.document_login?'Your DNI/NIE identifies your account. Choose a password and enter your full name.':'Pick a name and a password. You sign in with both.')}</div>
     <PasswordRegisterForm close={close} inviteOnly={!!config?.invite_only} name={name} setName={setName} code={code} setCode={setCode} />
   </>
 }
@@ -331,6 +338,7 @@ export function useAgainOnceReached(unreached, load) {
 // `version` changes when the profile's passkeys do (Settings, components/Passkeys.jsx): whether the
 // password may be removed depends on them, so the row asks again.
 export function PasswordRow({ version = 0 }) {
+  const config=useStore(s=>s.config)
   const [st, setSt] = useState(null)   // GET /api/account/password
   const [unreached, setUnreached] = useState(false)
   const load = () => api('/api/account/password').then(r => { setSt(r); setUnreached(false) }).catch(e => setUnreached(notReached(e)))
@@ -338,18 +346,36 @@ export function PasswordRow({ version = 0 }) {
   useAgainOnceReached(unreached, load)
   if (!st) return null
   // Nothing here could set a first password without a passkey ceremony.
+  if (!st.set && config?.document_login) return <><Row icon="key" title={t('DNI / NIE')} value={t(st.documentSet?'Configured':'Not configured')}/><p role="status" className="dim small">{t('Ask your center manager for a recovery code to set your password.')}</p></>
   if (!st.set && (!webauthnOK() || !st.passkeys)) return null
   const blocked = !st.set && st.nameTaken
   const subtitle = blocked ? t('Another profile already signs in with this name.')
-    : st.set ? t('Set · sign in as “{0}”', st.name)
+    : st.set ? config?.document_login?t('Sign in with your DNI/NIE.'):t('Set · sign in as “{0}”', st.name)
     : t('Not set. Handy for signing in where passkeys don’t work.')
   return <>
+    {config?.document_login&&<Row icon="key" title={t('DNI / NIE')} value={t(st.documentSet?'Configured':'Not configured')} subtitle={t('Your DNI/NIE is your unique sign-in identifier.')} accessory={st.documentSet?'none':'chevron'} onClick={st.documentSet?undefined:()=>ui().openSheet(close=><DocumentSetup close={close} done={load}/>)}/>}
     <Row icon="key" iconTint="var(--orange)" title={t('Password')} subtitle={subtitle} accessory={blocked ? 'none' : 'chevron'}
       onClick={blocked ? undefined : () => ui().openSheet(close => <PasswordSheet status={st} close={close} done={load} />)} />
     {/* The server only signs in by an address that belongs to a profile with a password, so
         without one the row is left out; one already saved stays reachable to change or remove. */}
     {(st.set || st.email) && <EmailRow status={st} done={load} />}
   </>
+}
+
+function DocumentSetup({close,done}){
+ const [document,setDocument]=useState(''),[current,setCurrent]=useState(''),[busy,setBusy]=useState(false),[error,setError]=useState(null)
+ const submit=async event=>{
+  event.preventDefault();if(busy)return
+  if(!validNationalDocument(document)){setError(t('Enter a valid DNI or NIE.'));return}
+  if(!current){setError(t('Enter your password.'));return}
+  setBusy(true);setError(null)
+  try{await api('/api/account/document',{method:'POST',body:JSON.stringify({nationalDocument:normalizeNationalDocument(document),current})});close();done()}
+  catch(e){setError(passwordError(e))}finally{setBusy(false)}
+ }
+ return <><h3>{t('Configure sign-in DNI/NIE')}</h3><p className="muted small">{t('Your DNI/NIE is your unique sign-in identifier.')}</p><form onSubmit={submit} noValidate>
+  <RegistrationDocument value={document} onChange={setDocument}/><input className="input" type="password" autoComplete="current-password" placeholder={t('Current password')} value={current} onChange={e=>setCurrent(e.target.value)}/>
+  {error&&<p role="alert" style={errStyle}>{error}</p>}<div style={{height:14}}/><Button type="submit" variant="primary" disabled={busy}>{t('Save')}</Button>
+ </form></>
 }
 
 export function PasswordSheet({ status, close, done }) {
@@ -378,7 +404,7 @@ export function PasswordSheet({ status, close, done }) {
   return <>
     <h3>{status.set ? t('Change password') : t('Set a password')}</h3>
     <div className="muted small" style={{ marginBottom: 14 }}>
-      {t('Sign in as “{0}” with it on devices where passkeys do not work. Saving signs you out everywhere else, and paired phones have to be paired again.', status.name)}
+      {t((status.documentSet||status.documentRequired)?'Choose a new password. Saving signs you out on your other devices.':'Sign in as “{0}” with it on devices where passkeys do not work. Saving signs you out everywhere else, and paired phones have to be paired again.', status.name)}
     </div>
     <form onSubmit={ev => { ev.preventDefault(); save(!status.set) }} noValidate>
       {/* Tells a password manager which account the new password belongs to. */}
@@ -440,7 +466,7 @@ function RemovePasswordSheet({ status, close, done }) {
 export function EmailRow({ status, done }) {
   const subtitle = status.email && !status.set ? t('“{0}” is saved, but signs in only once this profile has a password.', status.email)
     : status.email ? t('Sign in with “{0}” instead of your name', status.email)
-    : t('Not set. Lets you sign in with an e-mail instead of your name.')
+    : t((status.documentSet||status.documentRequired)?'Optional contact address. Account recovery is handled by your center manager.':'Not set. Lets you sign in with an e-mail instead of your name.')
   return <Row icon="envelope" iconTint="var(--blue)" title={t('Sign-in e-mail')} subtitle={subtitle} accessory="chevron"
     onClick={() => ui().openSheet(close => <EmailSheet status={status} close={close} done={done} />)} />
 }
@@ -468,9 +494,9 @@ export function EmailSheet({ status, close, done }) {
   }
   const remove = () => ui().openSheet(c => <RemoveEmailSheet status={status} close={c} done={() => { close(); done() }} />)
   return <>
-    <h3>{status.email ? t('Change sign-in e-mail') : t('Add a sign-in e-mail')}</h3>
+    <h3>{(status.documentSet||status.documentRequired)?t('Contact email'):status.email ? t('Change sign-in e-mail') : t('Add a sign-in e-mail')}</h3>
     <div className="muted small" style={{ marginBottom: 14 }}>
-      {t('Type it at “Sign in with password” instead of your profile name. We never send anything to it; a forgotten password is still reset by your admin.')}
+      {t((status.documentSet||status.documentRequired)?'Optional contact address. Account recovery is handled by your center manager.':'Type it at “Sign in with password” instead of your profile name. We never send anything to it; a forgotten password is still reset by your admin.')}
     </div>
     {step === 'edit' ? <>
       <form onSubmit={next} noValidate>

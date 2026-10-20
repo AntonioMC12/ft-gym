@@ -1,0 +1,21 @@
+import {test} from 'node:test';
+import assert from 'node:assert/strict';
+import fs from 'node:fs';
+import path from 'node:path';
+import os from 'node:os';
+import {spawnSync} from 'node:child_process';
+import {fileURLToPath} from 'node:url';
+import {resetCodeMatches} from '../password.js';
+test('operator recovery refuses unsafe invocation and preserves UIDs and training for a passkey-only owner',t=>{
+ const dir=fs.mkdtempSync(path.join(os.tmpdir(),'gym-account-recovery-test-'));
+ t.after(()=>{if(!path.basename(dir).startsWith('gym-account-recovery-test-'))throw Error('unexpected cleanup target');fs.rmSync(dir,{recursive:true})});
+ const db={users:[{id:'owner',name:'Installation Owner',admin:true}],creds:[{id:'credential',userId:'owner'}],deviceLinks:[{userId:'owner'}]};
+ const original=JSON.stringify(db),history='{"workouts":[{"id":"keep"}]}';fs.writeFileSync(path.join(dir,'db.json'),original);fs.writeFileSync(path.join(dir,'state-owner.json'),history);
+ const run=args=>spawnSync(process.execPath,[fileURLToPath(new URL('../scripts/recover-account.mjs',import.meta.url)),...args],{env:{...process.env,DATA_DIR:dir},encoding:'utf8'});
+ assert.notEqual(run(['--uid','owner']).status,0);assert.equal(fs.readFileSync(path.join(dir,'db.json'),'utf8'),original);
+ const result=run(['--uid','owner','--api-stopped']);assert.equal(result.status,0,result.stderr);
+ const code=result.stdout.trim().split(': ').at(-1),stored=JSON.parse(fs.readFileSync(path.join(dir,'db.json')));
+ assert.equal(stored.users[0].id,'owner');assert.equal(stored.users[0].username,undefined);assert.equal(stored.users[0].sv,1);assert.equal(stored.creds[0].id,'credential');assert.deepEqual(stored.deviceLinks,[]);
+ assert.ok(resetCodeMatches(code,stored.users[0].pwReset));assert.equal(resetCodeMatches(code,{...stored.users[0].pwReset,exp:Date.now()-1}),false);
+ assert.equal(JSON.stringify(stored).includes(code),false);assert.equal(fs.readFileSync(path.join(dir,'state-owner.json'),'utf8'),history);
+});

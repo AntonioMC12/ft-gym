@@ -10,8 +10,8 @@ const fail=(code,status=409)=>{throw new CentersError(status,code,'activation re
 export async function registrationCenter(database,id){
  const centerId=idField(id);return database.accountTransaction('registration',async client=>{const {rows}=await client.query('SELECT * FROM centers.registration_center($1)',[centerId]);if(!rows.length)fail('registration-center-unavailable',404);return rows[0]});
 }
-export async function requestActivation(database,user,raw,{accountLocks,checkSession=()=>{},newAccount=false}){
- objectBody(raw,['centerId','nationalDocument']);const document=raw.nationalDocument===undefined?null:normalizeNationalDocument(raw.nationalDocument);if(document!==null&&!validNationalDocument(raw.nationalDocument))fail('national-document-invalid',400);const centerId=idField(raw.centerId);await registrationCenter(database,centerId);
+export async function requestActivation(database,user,raw,{accountLocks,checkSession=()=>{},newAccount=false,documentMatches}){
+ objectBody(raw,['centerId','nationalDocument']);const document=raw.nationalDocument===undefined?null:normalizeNationalDocument(raw.nationalDocument);if(document!==null&&!validNationalDocument(raw.nationalDocument))fail('national-document-invalid',400);if(document&&documentMatches&&!documentMatches(user,document))fail('national-document-invalid',400);const centerId=idField(raw.centerId);await registrationCenter(database,centerId);
  return accountLocks.withAccounts([user.id],()=>database.accountTransaction(user.id,async client=>{
   checkSession();
   const {rows:linked}=await client.query('SELECT id FROM centers.members WHERE center_id=$1 AND account_uid=$2',[centerId,user.id]);if(linked.length)return {status:'approved'};
@@ -24,6 +24,8 @@ export async function ownActivations(database,uid){
 }
 async function documentMatch(client,centerId,document){
  if(!document)return {documentMatch:'legacy',matchedMember:null}
+ const pending=await client.query("SELECT id FROM centers.activation_requests WHERE center_id=$1 AND national_document=$2 AND status='pending' LIMIT 2",[centerId,document]);
+ if(pending.rows.length>1)return {documentMatch:'duplicate',matchedMember:null}
  const {rows}=await client.query(`SELECT id,name,member_number,version,account_uid FROM centers.members WHERE center_id=$1 AND regexp_replace(upper(national_document),'[ .-]','','g')=$2 ORDER BY id LIMIT 2`,[centerId,document])
  if(rows.length>1)return {documentMatch:'duplicate',matchedMember:null}
  if(!rows.length)return {documentMatch:'none',matchedMember:null}

@@ -113,6 +113,8 @@ export default function Home() {
     </div>
 
     <HomeGymCard />
+    <HomeTrainingCard />
+    <CommunityCard />
 
     <div className="card">
       {/* A coach week runs by order, not by weekday, so its progress row stands in for the
@@ -166,8 +168,6 @@ export default function Home() {
       </div>}
     </div>
 
-    <HomeTrainingCard />
-    <CommunityCard />
 
     {!S.routines.length && !S.active && (
       <div className="card">

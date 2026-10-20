@@ -141,3 +141,50 @@ test('identical offers by the same authorized author are idempotent across diffe
  const accepted=await f.req('/api/centers/own/training/accept',f.ids.alice,f.own(a.body.proposal));assert.equal(accepted.status,200);
  const again=await f.req('/api/centers/training/propose',f.ids.manager,{...raw,requestId:f.p+'_dedup_after_accept'});assert.equal(again.status,200);assert.equal(again.body.proposal.id,a.body.proposal.id);
 });
+
+test('assigned-training roster is paginated, scoped to current links and excludes unaccepted offers',async t=>{
+  const f=await fixture(t),url='/api/centers/training/members?centerId='+f.center;
+  assert.equal((await f.req(url,f.ids.root)).body.members.length,0);
+  const a=(await f.propose()).body.proposal;
+  assert.equal((await f.req(url,f.ids.root)).body.members.length,0);
+  assert.equal((await f.req('/api/centers/own/training/accept',f.ids.alice,f.own(a))).status,200);
+  const b=(await f.propose(f.bob,f.ids.trainer,'bob_roster')).body.proposal;
+  assert.equal((await f.req('/api/centers/own/training/accept',f.ids.bob,f.own(b))).status,200);
+  const all=await f.req(url,f.ids.root);assert.equal(all.status,200,JSON.stringify(all));assert.equal(all.body.members.length,2);
+  assert.deepEqual(Object.keys(all.body.members[0]).sort(),['assignedAt','id','name','number','plans'].sort());
+  const page=await f.req(url+'&limit=1',f.ids.root);assert.equal(page.body.members.length,1);assert.ok(page.body.nextCursor);
+  const next=await f.req(url+'&limit=1&cursor='+page.body.nextCursor,f.ids.root);assert.equal(next.body.members.length,1);assert.notEqual(next.body.members[0].id,page.body.members[0].id);
+  assert.equal((await f.req(url+'&query=alice',f.ids.root)).body.members[0].id,f.alice.id);
+  assert.equal((await f.req(url+'&query=%25',f.ids.root)).body.members.length,0);
+  assert.equal((await f.req(url+'&query=alice&cursor='+page.body.nextCursor,f.ids.root)).status,400);
+  assert.equal((await f.req(url+'&accountUid='+f.ids.alice,f.ids.root)).status,400);
+  for(const uid of [f.ids.alice,f.ids.technical,f.ids.other])assert.ok([403,404].includes((await f.req(url,uid)).status));
+  assert.equal((await f.req(url,f.ids.trainer)).body.members.length,2);
+  assert.equal((await f.req('/api/centers/training/members?centerId='+f.other,f.ids.root)).body.members.length,0);
+  await f.db.platformTransaction(f.ids.root,client=>client.query('UPDATE centers.members SET account_uid=$2,version=version+1 WHERE id=$1',[f.alice.id,f.ids.technical]),f.center);
+  assert.equal((await f.req(url,f.ids.root)).body.members.length,1);
+});
+
+test('only platform oversight bypasses consent for assigned routines, never for private routines or ordinary reports',async t=>{
+  const f=await fixture(t),a=(await f.propose()).body.proposal;
+  const accepted=(await f.req('/api/centers/own/training/accept',f.ids.alice,f.own(a))).body.proposal,rid=accepted.routineIds.r1;
+  const ownShare='/api/centers/own/training/progress/share?centerId='+f.center,today=(await f.req(ownShare,f.ids.alice)).body.today;
+  const personal={_ts:Date.now(),routines:[{id:rid,name:'Assigned Push',ex:[]},{id:'private_routine',name:'PRIVATE_ROUTINE',ex:[]}],workouts:[{id:'assigned_session',d:today,routineIds:[rid],entries:[{id:'0025',rid,sets:[{w:999,r:99,done:true}],note:'PRIVATE_NOTE'},{id:'0043',rid,sets:[{w:777,r:88,done:true}]},{id:'0025',rid:'private_routine',sets:[{w:888,r:88,done:true}]}]},{id:'private_session',d:today,routineIds:['private_routine'],entries:[]}],bodyweight:[{v:88}]};
+  fs.writeFileSync(path.join(f.h.dir,'state-'+f.ids.alice+'.json'),JSON.stringify(personal));
+  const route='/api/centers/training/assigned-progress?'+new URLSearchParams({centerId:f.center,memberId:f.alice.id});
+  // No assignment: do not read an unrelated personal JSON file, even if it is corrupt.
+  fs.writeFileSync(path.join(f.h.dir,'state-'+f.ids.bob+'.json'),'corrupt private training');
+  const unassigned=await f.req('/api/centers/training/assigned-progress?'+new URLSearchParams({centerId:f.center,memberId:f.bob.id}),f.ids.root);
+  assert.equal(unassigned.status,200);assert.deepEqual(unassigned.body.report.routines,[]);
+  const oversight=await f.req(route,f.ids.root);assert.equal(oversight.status,200,JSON.stringify(oversight));assert.equal(oversight.body.shared,true);assert.equal(oversight.body.report.routines.length,1);assert.equal(oversight.body.report.routines[0].sessions,1);
+  for(const word of ['PRIVATE','777','888','bodyweight',rid,f.ids.alice])assert.ok(!JSON.stringify(oversight.body).includes(word),word);
+  assert.equal(oversight.body.report.routines[0].exercises[0].weeks[0].load,999);assert.equal(oversight.body.report.routines[0].exercises[0].weeks[0].reps,99);
+  for(const uid of [f.ids.trainer,f.ids.manager])assert.deepEqual((await f.req(route,uid)).body,{shared:false});
+  assert.deepEqual((await f.req('/api/centers/training/progress?'+new URLSearchParams({centerId:f.center,memberId:f.alice.id}),f.ids.root)).body,{shared:false});
+  for(const uid of [f.ids.technical,f.ids.alice,f.ids.other])assert.ok([403,404].includes((await f.req(route,uid)).status));
+  const grant={centerId:f.center,version:0,fields:{enabled:true,routineIds:[rid,'private_routine'],from:today,to:today},requestId:f.p+'_roster_share'};
+  assert.equal((await f.req('/api/centers/own/training/progress/share',f.ids.alice,grant)).status,200);
+  const shared=await f.req(route,f.ids.trainer);assert.equal(shared.body.report.routines.length,1);assert.equal(shared.body.report.routines[0].name,'Assigned Push');assert.equal(shared.body.report.routines[0].exercises,undefined);assert.ok(!JSON.stringify(shared.body).includes('999'));
+  assert.equal((await f.req('/api/centers/own/training/progress/share',f.ids.alice,{centerId:f.center,version:1,fields:{enabled:false},requestId:f.p+'_roster_revoke'})).status,200);
+  assert.deepEqual((await f.req(route,f.ids.trainer)).body,{shared:false});assert.equal((await f.req(route,f.ids.root)).body.report.routines[0].sessions,1);
+});

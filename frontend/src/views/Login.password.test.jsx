@@ -116,3 +116,11 @@ it('center registration defaults to password, carries the join link, and never a
 it('requires a center registration link while leaving existing account sign-in available',async()=>{
  mocks.config={centers:{enabled:true},password_login:true,invite_only:false};const page=mount(<Login/>);await act(async()=>{});expect(button(page,'Create account and request access').disabled).toBe(true);expect(button(page,'Sign in with password').disabled).toBe(false);expect(page.textContent).toContain('Ask your center manager for the registration link.')
 })
+
+it('center access hides passkeys and usernames and uses DNI/NIE with the full name',async()=>{
+ window.location.hash='#/home?join=center1';mocks.config={centers:{enabled:true},document_login:true,password_login:true,passkeys:false};api.mockResolvedValue({center:{id:'center1',name:'Gym'}});
+ const page=mount(<Login/>);await act(async()=>{});expect(buttons(page)).not.toContain('Sign in with passkey');
+ act(()=>button(page,'Create account and request access').click());const sheet=mount(mocks.sheets.at(-1)(()=>{}));await act(async()=>{});
+ expect(buttons(sheet)).not.toContain('Passkey');expect(buttons(sheet)).not.toContain('Create passkey');
+ expect(sheet.querySelector('input[autocomplete="username"]')).toBeNull();expect(sheet.querySelector('input[autocomplete="name"]')).not.toBeNull();expect(sheet.textContent).not.toContain('Private username');expect(sheet.querySelector('input[name=nationalDocument]')).not.toBeNull();
+})

@@ -12,6 +12,7 @@ import {Section,Button,Row,SelectRow,MultiSelectRow,SearchField} from './ui.jsx'
 import {platformCenters,centerMembers,centerMember,centerCommand,trainingErrorKey} from '../lib/centers-api.js'
 import {buildPlanBundle} from '../lib/plan-share.js'
 import TrainingProposals from '../views/centers/TrainingProposals.jsx'
+import TrainingRoster from './TrainingRoster.jsx'
 import {t} from '../lib/i18n.js'
 export default function TrainingAssignments({routineIds,planName,mode='all',onManageAccounts,planPicker}){
  const uid=useStore(s=>s.user?.id),state=useCenters(),platform=state.ownerUid===uid&&state.platformCapabilities.includes('centers.manage')
@@ -29,7 +30,7 @@ export default function TrainingAssignments({routineIds,planName,mode='all',onMa
  const navigate=useCenterNavigation()
  const life=useRef(0),sending=useRef(false),requests=useRef(new Map())
  useEffect(()=>{let current=true;setLoadingCenters(true);setCenters([]);setCenter('');setError(null);(platform?platformCenters():Promise.resolve({centers:state.centers.filter(c=>c.capabilities?.includes('training.assign'))})).then(r=>{if(current){setCenters(r.centers);setCenter(r.centers[0]?.id||'')}}).catch(e=>{if(current)setError(e)}).finally(()=>{if(current)setLoadingCenters(false)});return()=>{current=false}},[uid,platform,retry])
- useEffect(()=>{const epoch=++life.current;setMembers([]);setExpandedMembers(false);setMessage('');setCursor(null);setError(null);if(!center||mode==='accounts'){setBusy(false);return}setBusy(true);const timer=setTimeout(()=>{centerMembers(center,{query}).then(r=>{if(epoch===life.current){setMembers(r.members);setCursor(r.nextCursor)}}).catch(e=>{if(epoch===life.current)setError(e)}).finally(()=>{if(epoch===life.current)setBusy(false)})},query?250:0);return()=>{clearTimeout(timer);life.current++}},[center,query,uid,mode])
+ useEffect(()=>{const epoch=++life.current;setMembers([]);setExpandedMembers(false);setMessage('');setCursor(null);setError(null);if(!center||mode==='accounts'||mode==='tracking'){setBusy(false);return}setBusy(true);const timer=setTimeout(()=>{centerMembers(center,{query}).then(r=>{if(epoch===life.current){setMembers(r.members);setCursor(r.nextCursor)}}).catch(e=>{if(epoch===life.current)setError(e)}).finally(()=>{if(epoch===life.current)setBusy(false)})},query?250:0);return()=>{clearTimeout(timer);life.current++}},[center,query,uid,mode])
  useEffect(()=>{setMember(null);setLinking(false);setSelected([]);memberNames.current.clear()},[center,uid])
  useEffect(()=>{for(const m of members)memberNames.current.set(m.id,m.name)},[members])
  const more=async()=>{if(busy||!cursor)return;const epoch=life.current;setBusy(true);try{const r=await centerMembers(center,{query,cursor});if(epoch===life.current){setMembers(rows=>[...rows,...r.members]);setCursor(r.nextCursor)}}catch(e){if(epoch===life.current)setError(e)}finally{if(epoch===life.current)setBusy(false)}}
@@ -72,6 +73,7 @@ export default function TrainingAssignments({routineIds,planName,mode='all',onMa
   <Section><div className="centers-form"><Row className={'select-field'+(center?' has-selection':'')} title={t('Centers')} value={centers.find(c=>c.id===center)?.name||center} accessory="dropdown" disabled={loadingCenters} onClick={openCenters}/>{loadingCenters&&<p role="status">{t('Loading centers')}</p>}{!loadingCenters&&!center&&!error&&<p>{t('No centers available')}</p>}{error&&<><p role="alert">{t(trainingErrorKey(error))}</p><Button onClick={()=>setRetry(n=>n+1)}>{t('Retry')}</Button></>}</div></Section>
   {center&&<Activations key={uid+':'+center} centerId={center} ownerUid={uid}/>}
  </>
+ if(mode==='tracking')return <Section title={t('Members with routines')}><div className="centers-form"><Row className={'select-field'+(center?' has-selection':'')} title={t('Centers')} value={centers.find(c=>c.id===center)?.name||center} accessory="dropdown" disabled={loadingCenters} onClick={openCenters}/>{loadingCenters&&<p role="status">{t('Loading centers')}</p>}{error&&<><p role="alert">{t(trainingErrorKey(error))}</p><Button onClick={()=>setRetry(n=>n+1)}>{t('Retry')}</Button></>}{!loadingCenters&&!center&&!error&&<p>{t('No centers available')}</p>}{center&&<TrainingRoster key={uid+':'+center} centerId={center} ownerUid={uid}/>}</div></Section>
  return <Section className="training-assignments" title={t(mode==='accounts'?'Link account':mode==='proposals'?'Sent proposals':'Send plan')}><div ref={formRef} className="centers-form">
   {showAssign&&<p className="small muted">{t('Choose your routines to offer to this member. Their training stays unchanged until acceptance.')}</p>}
   <Row className={'select-field'+(center?' has-selection':'')} title={t('Centers')} value={centers.find(c=>c.id===center)?.name||center} accessory="dropdown" disabled={busy||loadingCenters} onClick={openCenters}/>

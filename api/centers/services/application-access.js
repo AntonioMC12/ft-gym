@@ -20,5 +20,6 @@ export async function applicationAccess(database,config,user){
  return {blocked:terms.length>0&&terms.every(t=>t.blocked),warnings:terms.filter(t=>t.status==='grace'),memberships:terms};
 }
 export function renewalGateExempt(key){
+ if(/^(GET|POST) \/api\/account\/(password|document)$/.test(key))return true;
  return /^(GET \/api\/(health|config|me|centers\/app-access)|POST \/api\/logout(?:\/all)?)$/.test(key)||/^(GET|POST) \/api\/(login|register|device-link|pair)\//.test(key)||key==='GET /api/centers/me'||key==='GET /api/centers/activation/status'||key==='POST /api/centers/activation/request'||key==='POST /api/centers/invitations/inspect'||key==='GET /api/centers/join'||key==='POST /api/centers/invitations/accept';
 }

@@ -1087,6 +1087,10 @@ function ActiveWorkout() {
   // that is off screen, and never while a sheet is still putting the page back. Coming back to
   // the session with the row below the fold still brings it back, as it always did.
   const lastCur = useRef(null)
+  // Explicit progress also scrolls List/Compact, including when a partner was ticked
+  // manually and the next exercise already owns the current marker.
+  const [supersetAdvance, setSupersetAdvance] = useState(null)
+  const lastAdvance = useRef(null)
   useEffect(() => {
     // Judged by index alone. A unit moved up or down carries the marker's index with it, and
     // moveUnitAt records the new index here itself before this runs, so that reads as no move;
@@ -1095,33 +1099,44 @@ function ActiveWorkout() {
     const was = lastCur.current
     lastCur.current = cur
     const moved = was != null && was !== cur
-    if (!isSuperset || listMode) return
+    const progressed = supersetAdvance != null && lastAdvance.current !== supersetAdvance
+    const advanced = progressed && supersetAdvance.exerciseDone
+    lastAdvance.current = supersetAdvance
+    // A changed marker alone must not pull the page away from unfinished sets.
+    if (progressed && !advanced) return
+    if ((!isSuperset || listMode) && !advanced) return
     // A run the marker did not cause, with a sheet closing in the same tap, never scrolled: the
     // restore undid it. Keep that by not asking at all. Asking after the restore and then judging
     // the row would centre a first row that a tall first block (a note, "Last time", the
     // progression line) pushes partly under the tab bar, and scroll the header away.
-    if (!moved && scrollRestorePending()) return
+    if (!moved && !advanced && scrollRestorePending()) return
     // Rating the set (RIR or RPE, one picker) closes the sheet and ticks the set in one tap, and
     // the sheet's un-pin puts the page back where it stood, now and once more a frame later
     // (components/Modals.jsx). A scroll asked for in this same commit was undone a few ms later,
     // every time, and the partner's row stayed below the fold. With no sheet closing in the last
     // third of a second, afterScrollRestore runs this at once, as the tick always did.
     return afterScrollRestore(() => {
-      const { entries, cur: at } = shown.current
+      const { entries, cur: marked } = shown.current
+      // Older sessions can retain the partner marker after undo. On re-entry resume
+      // the first unfinished exercise in this superset rather than trusting that marker.
+      const at = advanced ? supersetAdvance.nextIdx : was == null && !focusMode
+        ? (unit.find(index => entries[index]?.sets.some(row => !row.done)) ?? marked) : marked
       const entry = entries[at]
       const firstIncomplete = entry?.sets.findIndex(s => !s.done) ?? -1
       const setIdx = firstIncomplete >= 0 ? firstIncomplete : (entry?.sets.length ?? 0) - 1
       const el = (setIdx >= 0 && setRefs.current.get(entry)?.get(setIdx)) || exRefs.current.get(entry)
       if (!el || typeof el.scrollIntoView !== 'function') return
-      if (!moved && rowOnScreen(el)) return
-      el.scrollIntoView({ behavior: 'smooth', block: 'center' })
+      if (!moved && !advanced && rowOnScreen(el)) return
+      const reduced = window.matchMedia?.('(prefers-reduced-motion: reduce)').matches
+      el.scrollIntoView({ behavior: reduced ? 'auto' : 'smooth', block: 'center' })
     })
-  }, [cur, isSuperset, listMode, A.entries.length])
+  }, [cur, isSuperset, listMode, A.entries.length, supersetAdvance])
   // The list opens at the exercise you are on, not at the top of the session (issue #224): you
-  // switch to it mid-workout to look at what comes before and after. Only on the way in — once
-  // the list is open, "current" moves because you tick rows in it, and a list that scrolls
-  // itself under your thumb is worse than one that stays put. List ↔ Compact counts as a way
+  // switch to it mid-workout to look at what comes before and after. Only on the way in — ordinary
+  // row ticks do not reposition the whole unit while reading the list. Superset transitions
+  // instead reveal the next set row above. List ↔ Compact counts as a way
   // in: the rows change height, so the same scroll offset lands somewhere else.
+  // Explicit superset progress is handled separately above, targeting a set row.
   //
   // The scroll waits for the next frame rather than running in the effect itself. App.jsx
   // restores the route's remembered position in a frame it asked for during the same commit
@@ -1660,6 +1675,7 @@ function ActiveWorkout() {
       if (side) e.sets[i] = toggleSide(e.sets[i], side)
       else e.sets[i].done = !e.sets[i].done
       checked = e.sets[i].done
+      if (!editing && !focusMode && !checked && unitOf(units, idx).length > 1) s.active.cur = idx
       // When the work happened, for the session's end (lib/finish-workout.js sessionEnd).
       if (!editing && (side ? e.sets[i].sides[side].done : checked)) e.sets[i].at = Date.now()
       // A finished row has no use for a plan set aside by a hold that did not finish.
@@ -1681,12 +1697,15 @@ function ActiveWorkout() {
       }
     }, true)
     if (editing) return
+    if (!focusMode && !checked && unitOf(units, idx).length > 1) {
+      setSupersetAdvance({ nextIdx: idx, exerciseDone: false })
+    }
     if (workoutDone) workoutCompleteSheet()
     else if (exJustDone && cardioEntry) useUI.getState().toast(t('Cardio logged'))
     else if (exJustDone && m === 'time') useUI.getState().toast(t('Hold logged'))
 
-    // Only progress beyond this exercise's high-water mark may navigate or change rest. This
-    // prevents an uncheck/re-check of finished work from replaying the flow side effects.
+    // High-water guards progression/rest. Revealing a partner after the exercise is fully
+    // checked is also allowed on re-check, without replaying progression side effects.
     const fresh = useStore.getState().S.active
     if (fresh && checked && fresh.entries[idx]) {
       const progress = setProgressHighWater(fresh.entries[idx], progressHighWater.current[idx] || 0)
@@ -1715,6 +1734,12 @@ function ActiveWorkout() {
       // out and only shows Ready is not running: it has nothing left to time. A paused one is
       // still the rest you are in, held on purpose, and a re-check leaves it as it is.
       if (!progress.isNew) {
+        if (exJustDone && freshUnit?.length > 1) {
+          const reveal = supersetFlowStep(fresh.entries, freshUnit, idx)
+          if (reveal?.nextIdx != null && reveal.nextIdx !== idx) {
+            setSupersetAdvance({ nextIdx: reveal.nextIdx, exerciseDone: true })
+          }
+        }
         const rest = useUI.getState().timer
         if (!restBeforeWarmup && restOnRecheck({ timerRunning: !!(rest && !rest.ready), unitDone: freshUnitDone, lastUnit: freshWorkoutDone })) startRest(restAfter, idx, { forSet: i })
         return
@@ -1757,7 +1782,12 @@ function ActiveWorkout() {
       if (step.unitDone) {
         if (nextUnit?.length && !restBeforeWarmup) startRest(restAfter, idx, { forSet: i })
       } else {
-        if (step.nextIdx != null) update(s => { if (s.active) s.active.cur = step.nextIdx })
+        if (step.nextIdx != null) {
+          const exerciseDone = fresh.entries[idx].sets.every(row => row.done)
+          const nextIdx = !focusMode && !exerciseDone ? idx : step.nextIdx
+          if (step.nextIdx !== idx) setSupersetAdvance({ nextIdx, exerciseDone })
+          update(s => { if (s.active) s.active.cur = nextIdx })
+        }
         if (step.roundDone) startRest(restAfter, idx, { forSet: i })
       }
       onFocusProgress?.({ unitDone: freshUnitDone })

@@ -523,3 +523,9 @@ C56/C55 (19 octubre, inicio superadmin): Gestionar centros pasa a primera card, 
 
 
 C57 (19octubre, autorización expresa del punto6 del documento de Comunidad): implementadas las tres fases en desarrollo: consultas privadas/avisos, asignación opcional y contexto voluntario de entrenamiento, logros privados/publicaciones/reacciones. Capacidades específicas delegadas por plataforma, SQL052/RLS/versiones/auditoría, paginación y card compacta sin sexta pestaña. Mantener activación, acceso económico e historial personal. Guía CENTERS_COMMUNITY.md y evidencia en CENTERS_PROGRESS.md. Preview solo local5179 con CI/datos ficticios; sin migración ni publicación en el túnel persistente. Ampliaciones de catálogo, canales externos y políticas de purga quedan fuera de esta entrega.
+
+C58 (20octubre): Socios con rutina en Gestión de rutinas, listado paginado de planes aceptados y ficha de evolución semanal de rutinas asignadas. Excepción autorizada expresamente: superadmin verificado consulta esta proyección sin consentimiento; otros roles y endpoint de progreso compartido conservan opt-in. Sin migración SQL; guía CENTERS_TRAINING_OVERSIGHT.md y evidencia en CENTERS_PROGRESS.md.
+
+C59(20octubre): usuario privado único y contraseña en modo centros, nombre/apellidos y DNI/NIE obligatorios, correo opcional, recuperación asistida de cuenta y detección de solicitudes repetidas por documento. Implementación local; guía CENTERS_ACCOUNT_ACCESS.md. No cambia UID/historial ni publica preview externa como efecto secundario.
+
+C60(20octubre): sustituye usuario C59 por DNI/NIE único global para login/recuperación. Índice HMAC privado, clave independiente, migración legacy sin perder UID, validación de coincidencias y reservas concurrentes. Guía CENTERS_ACCOUNT_ACCESS.md actualizada; entrega local sin publicar preview persistente.

@@ -573,3 +573,25 @@ it('a linked account still completes its existing personal adoption after the ac
  mocks.config={password_login:true,centers:{enabled:true}};mocks.answers['GET /api/centers/app-access']={blocked:false};mocks.passwordLogin.mockResolvedValue({id:'linked',name:'Linked'});
  const host=mount(<PasswordSignInSheet close={()=>{}}/>);type(byPlaceholder(host,'Name or e-mail'),'Linked');type(byPlaceholder(host,'Password'),'fictional password');await submit(host);expect(mocks.adoptProfile).toHaveBeenCalled();expect(mocks.toast).toHaveBeenCalledWith('Welcome back, Linked')
 })
+
+it('recovery requires a valid DNI/NIE as well as the manager code',async()=>{
+ mocks.config={password_login:true,document_login:true,centers:{enabled:true}};mocks.passwordResetRedeem.mockResolvedValue({id:'u1',name:'Ana Garcia'});
+ const host=mount(<PasswordSignInSheet close={()=>{}}/>);await click(host,'Recover my account');
+ type(byPlaceholder(host,'Reset code'),'K7WQ-2MZP-4HXA');type(byPlaceholder(host,'New password'),'correct horse battery');type(byPlaceholder(host,'Repeat the password'),'correct horse battery');await submit(host);
+ expect(mocks.passwordResetRedeem).not.toHaveBeenCalled();expect(alertText(host)).toBe('Enter a valid DNI or NIE.');type(byPlaceholder(host,'DNI / NIE'),'12345678Z');await submit(host);
+ expect(mocks.passwordResetRedeem).toHaveBeenCalledWith('12345678Z','K7WQ-2MZP-4HXA','correct horse battery');
+})
+it('owner settings show document configuration without usernames or plaintext documents',async()=>{
+ mocks.config={password_login:true,document_login:true};mocks.answers['GET /api/account/password']={set:true,documentSet:true,documentRequired:false,name:'Ana Garcia',passkeys:0};
+ const host=mount(<PasswordRow/>);await settle();expect(host.textContent).toContain('DNI / NIE');expect(host.textContent).not.toContain('Private username');expect(button(host,'Remove password')).toBeUndefined();
+})
+it('registers a center account without username and requires a valid document',async()=>{
+ const previous=location.hash;location.hash='#/home?join=center1';
+ mocks.config={password_login:true,document_login:true,centers:{enabled:true}};mocks.answers['GET /api/centers/join?centerId=center1']={center:{id:'center1',name:'Gym'}};mocks.passwordRegister.mockResolvedValue({id:'new',name:'Ana Garcia'});
+ function Form(){const[name,setName]=React.useState(''),[code,setCode]=React.useState('');return <PasswordRegisterForm close={()=>{}} name={name} setName={setName} code={code} setCode={setCode}/>}
+ try{
+  const host=mount(<Form/>);await settle();expect(host.querySelector('input[name=username]')).toBeNull();type(byPlaceholder(host,'First and last name'),'Ana Garcia');type(byPlaceholder(host,'Password'),'correct horse battery');type(byPlaceholder(host,'Repeat the password'),'correct horse battery');
+  await submit(host);expect(mocks.passwordRegister).not.toHaveBeenCalled();expect(alertText(host)).toBe('Enter a valid DNI or NIE.');
+  type(host.querySelector('input[name=nationalDocument]'),'12345678Z');await submit(host);expect(mocks.passwordRegister).toHaveBeenCalledWith('Ana Garcia','correct horse battery','','','12345678Z');
+ }finally{location.hash=previous}
+})

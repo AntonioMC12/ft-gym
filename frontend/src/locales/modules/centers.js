@@ -1,3 +1,5 @@
+import {accountAccessStrings} from './account-access.js'
+import {trainingRosterStrings} from './training-roster.js'
 // New business-module strings are merged into every existing locale pack.
 // Keeping this below modules/ avoids adding a fictitious locale to import.meta.glob.
 import { memberStrings } from './members.js'
@@ -34,5 +36,5 @@ const translations = {
 export function centersStrings(language) {
   const values = translations[language]
   if (!values || values.length !== keys.length) throw new Error('incomplete centers translations: ' + language)
-  return { ...Object.fromEntries(keys.map((key, i) => [key, values[i]])), ...memberStrings(language), ...centersUsabilityStrings(language), ...freezeRequestStrings(language), ...classStrings(language) }
+  return {...accountAccessStrings(language),...trainingRosterStrings(language), ...Object.fromEntries(keys.map((key, i) => [key, values[i]])), ...memberStrings(language), ...centersUsabilityStrings(language), ...freezeRequestStrings(language), ...classStrings(language) }
 }

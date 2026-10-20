@@ -45,17 +45,17 @@ function RegisterSheet({ close }) {
       else { await pullState(); useUI.getState().toast(t('Welcome, {0}', u.name)) }
     } catch (e) { if (e.name !== 'NotAllowedError' && e.name !== 'AbortError') useUI.getState().toast(passkeyError(e, t('Registration failed'))) }
   }
-  const choose = pwOn && webauthnOK() && <>
+  const choose = !config?.document_login && pwOn && webauthnOK() && <>
     <Segmented options={[{ value: 'passkey', label: t('Passkey'), icon: 'fingerprint' }, { value: 'password', label: t('Password'), icon: 'key' }]}
       value={how} onChange={setHow} />
     <div style={{ height: 12 }} />
   </>
   if(config==null)return <><h3>{t('Create your profile')}</h3><p role="status">{t('Loading…')}</p><Button onClick={loadConfig}>{t('Retry')}</Button></>
   if(config?.centers?.enabled&&!registrationCenterId())return <><h3>{t('Create your profile')}</h3><RegistrationCenter/></>
-  if (pwOn && how === 'password') return <>
+  if (pwOn && (config?.document_login || how === 'password')) return <>
     <h3>{t('Create your profile')}</h3>
     {choose}
-    <div className="muted small" style={{ marginBottom: 14 }}>{t('Pick a name and a password. You sign in with both.')}</div>
+    <div className="muted small" style={{ marginBottom: 14 }}>{t(config?.document_login?'Your DNI/NIE identifies your account. Choose a password and enter your full name.':'Pick a name and a password. You sign in with both.')}</div>
     <PasswordRegisterForm close={close} inviteOnly={inviteOnly} name={name} setName={setName} code={code} setCode={setCode} nationalDocument={nationalDocument} setNationalDocument={setNationalDocument} />
   </>
   return <>
@@ -111,7 +111,7 @@ export default function Login() {
     {head}
     <RegistrationCenter/>
     {pwOn&&<Button variant="primary" icon="key" onClick={()=>openPasswordSignIn()}>{t('Sign in with password')}</Button>}
-    {webauthnOK()&&<Button variant={pwOn?'plain':'primary'} icon="fingerprint" onClick={signIn}>{t('Sign in with passkey')}</Button>}
+    {!config?.document_login&&webauthnOK()&&<Button variant={pwOn?'plain':'primary'} icon="fingerprint" onClick={signIn}>{t('Sign in with passkey')}</Button>}
     {(pwOn||webauthnOK())&&<Button variant="tinted" icon="plusCircle" disabled={!registrationCenterId()} onClick={register}>{t('Create account and request access')}</Button>}
     {!pwOn&&!webauthnOK()&&<p>{t("This browser doesn't support passkeys, and this instance requires an account. Try a browser or device with passkey support.")}</p>}
   </div>

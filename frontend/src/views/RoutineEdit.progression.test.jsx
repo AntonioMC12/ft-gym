@@ -6,6 +6,7 @@ import { createRoot } from 'react-dom/client'
 import { MemoryRouter, Route, Routes } from 'react-router-dom'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import RoutineEdit from './RoutineEdit.jsx'
+import { useCenters } from '../store/useCenters.js'
 import { DEF, useStore } from '../store/useStore.js'
 import { POLICY_DESC } from '../lib/progression.js'
 
@@ -20,10 +21,11 @@ const clone = value => JSON.parse(JSON.stringify(value))
 let root
 let container
 
-function renderRoutine(routine) {
+function renderRoutine(routine, wc = { routineProgression: true, routineDeload: true }, config = {}, user = null) {
   const S = clone(DEF)
+  S.wc = { ...S.wc, ...wc }
   S.routines = [{ id: 'r1', name: 'Push', emoji: 'dumbbell', ex: [], ...routine }]
-  useStore.setState({ S, user: null })
+  useStore.setState({ S, user, config })
   container = document.createElement('div')
   document.body.appendChild(container)
   root = createRoot(container)
@@ -37,7 +39,7 @@ function renderRoutine(routine) {
 const rowTitled = title => [...container.querySelectorAll('.lrow')].find(r => r.querySelector('.lrow-t')?.textContent === title)
 const note = () => container.querySelector('.sect-b + .small.dim').textContent
 
-beforeEach(() => { localStorage.clear() })
+beforeEach(() => { localStorage.clear(); useCenters.getState().reset() })
 afterEach(() => {
   if (root) act(() => root.unmount())
   if (container) container.remove()
@@ -46,6 +48,31 @@ afterEach(() => {
 })
 
 describe('routine progression wording (#294)', () => {
+  it('hides optional routine controls by default without changing existing settings', () => {
+    renderRoutine({ prog: 'off', excludeFromProgression: true }, {})
+    expect(rowTitled('Progression')).toBeUndefined()
+    expect(rowTitled('Deload routine')).toBeUndefined()
+    expect(useStore.getState().S.routines[0]).toMatchObject({ prog: 'off', excludeFromProgression: true })
+  })
+  it('hides the plan selector for members in centers mode', () => {
+    renderRoutine({}, {}, { centers: { enabled: true } }, { id: 'member' })
+    expect(container.textContent).not.toContain('Training plans')
+  })
+  it('keeps the plan selector for the verified platform owner', () => {
+    useCenters.setState({ ownerUid: 'owner', status: 'ready', platformCapabilities: ['centers.manage'] })
+    renderRoutine({}, {}, { centers: { enabled: true } }, { id: 'owner' })
+    expect(container.textContent).toContain('Training plans')
+  })
+  it('keeps progression hidden when only the deload control is enabled', () => {
+    renderRoutine({}, { routineDeload: true })
+    expect(rowTitled('Progression')).toBeUndefined()
+    expect(rowTitled('Deload routine')).toBeTruthy()
+    expect(container.textContent).not.toContain(POLICY_DESC.linear)
+  })
+  it('keeps the plan selector in standalone mode', () => {
+    renderRoutine({}, {}, {})
+    expect(container.textContent).toContain('Training plans')
+  })
   it('names the switch for what it is: a deload routine, whose workouts do not count', () => {
     renderRoutine({})
     expect(rowTitled('Exclude from automatic progression')).toBeUndefined()

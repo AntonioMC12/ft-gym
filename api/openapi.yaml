@@ -12,6 +12,9 @@ info:
     The backend of [openGym](https://opengym.ch), a free, open-source
     gym & body-weight tracker. A plain Node server, no framework, JSON-file storage,
     HMAC-signed session cookies.
+    Center installations use globally unique DNI/NIE identifiers and passwords (C60). Passkey
+    registration/login endpoints return404; stored legacy credentials are preserved.
+    Display names may repeat. Optional e-mail is contact-only in center mode.
 
     ### Authentication
     Sign-in is by **passkey** (WebAuthn, via `@simplewebauthn/server`). A successful
@@ -715,6 +718,55 @@ paths:
         '404': { description: Current linked membership unavailable. }
         '409': { description: version-conflict, account-busy, invalid-progress-share, progress-routines-unavailable, inactive membership or idempotency-conflict. }
         '503': { description: Training file unavailable when granting; revocation does not require it. }
+  /api/centers/training/members:
+    get:
+      tags: [centers]
+      operationId: listMembersWithAcceptedTraining
+      summary: List linked members with accepted training plans in the selected center
+      description: Requires current training.assign capability or platform allowlist. Returns only member id, name, number, distinct accepted proposal count and last acceptance date. Only versions accepted by the currently linked account are included. No training files are read. Pagination is bound to actor, center and search.
+      parameters:
+        - { name: centerId, in: query, required: true, schema: { type: string } }
+        - { name: query, in: query, schema: { type: string, maxLength: 120 } }
+        - { name: limit, in: query, schema: { type: integer, minimum: 1, maximum: 50 } }
+        - { name: cursor, in: query, schema: { type: string, maxLength: 1024 } }
+      responses:
+        '200': { description: members and nextCursor. Accepted is not proof of delivery or current presence in a personal plan. }
+        '400': { description: Invalid selectors or scoped cursor. }
+        '403': { description: Current training assignment capability required. }
+        '404': { description: Center unavailable. }
+  /api/centers/training/assigned-progress:
+    get:
+      tags: [centers]
+      operationId: getAssignedTrainingProgress
+      summary: Read saved-session frequency for accepted center routines
+      description: |
+        Current training.shared.read capability and selected center/member, session/account locks and current
+        account binding required. Server-verified platform superadmins may read accepted assigned routines
+        for the last366 logged dates without sharing consent, including inactive center/member history.
+        Platform report adds performanceDefinition1, profile unit kg/lb and exercises per routine. Each
+        exercise has a catalogue id, side (both/L/R), dbLoad (as/each/total), assisted and weekly from/load/reps/sets.
+        Only exercises in the accepted routine bundle are eligible. Entries must belong to that exact
+        delivered routine; unambiguous single-routine legacy sessions can use their parent identity.
+        Week starts Monday; reference is the highest completed main-set load (lowest assistance) and max
+        repetitions at that exact load. Sets counts completed main sets, per side where applicable.
+        Warmups, incomplete work, bursts/drops, active workouts, future/out-of-period dates, tombstones,
+        duplicate sessions, unrelated routines/exercises and ambiguous combined entries are excluded.
+        Different sides/load meanings stay separate. Profile unit reflects the application's whole-history
+        unit conversion; no physical-unit or dumbbell-meaning inference is introduced here.
+        Non-platform actors retain bounded consent and selected-routine intersection, and receive metadata
+        counts only, never load/repetition series. This exception does not apply to technical admin or
+        /training/progress. Disabled/missing accounts expose nothing. No notes/photos/body data, account ids,
+        private routine ids or raw workouts/sets returned. Platform reads are audited by businessTransaction.
+      parameters:
+        - { name: centerId, in: query, required: true, schema: { type: string } }
+        - { name: memberId, in: query, required: true, schema: { type: string } }
+      responses:
+        '200': { description: shared=false or whitelisted report of assigned shared routines. }
+        '400': { description: Invalid selectors. }
+        '403': { description: Current training.shared.read required. }
+        '404': { description: Member unavailable or changed binding. }
+        '409': { description: Account busy. }
+        '503': { description: Training state unavailable. }
   /api/centers/training/progress:
     get:
       tags: [centers]
@@ -3179,6 +3231,8 @@ paths:
                       community:
                         type: boolean
                         description: Whether "compare with others" is offered on this instance.
+                  document_login: { type: boolean, description: True in center installations; DNI/NIE plus password sign-in, unique normalized document across the installation. }
+                  passkeys: { type: boolean, description: False in center installations; registration and sign-in passkey routes are unavailable. }
                   password_login:
                     type: boolean
                     const: true
@@ -3254,7 +3308,7 @@ paths:
               required: [name]
               properties:
                 centerId: { type: string, description: Active registration center; required when centers enabled. }
-                nationalDocument: { type: string, maxLength: 40, description: DNI or NIE including control letter; required when centers enabled. Spaces/dots/hyphens and case are normalized. }
+                nationalDocument: { type: string, maxLength: 40, description: DNI or NIE including control letter; required and globally unique when centers enabled. Spaces/dots/hyphens and case are normalized. Duplicate documents return409 document-taken, including concurrent registrations and registrations in another center. }
                 name:
                   type: string
                   maxLength: 40
@@ -3553,6 +3607,10 @@ paths:
       operationId: loginPassword
       summary: Sign in with a profile name or e-mail and a password
       description: |
+        In center mode only the valid normalized DNI/NIE identifies an account. Send it as
+        nationalDocument (preferred), identifier, or the legacy name request-field alias.
+        No username is created or accepted. E-mail and full-name sign-in are disabled. The following
+        profile-name/e-mail behavior applies only to classical installations without centers.
         Only a profile that has set a password can sign in this way. The identifier is the
         profile's display name or the e-mail address it added (`POST /api/account/email`),
         compared trimmed, NFKC-normalised and case-insensitively. Send it as `identifier`
@@ -3576,6 +3634,7 @@ paths:
               required: [password]
               description: One of `identifier`, `name` or `email`, and the password.
               properties:
+                nationalDocument: { type: string, maxLength: 40, description: DNI/NIE; mandatory in center mode (or equivalent identifier/name alias). }
                 identifier: { type: string, description: A profile name or an e-mail address. }
                 name: { type: string, description: 'The original field: a profile name, or an e-mail address.' }
                 email: { type: string, description: An e-mail address only. }
@@ -3647,10 +3706,10 @@ paths:
               properties:
                 centerId: { type: string, description: Active registration center; required when centers enabled. }
                 nationalDocument: { type: string, maxLength: 40, description: DNI or NIE including control letter; required when centers enabled. Spaces/dots/hyphens and case are normalized. }
-                name: { type: string, maxLength: 40 }
+                name: { type: string, maxLength: 120, description: Mandatory first and last name in center mode; duplicate full names are allowed. }
                 password: { type: string, minLength: 10, maxLength: 256 }
                 code: { type: string, description: Invite code (INVITE_ONLY only). }
-                email: { type: string, maxLength: 254, description: Optional sign-in e-mail. }
+                email: { type: string, maxLength: 254, description: Optional unique contact e-mail in center mode; no automated recovery mail. Sign-in alias only in classical mode. }
             example: { name: "Ada", password: "correct horse battery staple", code: "3F9C21A07B54D688" }
       responses:
         '200':
@@ -3693,12 +3752,101 @@ paths:
         '429': { $ref: '#/components/responses/TooManyRequests' }
         '503': { $ref: '#/components/responses/Busy' }
 
+  /api/centers/members/recovery:
+    post:
+      tags: [password]
+      operationId: issueCenterMemberRecovery
+      summary: Issue a one-use recovery code for a linked member after identity verification
+      description: |
+        Current members.manage or server-verified platform permission in the selected center.
+        The member's current linked account is rechecked under account locks. Managers cannot
+        recover staff accounts from any center; platform can recover non-admin staff. Platform
+        and technical-admin targets require owner-operated recovery. confirmed=true records
+        the operator's identity verification. Five issues per actor/account/hour. New code
+        replaces the previous code, expires in30minutes, invalidates the password and sessions.
+        Code stored only as a hash; document values and blind indexes never returned to the manager. Training unchanged.
+        SQL authorization and local credential writes are audited; no recovery e-mail is sent.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [centerId, memberId, confirmed]
+              properties:
+                centerId: { type: string }
+                memberId: { type: string }
+                confirmed: { const: true }
+      responses:
+        '200':
+          description: Deliver the code privately; never persist it in personal state or logs.
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: false
+                required: [code, expires]
+                properties:
+                  code: { type: string }
+                  expires: { type: integer, description: Unix timestamp in milliseconds. }
+        '400': { description: Explicit identity verification is required. }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { description: Insufficient role or protected staff account. }
+        '404': { description: Center or member unavailable to this actor. }
+        '409': { description: Account missing or binding changed. }
+        '429': { description: Too many code issues. }
+        '503': { description: Recovery unavailable; retry only after reviewing the member. }
+
+  /api/account/document:
+    post:
+      tags: [password]
+      operationId: configureOwnLoginDocument
+      summary: Configure a legacy account's missing DNI/NIE after password proof
+      description: |
+        Center mode only. Current session plus current password is required. Only an
+        unconfigured identity can claim a valid DNI/NIE not assigned to another account.
+        Known legacy SQL documents must match; ambiguous old claims require review.
+        Public full names, e-mails and usernames cannot determine account ownership.
+        Stores a keyed blind index in credentials, never plaintext DNI or personal state.
+        Existing assigned documents cannot be changed through this endpoint. UID/history
+        remain unchanged. Available during pending activation/renewal; does not grant app access.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [nationalDocument, current]
+              properties:
+                nationalDocument: { type: string, maxLength: 40 }
+                current: { type: string }
+      responses:
+        '200':
+          description: Document configured; no raw identifier or blind key returned.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  documentSet: { const: true }
+        '400': { description: Invalid DNI/NIE. }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { description: Current password proof failed. }
+        '404': { description: Center mode is disabled. }
+        '409': { description: Document already assigned, reserved for legacy review or mismatches the known identity. }
+        '503': { description: Identity initialization temporarily unavailable. }
+
   /api/login/password-reset:
     post:
       tags: [password]
       operationId: redeemPasswordReset
       summary: Set a new password with an admin's one-time reset code
       description: |
+        In center mode DNI/NIE AND the manager-issued one-time code are mandatory.
+        The code expires after30minutes. A document alone never recovers an account.
+        A legacy account without a document can bind a free or verified own legacy document
+        only after proving possession of its valid recovery code; races recheck ownership.
+        Center-mode platform-issued reset codes also expire after30minutes.
         Redeems the code from `POST /api/admin/user/password-reset` (valid 24 h, single
         use, stored only as a hash; dashes, spaces and case do not matter) and signs in.
         A new password that breaks the policy is refused without using up the code. Every
@@ -3715,6 +3863,7 @@ paths:
               type: object
               required: [code, next]
               properties:
+                nationalDocument: { type: string, maxLength: 40, description: DNI/NIE; mandatory in center mode (or equivalent identifier/name alias). }
                 identifier: { type: string, description: The profile name or its sign-in e-mail. }
                 name: { type: string, description: The original field; an e-mail works here too. }
                 email: { type: string }
@@ -3768,6 +3917,8 @@ paths:
                   setAt: { oneOf: [{ type: string }, { type: 'null' }], description: ISO timestamp. }
                   passkeys: { type: integer, description: 'How many passkeys the profile has; 0 means the password cannot be removed.' }
                   name: { type: string, description: The name to sign in with. }
+                  documentSet: { type: boolean, description: Center mode only. Whether this account has a unique document identity; no document or hash is returned. }
+                  documentRequired: { type: boolean, description: Center mode only. Legacy account requires owner setup or assisted recovery before document sign-in. }
                   nameTaken:
                     type: boolean
                     description: Another profile already signs in with this name, so no password can be set here.

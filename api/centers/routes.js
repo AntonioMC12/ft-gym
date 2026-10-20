@@ -31,6 +31,7 @@ import {stripeStatus,stripeListOptions,checkoutStripe,reconcileStripe} from './s
 import {receiveStripeWebhook} from './services/stripe-foundation.js';
 import {readStripeBody} from './domain/stripe-webhook.js';
 import {proposeTraining,withdrawTraining,trainingListOptions,listTraining,getTraining,acceptTraining,acknowledgeTraining} from './services/training-proposals.js';
+import {trainingRoster,trainingRosterOptions} from './services/training-roster.js';
 import {configureAccess,accessStatus,accessPageOptions,createAccessDevice,changeAccessDevice,issueAccessToken,consumeAccessToken,accessMember,setAccessHold,releaseAccessHold,accessVisits} from './services/access.js';
 import {metricsOptions} from './domain/metrics.js';
 import {centerMetrics,globalMetrics} from './services/metrics.js';
@@ -40,7 +41,7 @@ import {configureFreezePolicy,freezePageOptions,listFreezeRequests,requestFreeze
 import {attendanceHistoryOptions,classAttendanceHistory,correctClassAttendance,classInstructorOptions,classInstructors,classListOptions,listClasses,classRoster,createClass,reserveClass,cancelClassReservation,cancelClass,classAttendance} from './services/classes.js';
 
 // Inject the same session and response helpers used by the rest of node:http.
-export function centersRoutes({ config, database, json, readSession, readBody, accountLocks, lookupAccount, readOwnTraining, hasTrainingExercise, mintAccessCredential,
+export function centersRoutes({ config, database, json, readSession, readBody, documentMatches, accountLocks, lookupAccount, readOwnTraining, hasTrainingExercise, mintAccessCredential,
   accountIds = () => [], accountDirectory = () => [] }) {
   const guard = (req, res) => {
     if (!config.enabled) { json(res, 404, { error: 'not found' }); return null; }
@@ -80,7 +81,7 @@ export function centersRoutes({ config, database, json, readSession, readBody, a
     const checkSession=()=>{if(!current(req,user,sv))throw new CentersError(401,'not-signed-in','not signed in');};
     try{
       const body=await readBody(req);checkSession();
-      const result=await operation({database,accountLocks,lookupAccount,readOwnTraining,hasTrainingExercise,mintAccessCredential,deviceKey:req.headers?.['x-center-device-key'],user,checkSession,config},body,{platform});
+      const result=await operation({database,accountLocks,documentMatches,lookupAccount,readOwnTraining,hasTrainingExercise,mintAccessCredential,deviceKey:req.headers?.['x-center-device-key'],user,checkSession,config},body,{platform});
       checkSession();return json(res,200,result);
     }catch(error){return failure(res,error);}
   };
@@ -221,6 +222,15 @@ export function centersRoutes({ config, database, json, readSession, readBody, a
       const user=guard(req,res);if(!user)return;const sv=user.sv||0,params=new URL(req.url,'http://x').searchParams,centerId=params.get('centerId');if(!recordId(centerId))return json(res,404,{error:'not found',code:'not-found'});
       const checkSession=()=>{if(!current(req,user,sv))throw new CentersError(401,'not-signed-in','not signed in')};
       try{const {memberId}=progressSelectors(params),result=await readSharedProgress({database,user,checkSession,accountLocks,readOwnTraining,lookupAccount},centerId,memberId,{platform:isPlatformUser(config,user)});checkSession();return json(res,200,result)}catch(e){return failure(res,e)}
+    },
+    'GET /api/centers/training/members':async(req,res)=>{
+      const user=guard(req,res);if(!user)return;const sv=user.sv||0,params=new URL(req.url,'http://x').searchParams,centerId=params.get('centerId');if(!recordId(centerId))return json(res,404,{error:'not found',code:'not-found'});
+      try{const result=await trainingRoster(database,user.id,centerId,trainingRosterOptions(params),{platform:isPlatformUser(config,user)});if(!current(req,user,sv))return json(res,401,{error:'not signed in'});return json(res,200,result)}catch(e){return failure(res,e)}
+    },
+    'GET /api/centers/training/assigned-progress':async(req,res)=>{
+      const user=guard(req,res);if(!user)return;const sv=user.sv||0,params=new URL(req.url,'http://x').searchParams,centerId=params.get('centerId');if(!recordId(centerId))return json(res,404,{error:'not found',code:'not-found'});
+      const checkSession=()=>{if(!current(req,user,sv))throw new CentersError(401,'not-signed-in','not signed in')};
+      try{const {memberId}=progressSelectors(params),result=await readSharedProgress({database,user,checkSession,accountLocks,readOwnTraining,lookupAccount},centerId,memberId,{platform:isPlatformUser(config,user),assignedOnly:true});checkSession();return json(res,200,result)}catch(e){return failure(res,e)}
     },
     'GET /api/centers/classes':readClasses(false),
     'GET /api/centers/own/classes':readClasses(true),

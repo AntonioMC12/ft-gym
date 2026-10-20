@@ -1,3 +1,4 @@
+import MemberRecovery from './MemberRecovery.jsx'
 import MemberBillingHistory from './MemberBillingHistory.jsx'
 import MemberQuickActions from './MemberQuickActions.jsx'
 import CenterWorkspace from './CenterWorkspace.jsx'
@@ -68,6 +69,7 @@ function MemberForm({centerId,member,lifecycle,ownerUid,close,saved,canBilling,c
         </div></Section>}
         {pane==='details'&&<>{editingDetails?contactForm:<Section title={t('Member details')}><div className="centers-form"><Row title={t('Member name')} value={currentMember.name}/><Row title={t('Contact email')} value={currentMember.email||'—'}/><Row title={t('Phone')} value={currentMember.phone||'—'}/><Row title={t('National document')} value={currentMember.nationalDocument||'—'}/><Button variant="tinted" onClick={()=>setEditingDetails(true)}>{t('Edit contact details')}</Button></div></Section>}
           {currentMember.sourceRegistration&&<details className="centers-member-source"><summary>{t('Source registration (CSV)')}</summary><SourceRegistration value={currentMember.sourceRegistration}/></details>}
+          {currentMember.accountLinked&&(platform||capabilities.includes('members.manage'))&&<MemberRecovery key={centerId+':'+currentMember.id} centerId={centerId} memberId={currentMember.id} ownerUid={ownerUid}/>}
           <Section title={t('Link account')}><div className="centers-form"><Row title={currentMember.name} value={t(currentMember.accountLinked?'Account linked':'No linked account')}/>{!currentMember.accountLinked&&(platform||capabilities.includes('members.manage'))&&<Button onClick={()=>requestNavigation(()=>nav('/centers?'+new URLSearchParams({centerId,pane:'activations'})))}>{t('Pending activations')}</Button>}</div></Section>
         </>}
         {pane==='access'&&<>{info?.today&&<><MembershipActions key={currentMember.version} centerId={centerId} member={currentMember} info={info} ownerUid={ownerUid} changed={result=>{setCurrentMember(result.member);setInfo({today:result.today,changes:result.changes})}}/><FreezeRequests centerId={centerId} ownerUid={ownerUid} memberId={currentMember.id} memberVersion={currentMember.version} today={info.today} active={active} changed={result=>{setCurrentMember(result.member);setInfo({today:result.today,changes:result.changes})}}/></>}

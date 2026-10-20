@@ -174,6 +174,8 @@ export const centerClassSeries=(centerId,id)=>api('/api/centers/classes/series/d
 
 export const centerProgressShare=centerId=>api('/api/centers/own/training/progress/share?'+new URLSearchParams({centerId}))
 export const centerSharedProgress=(centerId,memberId)=>api('/api/centers/training/progress?'+new URLSearchParams({centerId,memberId}))
+export const centerTrainingMembers=(centerId,options={})=>api('/api/centers/training/members?'+new URLSearchParams({centerId,...options}))
+export const centerAssignedProgress=(centerId,memberId)=>api('/api/centers/training/assigned-progress?'+new URLSearchParams({centerId,memberId}))
 export function progressErrorKey(error){const code=error?.data?.code||error?.code;if(['invalid-progress-share','progress-routines-unavailable'].includes(code))return 'Check the selected routines and logged-date period (up to 366 days).';if(code==='training-state-unavailable')return 'Training data is unavailable. Reload or sync your profile.';if(['training-member-inactive','training-account-required','center-inactive'].includes(code))return 'An active center and membership are required to share progress.';return centersErrorKey(error)}
 
 export const centerRetention=(centerId,options={})=>api('/api/centers/retention?'+new URLSearchParams({centerId,...options}))

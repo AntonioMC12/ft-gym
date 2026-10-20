@@ -18,7 +18,7 @@ import ConfigPending from './centers/ConfigPending.jsx'
 function Content({edit}){
  const nav=useNavigate(),[params,setParams]=useSearchParams(),requestNavigation=useCenterNavigation()
  const S=useStore(s=>s.S),update=useStore(s=>s.update)
- const options=[{value:'library',label:t('Routines')},{value:'assign',label:t('Send plan')},{value:'proposals',label:t('Sent proposals')},{value:'accounts',label:t('Pending activations')}]
+ const options=[{value:'library',label:t('Routines')},{value:'assign',label:t('Send plan')},{value:'tracking',label:t('Members with routines')},{value:'proposals',label:t('Sent proposals')},{value:'accounts',label:t('Pending activations')}]
  const pane=edit?'library':options.some(o=>o.value===params.get('pane'))?params.get('pane'):'library'
  const rawPlan=params.has('plan')?params.get('plan')||null:'*'
  const planId=rawPlan&&rawPlan!=='*'&&!S.trainingPlans?.[rawPlan]?null:rawPlan

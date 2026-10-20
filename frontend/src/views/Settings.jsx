@@ -96,7 +96,7 @@ export default function Settings({ page = null, find = null, via = null }) {
   const lang = effectiveLang(S, config)
   // This profile's passkeys and the code for another device (#95). A change to them is read back
   // here and by the password row, whose "Remove" depends on there being a passkey.
-  const passkeys = usePasskeys(!!user && !MOBILE && !DEMO && (page === 'account'))
+  const passkeys = usePasskeys(!!user && !config?.document_login && !MOBILE && !DEMO && (page === 'account'))
   const [credsV, setCredsV] = useState(0)
   const credsChanged = () => { passkeys.load(); setCredsV(v => v + 1) }
   const { update, importConflict, importBackup, setUnit, resetEverything: resetAll, setUser, pullState, pushState, resetDemo } = useStore()
@@ -366,7 +366,7 @@ export default function Settings({ page = null, find = null, via = null }) {
   })
   const signOutEverywhere = () => confirmSheet({
     title: t('Sign out everywhere?'),
-    message: t('Signs this profile out on every device, including this one. Phones paired with it are disconnected and have to be paired again. Your passkeys keep working, so you can sign in with them again anytime.') + running(),
+    message: t(config?.document_login?'Signs this profile out on every device. Sign in again with your DNI/NIE and password.':'Signs this profile out on every device, including this one. Phones paired with it are disconnected and have to be paired again. Your passkeys keep working, so you can sign in with them again anytime.') + running(),
     confirmText: t('Sign out everywhere'), danger: true,
     onConfirm: () => leave('everywhere', t('Signed out on all devices')),
   })
@@ -522,6 +522,14 @@ export default function Settings({ page = null, find = null, via = null }) {
       const wc = workoutControls(S)
       const setWc = (k, v) => update(s => { s.wc = { ...workoutControls(s), [k]: v } })
       return <>
+        <Section title={t('Routine')}>
+          <Row icon="chartLine" title={t('Progression')}>
+            <Switch aria-label={t('Progression')} checked={wc.routineProgression} onChange={v => setWc('routineProgression', v)} />
+          </Row>
+          <Row icon="chartLineSlash" iconTint="var(--orange)" title={t('Deload routine')}>
+            <Switch aria-label={t('Deload routine')} checked={wc.routineDeload} onChange={v => setWc('routineDeload', v)} />
+          </Row>
+        </Section>
         <Section title={t('Sessions and timed sets')}>
           {/* Whose reps a planned session opens with (lib/session-start.js). The plan's by default:
               the routine is what you said you would do, and history and progression decide the
@@ -863,12 +871,12 @@ export default function Settings({ page = null, find = null, via = null }) {
         </> : user ? <>
           <CentersEntry />
           {user.admin && <Row icon="crown" iconTint="var(--indigo)" title={t('Admin dashboard')} accessory="chevron" onClick={() => nav('/admin')} />}
-          <PasskeysRow state={passkeys.st} changed={credsChanged} />
+          {!config?.document_login&&<PasskeysRow state={passkeys.st} changed={credsChanged} />}
           {pwOn && <PasswordRow version={credsV} />}
           <Row icon="signOut" iconTint="var(--red)" title={t('Sign out')} danger onClick={signOutHere} />
           <Row icon="shield" iconTint="var(--red)" title={t('Sign out everywhere')} subtitle={t('Ends this profile’s sessions on all your devices.')} danger onClick={signOutEverywhere} />
           <AccountIdRow id={user.id} />
-        </> : webauthnOK() ? <>
+        </> : !config?.document_login&&webauthnOK() ? <>
           <Row icon="plusCircle" iconTint="var(--acc)" title={t('Create passkey profile')} subtitle={t('Keeps your data safe and separate per person.')} accessory="chevron" onClick={registerHere} />
           <Row icon="fingerprint" iconTint="var(--blue)" title={t('Sign in with passkey')} accessory="chevron" onClick={passkeySignIn} />
           {/* The Login screen offers both of these; a guest who skipped it had no way to either from here. */}

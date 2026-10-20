@@ -4,6 +4,7 @@ import {progressShareFields,sharedProgress} from '../domain/shared-progress.js';
 import {businessTransaction} from './context.js';
 import {commandHash,commandReplay,rememberCommand,businessAudit} from './commands.js';
 import {memberRecord} from './member-records.js';
+import {assignedStrength} from '../domain/assigned-strength.js';
 const missing=()=>{throw new CentersError(404,'not-found','not found')};
 const conflict=code=>{throw new CentersError(409,code,'shared progress changed; reload')};
 const dto=row=>row?{enabled:row.enabled,from:row.starts_on,to:row.ends_on,routineIds:row.routine_ids,version:row.version}:{enabled:false,from:null,to:null,routineIds:[],version:0};
@@ -35,13 +36,38 @@ export function changeProgressShare({database,user,checkSession,accountLocks,rea
     await businessAudit(client,centerId,user.id,operation,member.id,{enabled:fields.enabled,routines:fields.routineIds.length});await rememberCommand(client,centerId,user.id,operation,requestId,hash,{memberId:member.id});checkSession();return {share:dto(await shareRow(client,centerId,member.id,user.id))};
   },{allowInactive:true}));
 }
-export async function readSharedProgress({database,user,checkSession,accountLocks,readOwnTraining,lookupAccount},centerId,memberId,{platform=false}={}){
+export async function readSharedProgress({database,user,checkSession,accountLocks,readOwnTraining,lookupAccount},centerId,memberId,{platform=false,assignedOnly=false}={}){
   const recipient=await businessTransaction(database,user.id,centerId,'training.shared.read',async client=>(await memberRecord(client,centerId,memberId)).account_uid,{platform,allowInactive:true});
   if(!recipient){checkSession();return {shared:false}}
   return accountLocks.withAccounts([user.id,recipient],()=>businessTransaction(database,user.id,centerId,'training.shared.read',async(client,context)=>{
     const member=await memberRecord(client,centerId,memberId);if(member.account_uid!==recipient)missing();
     const share=await shareRow(client,centerId,memberId,recipient),account=lookupAccount(recipient);
-    if(!share?.enabled||context.center.state!=='active'||!active(member)||!account||account.disabled){checkSession();return {shared:false}}
-    checkSession();const report=sharedProgress(readOwnTraining(recipient),{routineIds:share.routine_ids,from:share.starts_on,to:share.ends_on>member.local_today?member.local_today:share.ends_on});checkSession();return {shared:true,report};
+    // Explicit platform oversight is restricted to this assigned-routine projection.
+    // The ordinary shared-progress endpoint and all non-platform actors retain consent.
+    const platformAssigned=platform&&assignedOnly;
+    if(!account||account.disabled||(!platformAssigned&&(!share?.enabled||context.center.state!=='active'||!active(member)))){checkSession();return {shared:false}}
+    let routineIds=share?.routine_ids||[];const allowedExercises=new Map();
+    if(assignedOnly){
+      const {rows}=await client.query(`SELECT v.routine_ids,v.bundle FROM centers.training_versions v
+        JOIN centers.training_acceptances a ON a.version_id=v.id AND a.recipient_uid=v.recipient_uid
+        WHERE v.center_id=$1 AND v.member_id=$2 AND v.recipient_uid=$3`,[centerId,memberId,recipient]);
+      const assigned=new Set(rows.flatMap(row=>Object.values(row.routine_ids)));
+      if(platformAssigned)for(const row of rows)for(const routine of row.bundle.routines){
+        const rid=row.routine_ids[routine.id];if(!rid)continue;
+        if(!allowedExercises.has(rid))allowedExercises.set(rid,new Set());
+        for(const ex of routine.ex)allowedExercises.get(rid).add(ex.id);
+      }
+      routineIds=platformAssigned?[...assigned]:routineIds.filter(id=>assigned.has(id));
+    }
+    const end=member.local_today,start=new Date(end+'T00:00:00Z');start.setUTCDate(start.getUTCDate()-365);
+    const from=platformAssigned?start.toISOString().slice(0,10):share.starts_on,to=platformAssigned?end:share.ends_on>end?end:share.ends_on;
+    checkSession();const state=assignedOnly&&!routineIds.length?null:readOwnTraining(recipient);
+    const report=sharedProgress(state,{routineIds,from,to});
+    if(platformAssigned){
+      const exercises=assignedStrength(state,{routineIds,allowedExercises,from,to});
+      report.performanceDefinition=1;report.unit=state?.unit==='lb'?'lb':'kg';
+      report.routines.forEach((routine,index)=>{routine.exercises=exercises[index]});
+    }
+    checkSession();return {shared:true,report};
   },{platform,allowInactive:true}));
 }

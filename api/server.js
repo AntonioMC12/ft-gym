@@ -1,3 +1,7 @@
+import {documentKey,documentOwner,importDocumentClaims} from './account-identity.js';
+import {businessTransaction} from './centers/services/context.js';
+import {memberRecord} from './centers/services/member-records.js';
+import {isPlatformUser} from './centers/authz.js';
 import {normalizeNationalDocument,validNationalDocument} from './centers/domain/national-document.js';
 import {registrationCenter,requestActivation} from './centers/services/activations.js';
 import {applicationAccess,renewalGateExempt} from './centers/services/application-access.js';
@@ -84,7 +88,7 @@ const ALLOW_GUEST = !/^(0|false|no|off)$/i.test(process.env.ALLOW_GUEST || '');
 // Name-and-password sign-in next to passkeys (#118). Off by default: it adds a second way into
 // every account that opts in, so an instance has to ask for it. While it is off every password
 // route answers 404 and the app shows none of it; hashes already stored stay where they are.
-const PASSWORD_LOGIN = /^(1|true|yes|on)$/i.test(process.env.PASSWORD_LOGIN || '');
+const PASSWORD_LOGIN = /^(1|true|yes|on)$/i.test(process.env.PASSWORD_LOGIN || '') || centersConfig().enabled;
 // The language the sign-in screen, and every profile that never picked one, starts in (#303) —
 // for an instance whose people share a language. Only a tag's shape is checked here; the app
 // matches it against the languages it has and ignores one it does not know. Unset, it is left
@@ -129,12 +133,14 @@ if (CENTERS_CONFIG.enabled && !fs.existsSync(CENTERS_LINK_MARKER)) atomicWrite(C
  * reason to refuse to boot. The privilege drop in adapters/spawn.js is the control that does
  * fail closed. */
 const lock = f => { try { fs.chmodSync(path.join(DATA, f), 0o600); } catch { /* not present yet, or host says no */ } };
-['secret', 'db.json', 'coach.json'].forEach(lock);
+['secret', 'db.json', 'coach.json', 'document-secret'].forEach(lock);
 
 /* ---------- secret + db ---------- */
 const secretFile = path.join(DATA, 'secret');
 if (!fs.existsSync(secretFile)) fs.writeFileSync(secretFile, crypto.randomBytes(32).toString('hex'), { mode: 0o600 });
 const SECRET = fs.readFileSync(secretFile, 'utf8').trim();
+const documentSecretFile=path.join(DATA,'document-secret');
+let DOCUMENT_SECRET=null;
 // The application has one JSON-writing API process. A restart/restore expires
 // outstanding access captures instead of resurrecting a recently consumed QR.
 const ACCESS_QR_EPOCH = crypto.randomBytes(32).toString('hex');
@@ -167,9 +173,18 @@ function loadDb() {
 }
 let db = loadDb();
 db.users = db.users || [];
+if(CENTERS_CONFIG.enabled){
+ if(!fs.existsSync(documentSecretFile)){
+  if(db.users.some(user=>user.documentKey))throw new Error('Restore document-secret together with the account backup. Refusing to replace the identity key.');
+  fs.writeFileSync(documentSecretFile,crypto.randomBytes(32).toString('hex'),{mode:0o600});
+ }
+ DOCUMENT_SECRET=fs.readFileSync(documentSecretFile,'utf8').trim();
+ if(!/^[a-f0-9]{64}$/i.test(DOCUMENT_SECRET))throw new Error('Invalid document-secret; restore the identity key.');
+}
 db.creds = db.creds || [];
 db.subs = db.subs || [];
 db.invites = db.invites || [];
+
 db.deviceLinks = db.deviceLinks || [];   // unused one-time device links, hashed (device-link.js)
 const isAdmin = user => !!user && (user.admin === true || ADMIN_UIDS.includes(user.id));
 const CENTERS_ACCOUNT_LOCKS = createAccountLocks(uid => db.users.find(user => user.id === uid));
@@ -1064,11 +1079,12 @@ const hasPassword = u => !!(u && u.pw && typeof u.pw.h === 'string');
 // PASSWORD_LOGIN off, a password kept from when it was on neither signs in nor proves anything
 // (proveOwner), and does not keep a profile's last passkey in place.
 const passwordWayIn = u => PASSWORD_LOGIN && hasPassword(u);
-const passwordHolder = k => db.users.find(u => hasPassword(u) && nameKey(u.name) === k) || null;
+const passwordHolder = k => db.users.find(u => hasPassword(u) && (CENTERS_CONFIG.enabled ? u.documentKey === k : nameKey(u.name) === k)) || null;
 const holdsName = u => hasPassword(u) || !!(u.pwReset && u.pwReset.exp > Date.now());
 // An e-mail is a second name to sign in with (see "e-mail as a sign-in name" below), so a name
 // is also taken by another profile's e-mail — only ever relevant for a name with an "@" in it.
 const nameTaken = (name, exceptId) => {
+  if(CENTERS_CONFIG.enabled)return false; // Public full names may repeat; document uniqueness is independent.
   const k = nameKey(name);
   return db.users.some(u => u.id !== exceptId && ((holdsName(u) && nameKey(u.name) === k) || u.email === k));
 };
@@ -1103,7 +1119,7 @@ const nameTaken = (name, exceptId) => {
    MCP bridge or anything shared, and only its owner (GET /api/account/password) and an admin
    (the user list) ever see it. */
 const emailHolder = e => db.users.find(u => hasPassword(u) && u.email === e) || null;
-const emailTaken = (e, exceptId) => db.users.some(u => u.id !== exceptId && (u.email === e || (holdsName(u) && nameKey(u.name) === e)));
+const emailTaken = (e, exceptId) => db.users.some(u => u.id !== exceptId && (u.email === e || (!CENTERS_CONFIG.enabled&&holdsName(u)&&nameKey(u.name)===e)));
 const EMAIL_ERRORS = {
   invalid: { error: 'that is not an e-mail address', code: 'email-invalid' },
   taken: { error: 'another profile already uses this e-mail address', code: 'email-taken' }
@@ -1114,9 +1130,10 @@ const EMAIL_ERRORS = {
 // identifier as folded, so an unknown one is paused exactly like a known one.
 function loginTarget(body) {
   const onlyEmail = body.identifier === undefined && body.name === undefined;
-  const k = nameKey(text(body.identifier ?? body.name ?? body.email).slice(0, 300));
+  const input=text(body.nationalDocument??body.identifier??body.name??body.email).slice(0,300);
+  const k=CENTERS_CONFIG.enabled?documentKey(input,DOCUMENT_SECRET):nameKey(input);
   if (!k) return null;
-  const resolve = () => (k.includes('@') ? emailHolder(k) : null) || (onlyEmail ? null : passwordHolder(k));
+  const resolve = () => CENTERS_CONFIG.enabled?passwordHolder(k):(k.includes('@') ? emailHolder(k) : null) || (onlyEmail ? null : passwordHolder(k));
   const user = resolve();
   return { k, user, resolve, email: k.includes('@'), key: user ? acctKey(user) : 'id:' + k };
 }
@@ -1263,9 +1280,34 @@ async function removeEmail(req, res, user, body) {
   json(res, 200, { ok: true, email: null });
 }
 
+let documentIndexLoading=null;
+let legacyDocumentReservations=new Set(),legacyDocumentCandidates=new Map();
+async function ensureDocumentIndex(){
+ if(!CENTERS_CONFIG.enabled)return;
+ if(!documentIndexLoading)documentIndexLoading=(async()=>{
+  const candidates=new Map();
+  for(const user of db.users){
+   const rows=await CENTERS_DATABASE.accountTransaction(user.id,async client=>(await client.query('SELECT national_document FROM centers.members WHERE account_uid=$1 UNION SELECT national_document FROM centers.activation_requests WHERE account_uid=$1',[user.id])).rows);
+   candidates.set(user.id,new Set(rows.map(row=>documentKey(row.national_document,DOCUMENT_SECRET)).filter(Boolean)));
+  }
+  const result=importDocumentClaims(db.users,candidates);legacyDocumentReservations=result.reserved;legacyDocumentCandidates=candidates;if(result.changed)saveDb();
+ })().catch(()=>{documentIndexLoading=null;throw new HttpError(503,'Account identity is temporarily unavailable. Try again.');});
+ await documentIndexLoading;
+}
+function documentReserved(key){return legacyDocumentReservations.has(key)&&db.users.some(user=>legacyDocumentCandidates.get(user.id)?.has(key));}
+function canClaimDocument(user,key){
+ if(!key||documentOwner(db.users,key,user.id)||signupReservations.has('document:'+key))return false;
+ if(user.documentKey)return user.documentKey===key;
+ const known=legacyDocumentCandidates.get(user.id)||new Set();
+ return known.size?known.has(key):!documentReserved(key);
+}
+
+const signupReservations = new Set();
+const recoveryIssues = createWindow({max:5,windowMs:3600000});
 const passwordRoutes = {
   'POST /api/login/password': async (req, res) => {
     const body = await readBody(req);
+    if(CENTERS_CONFIG.enabled)await ensureDocumentIndex();
     const target = loginTarget(body);
     const pw = typeof body.password === 'string' ? body.password : '';
     if (!target || !pw) return json(res, 400, { error: 'name and password required', code: 'missing' });
@@ -1310,11 +1352,15 @@ const passwordRoutes = {
   // setups. Same invite rules as /api/register/*, checked again and burned after the hash.
   'POST /api/register/password': async (req, res) => {
     const body = await readBody(req);
-    const name = text(body.name).trim().slice(0, 40);
+    const name = text(body.name).trim().slice(0, CENTERS_CONFIG.enabled?120:40);
     if (!name) return json(res, 400, { error: 'name required', code: 'missing' });
     const center=await signupCenter(res,body.centerId);if(center===false)return;
+    if(CENTERS_CONFIG.enabled&&name.split(/\s+/).length<2)return json(res,400,{error:'Full name is required.',code:'full-name-required'});
     const nationalDocument=center?normalizeNationalDocument(body.nationalDocument):null;
     if(center&&!validNationalDocument(body.nationalDocument))return json(res,400,{error:'A valid DNI or NIE is required.',code:'national-document-invalid'});
+    if(center)await ensureDocumentIndex();
+    const identity=center?documentKey(nationalDocument,DOCUMENT_SECRET):null;
+    if(identity&&(documentOwner(db.users,identity)||documentReserved(identity)))return json(res,409,{error:'This document already has an account. Recover your existing account.',code:'document-taken'});
     const code = text(body.code).trim().toUpperCase();
     const invite = () => db.invites.find(i => i.code === code && !i.usedBy && !i.revoked);
     if (!center && INVITE_ONLY && addressPaused(req, res, 'signup')) return;
@@ -1325,7 +1371,7 @@ const passwordRoutes = {
     }
     const problem = passwordProblem(body.password, name);
     if (problem) return policyError(res, problem);
-    const taken = () => json(res, 409, { error: 'another profile already signs in with this name', code: 'name-taken' });
+    const taken = () => json(res, 409, { error: 'another profile already signs in with this name', code:'name-taken' });
     if (nameTaken(name)) return taken();
     // An e-mail is optional here. One already in use counts against the address, the way it
     // does in Settings: this route needs no session, so it is the cheaper place to ask. Whether
@@ -1340,6 +1386,12 @@ const passwordRoutes = {
       return json(res, 409, EMAIL_ERRORS.taken);
     };
     if (email && addressPaused(req, res, 'email')) return;
+    const reservationKeys = CENTERS_CONFIG.enabled ? ['document:'+identity,...(email?['email:'+email]:[])] : [];
+    if(CENTERS_CONFIG.enabled&&signupReservations.has('document:'+identity))return json(res,409,{error:'Registration already in progress.',code:'document-taken'});
+    if(CENTERS_CONFIG.enabled&&email&&signupReservations.has('email:'+email))return emailRefused();
+    reservationKeys.forEach(key=>signupReservations.add(key));
+    const release=()=>reservationKeys.forEach(key=>signupReservations.delete(key));
+    try {
     const h = await hashPassword(body.password);
     let inv = null;
     if (!center && INVITE_ONLY) {
@@ -1353,7 +1405,7 @@ const passwordRoutes = {
     // No await from here to the push: nothing can take the address between this check and it.
     if (email && emailTaken(email)) return emailRefused();
     const created = new Date().toISOString();
-    const user = { id: crypto.randomBytes(12).toString('base64url'), name, created, pw: { h, set: created }, ...(email ? { email } : {}) };
+    const user = { id: crypto.randomBytes(12).toString('base64url'), name, ...(identity?{documentKey:identity}:{}), created, pw: { h, set: created }, ...(email ? { email } : {}) };
     if (inv) { user.invitedBy = inv.code; inv.usedBy = user.id; inv.usedAt = created; }
     if(center)user.registrationCenterId=center.id;
     if(!CENTERS_CONFIG.enabled)claimFirstAdmin(req, user);
@@ -1365,14 +1417,29 @@ const passwordRoutes = {
     saveDb();
     audit(req, 'auth.register.ok', { user, msg: inv ? inv.code + ' · password' : 'password' });
     json(res, 200, { user: publicUser(user) }, { 'Set-Cookie': sessionCookie(user) });
+    } finally { release(); }
   },
 
   // What Settings shows: whether a password is set, and whether it could be removed.
+  'POST /api/account/document': async(req,res)=>{
+    const user=readSession(req);if(!user)return json(res,401,{error:'not signed in'});
+    if(!CENTERS_CONFIG.enabled)return json(res,404,{error:'not found'});
+    const body=await readBody(req);if(!validNationalDocument(body.nationalDocument))return json(res,400,{error:'A valid DNI or NIE is required.',code:'national-document-invalid'});
+    await ensureDocumentIndex();const key=documentKey(body.nationalDocument,DOCUMENT_SECRET);
+    if(!canClaimDocument(user,key))return json(res,409,{error:'Document unavailable or identity requires review.',code:'document-taken'});
+    if(!await proveOwner(req,res,user,body,'document-set'))return;
+    if(readSession(req)!==user)return json(res,401,{error:'not signed in'});
+    if(!canClaimDocument(user,key))return json(res,409,{error:'Document unavailable or identity requires review.',code:'document-taken'});
+    user.documentKey=key;delete user.username;saveDb();audit(req,'auth.document.set',{user});return json(res,200,{documentSet:true});
+  },
+
   'GET /api/account/password': async (req, res) => {
     const user = readSession(req);
     if (!user) return json(res, 401, { error: 'not signed in' });
+    if(CENTERS_CONFIG.enabled)await ensureDocumentIndex();
     json(res, 200, {
-      set: hasPassword(user), setAt: user.pw?.set || null, passkeys: passkeyCount(user),
+      set: hasPassword(user), setAt: user.pw?.set || null, passkeys: CENTERS_CONFIG.enabled?0:passkeyCount(user),
+      ...(CENTERS_CONFIG.enabled?{documentSet:!!user.documentKey,documentRequired:!user.documentKey}:{}),
       name: user.name, nameTaken: nameTaken(user.name, user.id),
       // Only the owner's own session is ever handed their address.
       email: user.email || null
@@ -1414,6 +1481,7 @@ const passwordRoutes = {
   // refusal the profile's state already decides spends no passkey prompt and no password check.
   // Existing sessions are left alone; "sign out everywhere" ends them.
   'DELETE /api/account/password': async (req, res) => {
+    if(CENTERS_CONFIG.enabled)return json(res,409,{error:'Password is required.',code:'last-way-in'});
     const user = readSession(req);
     if (!user) return json(res, 401, { error: 'not signed in' });
     const body = await readBody(req);
@@ -1460,7 +1528,7 @@ const passwordRoutes = {
     if (!proof) return;
     if (sessionOf(req)?.user !== user) return json(res, 401, { error: 'not signed in' });
     if (paused()) return;
-    if (emailTaken(email, user.id)) {
+    if (emailTaken(email, user.id)||(CENTERS_CONFIG.enabled&&signupReservations.has('email:'+email))) {
       if (proof === 'passkey') saveDb();   // the confirming passkey's counter and last use
       strikeAddress(req, 'email');
       ADDR_FAILS.fail(acct);
@@ -1485,16 +1553,50 @@ const passwordRoutes = {
   // should not keep working for the day the code is valid. Passkeys are left alone. The code is
   // shown once and stored only as a hash. Admin accounts are refused, as they are by disable —
   // one admin must not be able to take over another's login.
+  'POST /api/centers/members/recovery': async (req,res) => {
+    const actor=readSession(req);if(!actor)return json(res,401,{error:'not signed in'});
+    if(!CENTERS_CONFIG.enabled)return json(res,404,{error:'not found'});
+    const body=await readBody(req);if(body.confirmed!==true)return json(res,400,{error:'Identity verification is required.',code:'identity-confirmation-required'});
+    const sv=sessionVersion(actor),check=()=>{if(readSession(req)!==actor||sessionVersion(actor)!==sv)throw new CentersError(401,'not-signed-in','not signed in')};
+    const options={platform:isPlatformUser(CENTERS_CONFIG,actor)};
+    try{
+      const recipient=await businessTransaction(CENTERS_DATABASE,actor.id,body.centerId,'members.manage',async client=>(await memberRecord(client,body.centerId,body.memberId)).account_uid,options);
+      if(!recipient)throw new CentersError(409,'account-required','No linked account');
+      const result=await CENTERS_ACCOUNT_LOCKS.withAccounts([actor.id,recipient],async()=>{
+        const target=await businessTransaction(CENTERS_DATABASE,actor.id,body.centerId,'members.manage',async client=>{
+          check();const member=await memberRecord(client,body.centerId,body.memberId);
+          if(member.account_uid!==recipient)throw new CentersError(409,'account-changed','Reload member');
+          const account=db.users.find(u=>u.id===recipient);
+          // The bound account's own RLS context sees its roles across all centers. Only
+          // a boolean is used here; no staff directory is exposed to another manager.
+          const staff=await CENTERS_DATABASE.accountTransaction(recipient,async c=>(await c.query('SELECT id FROM centers.role_assignments WHERE account_uid=$1 AND revoked_at IS NULL LIMIT 1',[recipient])).rows.length>0);
+          if(!account||account.disabled||isAdmin(account)||isPlatformUser(CENTERS_CONFIG,account)||(!options.platform&&staff))throw new CentersError(403,'recovery-forbidden','Staff account recovery requires platform support');
+          if(recoveryIssues.take(actor.id+':'+recipient)>0)throw new CentersError(429,'locked','Try again later');
+          await client.query('INSERT INTO centers.business_audit(center_id,actor_uid,action,target_id) VALUES($1,$2,$3,$4)',[body.centerId,actor.id,'account.recovery.authorized',member.id]);
+          check();return account;
+        },options);
+        // SQL authorization has committed; account/role mutations remain locked until
+        // the durable credential write completes. No async gap inside the JSON update.
+        check();const code=makeResetCode();target.pwReset={h:hashResetCode(code),exp:Date.now()+30*60*1000,by:actor.id};
+        delete target.pw;target.sv=sessionVersion(target)+1;dropDeviceLinks(db,target.id);presence.delete(target.id);
+        for(const [key,value]of pairings)if(value.uid===target.id)pairings.delete(key);
+        saveDb();audit(req,'account.recovery.issued',{user:actor,target});return {code,expires:target.pwReset.exp};
+      });
+      check();return json(res,200,result);
+    }catch(error){return json(res,error.status||503,{error:'Account recovery is unavailable.',code:error.code||'recovery-unavailable'});}
+  },
+
   'POST /api/admin/user/password-reset': async (req, res) => {
-    const admin = requireAdmin(req, res); if (!admin) return;
+    const admin = CENTERS_CONFIG.enabled?readSession(req):requireAdmin(req, res); if (!admin) return CENTERS_CONFIG.enabled?json(res,401,{error:'not signed in'}):undefined;
+    if(CENTERS_CONFIG.enabled&&!isPlatformUser(CENTERS_CONFIG,admin))return json(res,403,{error:'forbidden'});
     const body = await readBody(req);
     const u = db.users.find(x => x.id === body.id);
     if (!u) return json(res, 404, { error: 'no such user' });
-    if (isAdmin(u)) return json(res, 400, { error: 'an admin sets their own password in Settings' });
+    if (isAdmin(u)||isPlatformUser(CENTERS_CONFIG,u)) return json(res, 400, { error: 'an admin sets their own password in Settings' });
     if (nameTaken(u.name, u.id)) return json(res, 409, { error: 'another profile already signs in with this name', code: 'name-taken' });
     const code = makeResetCode();
     delete u.pw;
-    u.pwReset = { h: hashResetCode(code), exp: Date.now() + RESET_TTL_MS, by: admin.id };
+    u.pwReset = { h: hashResetCode(code), exp: Date.now() + (CENTERS_CONFIG.enabled?30*60*1000:RESET_TTL_MS), by: admin.id };
     u.sv = sessionVersion(u) + 1;
     for (const [k, v] of pairings) if (v.uid === u.id) pairings.delete(k);
     dropDeviceLinks(db, u.id);
@@ -1507,14 +1609,16 @@ const passwordRoutes = {
   'POST /api/login/password-reset': async (req, res) => {
     const body = await readBody(req);
     // The name or the e-mail, in the same fields sign-in takes them (loginTarget).
-    const k = nameKey(text(body.identifier ?? body.name ?? body.email).slice(0, 300));
+    const input=text(body.nationalDocument??body.identifier??body.name??body.email).slice(0,300);
+    const k=CENTERS_CONFIG.enabled?documentKey(input,DOCUMENT_SECRET):nameKey(input);
     const code = text(body.code).slice(0, 64);
     if (!k || !code) return json(res, 400, { error: 'name and code required', code: 'missing' });
     // Wrong codes count against the address only. A per-name pause would add nothing against a
     // 60-bit code that lives a day, and would let anyone who knows the name keep the real code
     // refused for that whole day — after the reset has already removed the old password.
     if (addressPaused(req, res, 'password')) return;
-    const find = () => db.users.find(u => u.pwReset && (nameKey(u.name) === k || u.email === k) && resetCodeMatches(code, u.pwReset)) || null;
+    if(CENTERS_CONFIG.enabled)await ensureDocumentIndex();
+    const find = () => db.users.find(u => u.pwReset && (CENTERS_CONFIG.enabled ? (u.documentKey===k||!u.documentKey&&canClaimDocument(u,k)) : nameKey(u.name)===k||u.email===k) && resetCodeMatches(code,u.pwReset))||null;
     const user = find();
     const invalid = () => json(res, 400, { error: 'that reset code is wrong or has expired', code: 'reset-invalid' });
     const taken = () => json(res, 409, { error: 'another profile already signs in with this name', code: 'name-taken' });
@@ -1535,6 +1639,7 @@ const passwordRoutes = {
     // Single use: a second request that raced this one through the hash finds the code gone.
     if (find() !== user) return invalid();
     if (nameTaken(user.name, user.id)) return taken();
+    if(CENTERS_CONFIG.enabled){if(!canClaimDocument(user,k))return invalid();user.documentKey=k;}
     setPassword(user, h);
     ACCOUNT_FAILS.clear(acctKey(user));
     saveDb();
@@ -1981,6 +2086,7 @@ const routes = {
       invite_only: INVITE_ONLY && !CENTERS_CONFIG.enabled, allow_guest: ALLOW_GUEST,
       // Only when on, so an instance without passwords answers exactly as it did before (#118).
       ...(PASSWORD_LOGIN ? { password_login: true } : {}),
+      ...(CENTERS_CONFIG.enabled?{document_login:true,passkeys:false}:{}),
       // Public: the sign-in screen is the first thing that reads it.
       ...(DEFAULT_LANG ? { default_lang: DEFAULT_LANG } : {}),
       // Public like the two flags above: the caps are not a secret, and the absence of the
@@ -2671,7 +2777,7 @@ const routes = {
   // them: they are closures over db and SECRET, and passing them in keeps that module free of
   // a cycle. Every one of them is inert while the feature is unconfigured.
   ...coachRoutes({ json, readBody, readSession, requireAdmin }),
-  ...centersRoutes({ config: CENTERS_CONFIG, database: CENTERS_DATABASE, json, readSession, readBody,
+  ...centersRoutes({ config: CENTERS_CONFIG, database: CENTERS_DATABASE, json, readSession, readBody, documentMatches:(user,raw)=>!user.documentKey||user.documentKey===documentKey(raw,DOCUMENT_SECRET),
     hasTrainingExercise,
     mintAccessCredential: (kind,id,version) => {
       if(!['device','token'].includes(kind)||!Number.isSafeInteger(version)||version<1||!new RegExp('^'+(kind==='device'?'ad_':'at_')+'[a-f0-9]{32}$').test(id))throw new TypeError('invalid access credential identity');
@@ -2766,6 +2872,7 @@ const server = http.createServer(async (req, res) => {
   // above stays a plain lookup, and so csrfOk and the catch-all see one name for every file.
   const mm = /^\/api\/media\/([0-9a-f]{64})$/.exec(url.pathname);
   if (mm) { key = req.method + ' /api/media/{hash}'; req.mediaHash = mm[1]; }
+  if(CENTERS_CONFIG.enabled && (/^\/api\/(register|login)\/(options|verify)$/.test(url.pathname)||url.pathname.startsWith('/api/device-link/')||url.pathname.startsWith('/api/account/passkeys/')||url.pathname==='/api/account/device-link'))return json(res,404,{error:'Password sign-in is required.',code:'password-only'});
   const handler = routes[key];
   if (!handler) return json(res, 404, { error: 'not found' });
   if (!csrfOk(req, key)) {

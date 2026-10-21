@@ -3,6 +3,7 @@ import React, { act } from 'react'
 import { createRoot } from 'react-dom/client'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import Login from './Login.jsx'
+import {api,passwordRegister} from '../lib/api.js'
 
 globalThis.IS_REACT_ACT_ENVIRONMENT = true
 
@@ -48,7 +49,7 @@ function mount(el) {
 const buttons = host => [...host.querySelectorAll('button')].map(b => b.textContent)
 const button = (host, text) => [...host.querySelectorAll('button')].find(b => b.textContent === text)
 
-beforeEach(() => { mocks.webauthn = true; mocks.config = null; mocks.sheets.length = 0 })
+beforeEach(() => { mocks.webauthn = true; mocks.config = {}; mocks.sheets.length = 0; window.location.hash='' })
 afterEach(() => { act(() => { mounted.splice(0).forEach(({ root, host }) => { root.unmount(); host.remove() }) }) })
 
 describe('Login with password sign-in', () => {
@@ -58,7 +59,7 @@ describe('Login with password sign-in', () => {
     expect(page.textContent).toContain('Passkeys use your fingerprint. No passwords to remember.')
     mocks.webauthn = false
     const noPasskeys = mount(<Login />)
-    expect(noPasskeys.textContent).toContain("This browser doesn't do passkeys, but you can still use openGym locally on this device.")
+    expect(noPasskeys.textContent).toContain("This browser doesn't do passkeys, but you can still use Fernando Tienda Training locally on this device.")
     expect(buttons(noPasskeys)).not.toContain('Sign in with password')
   })
 
@@ -99,4 +100,27 @@ describe('Login with password sign-in', () => {
     expect(sheet.querySelector('input[placeholder="Invite code"]')).toBeTruthy()
     expect(sheet.querySelector('input[autocomplete="new-password"]')).toBeTruthy()
   })
+})
+
+it('waits for unknown server configuration rather than displaying an invitation form',()=>{
+ mocks.config=null;const page=mount(<Login/>);expect(page.textContent).toContain('Loading…');expect(buttons(page)).not.toContain('Create new profile');expect(buttons(page)).toContain('Retry')
+})
+it('center registration defaults to password, carries the join link, and never asks for an invitation code',async()=>{
+ window.location.hash='#/home?join=center1';mocks.config={centers:{enabled:true},password_login:true,invite_only:true,allow_guest:false};api.mockResolvedValue({center:{id:'center1',name:'Gym'}});
+ const page=mount(<Login/>);await act(async()=>{});expect(buttons(page)).not.toContain('Use a code from your other device');expect(buttons(page)[0]).toBe('Sign in with password');
+ act(()=>button(page,'Create account and request access').click());const sheet=mount(mocks.sheets.at(-1)(()=>{}));await act(async()=>{});
+ expect(sheet.textContent).toContain('Gym');expect(sheet.textContent).toContain('The center manager must approve it.');expect(sheet.querySelector('input[placeholder="Invite code"]')).toBeNull();expect(sheet.querySelector('input[autocomplete="new-password"]')).not.toBeNull();
+ act(()=>button(sheet,'Passkey').click());await act(async()=>{});expect(buttons(sheet)).toContain('Create passkey');expect(sheet.querySelector('input[placeholder="Invite code"]')).toBeNull();
+ act(()=>button(sheet,'Password').click());await act(async()=>{});expect(buttons(sheet)).toContain('Create account and request access');expect(location.hash).toContain('join=center1');expect(passwordRegister).not.toHaveBeenCalled()
+})
+it('requires a center registration link while leaving existing account sign-in available',async()=>{
+ mocks.config={centers:{enabled:true},password_login:true,invite_only:false};const page=mount(<Login/>);await act(async()=>{});expect(button(page,'Create account and request access').disabled).toBe(true);expect(button(page,'Sign in with password').disabled).toBe(false);expect(page.textContent).toContain('Ask your center manager for the registration link.')
+})
+
+it('center access hides passkeys and usernames and uses DNI/NIE with the full name',async()=>{
+ window.location.hash='#/home?join=center1';mocks.config={centers:{enabled:true},document_login:true,password_login:true,passkeys:false};api.mockResolvedValue({center:{id:'center1',name:'Gym'}});
+ const page=mount(<Login/>);await act(async()=>{});expect(buttons(page)).not.toContain('Sign in with passkey');
+ act(()=>button(page,'Create account and request access').click());const sheet=mount(mocks.sheets.at(-1)(()=>{}));await act(async()=>{});
+ expect(buttons(sheet)).not.toContain('Passkey');expect(buttons(sheet)).not.toContain('Create passkey');
+ expect(sheet.querySelector('input[autocomplete="username"]')).toBeNull();expect(sheet.querySelector('input[autocomplete="name"]')).not.toBeNull();expect(sheet.textContent).not.toContain('Private username');expect(sheet.querySelector('input[name=nationalDocument]')).not.toBeNull();
 })

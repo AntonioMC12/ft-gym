@@ -1,0 +1,194 @@
+import {test} from 'node:test';
+import assert from 'node:assert/strict';
+import pg from 'pg';
+import {commandHash} from '../../centers/services/commands.js';
+import {correctClassAttendance} from '../../centers/services/classes.js';
+import {fixture,shift} from './class-fixture.mjs';
+
+test('room scheduling serializes concurrent overlaps, preserves adjacent slots and releases canceled classes',async t=>{
+  const f=await fixture(t);
+  const responses=await Promise.all([f.create('room_a',{room:'Sala  A'}),f.create('room_b',{room:' sala a '})]);
+  assert.equal(responses.filter(r=>r.status===200).length,1,JSON.stringify(responses));assert.equal(responses.find(r=>r.status!==200).body.code,'class-room-conflict');
+  const winner=responses.find(r=>r.status===200).body.event;assert.ok(winner.room);
+  const adjacent=await f.create('adjacent',{room:'SALA A',startTime:'11:00',endTime:'12:00'});assert.equal(adjacent.status,200,JSON.stringify(adjacent));
+  assert.equal((await f.create('different_room',{room:'Sala B'})).status,200);
+  const own=(await f.own('alice')).body.classes.find(r=>r.id===winner.id);assert.equal(own.room,winner.room);
+  const canceled=await f.req('/api/centers/classes/cancel',f.ids.manager,{centerId:f.center,id:winner.id,version:winner.version,reason:'Fictional room freed',requestId:f.p+'_room_cancel'});assert.equal(canceled.status,200);
+  assert.equal((await f.create('released',{room:'Sala A'})).status,200);
+  const overlap=await f.create('partial',{room:'Sala A',startTime:'10:30',endTime:'11:30'});assert.equal(overlap.body.code,'class-room-conflict');
+  const otherPlan=(await f.req('/api/centers/plans/create',f.ids.root,{centerId:f.other,name:'Other classes',priceMinor:'1000',currency:'EUR',intervalMonths:1,priceIncludesTax:true,taxBasisPoints:0,proration:'none',requestId:f.p+'_other_plan'})).body.plan;
+  const other=await f.req('/api/centers/classes/create',f.ids.root,{centerId:f.other,fields:{name:'Other center',room:'Sala A',date:winner.date,startTime:'10:00',endTime:'11:00',capacity:1,waitlistCapacity:0,cancelBeforeMinutes:0,eligiblePlanIds:[otherPlan.id]},requestId:f.p+'_other_room'});assert.equal(other.status,200,JSON.stringify(other));
+  await assert.rejects(f.db.transaction({uid:f.ids.manager,centerId:f.center},client=>client.query('UPDATE centers.classes SET room=$2,version=version+1 WHERE id=$1',[adjacent.body.event.id,'Sala moved'])),{code:'42501'});
+});
+
+test('instructors come from current center staff, cover the class and cannot teach overlapping same-center classes',async t=>{
+  const f=await fixture(t),path='/api/centers/classes/instructors?'+new URLSearchParams({centerId:f.center});
+  const directory=await f.req(path,f.ids.manager);assert.equal(directory.status,200,JSON.stringify(directory));
+  const teacher=directory.body.instructors.find(r=>r.role==='trainer');assert.ok(teacher);assert.equal(teacher.name,f.ids.trainer);
+  assert.ok(!JSON.stringify(directory.body).includes('accountUid'));assert.equal((await f.req(path,f.ids.trainer)).status,403);assert.equal((await f.req(path,f.ids.alice)).status,403);
+  assert.equal((await f.req(path+'&accountUid='+f.ids.root,f.ids.manager)).status,400);
+  const foreign=(await f.req('/api/centers/classes/instructors?centerId='+f.other,f.ids.root)).body.instructors[0];
+  assert.equal((await f.create('foreign_teacher',{instructorAssignmentId:foreign.id})).body.code,'class-instructor-unavailable');
+  const responses=await Promise.all([f.create('teacher_a',{instructorAssignmentId:teacher.id}),f.create('teacher_b',{instructorAssignmentId:teacher.id})]);
+  assert.equal(responses.filter(r=>r.status===200).length,1,JSON.stringify(responses));assert.equal(responses.find(r=>r.status!==200).body.code,'class-instructor-conflict');
+  const winner=responses.find(r=>r.status===200).body.event;assert.equal(winner.instructorName,teacher.name);assert.equal(winner.instructorUid,undefined);
+  const adjacent=await f.create('teacher_adjacent',{instructorAssignmentId:teacher.id,startTime:'11:00',endTime:'12:00'});assert.equal(adjacent.status,200);
+  const dual=f.p+'_dual_role';await f.db.platformTransaction(f.ids.root,client=>client.query("INSERT INTO centers.role_assignments(id,center_id,account_uid,role) VALUES($1,$2,$3,'manager')",[dual,f.center,f.ids.trainer]),f.center);
+  const dualDirectory=await f.req(path,f.ids.manager);assert.ok(dualDirectory.body.instructors.find(row=>row.id===dual),JSON.stringify(dualDirectory));
+  assert.equal((await f.create('same_account_two_roles',{instructorAssignmentId:dual})).body.code,'class-instructor-conflict');
+  assert.equal((await f.own('alice')).body.classes.find(r=>r.id===winner.id).instructorName,teacher.name);
+  // A role that ends before class finish cannot authorize teaching that class.
+  await f.db.platformTransaction(f.ids.root,client=>client.query('UPDATE centers.role_assignments SET valid_until=$2,version=version+1 WHERE id=$1',[teacher.id,winner.startsAt]),f.center);
+  assert.equal((await f.create('teacher_ends',{instructorAssignmentId:teacher.id,startTime:'12:00',endTime:'13:00'})).body.code,'class-instructor-unavailable');
+  assert.equal((await f.roster(winner)).body.event.instructorNeedsReview,true);
+  assert.equal((await f.own('alice')).body.classes.find(row=>row.id===winner.id).instructorNeedsReview,undefined);
+  const cancel=await f.req('/api/centers/classes/cancel',f.ids.manager,{centerId:f.center,id:winner.id,version:winner.version,reason:'Fictional teaching cancellation',requestId:f.p+'_teacher_cancel'});assert.equal(cancel.status,200);
+  // Historical label stays intact after current staff authority changes.
+  assert.equal((await f.roster(winner)).body.event.instructorName,teacher.name);
+  assert.equal((await f.roster(winner)).body.event.instructorNeedsReview,false,'canceled commitments do not require an instructor review');
+  const validDual=await f.create('teacher_dual_valid',{instructorAssignmentId:dual,startTime:'12:00',endTime:'13:00'});assert.equal(validDual.status,200);assert.equal((await f.roster(validDual.body.event)).body.event.instructorNeedsReview,false);
+  const disabled=await f.req('/api/admin/user/disable',f.ids.technical,{id:f.ids.trainer,disabled:true});assert.equal(disabled.status,200,JSON.stringify(disabled));
+  assert.ok(!(await f.req(path,f.ids.manager)).body.instructors.some(row=>row.id===teacher.id||row.id===dual));
+  assert.equal((await f.create('disabled_teacher',{instructorAssignmentId:dual,startTime:'12:00',endTime:'13:00'})).body.code,'class-instructor-unavailable');
+  assert.equal((await f.roster(validDual.body.event)).body.event.instructorNeedsReview,true,'disabled JSON identity is reviewed even with a covering SQL role');
+  const original=winner.name.endsWith('teacher_a')?'teacher_a':'teacher_b';const replay=await f.create(original,{instructorAssignmentId:teacher.id});assert.equal(replay.status,200);assert.equal(replay.body.event.id,winner.id);assert.equal(replay.body.event.instructorName,teacher.name);
+});
+
+test('instructor directory paginates actual staff without crossing actor or center scopes',async t=>{
+  const f=await fixture(t,{instructors:51}),url='/api/centers/classes/instructors?';
+  const first=await f.req(url+new URLSearchParams({centerId:f.center}),f.ids.manager);assert.equal(first.status,200);assert.equal(first.body.instructors.length,50);assert.ok(first.body.nextCursor);
+  const last=await f.req(url+new URLSearchParams({centerId:f.center,cursor:first.body.nextCursor}),f.ids.manager);assert.equal(last.body.instructors.length,3);assert.equal(last.body.nextCursor,null);
+  assert.equal(new Set([...first.body.instructors,...last.body.instructors].map(row=>row.id)).size,53);
+  assert.equal((await f.req(url+new URLSearchParams({centerId:f.other,cursor:first.body.nextCursor}),f.ids.root)).status,400);
+  assert.equal((await f.req(url+new URLSearchParams({centerId:f.center,cursor:first.body.nextCursor}),f.ids.root)).status,400);
+});
+
+test('one concurrent seat never oversells, FIFO promotion is atomic, and replay never resurrects a canceled reservation',async t=>{
+  const f=await fixture(t),created=await f.create();assert.equal(created.status,200,JSON.stringify(created));const event=created.body.event;
+  const keys=['alice','bob','charlie'],responses=await Promise.all(keys.map(key=>f.reserve(event,key)));
+  assert.ok(responses.every(row=>row.status===200),JSON.stringify(responses));const rows=responses.map((row,index)=>({...row.body.reservation,key:keys[index]}));
+  assert.equal(rows.filter(row=>row.state==='booked').length,1);assert.equal(rows.filter(row=>row.state==='waiting').length,2);
+  const booked=rows.find(row=>row.state==='booked'),waiting=rows.filter(row=>row.state==='waiting').sort((a,b)=>Number(BigInt(a.queueOrder)-BigInt(b.queueOrder)));
+  const personal=(await f.req('/api/data',f.ids.alice)).body;
+  const canceled=await f.cancel(booked,booked.key);assert.equal(canceled.status,200,JSON.stringify(canceled));
+  const roster=(await f.roster(event)).body;assert.equal(roster.event.booked,1);assert.equal(roster.event.waiting,1);
+  assert.equal(roster.reservations.find(row=>row.id===waiting[0].id).state,'booked');assert.equal(roster.reservations.find(row=>row.id===waiting[1].id).state,'waiting');
+  assert.equal((await f.reserve(event,booked.key)).body.reservation.state,'canceled');
+  assert.deepEqual((await f.cancel(booked,booked.key)).body,canceled.body);
+  const cancelEvent=await f.req('/api/centers/classes/cancel',f.ids.manager,{centerId:f.center,id:event.id,version:1,reason:'Fictional cancellation',requestId:f.p+'_cancel_event'});assert.equal(cancelEvent.status,200,JSON.stringify(cancelEvent));assert.equal(cancelEvent.body.event.booked,0);assert.equal(cancelEvent.body.event.waiting,0);
+  assert.ok((await f.roster(event)).body.reservations.every(row=>row.state==='canceled'));
+  assert.deepEqual((await f.req('/api/data',f.ids.alice)).body,personal);assert.ok(!JSON.stringify((await f.own('alice')).body).includes('bob@'));
+});
+test('waitlist promotion skips a membership ended for the class date and preserves finance',async t=>{
+  const f=await fixture(t),event=(await f.create()).body.event;
+  const alice=(await f.reserve(event,'alice')).body.reservation,bob=(await f.reserve(event,'bob')).body.reservation,charlie=(await f.reserve(event,'charlie')).body.reservation;
+  const before=(await f.req('/api/centers/own/membership?centerId='+f.center,f.ids.alice)).body.summary;
+  const member=(await f.detail('bob')).body.member;
+  assert.equal((await f.req('/api/centers/members/transition',f.ids.manager,{centerId:f.center,id:member.id,version:member.version,action:'end',effectiveOn:event.date,reason:'Fictional end',requestId:f.p+'_end'})).status,200);
+  assert.equal((await f.cancel(alice,'alice')).status,200);
+  const roster=(await f.roster(event)).body;assert.equal(roster.reservations.find(row=>row.id===bob.id).state,'ineligible');assert.equal(roster.reservations.find(row=>row.id===charlie.id).state,'booked');assert.equal(roster.event.waiting,0);
+  assert.equal((await f.reserve(event,'bob','new')).body.code,'class-ineligible');
+  assert.deepEqual((await f.req('/api/centers/own/membership?centerId='+f.center,f.ids.alice)).body.summary,before);
+});
+test('capacity, selected center, current own identity, management roles and CSRF are enforced',async t=>{
+  const f=await fixture(t),event=(await f.create('limited',{waitlistCapacity:0})).body.event;
+  const results=await Promise.all([f.reserve(event,'alice'),f.reserve(event,'bob')]);assert.equal(results.filter(row=>row.status===200).length,1);assert.equal(results.find(row=>row.status!==200).body.code,'class-full');
+  const row=results.find(r=>r.status===200).body.reservation;
+  await assert.rejects(f.db.transaction({uid:f.ids.alice,centerId:f.center},client=>client.query('UPDATE centers.classes SET booked_count=999 WHERE id=$1',[event.id])),{code:'42501'});
+  const hidden=await f.db.transaction({uid:f.ids.charlie,centerId:f.center},client=>client.query('SELECT id FROM centers.class_reservations WHERE class_id=$1',[event.id]));assert.equal(hidden.rows.length,0);
+  assert.equal((await f.own('alice',{memberId:f.members.bob})).status,400);
+  assert.equal((await f.req('/api/centers/own/classes?centerId='+f.other,f.ids.alice)).status,404);
+  for(const uid of [f.ids.alice,f.ids.trainer,f.ids.technical])assert.ok([403,404].includes((await f.req('/api/centers/classes/roster?'+new URLSearchParams({centerId:f.center,id:event.id}),uid)).status));
+  assert.equal((await f.req('/api/centers/classes/attendance',f.ids.manager,{centerId:f.center,id:row.id,version:row.version,state:'no-show',requestId:f.p+'_early'})).body.code,'class-not-ended');
+  const token=f.h.headers(f.ids.alice).Authorization.slice(7);
+  const response=await fetch(f.h.base+'/api/centers/own/classes/reserve',{method:'POST',headers:{'Content-Type':'application/json',Cookie:'gymsid='+token+'; __Host-gymsid='+token,Origin:'https://foreign.example'},body:JSON.stringify({centerId:f.center,id:event.id,requestId:f.p+'_csrf'})});assert.equal(response.status,403);
+});
+
+test('class lists and historical rosters paginate with scoped cursors, keeping complete queues without contact fields',async t=>{
+  const f=await fixture(t),events=[];
+  for(let index=0;index<32;index++){const response=await f.create('page_'+index);assert.equal(response.status,200);events.push(response.body.event)}
+  const first=await f.own('alice');assert.equal(first.status,200);assert.equal(first.body.classes.length,30);assert.ok(first.body.nextCursor);
+  const next=await f.own('alice',{from:first.body.from,to:first.body.to,cursor:first.body.nextCursor});assert.equal(next.status,200,JSON.stringify(next));assert.equal(next.body.classes.length,2);
+  assert.equal(new Set([...first.body.classes,...next.body.classes].map(event=>event.id)).size,32);
+  assert.equal((await f.own('bob',{from:first.body.from,to:first.body.to,cursor:first.body.nextCursor})).status,400);
+  for(let index=0;index<51;index++){const reserved=await f.reserve(events[0],'alice','history_'+index);assert.equal(reserved.status,200);assert.equal((await f.cancel(reserved.body.reservation,'alice','history_'+index)).status,200)}
+  const roster=(await f.roster(events[0])).body;assert.equal(roster.reservations.length,50);assert.ok(roster.nextCursor);
+  const last=await f.req('/api/centers/classes/roster?'+new URLSearchParams({centerId:f.center,id:events[0].id,cursor:roster.nextCursor}),f.ids.manager);assert.equal(last.status,200);assert.equal(last.body.reservations.length,1);
+  assert.ok(!JSON.stringify(roster).includes('@'));assert.ok(!JSON.stringify(roster).includes('nationalDocument'));
+  const foreign=await f.req('/api/centers/classes/roster?'+new URLSearchParams({centerId:f.center,id:events[1].id,cursor:roster.nextCursor}),f.ids.manager);assert.equal(foreign.status,400);
+});
+test('attendance and no-show are explicit immutable facts after the class, without a fine or QR inference',async t=>{
+  const f=await fixture(t),url=new URL(f.app);assert.equal(url.hostname,'centers-ci-db');assert.equal(url.pathname,'/ft_gym_ci_centers_test');url.username='centers_bootstrap';url.password='fictional-bootstrap-test-only';
+  const seed=new pg.Client({connectionString:url.href});await seed.connect();t.after(()=>seed.end());assert.equal((await seed.query('SELECT kind FROM centers.environment WHERE singleton')).rows[0].kind,'test');
+  const classId='cl_'+commandHash(f.p+'_past').slice(0,32),rows=[];
+  // New, explicitly past fictional rows only. Existing historical dates are never rewritten.
+  // Replica mode is transaction-local solely to seed past reservations, which normal booking rejects.
+  await seed.query('BEGIN');try{
+    await seed.query("SET LOCAL session_replication_role='replica'");
+    await seed.query(`INSERT INTO centers.classes(id,center_id,name,class_on,starts_at,ends_at,timezone,capacity,waitlist_capacity,cancel_before_minutes,booked_count,actor_uid)
+      VALUES($1,$2,'Past fictional class',$3,statement_timestamp()-interval '2 hours',statement_timestamp()-interval '1 hour','Europe/Madrid',2,0,0,2,$4)`,[classId,f.center,f.today,f.ids.manager]);
+    for(const [index,key] of ['alice','bob'].entries()){
+      const id='rb_'+commandHash(f.p+'_'+key).slice(0,32);rows.push(id);
+      await seed.query("INSERT INTO centers.class_reservations(id,center_id,class_id,member_id,actor_uid,queue_order,state) VALUES($1,$2,$3,$4,$5,$6,'booked')",[id,f.center,classId,f.members[key],f.ids[key],index+1]);
+    }
+    await seed.query('COMMIT');
+  }catch(error){await seed.query('ROLLBACK');throw error}
+  for(const [index,state] of ['attended','no-show'].entries()){
+    const body={centerId:f.center,id:rows[index],version:1,state,requestId:f.p+'_'+state},response=await f.req('/api/centers/classes/attendance',f.ids.manager,body);
+    assert.equal(response.status,200,JSON.stringify(response));assert.equal(response.body.reservation.state,state);assert.deepEqual((await f.req('/api/centers/classes/attendance',f.ids.manager,body)).body,response.body);
+  }
+  assert.equal((await f.req('/api/centers/classes/attendance',f.ids.manager,{centerId:f.center,id:rows[1],version:2,state:'attended',requestId:f.p+'_overwrite'})).body.code,'class-reservation-ended');
+  const money=await f.db.transaction({uid:f.ids.manager,centerId:f.center},client=>client.query('SELECT count(*)::integer AS n FROM centers.receipts WHERE center_id=$1',[f.center]));assert.equal(money.rows[0].n,0);
+  const correct=(id,state,revision=0,suffix='one',actor=f.ids.manager)=>f.req('/api/centers/classes/attendance/correct',actor,{centerId:f.center,id,version:2,attendanceRevision:revision,state,reason:'Private fictional attendance review',requestId:f.p+'_correction_'+suffix});
+  assert.equal((await correct(rows[1],'attended',0,'trainer',f.ids.trainer)).status,403);
+  assert.equal((await correct(rows[1],'attended',0,'member',f.ids.bob)).status,403);
+  assert.equal((await correct(rows[1],'attended',0,'technical',f.ids.technical)).status,404);
+  const competing=await Promise.all([correct(rows[1],'attended',0,'a'),correct(rows[1],'attended',0,'b')]);assert.equal(competing.filter(r=>r.status===200).length,1,JSON.stringify(competing));assert.equal(competing.find(r=>r.status!==200).body.code,'version-conflict');
+  const won=competing.findIndex(r=>r.status===200),result=competing[won].body.reservation;assert.equal(result.originalState,'no-show');assert.equal(result.state,'attended');assert.equal(result.attendanceRevision,1);
+  assert.deepEqual((await correct(rows[1],'attended',0,won===0?'a':'b')).body,competing[won].body);
+  assert.equal((await correct(rows[1],'attended',1,'same')).body.code,'class-attendance-unchanged');
+  const historyUrl='/api/centers/classes/attendance/history?'+new URLSearchParams({centerId:f.center,id:rows[1]});
+  const history=await f.req(historyUrl,f.ids.manager);assert.equal(history.status,200);assert.equal(history.body.corrections.length,1);assert.equal(history.body.corrections[0].fromState,'no-show');assert.equal(history.body.corrections[0].reason,'Private fictional attendance review');
+  assert.equal((await f.req(historyUrl,f.ids.bob)).status,403);
+  const own=(await f.own('bob')).body;assert.equal(own.classes.find(row=>row.id===classId).ownReservation.state,'attended');assert.ok(!JSON.stringify(own).includes('Private fictional attendance review'));
+  await f.db.transaction({uid:f.ids.bob,centerId:f.center},async client=>{
+    assert.equal((await client.query('SELECT * FROM centers.class_attendance_corrections WHERE reservation_id=$1',[rows[1]])).rows.length,0);
+    assert.equal((await client.query('SELECT effective_state FROM centers.class_reservation_profiles WHERE id=$1',[rows[1]])).rows[0].effective_state,'attended');
+  });
+  await assert.rejects(f.db.transaction({uid:f.ids.bob,centerId:f.center},client=>client.query('SELECT * FROM centers.class_attendance_state($1,$2)',[f.center,rows[0]])),{code:'42501'});
+  const base=await f.db.transaction({uid:f.ids.manager,centerId:f.center},client=>client.query('SELECT state,version FROM centers.class_reservations WHERE id=$1',[rows[1]]));assert.deepEqual(base.rows[0],{state:'no-show',version:2});
+  assert.equal((await f.roster({id:classId})).body.event.booked,2);
+  await assert.rejects(f.db.transaction({uid:f.ids.manager,centerId:f.center},client=>client.query("UPDATE centers.class_attendance_corrections SET reason='changed' WHERE reservation_id=$1",[rows[1]])),{code:'42501'});
+  await assert.rejects(f.db.transaction({uid:f.ids.manager,centerId:f.center},client=>client.query('DELETE FROM centers.class_attendance_corrections WHERE reservation_id=$1',[rows[1]])),{code:'42501'});
+  // Actual INSERT + counter update must both roll back if the audit write fails.
+  const failed={transaction:(context,work)=>f.db.transaction(context,client=>work({query:(sql,args)=>{if(sql.startsWith('INSERT INTO centers.business_audit'))throw new Error('fictional audit unavailable');return client.query(sql,args)}}))};
+  await assert.rejects(correctClassAttendance({database:failed,user:{id:f.ids.manager},checkSession(){}},{centerId:f.center,id:rows[1],version:2,attendanceRevision:1,state:'no-show',reason:'Private failed review',requestId:f.p+'_rollback'}),/fictional audit unavailable/);
+  assert.equal((await f.roster({id:classId})).body.event.booked,2);assert.equal((await f.req(historyUrl,f.ids.manager)).body.corrections.length,1);
+  const second=await correct(rows[1],'no-show',1,'second');assert.equal(second.status,200);assert.equal(second.body.reservation.attendanceRevision,2);assert.equal((await f.roster({id:classId})).body.event.booked,1);
+  let currentState='no-show';for(let n=2;n<53;n++){currentState=currentState==='attended'?'no-show':'attended';assert.equal((await correct(rows[1],currentState,n,'history_'+n)).status,200)}
+  const firstPage=(await f.req(historyUrl,f.ids.manager)).body;assert.equal(firstPage.corrections.length,50);assert.ok(firstPage.nextCursor);
+  const lastPage=(await f.req(historyUrl+'&cursor='+encodeURIComponent(firstPage.nextCursor),f.ids.manager)).body;assert.equal(lastPage.corrections.length,3);assert.equal(lastPage.nextCursor,null);
+  assert.equal(new Set([...firstPage.corrections,...lastPage.corrections].map(row=>row.id)).size,53);
+  assert.equal((await f.req(historyUrl+'&cursor='+encodeURIComponent(firstPage.nextCursor),f.ids.root)).status,400);
+  const otherReservation='/api/centers/classes/attendance/history?'+new URLSearchParams({centerId:f.center,id:rows[0],cursor:firstPage.nextCursor});assert.equal((await f.req(otherReservation,f.ids.manager)).status,400);
+  const ongoingClass='cl_'+commandHash(f.p+'_ongoing').slice(0,32),ongoingReservation='rb_'+commandHash(f.p+'_ongoing').slice(0,32);
+  await seed.query('BEGIN');try{
+    await seed.query("SET LOCAL session_replication_role='replica'");
+    await seed.query("INSERT INTO centers.classes(id,center_id,name,class_on,starts_at,ends_at,timezone,capacity,waitlist_capacity,cancel_before_minutes,booked_count,actor_uid) VALUES($1,$2,'Ongoing fictional class',$3,statement_timestamp()-interval '1 hour',statement_timestamp()+interval '1 hour','Europe/Madrid',1,0,0,1,$4)",[ongoingClass,f.center,f.today,f.ids.manager]);
+    await seed.query("INSERT INTO centers.class_reservations(id,center_id,class_id,member_id,actor_uid,queue_order) VALUES($1,$2,$3,$4,$5,1)",[ongoingReservation,f.center,ongoingClass,f.members.alice,f.ids.alice]);await seed.query('COMMIT');
+  }catch(error){await seed.query('ROLLBACK');throw error}
+  const initial=await f.req('/api/centers/classes/attendance',f.ids.manager,{centerId:f.center,id:ongoingReservation,version:1,state:'attended',requestId:f.p+'_ongoing_attended'});assert.equal(initial.status,200);
+  assert.equal((await correct(ongoingReservation,'no-show',0,'ongoing')).body.code,'class-not-ended');
+  await assert.rejects(f.db.transaction({uid:f.ids.manager,centerId:f.center},client=>client.query("INSERT INTO centers.class_attendance_corrections(id,center_id,class_id,reservation_id,revision,to_state,reason,actor_uid) VALUES($1,$2,$3,$4,1,'no-show','Premature fixture',$5)",['ac_'+commandHash(f.p+'_premature').slice(0,32),f.center,ongoingClass,ongoingReservation,f.ids.manager])),{code:'23514'});
+});
+
+test('completed individual creation replays original timezone terms in an inactive center and keeps legacy hashes',async t=>{
+  const f=await fixture(t),teacher=(await f.req('/api/centers/classes/instructors?centerId='+f.center,f.ids.manager)).body.instructors.find(row=>row.role==='trainer');
+  const created=await f.create('original_zone',{instructorAssignmentId:teacher.id});assert.equal(created.status,200);
+  await f.db.platformTransaction(f.ids.root,client=>client.query("UPDATE centers.centers SET state='inactive',timezone='UTC',version=version+1 WHERE id=$1",[f.center]),f.center);
+  const replay=await f.create('original_zone',{instructorAssignmentId:teacher.id});assert.equal(replay.status,200,JSON.stringify(replay));assert.deepEqual(replay.body,created.body);
+  assert.equal((await f.create('original_zone',{name:'Changed retry',instructorAssignmentId:teacher.id})).body.code,'idempotency-conflict');
+  assert.equal((await f.create('new_inactive',{instructorAssignmentId:teacher.id})).body.code,'center-inactive');
+  assert.equal((await f.create('new_inactive_without_teacher')).body.code,'center-inactive');
+  assert.equal((await f.db.transaction({uid:f.ids.manager,centerId:f.center},client=>client.query('SELECT count(*)::int AS n FROM centers.classes WHERE center_id=$1',[f.center]))).rows[0].n,1);
+});

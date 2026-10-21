@@ -1,4 +1,5 @@
-import { useDeferredValue, useEffect, useMemo, useRef, useState } from 'react'
+import {useCenters} from './store/useCenters.js'
+import { useDeferredValue, useEffect, useMemo, useRef, useState, useId } from 'react'
 import { useStore } from './store/useStore.js'
 import { useUI } from './store/useUI.js'
 import { EXDB, EXIDX, BODYPARTS, isCardio, isBodyweightEq, allExercises, equipmentOf, byCategory, smOf, searchExercises, similarExercises, exOr, isAssisted, betterWeight, beatsWeight, isCustomEx } from './lib/exercises.js'
@@ -1437,6 +1438,7 @@ export function swapActiveWorkoutExercise(index) {
     const replacement = {
       id: ex.id,
       ...built,
+      sets: blankRepRows(built.sets,full),
       ...(current.rid ? { rid: current.rid } : {}),
       // A slot kept out of progression stays out once swapped. Replaced in place the entry keeps
       // it anyway; inserted beside logged sets, the replacement would otherwise count as a
@@ -1645,6 +1647,8 @@ function ExConfig({ ex, existing, onSave, onDelete, onReplace, close, routine, i
   const cardio = isCardio(ex.id)
   const speedUnit = speedUnitOf(st)
   const seed = existing || initial || defaultConfig(ex.id)
+  const rangeErrorId=useId()
+  const [manualRange,setManualRange]=useState(()=>seed.repsMin>0&&!climbsRange(policyFor({...seed,id:ex.id},routine,modeOf({...seed,id:ex.id}))))
   const [c, setC] = useState(() => {
     const cfg = { ...seed }
     // A session's target carries the meaning of its dumbbell weight as a stamp (lib/dumbbells.js);
@@ -1667,7 +1671,8 @@ function ExConfig({ ex, existing, onSave, onDelete, onReplace, close, routine, i
   const progressionStepInvalid = !progressionStepIsValid(progressionStepOf(c, mode, ex, st.unit), progressionPolicy, c.backoff === true && backoffOffered(c, mode, ex, bw))
   const activePolicy = policyFor({ ...c, id: ex.id }, routine, mode)
   // Both climb a range: the flat Reps stepper gives way to "Reps from" / "Reps up to".
-  const ranged = mode === 'reps' && climbsRange(activePolicy)
+  const ranged = mode === 'reps' && !pyramid && (manualRange||climbsRange(activePolicy))
+  const rangeError=ranged&&(!Number.isSafeInteger(c.repsMin)||!Number.isSafeInteger(c.reps)||c.repsMin<=0||c.reps<=0||c.repsMin>c.reps)?t('Enter a positive whole-number range with minimum no greater than maximum.'):null
   const triple = mode === 'reps' && activePolicy === 'triple'
   // Keep whatever the other mode already had (sets, weight) and fill only what is missing.
   const setMode = m => setC(x => {
@@ -1677,7 +1682,7 @@ function ExConfig({ ex, existing, onSave, onDelete, onReplace, close, routine, i
       : next
   })
   const save = () => {
-    if (progressionStepInvalid) return
+    if (progressionStepInvalid||rangeError) return
     close()
     const sets = Math.max(1, Math.round(c.sets) || (cardio ? 1 : 3))
     // Only carry progression settings that differ from the inherited default, so a plan file
@@ -1729,7 +1734,7 @@ function ExConfig({ ex, existing, onSave, onDelete, onReplace, close, routine, i
       let reps = perSide ? Math.ceil(typed / stride) * stride : typed
       let range = null
       if (ranged) {
-        range = normalizeRepRange(reps, c.repsMin, stride)
+        range = manualRange?{reps,repsMin:c.repsMin}:normalizeRepRange(reps,c.repsMin,stride)
         reps = range.reps
       }
       const out = { sets, mode: 'reps', reps, weight: Math.max(0, c.weight || 0), ...flags, ...(perSide ? { side: true } : {}), ...prog, ...withNote, ...withWarmups, ...withRest, ...withMeant }
@@ -1776,6 +1781,9 @@ function ExConfig({ ex, existing, onSave, onDelete, onReplace, close, routine, i
       <Segmented className="seg-range" value={mode} onChange={setMode}
         options={[{ value: 'reps', label: t('Reps') }, { value: 'time', label: t('Time') }]} />
     </div>}
+    {mode==='reps'&&!pyramid&&<div className="rep-target-mode"><Segmented label={t('Repetition target')} value={manualRange?'range':activePolicy==='off'?'fixed':'progression'} options={[{value:'fixed',label:t('Fixed repetitions')},{value:'range',label:t('Rep range')},{value:'progression',label:t('Progression')}]} onChange={v=>{setManualRange(v==='range');setC(x=>({...x,prog:v==='progression'?(x.prog&&x.prog!=='off'?x.prog:'linear'):'off',repsMin:v==='range'?(x.repsMin||8):undefined,reps:x.reps||12,pyramid:undefined}))}}/></div>}
+    {ranged&&manualRange&&<div className="rep-range-fields"><label><span>{t('Reps from')}</span><TextField inputMode="numeric" aria-label={t('Reps from')} value={c.repsMin??''} onChange={e=>{const raw=e.target.value;setC(x=>({...x,repsMin:raw===''?null:Number.isNaN(Number(raw))?raw:Number(raw)}))}} aria-invalid={!!rangeError} aria-describedby={rangeError?rangeErrorId:undefined}/></label><label><span>{t('Reps up to')}</span><TextField inputMode="numeric" aria-label={t('Reps up to')} value={c.reps??''} onChange={e=>{const raw=e.target.value;setC(x=>({...x,reps:raw===''?null:Number.isNaN(Number(raw))?raw:Number(raw)}))}} aria-invalid={!!rangeError} aria-describedby={rangeError?rangeErrorId:undefined}/></label></div>}
+    {rangeError&&<p id={rangeErrorId} role="alert">{rangeError}</p>}
     <div className="row cfgrow" style={{ marginBottom: mode === 'time' ? 8 : 18 }}>
       {cardio ? <>
         <Stepper label={t('Intervals')} value={c.sets} step={1} decimal={false} onChange={v => setC(x => ({ ...x, sets: v }))} />
@@ -2007,7 +2015,7 @@ function ExConfig({ ex, existing, onSave, onDelete, onReplace, close, routine, i
     {/* What saving does, when it is neither of the two usual things: the routine editor's
         Replace (#110) seeds this sheet with the slot it replaces, and saving puts the exercise
         into that slot. */}
-    <Button variant="primary" disabled={progressionStepInvalid} onClick={save}>{saveLabel || (existing ? t('Save') : t('Add to routine'))}</Button>
+    <Button variant="primary" disabled={progressionStepInvalid||!!rangeError} onClick={save}>{saveLabel || (existing ? t('Save') : t('Add to routine'))}</Button>
     {isCustomEx(ex) && <><div style={{ height: 8 }} /><Button icon="pencil" onClick={() => { close(); customExSheet(ex) }}>{t('Edit or delete this exercise')}</Button></>}
     {/* The routine editor's counterpart to a workout's Swap (#110): another exercise in this
         slot, with the slot's sets, reps, weight, rule and note kept (lib/routines.js). What was
@@ -2772,7 +2780,7 @@ export function startFlow(routineIds) {
 }
 export function beginWorkout(routineIds, bw) {
   const st = S()
-  const { entries, routineIds: rids, routines } = buildCombinedEntries(st, routineIds)
+  const { entries, routineIds: rids, routines } = buildCombinedEntries(st, routineIds,{blankReps:true})
   update(s => {
     s.active = {
       id: uid(), d: todayISO(), start: Date.now(),
@@ -2796,7 +2804,9 @@ export function beginWorkout(routineIds, bw) {
 export function repeatWorkout(w, close) {
   const st = S()
   if (st.active) { toast(t('Finish the current workout first.')); return }
-  const { entries, skipped } = repeatSessionEntries(st, w)
+  const repeated = repeatSessionEntries(st, w)
+  const skipped = repeated.skipped
+  const entries = repeated.entries.map(e=>({...e,sets:blankRepRows(e.sets,{...e.target,id:e.id})}))
   if (!entries.length) { toast(t('Nothing to repeat. Its exercises no longer exist.')); return }
   const go = bw => {
     if (S().active) { toast(t('Finish the current workout first.')); return }
@@ -2905,7 +2915,7 @@ function beginBackfill({ iso, time, durationMin, routineIds, replaceId }) {
   const st = S()
   const start = backfillStart(iso, time)
   const past = historyAsOf(st, { d: iso, start, replaceId })
-  const { entries, routineIds: rids, routines } = buildCombinedEntries(past, routineIds || [])
+  const { entries, routineIds: rids, routines } = buildCombinedEntries(past, routineIds || [],{blankReps:true})
   update(s => {
     s.active = {
       id: uid(), d: iso, start,
@@ -2932,7 +2942,7 @@ function AddRoutineToSession({ close }) {
   if (!active) return null
   const inSession = new Set([].concat(active.routineIds || []))
   const add = r => {
-    const entries = buildSessionEntries(sessionHistory(st), r).map(e => ({ ...e, rid: r.id }))
+    const entries = buildCombinedEntries(sessionHistory(st),[r.id],{blankReps:true}).entries
     update(s => {
       if (!s.active) return
       // A session kept out of progression as a whole (the header ⋮) keeps the routine's
@@ -3303,6 +3313,9 @@ function CardioDone({ st, w }) {
 }
 
 function FinishSummary({ w, prs, e1prs = [], close }) {
+  const communityEnabled=useStore(s=>!!s.user&&!!s.config?.centers?.enabled)
+  const communityState=useCenters()
+  const communityCenters=communityState.ownerUid===useStore.getState().user?.id?communityState.centers.filter(c=>c.capabilities?.includes('membership.own.read')):[]
   const st = useStore(s => s.S)
   return <div style={{ textAlign: 'center', padding: '8px 0' }}>
     <div style={{ fontSize: 44, display: 'flex', justifyContent: 'center', color: 'var(--acc)' }}><Icon name="trophy" /></div>
@@ -3325,6 +3338,7 @@ function FinishSummary({ w, prs, e1prs = [], close }) {
     {/* The moment for a progress photo or the clip of a set: the workout is already saved, so
         what is added here goes straight onto its record. */}
     <div style={{ textAlign: 'start' }}><WorkoutMediaSection w={w} hint /></div>
+    {communityEnabled&&w.id&&communityCenters.length>0&&<Button icon="chat" onClick={()=>closeThenNav(close,'/community?'+new URLSearchParams({pane:'own',new:'1',workoutId:String(w.id),...(communityCenters.length===1?{centerId:communityCenters[0].id}:{})}))}>{t('Comment on this workout')}</Button>}
     <Button variant="primary" onClick={() => closeThenNav(close, '/home')}>{t('Nice!')}</Button>
   </div>
 }
@@ -3369,7 +3383,12 @@ function doFinishWorkout() {
   // saved one is (rebuildPrHistory, below): it gains a badge it leads with, and a later session
   // it outdoes loses its own. It used to report none at all while the editor's Save awarded them
   // (QA 1.3.9). The confirmed weights are left alone either way.
-  if (!past) A.entries.forEach(e => {
+  const w = buildCompletedWorkout(A, {
+    end: past ? backfillEnd(A) : sessionEnd(A),
+    prs,
+    snapshotFor: e => isCustomEx(EXIDX[e.id]) ? exerciseMuscleSnapshot(EXIDX[e.id]) : null,
+  })
+  if (!past) w.entries.forEach(e => {
     const loads = e.sets.filter(s => s.done && !isWarmupRow(s)).map(s => s.w).filter(w => w > 0)
     const mx = loads.length ? loads.reduce((a, b) => betterWeight(e.id, a, b)) : 0
     // Held against history read the way this session logged a dumbbell weight (lib/dumbbells.js).
@@ -3379,11 +3398,7 @@ function doFinishWorkout() {
     const rec = is1RMRecord(st, e.id, e)
     if (rec && !prs.includes(e.id)) e1prs.push({ id: e.id, ...rec })
   })
-  const w = buildCompletedWorkout(A, {
-    end: past ? backfillEnd(A) : sessionEnd(A),
-    prs,
-    snapshotFor: e => isCustomEx(EXIDX[e.id]) ? exerciseMuscleSnapshot(EXIDX[e.id]) : null,
-  })
+
   w.vol = workoutVolume(w)
   let shown = w
   update(s => {

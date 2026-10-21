@@ -82,16 +82,14 @@ afterEach(() => { act(() => { mounted.splice(0).forEach(({ root, host }) => { ro
 const asked = path => mocks.api.mock.calls.filter(([p]) => p === path).length
 
 describe('Settings: passkeys and another device', () => {
-  it('a signed-in browser lists its passkeys and offers a code for another device, in Account', async () => {
+  it('a signed-in browser lists passkeys but hides both device pairing options', async () => {
     const page = mount(<Settings page="account" />)
     await settle()
     const account = section(page, 'Account')
-    expect(titles(account)).toEqual(expect.arrayContaining(['Passkeys', 'Add another device']))
+    expect(titles(account)).toEqual(expect.arrayContaining(['Passkeys']))
     expect(rowByTitle(account, 'Passkeys').textContent).toContain('2 passkeys')
-    // Above pairing and the password, which are about other ways in.
-    const order = titles(account)
-    expect(order.indexOf('Passkeys')).toBeLessThan(order.indexOf('Pair the mobile app'))
-    expect(order.indexOf('Add another device')).toBeLessThan(order.indexOf('Password'))
+    expect(titles(account)).not.toContain('Add another device')
+    expect(titles(account)).not.toContain('Pair the mobile app')
   })
 
   it('a guest gets neither, and nothing is asked', async () => {
@@ -132,7 +130,7 @@ describe('Settings: passkeys and another device', () => {
     mocks.sync = { ...mocks.sync, lastSynced: mocks.sync.lastSynced + 30000 }   // a check that found both sides in step
     act(() => mounted.at(-1).root.render(<Settings page="account" />))
     await settle()
-    expect(titles(section(page, 'Account'))).toEqual(expect.arrayContaining(['Passkeys', 'Add another device', 'Password']))
+    expect(titles(section(page, 'Account'))).toEqual(expect.arrayContaining(['Passkeys', 'Password']))
     expect(asked('/api/account/passkeys')).toBe(2)
     expect(asked('/api/account/password')).toBe(2)
 

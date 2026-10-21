@@ -1,5 +1,7 @@
 // Simplified Chinese UI strings. Keys are the English source strings (see lib/i18n.js).
+import { centersStrings } from './modules/centers.js'
 export default {
+  ...centersStrings('zh'),
   'Confirm': '确认',
   'Cancel': '取消',
   'Press back again to exit': '再按一次返回退出',
@@ -2242,4 +2244,8 @@ export default {
   'Your sports watch, calling you back.': '你的运动手表在叫你回来。',
   'Coach wants you back on the bar.': '教练等你回到杠铃前。',
   'Gentle, for headphones or a quiet room.': '轻柔，适合耳机或安静的房间。',
+  "Above previous set": "Above previous set",
+  "Matches previous set": "Matches previous set",
+  "Below previous set": "Below previous set",
+  "New personal record": "New personal record",
 }

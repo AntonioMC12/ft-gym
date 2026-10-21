@@ -2,7 +2,7 @@
 import React, { act, useState } from 'react'
 import { createRoot } from 'react-dom/client'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import { Slider, Stepper, NumberField, numWidthCh, SLIDER_GRAB_PX } from './ui.jsx'
+import { Slider, Stepper, NumberField, numWidthCh, SLIDER_GRAB_PX, Switch, Check, Segmented, Row, SearchField, TextField, TextArea } from './ui.jsx'
 
 globalThis.IS_REACT_ACT_ENVIRONMENT = true
 
@@ -27,6 +27,33 @@ function pointer(target, type, { x = 0, y = 0, button = 0 } = {}) {
   act(() => target.dispatchEvent(event))
   return event
 }
+
+it('selection, navigation and search controls do not submit their containing form',()=>{
+  const submit=vi.fn(e=>e.preventDefault()),action=vi.fn()
+  act(()=>root.render(<form onSubmit={submit}>
+    <Switch checked={false} onChange={action}/><Check checked={false} onChange={action}/>
+    <Segmented options={[{value:'a',label:'A'},{value:'b',label:'B'}]} value="a" onChange={action}/>
+    <Row title="Navigate" onClick={action}/><SearchField value="query" onChange={action} onClear={action}/>
+  </form>))
+  act(()=>host.querySelectorAll('button').forEach(button=>button.click()))
+  expect(action).toHaveBeenCalledTimes(6);expect(submit).not.toHaveBeenCalled()
+})
+
+it('scrollable sections keep selection visible inside their control and observe resize without scrolling the page',()=>{
+  const options=[{value:'first',label:'First'},{value:'last',label:'Last long section'}]
+  const show=value=>act(()=>root.render(<Segmented scrollable label="Sections" options={options.map(option=>({...option}))} value={value} onChange={()=>{}}/>))
+  show('first')
+  const control=host.querySelector('.seg'),last=host.querySelectorAll('button')[1]
+  Object.defineProperties(control,{clientWidth:{configurable:true,value:200},scrollWidth:{configurable:true,value:400}})
+  const box=vi.spyOn(control,'getBoundingClientRect').mockReturnValue({left:0,right:200})
+  const item=vi.spyOn(last,'getBoundingClientRect').mockReturnValue({left:220,right:380})
+  const pageScroll=vi.spyOn(window,'scrollTo')
+  show('last')
+  expect(control.dataset.overflow).toBe('true');expect(control.scrollLeft).toBe(180)
+  expect(last.getAttribute('aria-pressed')).toBe('true');expect(pageScroll).not.toHaveBeenCalled()
+  control.scrollLeft=0;show('last');expect(control.scrollLeft).toBe(0,'an unrelated render must not override manual horizontal scrolling')
+  box.mockRestore();item.mockRestore();pageScroll.mockRestore()
+})
 
 describe('Slider', () => {
   // 300px track from x=100 to x=400 over 0..300 so 1px == 1 unit
@@ -312,4 +339,15 @@ describe('NumberField select on tap', () => {
     act(() => input.blur())
     expect(mouseup(input).defaultPrevented).toBe(false)
   })
+})
+
+it('ordinary text, date, numeric, search and multiline fields opt out of credential suggestions',()=>{
+  act(()=>root.render(<><TextField aria-label="Member"/><TextField type="date"/><TextField type="email" autoComplete="email"/><NumberField value={25} onChange={()=>{}}/><SearchField value="" onChange={()=>{}}/><TextArea/></>));
+  const fields=[...host.querySelectorAll('input,textarea')];expect(fields).toHaveLength(6);
+  for(const field of fields){expect(field.getAttribute('data-bwignore')).toBe('true');expect(field.getAttribute('data-1p-ignore')).toBe('true');expect(field.getAttribute('data-lpignore')).toBe('true')}
+  expect(fields.filter(field=>field.autocomplete==='off')).toHaveLength(5);expect(fields[2].autocomplete).toBe('email');
+})
+it('keeps password, username and verification code autofill available',()=>{
+  act(()=>root.render(<><TextField type="password" autoComplete="current-password"/><TextField autoComplete="section-login username"/><TextField autoComplete="one-time-code"/></>));
+  for(const field of host.querySelectorAll('input')){expect(field.hasAttribute('data-1p-ignore')).toBe(false);expect(field.hasAttribute('data-bwignore')).toBe(false);expect(field.autocomplete).not.toBe('off')}
 })

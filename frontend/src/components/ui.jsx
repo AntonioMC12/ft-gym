@@ -1,3 +1,4 @@
+import {fieldAutofill} from '../lib/form-autofill.js'
 // openGym control set.
 //
 // Every input in the app is built here rather than styled on top of a native
@@ -68,27 +69,27 @@ export function NumberField({ value, onChange, decimal = true, nullable = false,
       onMouseUp={e => { if (justFocused.current) { justFocused.current = false; e.preventDefault() } }}
       onChange={e => commit(e.target.value)}
       onBlur={() => { setDraft(null); committed.current = null; justFocused.current = false }}
-      {...rest}
+      {...fieldAutofill(rest)}
     />
   )
 }
 
 // forwardRef so callers can focus it or read its value imperatively
 export const TextField = forwardRef(function TextField({ className = '', ...rest }, ref) {
-  return <input ref={ref} className={'field ' + className} {...rest} />
+  return <input ref={ref} className={'field ' + className} {...fieldAutofill(rest)} />
 })
 
 export function TextArea({ className = '', ...rest }) {
-  return <textarea className={'field area ' + className} {...rest} />
+  return <textarea className={'field area ' + className} {...fieldAutofill(rest)} />
 }
 
 export const SearchField = forwardRef(function SearchField({ value, onChange, onClear, ...rest }, ref) {
   return (
     <div className="searchf">
       <Icon name="magnifier" className="lead" />
-      <input ref={ref} className="field" value={value} onChange={onChange} {...rest} />
+      <input ref={ref} className="field" value={value} onChange={onChange} {...fieldAutofill(rest)} />
       {!!value && (
-        <button className="clear" onClick={onClear} aria-label={t('Clear')}>
+        <button type="button" className="clear" onClick={onClear} aria-label={t('Clear')}>
           <Icon name="xmark" />
         </button>
       )}
@@ -101,6 +102,7 @@ export const SearchField = forwardRef(function SearchField({ value, onChange, on
 export function Switch({ checked, onChange, disabled, ...accessibility }) {
   return (
     <button
+      type="button"
       {...accessibility}
       role="switch"
       aria-checked={!!checked}
@@ -116,13 +118,34 @@ export function Switch({ checked, onChange, disabled, ...accessibility }) {
 /* ============================ segmented ============================ */
 
 // options: [{ value, label, icon? }]  — the selected pill slides between cells.
-export function Segmented({ options, value, onChange, className = '' }) {
+export function Segmented({ options, value, onChange, className = '', scrollable = false, label }) {
+  const container = useRef(null)
+  const optionKey = JSON.stringify(options.map(option => [option.value, typeof option.label === 'string' ? option.label : null]))
+  useEffect(() => {
+    if (!scrollable) return
+    const element = container.current
+    const selected = element?.querySelector('button.on')
+    if (!selected) return
+    const measure = () => {
+      element.dataset.overflow = String(element.scrollWidth > element.clientWidth + 1)
+      // Scroll only this control; scrollIntoView could also move the page or a sheet.
+      const viewport = element.getBoundingClientRect(), item = selected.getBoundingClientRect()
+      if (item.left < viewport.left) element.scrollLeft += item.left - viewport.left
+      else if (item.right > viewport.right) element.scrollLeft += item.right - viewport.right
+    }
+    measure()
+    const observer = typeof ResizeObserver === 'undefined' ? null : new ResizeObserver(measure)
+    observer?.observe(element)
+    for (const button of element.querySelectorAll('button')) observer?.observe(button)
+    return () => observer?.disconnect()
+  }, [scrollable, value, optionKey])
   const i = Math.max(0, options.findIndex(o => o.value === value))
   return (
-    <div className={'seg ' + className} style={{ '--n': options.length, '--i': i }}>
+    <div ref={container} role={label ? 'group' : undefined} aria-label={label} className={'seg ' + (scrollable ? 'seg-scrollable ' : '') + className} style={{ '--n': options.length, '--i': i }}>
       <span className="seg-sel" aria-hidden="true" />
       {options.map(o => (
         <button
+          type="button"
           key={o.value}
           className={o.value === value ? 'on' : ''}
           aria-pressed={o.value === value}
@@ -141,7 +164,7 @@ export function Segmented({ options, value, onChange, className = '' }) {
 // `min` and `max` hold for the buttons at once, but for typing only once the field is left:
 // clamped on every keystroke, a field emptied to type a new number snapped to the minimum, and
 // the digits typed next landed after it (a 48 retyped as 75 saved 175).
-export function Stepper({ value, step = 1, min = 0, max = Infinity, onChange, decimal = true, className = '', label, unit, invalid = false, disabled = false, onStep, ariaLabel }) {
+export function Stepper({ value, step = 1, min = 0, max = Infinity, onChange, decimal = true, className = '', label, unit, invalid = false, disabled = false, onStep, ariaLabel, nullable = false, placeholder, comparison, comparisonLabel }) {
   const clamp = v => Math.min(max, Math.max(min, v))
   const set = v => onChange(clamp(Math.round((v || 0) * 100) / 100))
   // Holding a button repeats the step; the latest value/step live in a ref so
@@ -181,10 +204,10 @@ export function Stepper({ value, step = 1, min = 0, max = Infinity, onChange, de
     onClick: () => click(dir),
   })
   const inner = (
-    <div className={'stp ' + className}>
+    <div className={'stp ' + className} data-comparison={comparison || undefined} title={comparisonLabel}>
       <button {...holdProps(-1)} aria-label={ariaLabel ? `Decrease ${ariaLabel}` : t('Decrease')} disabled={disabled}><Icon name="minus" /></button>
       <span className="val" onBlur={() => { const v = +value || 0; if (clamp(v) !== v) onChange(clamp(v)) }}>
-        <NumberField value={value} decimal={decimal} onChange={onChange} disabled={disabled} aria-invalid={invalid ? 'true' : undefined} />
+        <NumberField value={value} decimal={decimal} nullable={nullable} placeholder={placeholder} aria-label={label || ariaLabel} onChange={onChange} disabled={disabled} aria-invalid={invalid ? 'true' : undefined} />
         {unit && <i>{unit}</i>}
       </span>
       <button {...holdProps(1)} aria-label={ariaLabel ? `Increase ${ariaLabel}` : t('Increase')} disabled={disabled}><Icon name="plus" /></button>
@@ -283,9 +306,10 @@ export function Slider({ value, min = 0, max = 100, step = 1, onChange, classNam
 
 /* ============================ checkbox ============================ */
 
-export function Check({ checked, onChange, className = '', size, label }) {
+export function Check({ checked, onChange, className = '', size, label, icon = 'check' }) {
   return (
     <button
+      type="button"
       role="checkbox"
       aria-checked={!!checked}
       aria-label={label}
@@ -293,7 +317,7 @@ export function Check({ checked, onChange, className = '', size, label }) {
       style={size ? { width: size, height: size } : null}
       onClick={() => onChange(!checked)}
     >
-      <Icon name="check" />
+      <Icon name={icon} />
     </button>
   )
 }
@@ -313,10 +337,10 @@ export function Section({ title, footer, children, className = '' }) {
   )
 }
 
-export function Row({ icon, iconTint, title, subtitle, value, accessory = 'none', onClick, danger, children, className = '' }) {
+export function Row({ icon, iconTint, title, subtitle, value, accessory = 'none', onClick, danger, children, disabled=false, className = '', ...rest }) {
   const Tag = onClick ? 'button' : 'div'
   return (
-    <Tag className={'lrow' + (onClick ? ' tap' : '') + (danger ? ' danger' : '') + ' ' + className} onClick={onClick}>
+    <Tag type={onClick ? 'button' : undefined} className={'lrow' + (onClick ? ' tap' : '') + (danger ? ' danger' : '') + ' ' + className} onClick={onClick} disabled={onClick?disabled:undefined} {...rest}>
       {icon && <span className="lrow-i" style={iconTint ? { '--tint': iconTint } : null}><Icon name={icon} /></span>}
       <span className="lrow-m">
         <span className="lrow-t">{title}</span>
@@ -325,6 +349,7 @@ export function Row({ icon, iconTint, title, subtitle, value, accessory = 'none'
       {children}
       {value != null && <span className="lrow-v">{value}</span>}
       {accessory === 'chevron' && <Icon name="chevronRight" className="lrow-c" />}
+      {accessory === 'dropdown' && <Icon name="chevronDown" className="lrow-c" />}
       {accessory === 'check' && <Icon name="check" className="lrow-k" />}
     </Tag>
   )
@@ -336,17 +361,21 @@ export function Row({ icon, iconTint, title, subtitle, value, accessory = 'none'
 // theme entirely — on dark mode it flashes a white sheet — and can't show more
 // than a bare label per option. This opens our own sheet with a checkmark on the
 // current value, which is also how iOS itself handles a long option list.
-export function SelectRow({ icon, iconTint, title, value, options, onChange, sheetTitle, stackedValue = false, search }) {
+export function SelectRow({ icon, iconTint, title, value, options, onChange, sheetTitle, stackedValue = false, search, onOpen, disabled=false, variant, invalid=false, id, describedBy, ...rest }) {
+  const blocked=useRef(disabled);blocked.current=disabled
   const cur = options.find(o => o.value === value)
   const open = () => {
+    if(blocked.current)return
     const { openSheet } = require_ui()
     const h = openSheet(close => <SelectSheet title={sheetTitle || title} value={value} options={options}
-      onChange={onChange} search={search} close={close} />)
+      onChange={value=>{if(!blocked.current)onChange(value)}} search={search} close={close} />)
+    onOpen?.(h)
     return h
   }
   return (
-    <Row icon={icon} iconTint={iconTint} title={title} value={cur ? cur.label : value} accessory="chevron" onClick={open}
-      className={stackedValue ? 'lrow-stack-value' : ''} />
+    <Row icon={icon} iconTint={iconTint} title={title} value={cur ? cur.label : value} accessory={variant==='field'?'dropdown':'chevron'} onClick={open}
+      disabled={disabled} id={id} aria-invalid={invalid||undefined} aria-describedby={describedBy} {...rest}
+      className={[stackedValue?'lrow-stack-value':'',variant==='field'?'select-field'+(value!==''&&value!=null?' has-selection':''):''].filter(Boolean).join(' ')} />
   )
 }
 

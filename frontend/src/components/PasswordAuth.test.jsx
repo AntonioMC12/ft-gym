@@ -29,7 +29,7 @@ const mocks = vi.hoisted(() => {
     return a ?? {}
   })
   state.snapshot = () => ({
-    S: {}, config: { password_login: true },
+    S: {}, config: state.config,
     setUser: state.setUser, adoptProfile: state.adoptProfile, pushState: state.pushState, pullState: state.pullState,
   })
   return state
@@ -80,6 +80,7 @@ const alertText = host => host.querySelector('[role="alert"]')?.textContent || n
 const click = async (host, text) => { act(() => button(host, text).click()); await settle() }
 
 beforeEach(() => {
+  mocks.config = {password_login:true}
   mocks.webauthn = true
   mocks.hasData = false
   mocks.sheets.length = 0
@@ -209,6 +210,14 @@ describe('PasswordRegisterForm', () => {
     const [code, setCode] = React.useState('')
     return <PasswordRegisterForm close={() => {}} inviteOnly={inviteOnly} name={name} setName={setName} code={code} setCode={setCode} />
   }
+  it('creates a center admission account with an empty invite code and leaves private sync to activation',async()=>{
+    const previous=location.hash;location.hash='#/home?join=center1';
+    try{
+      mocks.config={password_login:true,invite_only:true,centers:{enabled:true}};mocks.answers['GET /api/centers/join?centerId=center1']={center:{id:'center1',name:'Gym'}};mocks.passwordRegister.mockResolvedValue({id:'pending',name:'New member'});
+      const host=mount(<Harness inviteOnly/>);await settle();expect(byPlaceholder(host,'Invite code')).toBeNull();type(byPlaceholder(host,'Your name'),'New member');type(byPlaceholder(host,'Password'),'correct horse battery');type(byPlaceholder(host,'Repeat the password'),'correct horse battery');await submit(host);expect(alertText(host)).toBe('Enter a valid DNI or NIE.');expect(mocks.passwordRegister).not.toHaveBeenCalled();type(host.querySelector('input[name=nationalDocument]'),'12345678A');await submit(host);expect(mocks.passwordRegister).not.toHaveBeenCalled();type(host.querySelector('input[name=nationalDocument]'),'12.345.678-z');await submit(host);
+      expect(alertText(host)).toBeNull();expect(mocks.passwordRegister).toHaveBeenCalledWith('New member','correct horse battery','','','12345678Z');expect(mocks.setUser).toHaveBeenCalledWith({id:'pending',name:'New member'});expect(mocks.pullState).not.toHaveBeenCalled();expect(mocks.pushState).not.toHaveBeenCalled()
+    }finally{location.hash=previous}
+  })
   it('checks the invite and the repeated password here, then creates the profile', async () => {
     mocks.passwordRegister.mockResolvedValue({ id: 'u9', name: 'Cleo' })
     const host = mount(<Harness inviteOnly />)
@@ -553,4 +562,36 @@ describe('Settings → Sign-in e-mail', () => {
     const { host } = open()
     expect(button(host, 'Remove e-mail')).toBeUndefined()
   })
+})
+
+it('an authenticated pending account closes login without attempting private sync or reporting login failure',async()=>{
+ mocks.config={password_login:true,centers:{enabled:true}};mocks.answers['GET /api/centers/app-access']={blocked:true,reason:'activation-pending'};mocks.passwordLogin.mockResolvedValue({id:'pending',name:'Pending'});
+ const close=vi.fn(),host=mount(<PasswordSignInSheet close={close}/>);type(byPlaceholder(host,'Name or e-mail'),'Pending');type(byPlaceholder(host,'Password'),'fictional password');await submit(host);
+ expect(mocks.setUser).toHaveBeenCalledWith({id:'pending',name:'Pending'},{adopt:true});expect(close).toHaveBeenCalled();expect(mocks.adoptProfile).not.toHaveBeenCalled();expect(mocks.toast).not.toHaveBeenCalled();expect(alertText(host)).toBeNull()
+})
+it('a linked account still completes its existing personal adoption after the access check',async()=>{
+ mocks.config={password_login:true,centers:{enabled:true}};mocks.answers['GET /api/centers/app-access']={blocked:false};mocks.passwordLogin.mockResolvedValue({id:'linked',name:'Linked'});
+ const host=mount(<PasswordSignInSheet close={()=>{}}/>);type(byPlaceholder(host,'Name or e-mail'),'Linked');type(byPlaceholder(host,'Password'),'fictional password');await submit(host);expect(mocks.adoptProfile).toHaveBeenCalled();expect(mocks.toast).toHaveBeenCalledWith('Welcome back, Linked')
+})
+
+it('recovery requires a valid DNI/NIE as well as the manager code',async()=>{
+ mocks.config={password_login:true,document_login:true,centers:{enabled:true}};mocks.passwordResetRedeem.mockResolvedValue({id:'u1',name:'Ana Garcia'});
+ const host=mount(<PasswordSignInSheet close={()=>{}}/>);await click(host,'Recover my account');
+ type(byPlaceholder(host,'Reset code'),'K7WQ-2MZP-4HXA');type(byPlaceholder(host,'New password'),'correct horse battery');type(byPlaceholder(host,'Repeat the password'),'correct horse battery');await submit(host);
+ expect(mocks.passwordResetRedeem).not.toHaveBeenCalled();expect(alertText(host)).toBe('Enter a valid DNI or NIE.');type(byPlaceholder(host,'DNI / NIE'),'12345678Z');await submit(host);
+ expect(mocks.passwordResetRedeem).toHaveBeenCalledWith('12345678Z','K7WQ-2MZP-4HXA','correct horse battery');
+})
+it('owner settings show document configuration without usernames or plaintext documents',async()=>{
+ mocks.config={password_login:true,document_login:true};mocks.answers['GET /api/account/password']={set:true,documentSet:true,documentRequired:false,name:'Ana Garcia',passkeys:0};
+ const host=mount(<PasswordRow/>);await settle();expect(host.textContent).toContain('DNI / NIE');expect(host.textContent).not.toContain('Private username');expect(button(host,'Remove password')).toBeUndefined();
+})
+it('registers a center account without username and requires a valid document',async()=>{
+ const previous=location.hash;location.hash='#/home?join=center1';
+ mocks.config={password_login:true,document_login:true,centers:{enabled:true}};mocks.answers['GET /api/centers/join?centerId=center1']={center:{id:'center1',name:'Gym'}};mocks.passwordRegister.mockResolvedValue({id:'new',name:'Ana Garcia'});
+ function Form(){const[name,setName]=React.useState(''),[code,setCode]=React.useState('');return <PasswordRegisterForm close={()=>{}} name={name} setName={setName} code={code} setCode={setCode}/>}
+ try{
+  const host=mount(<Form/>);await settle();expect(host.querySelector('input[name=username]')).toBeNull();type(byPlaceholder(host,'First and last name'),'Ana Garcia');type(byPlaceholder(host,'Password'),'correct horse battery');type(byPlaceholder(host,'Repeat the password'),'correct horse battery');
+  await submit(host);expect(mocks.passwordRegister).not.toHaveBeenCalled();expect(alertText(host)).toBe('Enter a valid DNI or NIE.');
+  type(host.querySelector('input[name=nationalDocument]'),'12345678Z');await submit(host);expect(mocks.passwordRegister).toHaveBeenCalledWith('Ana Garcia','correct horse battery','','','12345678Z');
+ }finally{location.hash=previous}
 })

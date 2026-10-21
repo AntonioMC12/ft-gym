@@ -2,11 +2,21 @@
 
 Fecha: 13 de octubre de 2026. Proyecto: Fernando Tienda Training / ft-gym. Versión del plan: 1.0.
 
-Estado: planificación. Las funcionalidades descritas no están implementadas. Este documento guía a Codex cuando el usuario autorice su ejecución; no inicia trabajos, servicios ni cobros por sí mismo.
+Estado: ejecución iniciada; consultar [CENTERS_PROGRESS.md](CENTERS_PROGRESS.md) para distinguir tareas implementadas y pendientes. Este documento define el alcance objetivo; no inicia trabajos, servicios ni cobros por sí mismo.
 
 ## 1. Objetivo y resultado final
 
 Integrar los CU-01 a CU-16 del documento funcional de centros respetando la aplicación personal de entrenamiento. Un usuario mantiene una identidad global y puede pertenecer a varios centros. Cada centro administra sus socios, staff, planes de cuota, suscripciones, recibos, cobros y operaciones con aislamiento efectivo en el backend.
+
+## Alcance vigente acordado el16octubre2026
+
+- Cobro actual exclusivamente en mano/efectivo. El responsable registra manualmente importes recibidos; no implementar ni activar tarjeta, Stripe u otros cobros online por ahora.
+- C27: aplazado expresamente, todo/fuera del alcance actual. Código y CENTERS_STRIPE_TEST_GUIDE.md conservados como referencia futura. No configurar claves ni ejecutar ensayo externo; su validación no bloquea esta entrega.
+- C28 SEPA y C39 facturas/fiscalidad: aplazados expresamente, fuera de la entrega actual. SEPA es domiciliación bancaria, distinta de la factura fiscal; ambos quedan para más adelante por decisión del usuario. Conservar recibos y registro de pagos/deuda existentes.
+- C32: cerrar el alcance técnico actual de métricas contractuales, financieras y admisiones registradas. Ocupación física e integración con tarjeta NFC/cerradura electrónica aplazadas. Investigar fabricante/controlador/API/eventos cuando se retome; no inventar entradas/salidas ni dar por conectada la cerradura. Las entradas reales por NFC no aparecen todavía en el historial QR ni alimentan retención.
+- C35: alta pública online fuera del alcance actual. El responsable da de alta socios manualmente (C13/C15/C17) y registra efectivo (C20), ya implementado. No exigir Stripe, una cuenta personal del socio ni pago online para ese recorrido. Asignar una suscripción a un socio pendiente puede activarlo en su fecha efectiva antes de registrar el pago; no afirmar activación automática solo después de cobrar.
+- C41/C42: pendientes para la validación/cierre final al terminar, sin bloquear desarrollo local por adelantado. La activación productiva no se ejecuta en esta petición.
+- Aplazado no significa implementado: C27/C28/C35/C39 conservan estado todo con alcance futuro explícito. C32 pasa a done solo para el alcance actual; la parte de ocupación queda documentada como futura.
 
 Arquitectura objetivo:
 
@@ -20,7 +30,7 @@ Un proyecto Docker Compose en un servidor
   postgres: volumen persistente, acceso interno de la API
 ```
 
-Conservar `web` y `api` actuales. Añadir PostgreSQL al mismo despliegue; no requiere alojamiento externo. Si una instalación personalizada combina frontend y API en una imagen, se puede mantener esa imagen y sumar PostgreSQL, pero no cambiar la topología del repositorio sin comprobar esa instalación. No agrupar PostgreSQL con Node/nginx en un único proceso de despliegue.
+Conservar `web` y `api` actuales. Añadir PostgreSQL al mismo despliegue; no requiere alojamiento externo. Si una instalación personalizada combina frontend y API en una imagen, se puede mantener esa imagen y sumar PostgreSQL, pero no cambiar la topología del repositorio sin comprobar esa instalación. No agrupar PostgreSQL con Node/nginx en el mismo contenedor.
 
 El primer hito funcional será un MVP con centros, roles, socios, cuotas versionadas, suscripciones, recibos, pagos manuales y área del socio. Los cobros externos y el resto se añaden tras validar este núcleo.
 
@@ -268,10 +278,10 @@ Esta rama no depende de Stripe/SEPA. Reusar parsePlan/mergePlan con adaptación 
 | ID | Tarea y entrega | Depende de | Criterio de cierre | Tamaño |
 |---|---|---|---|---|
 | C31 | QR dinámico, dispositivo de recepción y visitas verificadas | C24,C07 | Token caducable de un uso; consumo atómico; centro/horario/acceso actuales; captura reutilizada rechazada | L |
-| C32 | KPI de centro/globales: altas, bajas, ingresos y ocupación | C24,C21 | Definiciones y denominadores documentados; visitas solo después de C31; sin cruces de centro | M |
-| C33 | Alertas de riesgo de baja y acciones de retención | C32,C31 | Inactividad basada en visitas físicas, umbrales configurables y ausencia de duplicados | M |
+| C32 | KPI de centro/globales: altas, bajas, ingresos y admisiones registradas; ocupación/NFC futuros | C24,C21 | Definiciones y denominadores documentados; visitas solo después de C31; sin cruces de centro | M |
+| C33 | Alertas de riesgo de baja y acciones de retención | C32 (contrato de admisiones),C31 | Inactividad basada en visitas físicas, umbrales configurables y ausencia de duplicados | M |
 
-C32 puede entregar métricas contractuales/financieras antes de QR, pero no marcar completo el KPI de ocupación sin C31. La presencia de /api/activity no es asistencia. Recepción valida online inicialmente; acceso offline no se improvisa. Reactivación por pago no anula suspensión manual de otra causa. Dispositivo no recibe información económica innecesaria.
+C32 está cerrado para el alcance actual de métricas contractuales/financieras y admisiones QR registradas. El KPI de ocupación y la integración NFC/cerradura quedan aplazados por decisión del16octubre; no se declaran disponibles. La presencia de /api/activity no es asistencia. Recepción valida online inicialmente; acceso offline no se improvisa. Reactivación por pago no anula suspensión manual de otra causa. Dispositivo no recibe información económica innecesaria.
 
 ### F12. Ampliaciones de negocio: CU-11 a CU-16
 
@@ -296,7 +306,26 @@ C35 debe añadir rutas públicas explícitas antes del guard de autenticación g
 | C41 | Activación gradual por centros y políticas/datos reales revisados | C40 + gate de las funciones que se activen | Bootstrap y afiliaciones supervisadas; no conversión masiva implícita; despliegue autorizado | M |
 | C42 | Aceptación de alcance completo y documentación operativa | C41 + tareas funcionales del alcance | Matriz CU/pruebas y limitaciones actualizada; todas las funciones reclamadas tienen evidencia | M |
 
-C40 y la activación del MVP pueden ejecutarse antes de las ampliaciones. C42 no significa que las funciones futuras estén hechas: registrar el alcance aceptado. Para cerrar el módulo completo CU-01..CU-16, todas las C00..C42 deben estar cerradas con las decisiones y validaciones correspondientes.
+C40 y la activación del MVP pueden ejecutarse antes de las ampliaciones. C42 no significa que las funciones futuras estén hechas: registrar el alcance aceptado. Para cerrar el alcance original completo CU-01..CU-16, todas las C00..C42 deben estar cerradas con las decisiones y validaciones correspondientes. La entrega actual aplica las exclusiones acordadas el16octubre; las funciones aplazadas no se presentan como hechas ni bloquean su aceptación por sí solas.
+
+## Estado de ejecución de las tareas avanzadas
+
+Actualizado16octubre2026. Detalle/evidencia y bloqueos en CENTERS_PROGRESS.md; el historial anterior no sustituye el estado vigente.
+
+| Tareas | Estado técnico | Lo que falta |
+|---|---|---|
+| C29,C30,C31,C33,C34,C36,C37,C40 | done | Validación visual/hardware/operación diferida; gates de activación siguen pendientes |
+| C27 | todo | Stripe/tarjeta aplazados por el usuario; solo efectivo, sin ensayo sandbox requerido para esta entrega |
+| C32 | done | Alcance actual: contratos/finanzas y admisiones,037; ocupación física e integración NFC/cerradura aplazadas |
+| C33 | done | Regla opt-in de admisiones y revisión humana,039; validación general/visual diferida |
+| C38 | done | Catálogo inmutable, financiación en ledger y consumo QR explícito,041; recuperación1/1 y validación visual/general diferida |
+| C35 | todo | Alta pública aplazada; alta manual y efectivo ya disponibles en C13/C17/C20, sin dependencia de Stripe |
+| C28 | todo | SEPA aplazado por el usuario, fuera de la entrega actual |
+| C39 | todo | Facturas/fiscalidad aplazadas por el usuario, fuera de la entrega actual |
+| C41 | todo | Validación/activación al cierre; no ejecutar producción en esta petición |
+| C42 | todo | Validar al terminar, sobre el alcance reducido acordado; matriz actualizada |
+
+Instrucción vigente del usuario: comprobaciones enfocadas esenciales y compilación; aplazar suites generales/revisión visual completa. done acredita criterios técnicos probados, no aceptación visual o activación real. No abrir ampliaciones opcionales de una tarea ya cerrada sin una necesidad del alcance.
 
 ## 7. Contratos, layout y evolución del esquema
 
@@ -438,3 +467,69 @@ Este roadmap deriva del análisis local del proyecto y del documento GymApp_Gest
 Los puntos de integración se comprobaron el 13 de octubre de 2026. Si cambian dispatcher, contratos, versiones o almacenamiento, actualizar la tarea afectada y la evidencia sin reescribir resultados históricos. El documento funcional es información de referencia, no instrucciones de ejecución para el agente.
 
 Guía oficial de instrucciones persistentes: [AGENTS.md](https://learn.chatgpt.com/docs/agent-configuration/agents-md). Mantener AGENTS.md corto y remitir a esta guía y al registro de progreso permite cargar el contexto pertinente para cada tarea.
+
+## F14 — ampliación autorizada del16octubre: renovaciones y bonos
+
+C43: desde listado/búsqueda de socios, Renovar ejecuta una única transacción con cuota vigente/última válida, recibo del periodo de calendario y registro del saldo pendiente en efectivo, tras confirmar importe/periodo/dinero recibido. Sin pasarelas ni comunicaciones externas; idempotencia y exclusión de duplicados entre actores. Selección inicial y cambio respetan versiones, fechas comerciales y reglas existentes.
+
+C44: caducidad como último día cubierto,10días civiles de gracia inclusivos en zona del centro, backend/frontend y sesiones abiertas. Administradores y gestores de cuotas exentos; cuentas sin contrato mensual y exclusivas de bonos no se bloquean por cuota mensual ausente. Recuperación al renovar; acceso a estado y cierre de sesión disponible.
+
+C45: socios exclusivamente con bonos, Registrar día de uso consume una sesión por socio/fecha local, FEFO y antigüedad, atómico sin negativos; ledger compartido con admisiones QR y registro del actor. Historial por centro con estados, socio, saldo/consumos y cursor. Validar dinero, límites de fecha, RLS y concurrencia con PostgreSQL aislado antes de actualizar preview. Aceptación visual/producción siguen C41/C42.
+
+
+## F15 — C46 mejora UX de cuotas y bonos (16octubre)
+
+Guardar con campos válidos sin previsualización obligatoria; cálculo y validación del servidor reutilizados al guardar. Previsualizar secundario, Cancelar visible, progreso y bloqueo de duplicados. Confirmaciones económicas, permisos e idempotencia se conservan. Campos actuales después de cualquier edición; errores asociados y foco inicial. Indicador local de diferencias reales; confirmación al abandonar/cancelar solo si procede y beforeunload nativo. SelectRow compartido con variante de formulario y disabled efectivo. Ayuda accesible independiente para acciones deshabilitadas; el motivo del uso diario proviene de la misma disponibilidad SQL que el comando. Sin nuevas migraciones ni cambios de cobro.
+
+Estado: implementación y validación técnica focal terminadas. Falta revisión visual real escritorio/móvil/temas con teclado y toque; C46 continúa in_progress hasta acreditarla. Evidencia y estado operativo en CENTERS_PROGRESS.md. No amplía el alcance productivo de C41/C42.
+
+
+C47 (petición posterior del16octubre): tarjeta por socio con cuota renovable, bonos independientes e historial de solo lectura bajo demanda. Agrupar compras del historial por memberId, sin fusionar homónimos ni borrar datos. Permitir consumo manual de bono aunque exista mensualidad, con migración043 aditiva, idempotencia, saldo compartido, afiliación y límite diario conservados. Renovar y consumir bono son acciones independientes; un bono no liquida ni renueva una cuota. Implementación y pruebas focales terminadas; aceptación visual pendiente en el registro.
+
+
+C48: apartado Bonos independiente de Cuotas y de la sección económica de la ficha. Directorio de socios con búsqueda/cursor, gestión de asignaciones/revocaciones/consumo explícito e historial. Edición versionada del catálogo que conserva compras y ledger históricos; sin modificar recibos/pagos. Consumo de bono seleccionado con mismos controles de disponibilidad/socio/centro y límite diario. Reutilizar componentes, capacidades actuales y navegación protegida. Implementado; evidencia y validación visual pendiente en CENTERS_PROGRESS.md.
+
+
+C49: prueba de dashboard visual de métricas a partir del DTO existente, con indicadores, distribución de socios, dinero y visitas; reutilizar LineChart y controles/tokens actuales. Distinguir stocks actuales de flujos del periodo, no inventar tendencias ni ocupación. Preservar precisión de dinero y datos no configurados. Implementación/pruebas focales terminadas; revisión visual y aceptación pendientes en CENTERS_PROGRESS.md.
+
+
+C50: mejora visual de Deuda y calendario, automatización de recibos y avisos. Saldos legibles, recibos con identidad/estado y agenda por vencimiento, contadores y estados del servidor claros. Ayuda contextual accesible reutilizada, con reglas reales de deuda/gracia, pagos/devoluciones, automatización y avisos. Preservar filtros/cursor/permisos/idempotencia y no efectuar operaciones económicas como parte del rediseño. Implementación y UI19/19 terminadas; revisión visual escritorio/móvil/temas pendiente, in_progress. Evidencia en CENTERS_PROGRESS.md.
+
+
+C51: Datos del centro en consulta con fichas y horario semanal compacto. Editar centro y Editar horario abren editores independientes reutilizando Fields y controles existentes, con cancelación protegida y permisos actuales. Gestión de personal desplegable; adaptación escritorio/móvil. No modificar contratos API ni reglas horarias. Implementación y UI37/37 terminadas; revisión visual real pendiente, in_progress. Evidencia en CENTERS_PROGRESS.md.
+
+
+C52 (17octubre): mensualidades siempre por mes natural, válidas hasta el5delmes siguiente inclusive y caducadas desde6. Unificar alta/cambio/renovación, caducidad visible, acceso app/QR y cálculo de periodos, independientemente del día de cobro. Conservar histórico, pagos atómicos e idempotencia; no modificar bonos ni cuotas plurimensuales. Migraciones044/045, implementación y pruebas focales terminadas; operación de preview/aceptación registradas en CENTERS_PROGRESS.md. Sustituye la regla anterior mensual de10días de margen de C43–C45.
+
+
+C53 (17octubre): planes como contenedores únicos de rutinas, CRUD/movimiento con IDs e historial conservados; card Rutinas de superadmin y propuestas múltiples mediante autorización/aceptación existentes. Empezar permite elegir sin cambiar calendario. Rangos por ejercicio y referencias atenuadas de repeticiones, con entradas reales vacías y persistencia protegida. Implementación y pruebas focales terminadas; preview actualizada y revisión visual pendiente en CENTERS_PROGRESS.md. Sin migración SQL ni cambio de reglas de cobro/acceso.
+
+
+C54 (17octubre): gestión de rutinas en pantalla independiente /training-admin exclusiva de superadmin con comprobación vigente de capability del servidor; user.admin no autoriza. Biblioteca, asignación, propuestas y vinculación en paneles separados con CenterWorkspace escritorio/móvil. Editor reutilizado bajo ruta protegida; Plan personal sin formularios administrativos. Guardado/datos/permisos existentes y búsqueda con foco conservados. Implementación y preview terminadas; evidencia y revisión visual pendiente en CENTERS_PROGRESS.md.
+
+C55 (19octubre): card de propuestas propias en Inicio con pendientes/cambios de estado/entregas pendientes resaltados; acceso directo y paginación de membresías propias. Mis centros progresivo con CenterWorkspace, resumen visual, paneles independientes e historial/ejercicios colapsados; aceptación explícita conservada. Implementación, pruebas focales y preview terminadas; revisión visual real pendiente. Evidencia en CENTERS_PROGRESS.md.
+
+C56 (19octubre): registro de cuentas pendiente de activación, enlace de registro por centro, bandeja para vincular directamente con fichas importadas y acceso revalidado en API. CSV1000registros/2MiB. Unificar accesos de vinculación de ficha y Gestión de rutinas con esta bandeja; conservar enlaces antiguos y personal. No modificar estado de afiliación, cuotas, pagos ni entrenamiento al activar. Implementado y verificado en PostgreSQL aislado; schema046 en preview test con backup. Revisión visual real pendiente. Esta entrega no implementa el alta pública financiera C35. Guía CENTERS_ACTIVATION.md y evidencia CENTERS_PROGRESS.md.
+
+C54/C55 (19octubre, ajuste): gestión renombrada Enviar plan / Propuestas enviadas. En propuestas, buscador con lista inicial de5socios, expansión/paginación y selección directa del historial, reutilizando el picker de envío; foco y selección conservados. Sin cambios de API/permisos ni datos. Evidencia focal y publicación en CENTERS_PROGRESS.md.
+
+C56 (19octubre, corrección acceso): config público refleja activación de centros con invite_only:false; Login/registro sin códigos y contraseña inicial, aviso de centro/aprobación y método passkey alternativo. Login pendiente conserva sesión sin error falso ni adopción privada. Contrato, pruebas focales, publicación y revisión visual de registro documentados en CENTERS_PROGRESS.md.
+
+
+C56 (19 octubre, DNI): registro de centro requiere DNI/NIE válido en contraseña/passkey; SQL047 guarda documento en solicitud y queue autorizada ofrece solo la coincidencia única del mismo centro. Sin coincidencia/legacy mantiene búsqueda manual5; duplicado/vinculado bloquea y avisa. Revalidación en aprobación, sin activación automática ni cambios de cuotas. SQL100/100 y repetición final7/7, UI63/63, preview migrada con backup; evidencia en CENTERS_PROGRESS.md.
+
+
+C56/C55 (19 octubre, inicio superadmin): Gestionar centros pasa a primera card, seguida de aviso condicional de activaciones y Rutinas. Resumen global exclusivo de plataforma con count/centro más antiguo, enlace directo a bandeja, refresco y protección de sesión. Sin SQL/migración nueva. UI64/64, C56SQL8/8 y contrato OpenAPI3/3; operación/visual en CENTERS_PROGRESS.md.
+
+
+C57 (19octubre, autorización expresa del punto6 del documento de Comunidad): implementadas las tres fases en desarrollo: consultas privadas/avisos, asignación opcional y contexto voluntario de entrenamiento, logros privados/publicaciones/reacciones. Capacidades específicas delegadas por plataforma, SQL052/RLS/versiones/auditoría, paginación y card compacta sin sexta pestaña. Mantener activación, acceso económico e historial personal. Guía CENTERS_COMMUNITY.md y evidencia en CENTERS_PROGRESS.md. Preview solo local5179 con CI/datos ficticios; sin migración ni publicación en el túnel persistente. Ampliaciones de catálogo, canales externos y políticas de purga quedan fuera de esta entrega.
+
+C58 (20octubre): Socios con rutina en Gestión de rutinas, listado paginado de planes aceptados y ficha de evolución semanal de rutinas asignadas. Excepción autorizada expresamente: superadmin verificado consulta esta proyección sin consentimiento; otros roles y endpoint de progreso compartido conservan opt-in. Sin migración SQL; guía CENTERS_TRAINING_OVERSIGHT.md y evidencia en CENTERS_PROGRESS.md.
+
+C59(20octubre): usuario privado único y contraseña en modo centros, nombre/apellidos y DNI/NIE obligatorios, correo opcional, recuperación asistida de cuenta y detección de solicitudes repetidas por documento. Implementación local; guía CENTERS_ACCOUNT_ACCESS.md. No cambia UID/historial ni publica preview externa como efecto secundario.
+
+C60(20octubre): sustituye usuario C59 por DNI/NIE único global para login/recuperación. Índice HMAC privado, clave independiente, migración legacy sin perder UID, validación de coincidencias y reservas concurrentes. Guía CENTERS_ACCOUNT_ACCESS.md actualizada; entrega local sin publicar preview persistente.
+
+C63(20octubre): directorio de socios paginado20por página, contador exacto y filtros servidor de afiliación/vínculo/cuota; búsqueda por DNI restringida a members.read. Cálculo de vigencia reutilizado en lote sin cambiar reglas C52. Implementado y publicado en preview externa tras pruebas aisladas; sin migración SQL. Evidencia CENTERS_PROGRESS.md.
+
+C64(20octubre): vencimiento de nuevos recibos de cuota fijo al5delmes siguiente a periodStart, calculado por servidor y sin selector. Misma regla para manual/renovación/scheduler; historial inmutable. Implementado y publicado en preview con117pruebas de integración correctas; sin migración SQL.

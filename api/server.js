@@ -1,3 +1,10 @@
+import {documentKey,documentOwner,importDocumentClaims} from './account-identity.js';
+import {businessTransaction} from './centers/services/context.js';
+import {memberRecord} from './centers/services/member-records.js';
+import {isPlatformUser} from './centers/authz.js';
+import {normalizeNationalDocument,validNationalDocument} from './centers/domain/national-document.js';
+import {registrationCenter,requestActivation} from './centers/services/activations.js';
+import {applicationAccess,renewalGateExempt} from './centers/services/application-access.js';
 /* opengym-api — passkey (WebAuthn) auth + per-user state storage for openGym
    No framework, JSON-file storage, signed session cookies.               */
 import http from 'node:http';
@@ -16,6 +23,18 @@ import webpush from 'web-push';
 import * as coachConfig from './coach/config.js';
 import * as coachJobs from './coach/jobs.js';
 import { coachRoutes } from './coach/routes.js';
+import { centersConfig, publicCentersConfig } from './centers/config.js';
+import { createCentersDatabase } from './centers/db.js';
+import {startBillingWorker} from './centers/services/jobs.js';
+import {startMaintenanceWorker} from './centers/services/maintenance.js';
+import {startCentersWorker} from './centers/services/worker-lifecycle.js';
+import {stripeTick} from './centers/services/stripe-worker.js';
+import {notificationTick,createNotificationCapture} from './centers/services/notification-worker.js';
+import {createCloudflareEmailTransport} from './centers/services/notification-cloudflare.js';
+import { centersRoutes } from './centers/routes.js';
+import { createAccountLocks } from './centers/account-links.js';
+import { CentersError } from './centers/errors.js';
+import {libraryHas as hasTrainingExercise} from './coach/core/library.js';
 import { startCadence } from './coach/cadence.js';
 import { startWarmup } from './coach/warmup.js';
 import { dayReminderPush, nudgePush, restTimerPush, testPush } from './push-messages.js';
@@ -69,7 +88,7 @@ const ALLOW_GUEST = !/^(0|false|no|off)$/i.test(process.env.ALLOW_GUEST || '');
 // Name-and-password sign-in next to passkeys (#118). Off by default: it adds a second way into
 // every account that opts in, so an instance has to ask for it. While it is off every password
 // route answers 404 and the app shows none of it; hashes already stored stay where they are.
-const PASSWORD_LOGIN = /^(1|true|yes|on)$/i.test(process.env.PASSWORD_LOGIN || '');
+const PASSWORD_LOGIN = /^(1|true|yes|on)$/i.test(process.env.PASSWORD_LOGIN || '') || centersConfig().enabled;
 // The language the sign-in screen, and every profile that never picked one, starts in (#303) —
 // for an instance whose people share a language. Only a tag's shape is checked here; the app
 // matches it against the languages it has and ignores one it does not know. Unset, it is left
@@ -91,10 +110,17 @@ const TRUST_PROXY = /^(1|true|yes|on)$/i.test(process.env.TRUST_PROXY || '');
 // baked into each cookie when it's issued, so lowering this never cuts an existing session short.
 const SESSION_DAYS = Math.max(1, +(process.env.SESSION_DAYS || 90) || 90);
 const MAX_BODY = 5 * 1024 * 1024;
+const CENTERS_CONFIG = centersConfig();
+const CENTERS_LINK_MARKER = path.join(DATA, 'centers-attached');
+const CENTERS_REFERENCE_GUARD = CENTERS_CONFIG.enabled || fs.existsSync(CENTERS_LINK_MARKER);
+// Lazy and independent of the training store: an unavailable SQL server never prevents boot.
+const CENTERS_DATABASE = createCentersDatabase({ ...CENTERS_CONFIG, enabled: CENTERS_REFERENCE_GUARD });
 // Secure cookies require HTTPS; over plain http://localhost the flag would drop the cookie
 const SECURE = /^https:/i.test(ORIGIN) ? ' Secure;' : '';
 
 fs.mkdirSync(DATA, { recursive: true });
+// This durable marker survives hiding the module. Referenced identities still require SQL checks.
+if (CENTERS_CONFIG.enabled && !fs.existsSync(CENTERS_LINK_MARKER)) atomicWrite(CENTERS_LINK_MARKER, '1\n', 0o600);
 /* The secrets are locked down file by file rather than by sealing the whole directory.
  *
  * A blanket `chmod 0700` on DATA looks stronger and is worse: ./data is a host bind mount and
@@ -107,12 +133,17 @@ fs.mkdirSync(DATA, { recursive: true });
  * reason to refuse to boot. The privilege drop in adapters/spawn.js is the control that does
  * fail closed. */
 const lock = f => { try { fs.chmodSync(path.join(DATA, f), 0o600); } catch { /* not present yet, or host says no */ } };
-['secret', 'db.json', 'coach.json'].forEach(lock);
+['secret', 'db.json', 'coach.json', 'document-secret'].forEach(lock);
 
 /* ---------- secret + db ---------- */
 const secretFile = path.join(DATA, 'secret');
 if (!fs.existsSync(secretFile)) fs.writeFileSync(secretFile, crypto.randomBytes(32).toString('hex'), { mode: 0o600 });
 const SECRET = fs.readFileSync(secretFile, 'utf8').trim();
+const documentSecretFile=path.join(DATA,'document-secret');
+let DOCUMENT_SECRET=null;
+// The application has one JSON-writing API process. A restart/restore expires
+// outstanding access captures instead of resurrecting a recently consumed QR.
+const ACCESS_QR_EPOCH = crypto.randomBytes(32).toString('hex');
 
 const dbFile = path.join(DATA, 'db.json');
 // Every account, passkey and invite. Only a missing file starts empty: an unreadable one (a write
@@ -142,11 +173,21 @@ function loadDb() {
 }
 let db = loadDb();
 db.users = db.users || [];
+if(CENTERS_CONFIG.enabled){
+ if(!fs.existsSync(documentSecretFile)){
+  if(db.users.some(user=>user.documentKey))throw new Error('Restore document-secret together with the account backup. Refusing to replace the identity key.');
+  fs.writeFileSync(documentSecretFile,crypto.randomBytes(32).toString('hex'),{mode:0o600});
+ }
+ DOCUMENT_SECRET=fs.readFileSync(documentSecretFile,'utf8').trim();
+ if(!/^[a-f0-9]{64}$/i.test(DOCUMENT_SECRET))throw new Error('Invalid document-secret; restore the identity key.');
+}
 db.creds = db.creds || [];
 db.subs = db.subs || [];
 db.invites = db.invites || [];
+
 db.deviceLinks = db.deviceLinks || [];   // unused one-time device links, hashed (device-link.js)
 const isAdmin = user => !!user && (user.admin === true || ADMIN_UIDS.includes(user.id));
+const CENTERS_ACCOUNT_LOCKS = createAccountLocks(uid => db.users.find(user => user.id === uid));
 // 0600: db.json holds passkey credential material. It used to be covered by a blanket 0700 on
 // the whole directory; now that the directory stays traversable, the file carries its own mode.
 // Once the new version is on disk, a second copy of it goes to db.json.bak, the same durable
@@ -651,7 +692,9 @@ const clearCookie = COOKIE === LEGACY_COOKIE
 const CSRF_EXEMPT = new Set([
   'POST /api/register/options', 'POST /api/register/verify',
   'POST /api/login/options', 'POST /api/login/verify',
-  'POST /api/pair/redeem'
+  'POST /api/pair/redeem',
+  // Raw signed provider payload; no session/Origin authority is accepted here.
+  'POST /api/centers/stripe/webhook'
 ]);
 const originsMatch = (a, b) => a.replace(/\/+$/, '') === b.replace(/\/+$/, '');
 function csrfOk(req, key) {
@@ -1036,11 +1079,12 @@ const hasPassword = u => !!(u && u.pw && typeof u.pw.h === 'string');
 // PASSWORD_LOGIN off, a password kept from when it was on neither signs in nor proves anything
 // (proveOwner), and does not keep a profile's last passkey in place.
 const passwordWayIn = u => PASSWORD_LOGIN && hasPassword(u);
-const passwordHolder = k => db.users.find(u => hasPassword(u) && nameKey(u.name) === k) || null;
+const passwordHolder = k => db.users.find(u => hasPassword(u) && (CENTERS_CONFIG.enabled ? u.documentKey === k : nameKey(u.name) === k)) || null;
 const holdsName = u => hasPassword(u) || !!(u.pwReset && u.pwReset.exp > Date.now());
 // An e-mail is a second name to sign in with (see "e-mail as a sign-in name" below), so a name
 // is also taken by another profile's e-mail — only ever relevant for a name with an "@" in it.
 const nameTaken = (name, exceptId) => {
+  if(CENTERS_CONFIG.enabled)return false; // Public full names may repeat; document uniqueness is independent.
   const k = nameKey(name);
   return db.users.some(u => u.id !== exceptId && ((holdsName(u) && nameKey(u.name) === k) || u.email === k));
 };
@@ -1075,7 +1119,7 @@ const nameTaken = (name, exceptId) => {
    MCP bridge or anything shared, and only its owner (GET /api/account/password) and an admin
    (the user list) ever see it. */
 const emailHolder = e => db.users.find(u => hasPassword(u) && u.email === e) || null;
-const emailTaken = (e, exceptId) => db.users.some(u => u.id !== exceptId && (u.email === e || (holdsName(u) && nameKey(u.name) === e)));
+const emailTaken = (e, exceptId) => db.users.some(u => u.id !== exceptId && (u.email === e || (!CENTERS_CONFIG.enabled&&holdsName(u)&&nameKey(u.name)===e)));
 const EMAIL_ERRORS = {
   invalid: { error: 'that is not an e-mail address', code: 'email-invalid' },
   taken: { error: 'another profile already uses this e-mail address', code: 'email-taken' }
@@ -1086,9 +1130,10 @@ const EMAIL_ERRORS = {
 // identifier as folded, so an unknown one is paused exactly like a known one.
 function loginTarget(body) {
   const onlyEmail = body.identifier === undefined && body.name === undefined;
-  const k = nameKey(text(body.identifier ?? body.name ?? body.email).slice(0, 300));
+  const input=text(body.nationalDocument??body.identifier??body.name??body.email).slice(0,300);
+  const k=CENTERS_CONFIG.enabled?documentKey(input,DOCUMENT_SECRET):nameKey(input);
   if (!k) return null;
-  const resolve = () => (k.includes('@') ? emailHolder(k) : null) || (onlyEmail ? null : passwordHolder(k));
+  const resolve = () => CENTERS_CONFIG.enabled?passwordHolder(k):(k.includes('@') ? emailHolder(k) : null) || (onlyEmail ? null : passwordHolder(k));
   const user = resolve();
   return { k, user, resolve, email: k.includes('@'), key: user ? acctKey(user) : 'id:' + k };
 }
@@ -1235,9 +1280,34 @@ async function removeEmail(req, res, user, body) {
   json(res, 200, { ok: true, email: null });
 }
 
+let documentIndexLoading=null;
+let legacyDocumentReservations=new Set(),legacyDocumentCandidates=new Map();
+async function ensureDocumentIndex(){
+ if(!CENTERS_CONFIG.enabled)return;
+ if(!documentIndexLoading)documentIndexLoading=(async()=>{
+  const candidates=new Map();
+  for(const user of db.users){
+   const rows=await CENTERS_DATABASE.accountTransaction(user.id,async client=>(await client.query('SELECT national_document FROM centers.members WHERE account_uid=$1 UNION SELECT national_document FROM centers.activation_requests WHERE account_uid=$1',[user.id])).rows);
+   candidates.set(user.id,new Set(rows.map(row=>documentKey(row.national_document,DOCUMENT_SECRET)).filter(Boolean)));
+  }
+  const result=importDocumentClaims(db.users,candidates);legacyDocumentReservations=result.reserved;legacyDocumentCandidates=candidates;if(result.changed)saveDb();
+ })().catch(()=>{documentIndexLoading=null;throw new HttpError(503,'Account identity is temporarily unavailable. Try again.');});
+ await documentIndexLoading;
+}
+function documentReserved(key){return legacyDocumentReservations.has(key)&&db.users.some(user=>legacyDocumentCandidates.get(user.id)?.has(key));}
+function canClaimDocument(user,key){
+ if(!key||documentOwner(db.users,key,user.id)||signupReservations.has('document:'+key))return false;
+ if(user.documentKey)return user.documentKey===key;
+ const known=legacyDocumentCandidates.get(user.id)||new Set();
+ return known.size?known.has(key):!documentReserved(key);
+}
+
+const signupReservations = new Set();
+const recoveryIssues = createWindow({max:5,windowMs:3600000});
 const passwordRoutes = {
   'POST /api/login/password': async (req, res) => {
     const body = await readBody(req);
+    if(CENTERS_CONFIG.enabled)await ensureDocumentIndex();
     const target = loginTarget(body);
     const pw = typeof body.password === 'string' ? body.password : '';
     if (!target || !pw) return json(res, 400, { error: 'name and password required', code: 'missing' });
@@ -1282,19 +1352,26 @@ const passwordRoutes = {
   // setups. Same invite rules as /api/register/*, checked again and burned after the hash.
   'POST /api/register/password': async (req, res) => {
     const body = await readBody(req);
-    const name = text(body.name).trim().slice(0, 40);
+    const name = text(body.name).trim().slice(0, CENTERS_CONFIG.enabled?120:40);
     if (!name) return json(res, 400, { error: 'name required', code: 'missing' });
+    const center=await signupCenter(res,body.centerId);if(center===false)return;
+    if(CENTERS_CONFIG.enabled&&name.split(/\s+/).length<2)return json(res,400,{error:'Full name is required.',code:'full-name-required'});
+    const nationalDocument=center?normalizeNationalDocument(body.nationalDocument):null;
+    if(center&&!validNationalDocument(body.nationalDocument))return json(res,400,{error:'A valid DNI or NIE is required.',code:'national-document-invalid'});
+    if(center)await ensureDocumentIndex();
+    const identity=center?documentKey(nationalDocument,DOCUMENT_SECRET):null;
+    if(identity&&(documentOwner(db.users,identity)||documentReserved(identity)))return json(res,409,{error:'This document already has an account. Recover your existing account.',code:'document-taken'});
     const code = text(body.code).trim().toUpperCase();
     const invite = () => db.invites.find(i => i.code === code && !i.usedBy && !i.revoked);
-    if (INVITE_ONLY && addressPaused(req, res, 'signup')) return;
-    if (INVITE_ONLY && !invite()) {
+    if (!center && INVITE_ONLY && addressPaused(req, res, 'signup')) return;
+    if (!center && INVITE_ONLY && !invite()) {
       audit(req, 'auth.register.denied', { ok: false, name, msg: 'invite-rejected' });
       strikeAddress(req, 'signup');
       return json(res, 403, { error: 'a valid invite code is required', code: 'invite' });
     }
     const problem = passwordProblem(body.password, name);
     if (problem) return policyError(res, problem);
-    const taken = () => json(res, 409, { error: 'another profile already signs in with this name', code: 'name-taken' });
+    const taken = () => json(res, 409, { error: 'another profile already signs in with this name', code:'name-taken' });
     if (nameTaken(name)) return taken();
     // An e-mail is optional here. One already in use counts against the address, the way it
     // does in Settings: this route needs no session, so it is the cheaper place to ask. Whether
@@ -1309,9 +1386,15 @@ const passwordRoutes = {
       return json(res, 409, EMAIL_ERRORS.taken);
     };
     if (email && addressPaused(req, res, 'email')) return;
+    const reservationKeys = CENTERS_CONFIG.enabled ? ['document:'+identity,...(email?['email:'+email]:[])] : [];
+    if(CENTERS_CONFIG.enabled&&signupReservations.has('document:'+identity))return json(res,409,{error:'Registration already in progress.',code:'document-taken'});
+    if(CENTERS_CONFIG.enabled&&email&&signupReservations.has('email:'+email))return emailRefused();
+    reservationKeys.forEach(key=>signupReservations.add(key));
+    const release=()=>reservationKeys.forEach(key=>signupReservations.delete(key));
+    try {
     const h = await hashPassword(body.password);
     let inv = null;
-    if (INVITE_ONLY) {
+    if (!center && INVITE_ONLY) {
       inv = invite();
       if (!inv) {
         audit(req, 'auth.register.fail', { ok: false, name, msg: 'invite-invalid' });
@@ -1322,21 +1405,41 @@ const passwordRoutes = {
     // No await from here to the push: nothing can take the address between this check and it.
     if (email && emailTaken(email)) return emailRefused();
     const created = new Date().toISOString();
-    const user = { id: crypto.randomBytes(12).toString('base64url'), name, created, pw: { h, set: created }, ...(email ? { email } : {}) };
+    const user = { id: crypto.randomBytes(12).toString('base64url'), name, ...(identity?{documentKey:identity}:{}), created, pw: { h, set: created }, ...(email ? { email } : {}) };
     if (inv) { user.invitedBy = inv.code; inv.usedBy = user.id; inv.usedAt = created; }
-    claimFirstAdmin(req, user);
+    if(center)user.registrationCenterId=center.id;
+    if(!CENTERS_CONFIG.enabled)claimFirstAdmin(req, user);
+    if(center&&!await saveSignupActivation(res,user,center,nationalDocument))return;
+    // SQL admission yields; re-check identity uniqueness before publishing credentials.
+    if(nameTaken(name))return taken();
+    if(email&&emailTaken(email))return emailRefused();
     db.users.push(user);
     saveDb();
     audit(req, 'auth.register.ok', { user, msg: inv ? inv.code + ' · password' : 'password' });
     json(res, 200, { user: publicUser(user) }, { 'Set-Cookie': sessionCookie(user) });
+    } finally { release(); }
   },
 
   // What Settings shows: whether a password is set, and whether it could be removed.
+  'POST /api/account/document': async(req,res)=>{
+    const user=readSession(req);if(!user)return json(res,401,{error:'not signed in'});
+    if(!CENTERS_CONFIG.enabled)return json(res,404,{error:'not found'});
+    const body=await readBody(req);if(!validNationalDocument(body.nationalDocument))return json(res,400,{error:'A valid DNI or NIE is required.',code:'national-document-invalid'});
+    await ensureDocumentIndex();const key=documentKey(body.nationalDocument,DOCUMENT_SECRET);
+    if(!canClaimDocument(user,key))return json(res,409,{error:'Document unavailable or identity requires review.',code:'document-taken'});
+    if(!await proveOwner(req,res,user,body,'document-set'))return;
+    if(readSession(req)!==user)return json(res,401,{error:'not signed in'});
+    if(!canClaimDocument(user,key))return json(res,409,{error:'Document unavailable or identity requires review.',code:'document-taken'});
+    user.documentKey=key;delete user.username;saveDb();audit(req,'auth.document.set',{user});return json(res,200,{documentSet:true});
+  },
+
   'GET /api/account/password': async (req, res) => {
     const user = readSession(req);
     if (!user) return json(res, 401, { error: 'not signed in' });
+    if(CENTERS_CONFIG.enabled)await ensureDocumentIndex();
     json(res, 200, {
-      set: hasPassword(user), setAt: user.pw?.set || null, passkeys: passkeyCount(user),
+      set: hasPassword(user), setAt: user.pw?.set || null, passkeys: CENTERS_CONFIG.enabled?0:passkeyCount(user),
+      ...(CENTERS_CONFIG.enabled?{documentSet:!!user.documentKey,documentRequired:!user.documentKey}:{}),
       name: user.name, nameTaken: nameTaken(user.name, user.id),
       // Only the owner's own session is ever handed their address.
       email: user.email || null
@@ -1378,6 +1481,7 @@ const passwordRoutes = {
   // refusal the profile's state already decides spends no passkey prompt and no password check.
   // Existing sessions are left alone; "sign out everywhere" ends them.
   'DELETE /api/account/password': async (req, res) => {
+    if(CENTERS_CONFIG.enabled)return json(res,409,{error:'Password is required.',code:'last-way-in'});
     const user = readSession(req);
     if (!user) return json(res, 401, { error: 'not signed in' });
     const body = await readBody(req);
@@ -1424,7 +1528,7 @@ const passwordRoutes = {
     if (!proof) return;
     if (sessionOf(req)?.user !== user) return json(res, 401, { error: 'not signed in' });
     if (paused()) return;
-    if (emailTaken(email, user.id)) {
+    if (emailTaken(email, user.id)||(CENTERS_CONFIG.enabled&&signupReservations.has('email:'+email))) {
       if (proof === 'passkey') saveDb();   // the confirming passkey's counter and last use
       strikeAddress(req, 'email');
       ADDR_FAILS.fail(acct);
@@ -1449,16 +1553,50 @@ const passwordRoutes = {
   // should not keep working for the day the code is valid. Passkeys are left alone. The code is
   // shown once and stored only as a hash. Admin accounts are refused, as they are by disable —
   // one admin must not be able to take over another's login.
+  'POST /api/centers/members/recovery': async (req,res) => {
+    const actor=readSession(req);if(!actor)return json(res,401,{error:'not signed in'});
+    if(!CENTERS_CONFIG.enabled)return json(res,404,{error:'not found'});
+    const body=await readBody(req);if(body.confirmed!==true)return json(res,400,{error:'Identity verification is required.',code:'identity-confirmation-required'});
+    const sv=sessionVersion(actor),check=()=>{if(readSession(req)!==actor||sessionVersion(actor)!==sv)throw new CentersError(401,'not-signed-in','not signed in')};
+    const options={platform:isPlatformUser(CENTERS_CONFIG,actor)};
+    try{
+      const recipient=await businessTransaction(CENTERS_DATABASE,actor.id,body.centerId,'members.manage',async client=>(await memberRecord(client,body.centerId,body.memberId)).account_uid,options);
+      if(!recipient)throw new CentersError(409,'account-required','No linked account');
+      const result=await CENTERS_ACCOUNT_LOCKS.withAccounts([actor.id,recipient],async()=>{
+        const target=await businessTransaction(CENTERS_DATABASE,actor.id,body.centerId,'members.manage',async client=>{
+          check();const member=await memberRecord(client,body.centerId,body.memberId);
+          if(member.account_uid!==recipient)throw new CentersError(409,'account-changed','Reload member');
+          const account=db.users.find(u=>u.id===recipient);
+          // The bound account's own RLS context sees its roles across all centers. Only
+          // a boolean is used here; no staff directory is exposed to another manager.
+          const staff=await CENTERS_DATABASE.accountTransaction(recipient,async c=>(await c.query('SELECT id FROM centers.role_assignments WHERE account_uid=$1 AND revoked_at IS NULL LIMIT 1',[recipient])).rows.length>0);
+          if(!account||account.disabled||isAdmin(account)||isPlatformUser(CENTERS_CONFIG,account)||(!options.platform&&staff))throw new CentersError(403,'recovery-forbidden','Staff account recovery requires platform support');
+          if(recoveryIssues.take(actor.id+':'+recipient)>0)throw new CentersError(429,'locked','Try again later');
+          await client.query('INSERT INTO centers.business_audit(center_id,actor_uid,action,target_id) VALUES($1,$2,$3,$4)',[body.centerId,actor.id,'account.recovery.authorized',member.id]);
+          check();return account;
+        },options);
+        // SQL authorization has committed; account/role mutations remain locked until
+        // the durable credential write completes. No async gap inside the JSON update.
+        check();const code=makeResetCode();target.pwReset={h:hashResetCode(code),exp:Date.now()+30*60*1000,by:actor.id};
+        delete target.pw;target.sv=sessionVersion(target)+1;dropDeviceLinks(db,target.id);presence.delete(target.id);
+        for(const [key,value]of pairings)if(value.uid===target.id)pairings.delete(key);
+        saveDb();audit(req,'account.recovery.issued',{user:actor,target});return {code,expires:target.pwReset.exp};
+      });
+      check();return json(res,200,result);
+    }catch(error){return json(res,error.status||503,{error:'Account recovery is unavailable.',code:error.code||'recovery-unavailable'});}
+  },
+
   'POST /api/admin/user/password-reset': async (req, res) => {
-    const admin = requireAdmin(req, res); if (!admin) return;
+    const admin = CENTERS_CONFIG.enabled?readSession(req):requireAdmin(req, res); if (!admin) return CENTERS_CONFIG.enabled?json(res,401,{error:'not signed in'}):undefined;
+    if(CENTERS_CONFIG.enabled&&!isPlatformUser(CENTERS_CONFIG,admin))return json(res,403,{error:'forbidden'});
     const body = await readBody(req);
     const u = db.users.find(x => x.id === body.id);
     if (!u) return json(res, 404, { error: 'no such user' });
-    if (isAdmin(u)) return json(res, 400, { error: 'an admin sets their own password in Settings' });
+    if (isAdmin(u)||isPlatformUser(CENTERS_CONFIG,u)) return json(res, 400, { error: 'an admin sets their own password in Settings' });
     if (nameTaken(u.name, u.id)) return json(res, 409, { error: 'another profile already signs in with this name', code: 'name-taken' });
     const code = makeResetCode();
     delete u.pw;
-    u.pwReset = { h: hashResetCode(code), exp: Date.now() + RESET_TTL_MS, by: admin.id };
+    u.pwReset = { h: hashResetCode(code), exp: Date.now() + (CENTERS_CONFIG.enabled?30*60*1000:RESET_TTL_MS), by: admin.id };
     u.sv = sessionVersion(u) + 1;
     for (const [k, v] of pairings) if (v.uid === u.id) pairings.delete(k);
     dropDeviceLinks(db, u.id);
@@ -1471,14 +1609,16 @@ const passwordRoutes = {
   'POST /api/login/password-reset': async (req, res) => {
     const body = await readBody(req);
     // The name or the e-mail, in the same fields sign-in takes them (loginTarget).
-    const k = nameKey(text(body.identifier ?? body.name ?? body.email).slice(0, 300));
+    const input=text(body.nationalDocument??body.identifier??body.name??body.email).slice(0,300);
+    const k=CENTERS_CONFIG.enabled?documentKey(input,DOCUMENT_SECRET):nameKey(input);
     const code = text(body.code).slice(0, 64);
     if (!k || !code) return json(res, 400, { error: 'name and code required', code: 'missing' });
     // Wrong codes count against the address only. A per-name pause would add nothing against a
     // 60-bit code that lives a day, and would let anyone who knows the name keep the real code
     // refused for that whole day — after the reset has already removed the old password.
     if (addressPaused(req, res, 'password')) return;
-    const find = () => db.users.find(u => u.pwReset && (nameKey(u.name) === k || u.email === k) && resetCodeMatches(code, u.pwReset)) || null;
+    if(CENTERS_CONFIG.enabled)await ensureDocumentIndex();
+    const find = () => db.users.find(u => u.pwReset && (CENTERS_CONFIG.enabled ? (u.documentKey===k||!u.documentKey&&canClaimDocument(u,k)) : nameKey(u.name)===k||u.email===k) && resetCodeMatches(code,u.pwReset))||null;
     const user = find();
     const invalid = () => json(res, 400, { error: 'that reset code is wrong or has expired', code: 'reset-invalid' });
     const taken = () => json(res, 409, { error: 'another profile already signs in with this name', code: 'name-taken' });
@@ -1499,6 +1639,7 @@ const passwordRoutes = {
     // Single use: a second request that raced this one through the hash finds the code gone.
     if (find() !== user) return invalid();
     if (nameTaken(user.name, user.id)) return taken();
+    if(CENTERS_CONFIG.enabled){if(!canClaimDocument(user,k))return invalid();user.documentKey=k;}
     setPassword(user, h);
     ACCOUNT_FAILS.clear(acctKey(user));
     saveDb();
@@ -1904,6 +2045,15 @@ function dataWritable() {
   return ok;
 }
 
+async function signupCenter(res,id){
+ if(!CENTERS_CONFIG.enabled)return null;
+ if(!id){json(res,400,{error:'Use your center registration link.',code:'registration-center-required'});return false}
+ try{return await registrationCenter(CENTERS_DATABASE,id)}catch(error){json(res,error.status||503,{error:'The center registration link is unavailable.',code:error.code||'centers-unavailable'});return false}
+}
+async function saveSignupActivation(res,user,center,nationalDocument){
+ if(!center)return true;
+ try{await requestActivation(CENTERS_DATABASE,user,{centerId:center.id,nationalDocument},{accountLocks:CENTERS_ACCOUNT_LOCKS,newAccount:true});return true}catch{json(res,503,{error:'Registration is temporarily unavailable. Please retry.',code:'centers-unavailable'});return false}
+}
 const routes = {
   // 503 rather than a flag in a 200: the container healthcheck is `wget --spider`, which reads
   // the status and nothing else, and an instance that cannot write its data directory is exactly
@@ -1933,14 +2083,16 @@ const routes = {
     // were not signed in when you asked", and would re-ask on every sign-in on every instance
     // that has no Coach. The key's absence is that answer.
     json(res, 200, {
-      invite_only: INVITE_ONLY, allow_guest: ALLOW_GUEST,
+      invite_only: INVITE_ONLY && !CENTERS_CONFIG.enabled, allow_guest: ALLOW_GUEST,
       // Only when on, so an instance without passwords answers exactly as it did before (#118).
       ...(PASSWORD_LOGIN ? { password_login: true } : {}),
+      ...(CENTERS_CONFIG.enabled?{document_login:true,passkeys:false}:{}),
       // Public: the sign-in screen is the first thing that reads it.
       ...(DEFAULT_LANG ? { default_lang: DEFAULT_LANG } : {}),
       // Public like the two flags above: the caps are not a secret, and the absence of the
       // block is how the app knows this server does not take photos and videos at all.
       ...(MEDIA_ON ? { media: mediaConfig(MEDIA_LIMITS) } : {}),
+      ...(CENTERS_CONFIG.enabled ? { centers: publicCentersConfig(CENTERS_CONFIG) } : {}),
       ...(readSession(req) ? { coach: coachConfig.publicConfig() } : {})
     });
   },
@@ -1964,8 +2116,11 @@ const routes = {
     const body = await readBody(req);
     const name = text(body.name).trim().slice(0, 40);
     if (!name) return json(res, 400, { error: 'name required' });
+    const center=await signupCenter(res,body.centerId);if(center===false)return;
+    const nationalDocument=center?normalizeNationalDocument(body.nationalDocument):null;
+    if(center&&!validNationalDocument(body.nationalDocument))return json(res,400,{error:'A valid DNI or NIE is required.',code:'national-document-invalid'});
     const code = text(body.code).trim().toUpperCase();
-    if (INVITE_ONLY && !db.invites.some(i => i.code === code && !i.usedBy && !i.revoked)) {
+    if (!center && INVITE_ONLY && !db.invites.some(i => i.code === code && !i.usedBy && !i.revoked)) {
       // The rejected code itself is never recorded — a near-miss guess in the log is a liability.
       audit(req, 'auth.register.denied', { ok: false, name, msg: 'invite-rejected' });
       return json(res, 403, { error: 'a valid invite code is required', code: 'invite' });
@@ -1978,7 +2133,7 @@ const routes = {
       authenticatorSelection: { residentKey: 'required', userVerification: 'preferred' },
       excludeCredentials: []
     });
-    const cid = putChallenge({ kind: 'register', challenge: options.challenge, name, uid, code });
+    const cid = putChallenge({ kind: 'register', challenge: options.challenge, name, uid, code, centerId:center?.id||null,nationalDocument });
     json(res, 200, { cid, options });
   },
 
@@ -1989,6 +2144,7 @@ const routes = {
       auditFail(req, 'auth.register.fail', { ok: false, msg: 'challenge-expired' });
       return json(res, 400, { error: 'challenge expired, try again', code: 'challenge-expired' });
     }
+    const center=await signupCenter(res,c.centerId);if(center===false)return;
     let verification;
     try {
       verification = await verifyRegistrationResponse({
@@ -2014,7 +2170,7 @@ const routes = {
     }
     // Re-check the invite at the last moment (it may have been used/revoked since options), then burn it.
     let invite = null;
-    if (INVITE_ONLY) {
+    if (!center && INVITE_ONLY) {
       invite = db.invites.find(i => i.code === c.code && !i.usedBy && !i.revoked);
       if (!invite) {
         audit(req, 'auth.register.fail', { ok: false, name: c.name, msg: 'invite-invalid' });
@@ -2023,7 +2179,10 @@ const routes = {
     }
     const user = { id: c.uid, name: c.name, created: new Date().toISOString() };
     if (invite) { user.invitedBy = invite.code; invite.usedBy = user.id; invite.usedAt = user.created; }
-    claimFirstAdmin(req, user);
+    if(center)user.registrationCenterId=center.id;
+    if(!CENTERS_CONFIG.enabled)claimFirstAdmin(req, user);
+    if(center&&!await saveSignupActivation(res,user,center,c.nationalDocument))return;
+    if(db.creds.some(x=>x.id===credential.id))return json(res,409,{error:'credential already registered'});
     db.users.push(user);
     db.creds.push({
       id: credential.id, userId: user.id,
@@ -2457,13 +2616,36 @@ const routes = {
     const u = db.users.find(x => x.id === body.id);
     if (!u) return json(res, 404, { error: 'no such user' });
     if (isAdmin(u)) return json(res, 400, { error: 'cannot disable an admin' });
-    u.disabled = !!body.disabled;
-    if (u.disabled) presence.delete(u.id);   // drop them off "training now" at once
-    // A device link made before the lock would otherwise still be waiting when it is lifted.
-    if (u.disabled) dropDeviceLinks(db, u.id);
-    saveDb();
-    audit(req, u.disabled ? 'admin.user.disable' : 'admin.user.enable', { user: admin, target: u });
-    json(res, 200, { ok: true, id: u.id, disabled: u.disabled });
+    const adminVersion = admin.sv || 0;
+    try {
+      await CENTERS_ACCOUNT_LOCKS.withAccounts([admin.id,u.id],async()=>{
+        const change = centers => {
+          for (const center of centers) {
+            if (!center.manager_uids.some(uid=>uid!==u.id && db.users.some(a=>a.id===uid&&!a.disabled))) {
+              throw new CentersError(409,'last-manager','assign a replacement before disabling the last manager');
+            }
+          }
+          if (readSession(req)!==admin||(admin.sv||0)!==adminVersion||!isAdmin(admin))throw new CentersError(401,'not-signed-in','not signed in');
+          if (body.disabled && CENTERS_CONFIG.superadminUids.includes(u.id) &&
+              !db.users.some(a=>a.id!==u.id&&!a.disabled&&CENTERS_CONFIG.superadminUids.includes(a.id))) {
+            throw new CentersError(409,'last-platform-admin','cannot disable the last platform administrator');
+          }
+          u.disabled = !!body.disabled;
+          if (u.disabled) presence.delete(u.id);
+          if (u.disabled) dropDeviceLinks(db, u.id);
+          saveDb();
+          audit(req, u.disabled ? 'admin.user.disable' : 'admin.user.enable', { user: admin, target: u });
+        };
+        if (CENTERS_REFERENCE_GUARD && body.disabled) {
+          try { await CENTERS_DATABASE.withManagerCenters(admin.id,u.id,change); }
+          catch(error) { if(error instanceof CentersError)throw error;throw new CentersError(503,'centers-unavailable','center references could not be checked'); }
+        } else change([]);
+        json(res, 200, { ok: true, id: u.id, disabled: u.disabled });
+      });
+    } catch(error) {
+      if(error instanceof CentersError)return json(res,error.status,{error:error.message,code:error.code});
+      throw error;
+    }
   },
 
   // Disable locks an account out; this removes it. The one destructive action in the app, so the
@@ -2479,21 +2661,42 @@ const routes = {
     if (!u) return json(res, 404, { error: 'no such user' });
     if (u.id === admin.id) return json(res, 400, { error: 'you cannot delete your own account' });
     if (isAdmin(u) && db.users.filter(isAdmin).length <= 1) return json(res, 400, { error: 'cannot delete the last admin' });
-    const name = u.name;
-    db.users = db.users.filter(x => x.id !== u.id);
-    db.creds = (db.creds || []).filter(c => c.userId !== u.id);
-    db.subs = (db.subs || []).filter(x => x.userId !== u.id);
-    dropDeviceLinks(db, u.id);
-    presence.delete(u.id);
-    // The training history and any Coach credential of theirs, both outside db.json.
-    try { fs.unlinkSync(stateFile(u.id)); } catch { /* already gone */ }
-    try { coachConfig.clearProfileAuth(u.id); } catch { /* nothing stored */ }
-    // Their photos and videos — the one place a profile's folder under uploads/ is removed.
-    try { MEDIA.removeUser(u.id); } catch (e) { console.error('media: could not remove uploads of', u.id, e.message); }
-    saveDb();
-    // Logged with the name, because the id is about to mean nothing to anyone reading this back.
-    audit(req, 'admin.user.delete', { user: admin, msg: name });
-    json(res, 200, { ok: true, id: u.id });
+    const adminVersion = admin.sv || 0;
+    try {
+      await CENTERS_ACCOUNT_LOCKS.withAccounts([admin.id, u.id], async () => {
+        if (CENTERS_REFERENCE_GUARD) {
+          let linked;
+          try { linked = await CENTERS_DATABASE.hasAccountReferences(admin.id, u.id); }
+          catch { throw new CentersError(503, 'centers-unavailable', 'center references could not be checked'); }
+          if (linked) throw new CentersError(409, 'account-linked', 'account has center references; unlink it before deleting');
+        }
+        if (readSession(req) !== admin || (admin.sv || 0) !== adminVersion || !isAdmin(admin)) {
+          throw new CentersError(401, 'not-signed-in', 'not signed in');
+        }
+        if (CENTERS_CONFIG.superadminUids.includes(u.id) &&
+            !db.users.some(a=>a.id!==u.id&&!a.disabled&&CENTERS_CONFIG.superadminUids.includes(a.id))) {
+          throw new CentersError(409,'last-platform-admin','cannot delete the last platform administrator');
+        }
+        const name = u.name;
+        db.users = db.users.filter(x => x.id !== u.id);
+        db.creds = (db.creds || []).filter(c => c.userId !== u.id);
+        db.subs = (db.subs || []).filter(x => x.userId !== u.id);
+        dropDeviceLinks(db, u.id);
+        presence.delete(u.id);
+        // The training history and any Coach credential of theirs, both outside db.json.
+        try { fs.unlinkSync(stateFile(u.id)); } catch { /* already gone */ }
+        try { coachConfig.clearProfileAuth(u.id); } catch { /* nothing stored */ }
+        // Their photos and videos — the one place a profile's folder under uploads/ is removed.
+        try { MEDIA.removeUser(u.id); } catch (e) { console.error('media: could not remove uploads of', u.id, e.message); }
+        saveDb();
+        // Logged with the name, because the id is about to mean nothing to anyone reading this back.
+        audit(req, 'admin.user.delete', { user: admin, msg: name });
+        json(res, 200, { ok: true, id: u.id });
+      });
+    } catch (error) {
+      if (error instanceof CentersError) return json(res, error.status, { error: error.message, code: error.code });
+      throw error;
+    }
   },
 
   'GET /api/admin/invites': async (req, res) => {
@@ -2574,6 +2777,17 @@ const routes = {
   // them: they are closures over db and SECRET, and passing them in keeps that module free of
   // a cycle. Every one of them is inert while the feature is unconfigured.
   ...coachRoutes({ json, readBody, readSession, requireAdmin }),
+  ...centersRoutes({ config: CENTERS_CONFIG, database: CENTERS_DATABASE, json, readSession, readBody, documentMatches:(user,raw)=>!user.documentKey||user.documentKey===documentKey(raw,DOCUMENT_SECRET),
+    hasTrainingExercise,
+    mintAccessCredential: (kind,id,version) => {
+      if(!['device','token'].includes(kind)||!Number.isSafeInteger(version)||version<1||!new RegExp('^'+(kind==='device'?'ad_':'at_')+'[a-f0-9]{32}$').test(id))throw new TypeError('invalid access credential identity');
+      // Domain-separated, reproducible private credentials. SQL stores only their
+      // hashes and versions, including when an initial HTTP response was lost.
+      return (kind==='device'?'gdev1_':'gqr1_')+crypto.createHmac('sha256',SECRET).update(JSON.stringify(['centers.access.v1',kind,id,version,...(kind==='token'?[ACCESS_QR_EPOCH]:[])])).digest('base64url');
+    },
+    readOwnTraining: uid => { const value=readStateStrict(uid); if(value===UNREADABLE)throw new CentersError(503,'training-state-unavailable','personal training is unreadable'); return value; },
+    accountLocks: CENTERS_ACCOUNT_LOCKS, lookupAccount: uid => db.users.find(u => u.id === uid),
+    accountIds: () => db.users.map(u => u.id), accountDirectory: () => db.users.map(u => ({id:u.id,name:String(u.name||''),email:u.email||null,disabled:!!u.disabled})) }),
 
   /* ---------- photos & videos ---------- */
   // Absent, not refusing, when MEDIA_UPLOADS=0: a 404 is what a server from before the feature
@@ -2658,6 +2872,7 @@ const server = http.createServer(async (req, res) => {
   // above stays a plain lookup, and so csrfOk and the catch-all see one name for every file.
   const mm = /^\/api\/media\/([0-9a-f]{64})$/.exec(url.pathname);
   if (mm) { key = req.method + ' /api/media/{hash}'; req.mediaHash = mm[1]; }
+  if(CENTERS_CONFIG.enabled && (/^\/api\/(register|login)\/(options|verify)$/.test(url.pathname)||url.pathname.startsWith('/api/device-link/')||url.pathname.startsWith('/api/account/passkeys/')||url.pathname==='/api/account/device-link'))return json(res,404,{error:'Password sign-in is required.',code:'password-only'});
   const handler = routes[key];
   if (!handler) return json(res, 404, { error: 'not found' });
   if (!csrfOk(req, key)) {
@@ -2675,7 +2890,16 @@ const server = http.createServer(async (req, res) => {
     const wait = AUTH_BURST.take(addr) || (kind ? ADDR_FAILS.retryAfter(kind + '|' + addr) : 0);
     if (wait) return tooMany(res, wait);
   }
-  try { await handler(req, res); }
+  try {
+    const gatedUser=CENTERS_CONFIG.enabled&&!renewalGateExempt(key)?readSession(req):null;
+    if(gatedUser){
+      const sv=gatedUser.sv||0;let access;
+      try{access=await applicationAccess(CENTERS_DATABASE,CENTERS_CONFIG,gatedUser)}catch{return json(res,503,{error:'centers temporarily unavailable',code:'centers-unavailable'})}
+      if(readSession(req)!==gatedUser||(gatedUser.sv||0)!==sv)return notSignedIn(res);
+      if(access.blocked)return json(res,403,{error:access.reason==='activation-pending'?'pending center activation':'renew membership to continue',code:access.reason==='activation-pending'?'account-activation-required':'membership-renewal-required',access});
+    }
+    await handler(req,res);
+  }
   catch (e) {
     if (e?.clientGone) { console.warn(key, 'client went away mid-body:', e.message); return; }
     if (e instanceof HttpError) {
@@ -2696,6 +2920,18 @@ const server = http.createServer(async (req, res) => {
     if (!res.headersSent) json(res, 500, { error: 'server error' });
   }
 });
+const CENTERS_MAIL=CENTERS_CONFIG.notificationTestCapture?createNotificationCapture(CENTERS_DATABASE):CENTERS_CONFIG.mailProfiles.length?createCloudflareEmailTransport(CENTERS_CONFIG.mailProfiles):null;
+const CENTERS_WORKER=startBillingWorker(CENTERS_DATABASE,{enabled:CENTERS_CONFIG.enabled&&CENTERS_CONFIG.jobsEnabled,
+  afterTick:CENTERS_MAIL?()=>notificationTick(CENTERS_DATABASE,{transport:CENTERS_MAIL}):undefined,
+  onError:()=>console.warn('centers jobs temporarily unavailable')});
+const CENTERS_STRIPE_WORKER=startCentersWorker(()=>stripeTick(CENTERS_DATABASE,CENTERS_CONFIG),{
+  enabled:CENTERS_CONFIG.enabled&&CENTERS_CONFIG.jobsEnabled&&CENTERS_CONFIG.stripeProfiles.length>0,
+  onError:()=>console.warn('centers reconciliation temporarily unavailable')});
+const CENTERS_MAINTENANCE_WORKER=startMaintenanceWorker(CENTERS_DATABASE,{
+  enabled:CENTERS_CONFIG.enabled&&CENTERS_CONFIG.maintenanceEnabled,
+  onResult:result=>{if(result.expired)console.info('centers expired reviews cleared:',result.expired)},
+  onError:()=>console.warn('centers maintenance temporarily unavailable')});
+server.on('close', () => { Promise.all([CENTERS_WORKER.stop(),CENTERS_STRIPE_WORKER.stop(),CENTERS_MAINTENANCE_WORKER.stop()]).then(()=>CENTERS_DATABASE.close()).catch(() => {}); });
 // Node's default of 300 s for a whole request would answer 408 to a 40 MB video on a ~1 Mbit/s
 // uplink. Half an hour covers that; a stalled upload is cut much sooner by its own 60 s idle
 // timer in media.js, a client that never finishes its headers still meets headersTimeout, and

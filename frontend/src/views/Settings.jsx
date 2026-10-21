@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState, forwardRef, useSyncExternalStore } from 'react'
 import { useNavigate, useParams, useLocation, Navigate } from 'react-router-dom'
 import { useStore, DEF, hasData } from '../store/useStore.js'
+import {navBack} from '../lib/nav.js'
 import { healthStatus, loadHealth, enableHealth, disableHealth, openHealthConnect, onHealthChange } from '../lib/health-sync.js'
 import { workoutControls } from '../lib/workout-controls.js'
 import { speedUnitOf } from '../lib/speed.js'
@@ -24,6 +25,7 @@ import { effectiveLang } from '../lib/default-lang.js'
 import { DEMO } from '../lib/demo.js'
 import { BRAND_NAME, OFFICIAL_APP_UPDATES } from '../lib/brand.js'
 import BrandHeader from '../components/BrandHeader.jsx'
+import CentersEntry from '../components/CentersEntry.jsx'
 import { MOBILE, isAndroid, shareExport, shareExportBlob, syncReminder } from '../lib/mobile.js'
 import { NUDGE_COPY, NUDGE_TONES, toneOf } from '../lib/nudge.js'
 import { referencedFiles } from '../lib/media-refs.js'
@@ -43,7 +45,7 @@ import { showsConnection, showsLocalLine } from '../components/SyncBanner.jsx'
 import BackupFolderRow, { useBackupFolder, autoBackupSubtitle } from '../components/BackupFolderRow.jsx'
 import { ServerSyncSection, KeptChangesRows, leaveServer, connectServer, passkeySignIn } from '../components/ServerSync.jsx'
 import { passwordOn, PasswordRow, openPasswordSignIn, openPasswordRegister } from '../components/PasswordAuth.jsx'
-import { usePasskeys, PasskeysRow, DeviceLinkRow, openDeviceLinkRedeem } from '../components/Passkeys.jsx'
+import { usePasskeys, PasskeysRow, openDeviceLinkRedeem } from '../components/Passkeys.jsx'
 import { Section, Row, SelectRow, Switch, Segmented, Button, TextField, SearchField } from '../components/ui.jsx'
 import { PAGES, ROOT_GROUPS, pageVisible, searchSettings, pageTrail } from './settings-pages.js'
 
@@ -94,7 +96,7 @@ export default function Settings({ page = null, find = null, via = null }) {
   const lang = effectiveLang(S, config)
   // This profile's passkeys and the code for another device (#95). A change to them is read back
   // here and by the password row, whose "Remove" depends on there being a passkey.
-  const passkeys = usePasskeys(!!user && !MOBILE && !DEMO && (page === 'account'))
+  const passkeys = usePasskeys(!!user && !config?.document_login && !MOBILE && !DEMO && (page === 'account'))
   const [credsV, setCredsV] = useState(0)
   const credsChanged = () => { passkeys.load(); setCredsV(v => v + 1) }
   const { update, importConflict, importBackup, setUnit, resetEverything: resetAll, setUser, pullState, pushState, resetDemo } = useStore()
@@ -364,7 +366,7 @@ export default function Settings({ page = null, find = null, via = null }) {
   })
   const signOutEverywhere = () => confirmSheet({
     title: t('Sign out everywhere?'),
-    message: t('Signs this profile out on every device, including this one. Phones paired with it are disconnected and have to be paired again. Your passkeys keep working, so you can sign in with them again anytime.') + running(),
+    message: t(config?.document_login?'Signs this profile out on every device. Sign in again with your DNI/NIE and password.':'Signs this profile out on every device, including this one. Phones paired with it are disconnected and have to be paired again. Your passkeys keep working, so you can sign in with them again anytime.') + running(),
     confirmText: t('Sign out everywhere'), danger: true,
     onConfirm: () => leave('everywhere', t('Signed out on all devices')),
   })
@@ -425,8 +427,7 @@ export default function Settings({ page = null, find = null, via = null }) {
   // all do the same); a page opened from a link with nothing behind it goes up to its parent.
   const back = () => {
     const up = PAGES[page]?.parent ? '/settings/' + PAGES[page].parent : '/settings'
-    if ((window.history.state?.idx || 0) > 0) nav(-1)
-    else nav(up, { replace: true })
+    navBack(up,nav)
   }
 
   /* ---------------- the pages ---------------- */
@@ -521,6 +522,14 @@ export default function Settings({ page = null, find = null, via = null }) {
       const wc = workoutControls(S)
       const setWc = (k, v) => update(s => { s.wc = { ...workoutControls(s), [k]: v } })
       return <>
+        <Section title={t('Routine')}>
+          <Row icon="chartLine" title={t('Progression')}>
+            <Switch aria-label={t('Progression')} checked={wc.routineProgression} onChange={v => setWc('routineProgression', v)} />
+          </Row>
+          <Row icon="chartLineSlash" iconTint="var(--orange)" title={t('Deload routine')}>
+            <Switch aria-label={t('Deload routine')} checked={wc.routineDeload} onChange={v => setWc('routineDeload', v)} />
+          </Row>
+        </Section>
         <Section title={t('Sessions and timed sets')}>
           {/* Whose reps a planned session opens with (lib/session-start.js). The plan's by default:
               the routine is what you said you would do, and history and progression decide the
@@ -753,11 +762,6 @@ export default function Settings({ page = null, find = null, via = null }) {
         </Row>
       </Section>
       <Section title={t('On Home')}>
-        {/* Membership QR codes on Home (views/CheckIn.jsx); off = no Home card, no route. */}
-        <Row icon="qr" iconTint="var(--blue)" title={t('Gym check-in')}
-          subtitle={t('Show a card on Home with your membership QR codes.')}>
-          <Switch checked={S.checkIn !== false} onChange={v => update(s => { s.checkIn = v })} />
-        </Row>
         {/* The Home summary is optional; hiding it leaves weight logging, history and Stats intact. */}
         <Row icon="scale" iconTint="var(--green)" title={t('Body weight')}
           subtitle={t('Show the body weight card on Home.')}>
@@ -846,6 +850,7 @@ export default function Settings({ page = null, find = null, via = null }) {
           Admin and Disconnect sit in the same block; a browser's account rows follow in their own. */}
       {user && !DEMO && <ServerSyncSection>
         {MOBILE && <>
+          <CentersEntry />
           {user.admin && <Row icon="crown" iconTint="var(--indigo)" title={t('Admin dashboard')} accessory="chevron" onClick={() => nav('/admin')} />}
           <AccountIdRow id={user.id} />
           <Row icon="signOut" iconTint="var(--red)" title={t('Disconnect')} danger onClick={disconnect} />
@@ -864,16 +869,14 @@ export default function Settings({ page = null, find = null, via = null }) {
           <Row icon="reset" iconTint="var(--blue)" title={t('Reset demo data')} accessory="chevron"
             onClick={() => confirmSheet({ title: t('Reset demo data?'), message: t('Puts the example plan, workouts and weigh-ins back the way they started.'), confirmText: t('Reset'), onConfirm: () => { resetDemo(); nav('/home'); toast(t('Demo data reset')) } })} />
         </> : user ? <>
+          <CentersEntry />
           {user.admin && <Row icon="crown" iconTint="var(--indigo)" title={t('Admin dashboard')} accessory="chevron" onClick={() => nav('/admin')} />}
-          <PasskeysRow state={passkeys.st} changed={credsChanged} />
-          <DeviceLinkRow state={passkeys.st} />
-          <Row icon="qr" iconTint="var(--blue)" title={t('Pair the mobile app')} subtitle={t('Connect the openGym app on your phone to this account.')} accessory="chevron"
-            onClick={() => useUI.getState().openSheet(close => <PairSheet close={close} />)} />
+          {!config?.document_login&&<PasskeysRow state={passkeys.st} changed={credsChanged} />}
           {pwOn && <PasswordRow version={credsV} />}
           <Row icon="signOut" iconTint="var(--red)" title={t('Sign out')} danger onClick={signOutHere} />
           <Row icon="shield" iconTint="var(--red)" title={t('Sign out everywhere')} subtitle={t('Ends this profile’s sessions on all your devices.')} danger onClick={signOutEverywhere} />
           <AccountIdRow id={user.id} />
-        </> : webauthnOK() ? <>
+        </> : !config?.document_login&&webauthnOK() ? <>
           <Row icon="plusCircle" iconTint="var(--acc)" title={t('Create passkey profile')} subtitle={t('Keeps your data safe and separate per person.')} accessory="chevron" onClick={registerHere} />
           <Row icon="fingerprint" iconTint="var(--blue)" title={t('Sign in with passkey')} accessory="chevron" onClick={passkeySignIn} />
           {/* The Login screen offers both of these; a guest who skipped it had no way to either from here. */}

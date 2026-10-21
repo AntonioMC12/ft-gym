@@ -1,3 +1,4 @@
+import {registrationCenterId} from './registration-center.js'
 // Backend + WebAuthn helpers (ported from the vanilla app).
 import { t } from './i18n-core.js'
 import { MOBILE } from './mobile.js'
@@ -90,7 +91,7 @@ async function exchange(url, init) {
   try { data = await r.json() } catch { parsed = false }
   const body = parsed && data && typeof data === 'object' ? data : null
   // The body rides along on the error: a 409 from /api/data carries the server's document.
-  if (!r.ok) { const e = new Error((body && body.error) || ('HTTP ' + r.status)); e.status = r.status; e.data = body || {}; throw e }
+  if (!r.ok) { if(['membership-renewal-required','account-activation-required'].includes(body?.code)&&typeof window!=='undefined')window.dispatchEvent(new CustomEvent('membership-renewal-required',{detail:{access:body.access}})); const e = new Error((body && body.error) || ('HTTP ' + r.status)); e.status = r.status; e.data = body || {}; throw e }
   if (!body) throw failure(t('The server answered with something other than openGym data.'), 'bad-response', r.status)
   return body
 }
@@ -369,6 +370,7 @@ function credToJSON(cred) {
 // is shown as it came.
 export function passkeyError(e, fallback) {
   switch (e?.data?.code) {
+    case 'national-document-invalid': return t('Enter a valid DNI or NIE.')
     case 'invite': return t('That invite code is not valid.')
     case 'unknown-credential': return t('This server doesn’t know that passkey. Make a profile first.')
     case 'disabled': return t('This account has been disabled.')
@@ -376,8 +378,8 @@ export function passkeyError(e, fallback) {
   }
   return e?.message || fallback
 }
-export async function passkeyRegister(name, code) {
-  const { cid, options } = await api('/api/register/options', { method: 'POST', body: JSON.stringify({ name, code: code || '' }) })
+export async function passkeyRegister(name, code, nationalDocument) {
+  const { cid, options } = await api('/api/register/options', { method: 'POST', body: JSON.stringify({ name, ...(nationalDocument?{nationalDocument}:{}), code: code || '',...(registrationCenterId()?{centerId:registrationCenterId()}:{}) }) })
   const cred = await navigator.credentials.create({ publicKey: toCreationOptions(options) })
   const res = await api('/api/register/verify', { method: 'POST', body: JSON.stringify({ cid, credential: credToJSON(cred) }) })
   return res.user
@@ -417,8 +419,8 @@ export async function passwordLogin(name, password) {
 }
 // `email` is optional, and sent only when there is one: a server from before the field would
 // otherwise ignore it without a word, which is the same thing.
-export async function passwordRegister(name, password, code, email) {
-  return (await post('/api/register/password', { name, password, code: code || '', ...(email ? { email } : {}) })).user
+export async function passwordRegister(name, password, code, email, nationalDocument) {
+  return (await post('/api/register/password', { name, password, ...(nationalDocument?{nationalDocument}:{}), code: code || '', ...(email ? { email } : {}),...(registrationCenterId()?{centerId:registrationCenterId()}:{}) })).user
 }
 export async function passwordResetRedeem(name, code, next) {
   return (await post('/api/login/password-reset', { name, code, next })).user

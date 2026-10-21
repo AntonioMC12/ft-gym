@@ -8,6 +8,9 @@ data/
 
 # Local config
 .env
+.env.centers
+.env.demo
+.demo-pages/
 
 # Build output / deps
 frontend/dist/

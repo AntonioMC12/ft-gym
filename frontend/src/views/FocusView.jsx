@@ -1,4 +1,8 @@
-import { useState } from 'react'
+import {repReference} from '../lib/rep-reference.js'
+import {sessionHistory} from '../lib/backfill.js'
+import { setFeedbackHistory, feedbackForSet } from '../lib/set-feedback.js'
+import { entryDbLoad } from '../lib/dumbbells.js'
+import { useMemo, useState } from 'react'
 import { useStore } from '../store/useStore.js'
 import { exOr } from '../lib/exercises.js'
 import { clampIncline, hasIncline, inclineFits, INCLINE_MAX, INCLINE_STEP } from '../lib/incline.js'
@@ -10,7 +14,7 @@ import { effortColor, rirOf } from '../lib/effort.js'
 import { progressionGuidance } from '../lib/progression-copy.js'
 import {
   addCluster, addDrop, addSideCluster, addSideDrop, clustersOf, dropsOf,
-  isFailureSet, isSideSet, isWarmupRow, nextBurstReps, toggleFailure, nextDropWeight, setClusterAt,
+  isFailureSet, isSideSet, isWarmupRow, toggleFailure, nextDropWeight, setClusterAt,
   setDropAt, setSideClusterAt, setSideDropAt, setSideField,
 } from '../lib/workout-model.js'
 import { weightIncrement, stepWeight } from '../lib/progression.js'
@@ -51,17 +55,15 @@ const toggleWarmup = row => {
 }
 
 const addDropTo = (row, target) => {
-  if (isSideSet(row)) return addSideDrop(row, target?.intensifier?.pct)
+  if (isSideSet(row)) return addSideDrop(row, target?.intensifier?.pct,undefined,{blankReps:true})
   const drops = dropsOf(row).length ? dropsOf(row) : row.drops || []
   const base = drops.at(-1)?.w ?? row.w ?? 0
-  return addDrop(row, { w: nextDropWeight(base, target?.intensifier?.pct), r: row.r || 0 })
+  return addDrop(row, { w: nextDropWeight(base, target?.intensifier?.pct), r: null })
 }
 
 const addBurstTo = (row, restSec) => {
-  if (isSideSet(row)) return addSideCluster(row, restSec)
-  const clusters = clustersOf(row).length ? clustersOf(row) : row.clusters || []
-  const reps = nextBurstReps(clusters.at(-1)?.r ?? row.r ?? 0)
-  return { ...addCluster(row, { r: reps, restSec }), r: (row.r || 0) + reps }
+  if (isSideSet(row)) return addSideCluster(row, restSec,{blankReps:true})
+  return addCluster(row,{r:null,restSec})
 }
 
 function Prescription({ entry, setIdx, unit, fallbackRest, children }) {
@@ -115,7 +117,17 @@ export default function FocusView({
   const speedUnit = speedUnitOf(S)
   const entry = S.active.entries[entryIdx]
   const ex = exOr(entry.id)
-  const last = lastEntryFor(S, entry.id)
+  const H = sessionHistory(S)
+  const meaning = entryDbLoad(entry)
+  const history = useMemo(() => setFeedbackHistory(H, entry), [H.workouts, entry.id, entry.rid, meaning, entry.target?.mode])
+  const feedback = (i, side) => feedbackForSet(history, entry, i, side, S.active.entries.slice(0, entryIdx))
+  const comparisonProps = (field, side) => {
+    const state = feedback(setIdx, side)[field]
+    return { comparison: state, comparisonLabel: state === 'higher' ? t('Above previous set') : state === 'equal' ? t('Matches previous set') : state === 'lower' ? t('Below previous set') : undefined }
+  }
+  const recordAt = i => entry.sets[i]?.done && (isSideSet(entry.sets[i])
+    ? feedback(i, 'L').record || feedback(i, 'R').record : feedback(i).record)
+  const last = lastEntryFor(H, entry.id, entry.rid)
   const pinnedNote = pinnedNoteFor(S, entry.id)
   const guidance = progressionGuidance(entry.plan)
   // Exercise operations use indexes, so their local-only epoch discards stale pointers instead
@@ -172,26 +184,26 @@ export default function FocusView({
     return <section className="focus-side" data-focus-side={side}>
       <div className="focus-side-header">
         <strong>{side === 'L' ? t('Left') : t('Right')}</strong>
-        <button aria-label={side === 'L' ? t('Complete left side') : t('Complete right side')}
-          className={'focus-side-check' + (sideSet.done ? ' done' : '')}
+        <button aria-label={(side === 'L' ? t('Complete left side') : t('Complete right side')) + (sideSet.done && feedback(setIdx, side).record ? ' · ' + t('New personal record') : '')}
+          className={'focus-side-check' + (sideSet.done ? ' done' : '') + (sideSet.done && feedback(setIdx, side).record ? ' set-record' : '')}
           onClick={() => onToggleSide(setIdx, side,
-            !sideSet.done && (set.sides.L.done || set.sides.R.done) ? onProgress : undefined)}><Icon name="check" /></button>
+            !sideSet.done && (set.sides.L.done || set.sides.R.done) ? onProgress : undefined)}><Icon name={sideSet.done && feedback(setIdx, side).record ? 'crown' : 'check'} /></button>
       </div>
-      <Stepper label={t('Load ({0})', S.unit)} ariaLabel="load" value={sideSet.w || 0} step={loadStep} onStep={stepLoad} disabled={readOnly || sideSet.done}
+      <Stepper {...comparisonProps('w', side)} label={t('Load ({0})', S.unit)} ariaLabel="load" value={sideSet.w || 0} step={loadStep} onStep={stepLoad} disabled={readOnly || sideSet.done}
         onChange={value => change('w', value)} />
-      <Stepper label={t('Reps')} ariaLabel="reps" value={sideSet.r || 0} step={1} decimal={false} disabled={readOnly || sideSet.done}
+      <Stepper {...comparisonProps('r', side)} label={t('Reps')} ariaLabel="reps" value={sideSet.r ?? ''} nullable placeholder={repReference(sessionHistory(S),entry,setIdx,side)||'—'} step={1} decimal={false} disabled={readOnly || sideSet.done}
         onChange={value => change('r', value)} />
       <div className="focus-extras">
         {sideDrops.map((drop, index) => <div className="focus-extra" key={`drop-${index}`}>
           <span>{t('Drop {0}', index + 1)}</span>
           <Stepper label={t('Load')} ariaLabel="load" value={drop.w || 0} step={loadStep} onStep={stepLoad} disabled={readOnly || sideSet.done}
             onChange={value => onMutateSet(setIdx, row => setSideDropAt(row, side, index, { w: value }))} />
-          <Stepper label={t('Reps')} ariaLabel="reps" value={drop.r || 0} step={1} decimal={false} disabled={readOnly || sideSet.done}
+          <Stepper label={t('Reps')} ariaLabel="reps" value={drop.r ?? ''} nullable placeholder={repReference(sessionHistory(S),entry,setIdx,side,['drops',index])||'—'} step={1} decimal={false} disabled={readOnly || sideSet.done}
             onChange={value => onMutateSet(setIdx, row => setSideDropAt(row, side, index, { r: value }))} />
         </div>)}
         {sideBursts.map((burst, index) => <div className="focus-extra" key={`burst-${index}`}>
           <span>{t('Burst {0}', index + 1)}</span>
-          <Stepper label={t('Reps')} ariaLabel="reps" value={burst.r || 0} step={1} decimal={false} disabled={readOnly || sideSet.done}
+          <Stepper label={t('Reps')} ariaLabel="reps" value={burst.r ?? ''} nullable placeholder={repReference(sessionHistory(S),entry,setIdx,side,['clusters',index])||'—'} step={1} decimal={false} disabled={readOnly || sideSet.done}
             onChange={value => onMutateSet(setIdx, row => setSideClusterAt(row, side, index, value))} />
           <span className="dim small">{burst.restSec}s</span>
         </div>)}
@@ -299,13 +311,13 @@ export default function FocusView({
             {(inclineFits(ex) || entry.sets.some(hasIncline)) && <Stepper label={t('Incline (%)')} ariaLabel="incline" value={set.incline || 0} step={INCLINE_STEP} max={INCLINE_MAX} disabled={readOnly}
               onChange={value => onField(setIdx, 'incline', clampIncline(value))} />}
           </> : <>
-            <Stepper label={t('Load ({0})', S.unit)} ariaLabel="load" value={set.w || 0} step={loadStep} onStep={stepLoad} disabled={readOnly}
+            <Stepper {...comparisonProps('w')} label={t('Load ({0})', S.unit)} ariaLabel="load" value={set.w || 0} step={loadStep} onStep={stepLoad} disabled={readOnly}
               onChange={value => onField(setIdx, 'w', value)} />
           {mode === 'time' ? <div className="focus-timed">
             <strong>{t('{0}s hold', set.sec || entry.target?.sec || 45)}</strong>
             <Button icon="play" aria-label={t('Start set')} disabled={readOnly || busy}
               onClick={() => onStartTimed(setIdx, onProgress)}>{t('Start')}</Button>
-          </div> : <Stepper label={t('Reps')} ariaLabel="reps" value={set.r || 0} step={1} decimal={false} disabled={readOnly}
+          </div> : <Stepper {...comparisonProps('r')} label={t('Reps')} ariaLabel="reps" value={set.r ?? ''} nullable placeholder={repReference(sessionHistory(S),entry,setIdx,undefined)||'—'} step={1} decimal={false} disabled={readOnly}
             onChange={value => onField(setIdx, 'r', value)} />}</>}
         </>}
         <div className="focus-extras">
@@ -313,12 +325,12 @@ export default function FocusView({
             <span>{t('Drop {0}', index + 1)}</span>
             <Stepper label={t('Load')} ariaLabel="load" value={drop.w || 0} step={loadStep} onStep={stepLoad} disabled={readOnly}
               onChange={value => onMutateSet(setIdx, row => setDropAt(row, index, { w: value }))} />
-            <Stepper label={t('Reps')} ariaLabel="reps" value={drop.r || 0} step={1} decimal={false} disabled={readOnly}
+            <Stepper label={t('Reps')} ariaLabel="reps" value={drop.r ?? ''} nullable placeholder={repReference(sessionHistory(S),entry,setIdx,undefined,['drops',index])||'—'} step={1} decimal={false} disabled={readOnly}
               onChange={value => onMutateSet(setIdx, row => setDropAt(row, index, { r: value }))} />
           </div>)}
           {bursts.map((burst, index) => <div className="focus-extra" key={`burst-${index}`}>
             <span>{t('Burst {0}', index + 1)}</span>
-            <Stepper label={t('Reps')} ariaLabel="reps" value={burst.r || 0} step={1} decimal={false} disabled={readOnly}
+            <Stepper label={t('Reps')} ariaLabel="reps" value={burst.r ?? ''} nullable placeholder={repReference(sessionHistory(S),entry,setIdx,undefined,['clusters',index])||'—'} step={1} decimal={false} disabled={readOnly}
               onChange={value => onMutateSet(setIdx, row => {
                 const delta = (Number(value) || 0) - (clustersOf(row)[index]?.r ?? row.clusters?.[index]?.r ?? 0)
                 return { ...setClusterAt(row, index, { r: value }), r: Math.max(0, (row.r || 0) + delta) }
@@ -330,7 +342,7 @@ export default function FocusView({
           style={effortTint ? { color: effortTint, borderColor: effortTint, background: `color-mix(in srgb, ${effortTint} 20%, var(--surface-2))` } : undefined}
           aria-label={t(EFFORT[effort].hd)} disabled={readOnly} onClick={openEffort}>{effortValue == null ? t(EFFORT[effort].hd) : fmtNum(effortValue)}</button>}
       </div>
-      <Button variant="primary" icon="check" aria-label={t('Complete set')} onClick={complete}>{set.done ? t('Completed') : t('Complete')}</Button>
+      <Button variant="primary" className={recordAt(setIdx) ? 'set-record' : ''} icon={recordAt(setIdx) ? 'crown' : 'check'} aria-label={t('Complete set') + (recordAt(setIdx) ? ' · ' + t('New personal record') : '')} onClick={complete}>{set.done ? t('Completed') : t('Complete')}</Button>
       <div className="focus-secondary">
         <button className="focus-skip" aria-label={t('Skip set')} disabled={setIdx >= entry.sets.length - 1} onClick={() => selectSet(setIdx + 1)}>
           <Icon name="play" />{t('Skip')}
@@ -342,9 +354,9 @@ export default function FocusView({
     <footer className="focus-pager">
       <button aria-label={t('Previous set')} disabled={setIdx === 0} onClick={() => selectSet(setIdx - 1)}><Icon name="chevronLeft" /></button>
       <div className="focus-dots">
-        {entry.sets.map((row, index) => <button key={index} aria-label={t('Set {0}', index + 1)}
-          className={(index === setIdx ? 'active ' : '') + (row.done ? 'done' : '')}
-          onClick={() => selectSet(index)} />)}
+        {entry.sets.map((row, index) => <button key={index} aria-label={t('Set {0}', index + 1) + (recordAt(index) ? ' · ' + t('New personal record') : '')}
+          className={(index === setIdx ? 'active ' : '') + (row.done ? 'done' : '') + (recordAt(index) ? ' set-record' : '')}
+          onClick={() => selectSet(index)}>{recordAt(index) && <Icon name="crown" />}</button>)}
       </div>
       <button aria-label={t('Next set')} disabled={setIdx === entry.sets.length - 1} onClick={() => selectSet(setIdx + 1)}><Icon name="chevronRight" /></button>
     </footer>

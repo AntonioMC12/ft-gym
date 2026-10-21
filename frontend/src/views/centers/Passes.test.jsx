@@ -1,0 +1,72 @@
+// @vitest-environment happy-dom
+import React,{act} from 'react'
+import {createRoot} from 'react-dom/client'
+import {beforeEach,afterEach,it,expect,vi} from 'vitest'
+vi.mock('../../lib/i18n.js',()=>({t:key=>key}))
+vi.mock('../../lib/centers-api.js',()=>({centerPasses:vi.fn(),centerPassProducts:vi.fn(),centerCommand:vi.fn(),passesErrorKey:e=>e?.code||'error'}))
+vi.mock('../../store/useStore.js',()=>({useStore:{getState:()=>({user:{id:'manager'}})}}))
+vi.mock('../../store/useCenters.js',()=>({useCenters:{getState:()=>({revokeOn:vi.fn()})}}))
+vi.mock('../../sheets.jsx',()=>({confirmSheet:vi.fn()}))
+import {centerPasses,centerPassProducts,centerCommand} from '../../lib/centers-api.js'
+import {useUI} from '../../store/useUI.js'
+import {bindUI} from '../../components/ui.jsx'
+import {confirmSheet} from '../../sheets.jsx'
+import Guard from './NavigationGuard.jsx'
+import Passes from './Passes.jsx'
+import PassProducts from './PassProducts.jsx'
+import ChargeBreakdown from './ChargeBreakdown.jsx'
+globalThis.IS_REACT_ACT_ENVIRONMENT=true
+const product={id:'p',name:'Fictional pack',kind:'paid',credits:3,validDays:30,totalMinor:'1210',priceMinor:'1000',priceIncludesTax:false,taxBasisPoints:2100,version:1,archived:false}
+const pass={id:'b',name:product.name,credits:3,remaining:2,startsOn:'2026-10-16',endsOn:'2026-11-15',canUse:true,available:true,revoked:false}
+let root,host
+function Sheets(){return useUI(s=>s.sheets).map(sheet=><section key={sheet.id}>{sheet.render(()=>useUI.getState().closeSheet(sheet.id))}</section>)}
+beforeEach(()=>{vi.clearAllMocks();useUI.getState().closeAll();bindUI(useUI);centerPasses.mockResolvedValue({passes:[],nextCursor:null});centerPassProducts.mockResolvedValue({products:[product],nextCursor:null});host=document.createElement('div');document.body.append(host);root=createRoot(host)})
+afterEach(()=>{act(()=>{root.unmount();useUI.getState().closeAll()});host.remove()})
+const render=extra=>act(async()=>{root.render(<><Passes centerId="a" ownerUid="manager" memberId="m" today="2026-10-16" {...extra}/><Sheets/></>);await Promise.resolve()})
+const button=text=>[...host.querySelectorAll('button')].find(n=>n.textContent===text)
+const row=text=>[...host.querySelectorAll('button.lrow')].find(n=>n.querySelector('.lrow-t')?.textContent===text)
+const click=text=>act(async()=>{button(text).click();await Promise.resolve()})
+const fill=(input,value)=>act(()=>{Object.getOwnPropertyDescriptor(HTMLInputElement.prototype,'value').set.call(input,value);input.dispatchEvent(new Event('input',{bubbles:true}))})
+it('quotes before assignment, confirms exact terms and retries a lost purchase with the same key',async()=>{
+  centerCommand.mockResolvedValueOnce({quote:{memberName:'Fictional member',product,startsOn:'2026-10-16',endsOn:'2026-11-15'},quoteHash:'hash'}).mockRejectedValueOnce({code:'network'}).mockResolvedValue({pass});await render();await click('Assign pass');await act(async()=>row('Pass product').click());await act(async()=>row('Fictional pack · 3 Pass credits · 30 Pass validity days · 12.10 EUR').click());await click('Preview pass purchase');await click('Save');expect(centerCommand).toHaveBeenCalledTimes(1);expect(confirmSheet.mock.calls[0][0].message).toContain('12.10 EUR');expect(confirmSheet.mock.calls[0][0].message).toContain('2026-11-15');await act(async()=>confirmSheet.mock.calls[0][0].onConfirm());await click('Save');await act(async()=>confirmSheet.mock.calls[1][0].onConfirm());expect(centerCommand.mock.calls[2][1].requestId).toBe(centerCommand.mock.calls[1][1].requestId);expect(centerCommand.mock.calls[1][1]).toMatchObject({centerId:'a',memberId:'m',productId:'p',startsOn:'2026-10-16',quoteHash:'hash'});
+})
+it('rejects a stale confirmation after changing the date or center',async()=>{
+  centerCommand.mockResolvedValue({quote:{memberName:'Member',product,startsOn:'2026-10-16',endsOn:'2026-11-15'},quoteHash:'hash'});await render();await click('Assign pass');await act(async()=>row('Pass product').click());await act(async()=>row('Fictional pack · 3 Pass credits · 30 Pass validity days · 12.10 EUR').click());await click('Preview pass purchase');await click('Save');fill(host.querySelector('input[type=date]'),'2026-10-17');await act(async()=>confirmSheet.mock.calls[0][0].onConfirm());expect(centerCommand).toHaveBeenCalledTimes(1);await render({centerId:'other'});await act(async()=>confirmSheet.mock.calls[0][0].onConfirm());expect(centerCommand).toHaveBeenCalledTimes(1);
+})
+it('own selection uses only usable passes and real cursor pagination; never assigns or revokes',async()=>{
+  const select=vi.fn();centerPasses.mockResolvedValueOnce({passes:[pass,{...pass,id:'unpaid',name:'Unpaid',canUse:false,available:false}],nextCursor:'next'}).mockResolvedValueOnce({passes:[{...pass,id:'next',name:'Later pack'}],nextCursor:null});await render({own:true,memberId:undefined,onSelect:select});expect(button('Assign pass')).toBeUndefined();expect(button('Revoke pass')).toBeUndefined();await act(async()=>row('Access entitlement').click());expect(host.textContent).not.toContain('Unpaid ·');await act(async()=>row('Fictional pack · 2 Credits remaining').click());expect(select).toHaveBeenLastCalledWith(pass);await click('Show more');expect(centerPasses).toHaveBeenLastCalledWith('a',{cursor:'next'},true);expect(host.textContent).toContain('Later pack');
+})
+it('revocation requires a reason and explicitly does not refund',async()=>{
+  centerPasses.mockResolvedValue({passes:[pass],nextCursor:null});centerCommand.mockResolvedValue({});await render();await click('Revoke pass');expect([...host.querySelectorAll('button')].filter(n=>n.textContent==='Revoke pass').at(-1).disabled).toBe(true);fill(host.querySelector('input'),'Fictional duplicate');await act(async()=>[...host.querySelectorAll('button')].filter(n=>n.textContent==='Revoke pass').at(-1).click());expect(confirmSheet.mock.calls[0][0].message).toContain('Revoking a pass does not issue a refund.');await act(async()=>confirmSheet.mock.calls[0][0].onConfirm());expect(centerCommand).toHaveBeenCalledWith('/api/centers/passes/revoke',expect.objectContaining({centerId:'a',id:'b',reason:'Fictional duplicate'}));
+})
+it('catalogue leaves commercial terms unset and preserves acquired packs when archiving',async()=>{
+  await act(async()=>{root.render(<PassProducts centerId="a" ownerUid="manager"/>);await Promise.resolve()});await click('Archive pass product');expect(confirmSheet.mock.calls[0][0].message).toContain('Purchased passes keep their original terms.');await click('Create pass product');expect(host.querySelector('input').value).toBe('');expect(button('Save').disabled).toBe(true);
+})
+it('pass receipts show exact amounts without fabricated monthly proration',()=>{
+  act(()=>root.render(<ChargeBreakdown quote={{concept:'pass',name:'Fictional pass',credits:3,startsOn:'2026-10-16',periodEnd:'2026-11-15',netMinor:'1000',taxMinor:'210',totalMinor:'1210',currency:'EUR'}}/>));expect(host.textContent).toContain('12.10 EUR');expect(host.textContent).not.toContain('Billable days');expect(host.textContent).not.toContain('undefined');
+})
+it('keeps both pass quantity fields styled and editable through focus and blur',async()=>{
+  await act(async()=>{root.render(<PassProducts centerId="a" ownerUid="manager"/>);await Promise.resolve()});await click('Create pass product');
+  for(const [label,value] of [['Pass credits','15'],['Pass validity days','365']]){
+    const input=[...host.querySelectorAll('label')].find(node=>node.textContent===label).querySelector('input');
+    expect(input.classList.contains('field')).toBe(true);await act(async()=>input.focus());fill(input,value);await act(async()=>input.blur());expect(input.value).toBe(value);expect(input.classList.contains('field')).toBe(true);
+  }
+})
+it('saves without requesting the optional preview first and recalculates after editing a preview',async()=>{
+ const review=date=>({quote:{memberName:'Member',product,startsOn:date,endsOn:'2026-11-15'},quoteHash:date})
+ centerCommand.mockResolvedValueOnce(review('2026-10-16'));await render();await click('Assign pass');await act(async()=>row('Pass product').click());await act(async()=>row('Fictional pack · 3 Pass credits · 30 Pass validity days · 12.10 EUR').click());await click('Save');expect(centerCommand.mock.calls[0]).toEqual(['/api/centers/passes/preview',expect.objectContaining({startsOn:'2026-10-16'})]);expect(confirmSheet).toHaveBeenCalledOnce();
+ fill(host.querySelector('input[type=date]'),'2026-10-17');centerCommand.mockResolvedValueOnce(review('2026-10-17'));await click('Save');expect(centerCommand.mock.calls[1][1].startsOn).toBe('2026-10-17');await act(async()=>confirmSheet.mock.calls[0][0].onConfirm());expect(centerCommand).toHaveBeenCalledTimes(2);centerCommand.mockResolvedValueOnce({pass});await act(async()=>confirmSheet.mock.calls[1][0].onConfirm());expect(centerCommand.mock.calls[2]).toEqual(['/api/centers/passes/purchase',expect.objectContaining({startsOn:'2026-10-17',quoteHash:'2026-10-17'})]);
+})
+it('provides an independent reason before selection and focuses inline date errors on submission',async()=>{
+ await render();await click('Assign pass');expect(button('Save').disabled).toBe(true);const help=host.querySelector('[aria-label="Why is this unavailable?"]');await act(async()=>help.focus());expect(document.querySelector('[role=tooltip]').textContent).toBe('Choose a pass to continue.');await act(async()=>row('Pass product').click());await act(async()=>row('Fictional pack · 3 Pass credits · 30 Pass validity days · 12.10 EUR').click());fill(host.querySelector('input[type=date]'),'2026-10-15');await act(async()=>host.querySelector('form').dispatchEvent(new Event('submit',{bubbles:true,cancelable:true})));expect(host.querySelector('[role=alert]').textContent).toBe('Choose a valid start date.');expect(document.activeElement).toBe(host.querySelector('input[type=date]'));expect(centerCommand).not.toHaveBeenCalled();
+})
+
+it('only confirms cancellation after a real edit, and clearing the selection restores the clean baseline',async()=>{
+ await act(async()=>{root.render(<><Guard><Passes centerId="a" ownerUid="manager" memberId="m" today="2026-10-16"/></Guard><Sheets/></>);await Promise.resolve()});await click('Assign pass');await click('Cancel');expect(confirmSheet).not.toHaveBeenCalled();expect(button('Assign pass')).toBeTruthy();await click('Assign pass');await act(async()=>row('Pass product').click());await act(async()=>row('Fictional pack · 3 Pass credits · 30 Pass validity days · 12.10 EUR').click());expect(host.querySelector('form .centers-unsaved-indicator')).not.toBeNull();await act(async()=>row('Pass product').click());await click('Choose a pass');expect(host.querySelector('.centers-unsaved-indicator')).toBeNull();await act(async()=>row('Pass product').click());await act(async()=>row('Fictional pack · 3 Pass credits · 30 Pass validity days · 12.10 EUR').click());await click('Cancel');expect(confirmSheet.mock.calls[0][0].title).toBe('Discard changes?');expect(host.querySelector('form')).not.toBeNull();await act(async()=>confirmSheet.mock.calls[0][0].onConfirm());expect(host.querySelector('form')).toBeNull();expect(host.querySelector('.centers-unsaved-indicator')).toBeNull();
+})
+it('edits catalogue terms by replacing the definition and retaining its concurrency version',async()=>{
+ centerCommand.mockResolvedValue({product:{...product,id:'replacement'}});await act(async()=>{root.render(<PassProducts centerId="a" ownerUid="manager"/>);await Promise.resolve()});await click('Edit');expect(host.querySelector('input').value).toBe(product.name);fill(host.querySelector('input'),'Revised pack');await click('Save');await act(async()=>confirmSheet.mock.calls[0][0].onConfirm());expect(centerCommand).toHaveBeenCalledWith('/api/centers/passes/products/revise',expect.objectContaining({centerId:'a',id:product.id,version:product.version,fields:expect.objectContaining({name:'Revised pack',credits:'3',validDays:'30'})}));
+})
+it('consumes the selected pass instead of an arbitrary FEFO pass and disables the daily action after use',async()=>{
+ centerPasses.mockResolvedValueOnce({passes:[pass],nextCursor:null,usedToday:false}).mockResolvedValue({passes:[{...pass,remaining:1}],nextCursor:null,usedToday:true});centerCommand.mockResolvedValue({usedOn:'2026-10-16',remaining:1});await render({canConsume:true});await click('Register day of use');expect(centerCommand).toHaveBeenCalledWith('/api/centers/passes/day',expect.objectContaining({centerId:'a',memberId:'m',passId:pass.id}));expect(button('Register day of use').disabled).toBe(true);await act(async()=>host.querySelector('[aria-label="Why is this unavailable?"]').focus());expect(document.querySelector('[role=tooltip]').textContent).toBe('This day is already registered.');
+})

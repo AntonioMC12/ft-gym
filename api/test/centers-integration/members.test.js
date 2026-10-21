@@ -1,0 +1,73 @@
+import {test} from 'node:test';
+import assert from 'node:assert/strict';
+import {randomBytes} from 'node:crypto';
+import {isolatedDatabase,startHttp} from './helpers.mjs';
+import {createCentersDatabase} from '../../centers/db.js';
+
+test('member CRUD is idempotent, paginated, locally unique and role-filtered',async t=>{
+  const {app,migrator}=await isolatedDatabase();t.after(()=>migrator.end());
+  const db=createCentersDatabase({enabled:true,databaseUrl:app});t.after(()=>db.close());
+  const p='s_'+randomBytes(6).toString('hex'),platform=p+'_platform',a=p+'_a',b=p+'_b',trainer=p+'_trainer',technical=p+'_technical';
+  const h=await startHttp(t,{app,superadminUids:[platform],users:[platform,a,b,trainer].map(id=>({id,name:id})).concat([{id:technical,name:technical,admin:true}])});
+  const request=async(path,uid,body)=>{const r=await fetch(h.base+path,{headers:h.headers(uid),...(body?{method:'POST',body:JSON.stringify(body)}:{})});return{status:r.status,body:await r.json()};};
+  const center=async uid=>(await request('/api/platform/centers/create',platform,{name:uid,managerUid:uid,requestId:uid+'_center'})).body.center.id;
+  const ca=await center(a),cb=await center(b);
+  assert.equal((await request('/api/centers/staff/assign',a,{centerId:ca,version:1,accountUid:trainer})).status,200);
+  const command={centerId:ca,name:'Synthetic person',email:'synthetic@example.test',nationalDocument:'TEST-001',requestId:p+'_member'};
+  const first=await request('/api/centers/members/create',a,command);assert.equal(first.status,200);
+  const member=first.body.member;assert.equal(member.state,'preactive');assert.equal(member.number,'M-000001');
+  assert.match(member.joinedOn,/^\d{4}-\d{2}-\d{2}$/);assert.equal('accountUid' in member,false);
+  assert.deepEqual((await request('/api/centers/members/create',a,command)).body,first.body);
+  assert.equal((await request('/api/centers/members/create',a,{...command,name:'Different'})).body.code,'idempotency-conflict');
+  assert.equal((await request('/api/centers/members/create',a,{...command,email:'SYNTHETIC@example.test',requestId:p+'_duplicate'})).body.code,'duplicate');
+  assert.equal((await request('/api/centers/members/create',b,{...command,centerId:cb})).status,200);
+  assert.equal((await request('/api/centers/members/create',trainer,{...command,requestId:p+'_trainer'})).status,403);
+  assert.equal((await request('/api/centers/members/create',a,{...command,accountUid:a})).status,400);
+  const concurrent=await Promise.all(['one','two'].map(x=>request('/api/centers/members/create',a,{centerId:ca,name:'Synthetic '+x,requestId:p+'_'+x})));
+  assert.deepEqual(concurrent.map(x=>x.status),[200,200]);assert.equal(new Set(concurrent.map(x=>x.body.member.number)).size,2);
+  const listed=await request(`/api/centers/members?centerId=${ca}&limit=1`,a);
+  assert.equal(listed.body.members.length,1);assert.ok(listed.body.nextCursor);
+  const next=await request(`/api/centers/members?centerId=${ca}&limit=1&cursor=${listed.body.nextCursor}`,a);
+  assert.equal(next.status,200);assert.notEqual(listed.body.members[0].id,next.body.members[0].id);
+  assert.equal((await request(`/api/centers/members?centerId=${cb}&cursor=${listed.body.nextCursor}`,b)).status,400);
+  assert.equal((await request(`/api/centers/members?centerId=${ca}`,b)).status,404);
+  const operational=await request(`/api/centers/members?centerId=${ca}`,trainer);
+  assert.equal(operational.status,200);assert.ok(operational.body.members.every(m=>!('email'in m)&&!('nationalDocument'in m)));
+  assert.equal((await request(`/api/centers/member?centerId=${cb}&id=${member.id}`,b)).status,404);
+  const fields={centerId:ca,id:member.id,version:1,name:'Updated',email:null,phone:'123',nationalDocument:'TEST-001'};
+  assert.equal((await request('/api/centers/members/update',a,fields)).body.member.version,2);
+  assert.equal((await request('/api/centers/members/update',a,fields)).body.code,'version-conflict');
+  assert.equal((await request('/api/centers/members/update',trainer,fields)).status,403);
+  assert.equal((await request('/api/centers/members/update',b,{...fields,centerId:cb})).status,404);
+  const literal=await request('/api/centers/members/create',a,{centerId:ca,name:'Literal%name',requestId:p+'_literal'});assert.equal(literal.status,200);
+  assert.equal((await request(`/api/centers/members?centerId=${ca}&query=%25`,a)).body.members.length,1);
+  const audit=await db.transaction({uid:a,centerId:ca},client=>client.query('SELECT details FROM centers.business_audit WHERE center_id=$1 AND action LIKE $2',[ca,'member.%']));
+  assert.ok(audit.rows.length>=5);assert.ok(audit.rows.every(r=>Object.keys(r.details).length===0));
+  // The explicit superadmin administers business without being assigned as a local manager.
+  const global=await request('/api/centers/members/create',platform,{centerId:cb,name:'Global synthetic',requestId:p+'_global'});
+  assert.equal(global.status,200);
+  const globalRead=await request(`/api/centers/member?centerId=${ca}&id=${member.id}`,platform);
+  assert.equal(globalRead.status,200);assert.equal(globalRead.body.member.nationalDocument,'TEST-001');
+  assert.equal((await request(`/api/centers/members?centerId=${ca}`,platform)).status,200);
+  assert.equal((await request('/api/centers/members/update',platform,{...fields,version:2,name:'Global update'})).status,200);
+  assert.equal((await request(`/api/centers/members?centerId=${ca}&platform=true`,technical)).status,404);
+  assert.equal((await request('/api/centers/members/create',a,{...command,platform:true})).status,400);
+  const globalAudit=await db.platformTransaction(platform,client=>client.query("SELECT action FROM centers.business_audit WHERE actor_uid=$1 AND action LIKE 'platform.members.%'",[platform]));
+  assert.ok(globalAudit.rows.some(r=>r.action==='platform.members.read'));
+  assert.ok(globalAudit.rows.some(r=>r.action==='platform.members.manage'));
+  assert.equal((await db.platformTransaction(platform,client=>client.query('SELECT id FROM centers.role_assignments WHERE account_uid=$1',[platform]))).rows.length,0);
+});
+
+
+test('directory pages 600 records without accumulation, applies global filters and restricts document search',async t=>{
+ const {fixture}=await import('./class-fixture.mjs');const f=await fixture(t);
+ await f.db.transaction({uid:f.ids.manager,centerId:f.center},client=>client.query(`INSERT INTO centers.members(id,center_id,member_number,name,national_document,joined_on) SELECT $1||'_bulk_'||n,$2,'M-'||lpad((n+100)::text,6,'0'),'Directory person '||n,CASE WHEN n=1 THEN '12.345.678-z' ELSE NULL END,$3::date FROM generate_series(1,600)n`,[f.p,f.center,f.today]));
+ const list=(who,options={})=>f.req('/api/centers/members?'+new URLSearchParams({centerId:f.center,limit:20,...options}),who);
+ let cursor='',ids=new Set();
+ do{const page=await list(f.ids.trainer,cursor?{cursor}:{});assert.equal(page.status,200,JSON.stringify(page));assert.equal(page.body.total,603);assert.ok(page.body.members.length<=20);for(const row of page.body.members){assert.ok(!ids.has(row.id));ids.add(row.id)}cursor=page.body.nextCursor}while(cursor);assert.equal(ids.size,603);
+ assert.equal((await list(f.ids.manager,{account:'linked'})).body.total,3);assert.equal((await list(f.ids.manager,{account:'unlinked'})).body.total,600);
+ assert.equal((await list(f.ids.manager,{state:'preactive',query:'Directory person'})).body.total,600);
+ const doc=await list(f.ids.manager,{query:'12345678Z'});assert.equal(doc.body.total,1);assert.equal(doc.body.members[0].name,'Directory person 1');assert.equal((await list(f.ids.trainer,{query:'12345678Z'})).body.total,0);
+ const current=await list(f.ids.manager,{feeStatus:'current'});assert.equal(current.status,200,JSON.stringify(current));assert.equal(current.body.total,3);assert.ok(current.body.members.every(m=>['active','grace'].includes(m.fee.status)));assert.equal((await list(f.ids.manager,{feeStatus:'expired'})).body.total,0);assert.equal((await list(f.ids.trainer,{feeStatus:'current'})).status,403);
+ const first=await list(f.ids.trainer);assert.equal((await list(f.ids.trainer,{cursor:first.body.nextCursor,account:'unlinked'})).status,400);assert.equal((await f.req('/api/centers/members?'+new URLSearchParams({centerId:f.other,query:'Directory person'}),f.ids.root)).body.total,0);
+});

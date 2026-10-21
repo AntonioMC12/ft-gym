@@ -3,5 +3,8 @@ frontend/dist
 media
 data
 .env
+.env.*
+.demo-pages
+coach-auth
 .git
 *.log

@@ -1,0 +1,3 @@
+# Test-only image; production targets do not include backup credentials or CLI tools.
+FROM ft-gym-centers-test-api:local
+RUN apk add --no-cache postgresql18-client

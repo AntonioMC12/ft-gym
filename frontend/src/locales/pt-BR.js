@@ -1,9 +1,56 @@
+import {classStrings} from './modules/classes.js'
+import {memberImportStrings} from './modules/member-imports.js'
 // Brazilian Portuguese overrides. Shared, region-neutral strings inherit from pt-PT.
 // Tests fingerprint every deliberately inherited entry so upstream changes require review.
 // Some byte-identical overrides intentionally pin wording that must not drift with pt-PT.
 import pt from './pt.js'
+import { centersStrings } from './modules/centers.js'
+import {trainingStrings} from './modules/training.js'
+import {accessStrings} from './modules/access.js'
+import {metricsStrings} from './modules/metrics.js'
+import {centerUiStrings} from './modules/center-ui.js'
 
 export const PT_BR_OVERRIDES = {
+  ...centersStrings('pt'),
+  ...classStrings('pt-BR'),
+  ...trainingStrings('pt-BR'),
+  ...accessStrings('pt-BR'),
+  ...metricsStrings('pt-BR'),
+  ...centerUiStrings('pt-BR'),
+  ...memberImportStrings('pt-BR'),
+  'Request verification code': 'Solicitar código de verificação',
+  'Check the verification code or request a new one.': 'Confira o código ou solicite outro.',
+  'Sending notice': 'Enviando aviso',
+  'Issue receipt records automatically; no payments are collected.': 'Gerar registros de recibos automaticamente; nenhum pagamento é cobrado.',
+  'The initial date is locked after saving.': 'A data inicial fica fixa após salvar.',
+  'Record payment': 'Registrar pagamento',
+  'Record refund': 'Registrar reembolso',
+  'Manual record only. No money is transferred.': 'Apenas registro manual. Não há transferência de dinheiro.',
+  'Payment recorded.': 'Pagamento registrado.',
+  'Refund recorded.': 'Reembolso registrado.',
+  'Invitation accepted': 'Convite aceito',
+  'Invitation already accepted': 'Convite já aceito',
+  'Invitation link': 'Link do convite',
+  'The link is shown once. If lost, revoke and create another.': 'O link aparece uma vez. Se você perder, revogue e crie outro.',
+  'Create the personal account first, then use its account ID.': 'Crie primeiro a conta pessoal e depois use seu ID de conta.',
+  'Resumption date': 'Data de retomada',
+  'Automatic resumption': 'Retomada automática',
+  'Resume membership': 'Retomar inscrição',
+  'Cancel the pending change before adding another.': 'Cancele a alteração pendente antes de adicionar outra.',
+  'Member changed. Reload and try again.': 'O sócio mudou. Recarregue e tente novamente.',
+  'Check the member details.': 'Confira os dados do sócio.',
+  'Duplicate member in this center.': 'Já existe um sócio com estes dados neste centro.',
+  'Manage centers': 'Gerenciar centros',
+  'Center address': 'Endereço do centro',
+  'Contact email': 'Email de contato',
+  'Center capacity': 'Capacidade do centro',
+  'Center staff': 'Equipe do centro',
+  'Loading centers': 'Carregando centros',
+  'Centers are unavailable. Try again.': 'Os centros não estão disponíveis. Tente novamente.',
+  'You do not have access to this center.': 'Você não tem acesso a este centro.',
+  'Check the center details.': 'Confira os dados do centro.',
+  'Assign a replacement before removing the last manager.': 'Atribua um substituto antes de remover o último responsável.',
+  'Center changed. Reload and try again.': 'O centro mudou. Recarregue e tente novamente.',
   '{0} set brings an {1} with it. Switch on Effort per set in Settings to see it.': '{0} série traz um {1} junto. Ative “Esforço por série” nas Configurações para ver.',
   'Add to this set': 'Adicionar a esta série',
   'Copy this exercise’s warm-up sets, and the rest and note from its Exercise settings, into the routine. A note added for today stays with this workout. Your workout history is kept.': 'Copia para a rotina as séries de aquecimento deste exercício, e o descanso e a anotação das Configurações do exercício dele. Uma anotação adicionada para hoje fica com este treino. Seu histórico de treinos é mantido.',

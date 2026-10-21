@@ -1,7 +1,7 @@
 // Logging a workout after the fact. The session itself is the ordinary active workout with a
 // `backfill` field on it; these helpers are the parts that differ from a live session, kept
 // pure so the date arithmetic and the history surgery can be tested without the UI.
-import { bestWeightForEntry } from './history.js'
+import { bestWeightForEntry,modeOf } from './history.js'
 import { isSideSet, syncSideAggregate } from './workout-model.js'
 import { mergeWorkoutMedia, stampWorkout } from './sync-merge.js'
 
@@ -95,9 +95,10 @@ export function completeBackfill(workouts, active, w, now = Date.now()) {
 // last set would have stamped. Returns new entries; the caller stores them.
 export function markAllSetsDone(entries) {
   return (entries || []).map(entry => {
+    const done=row=>!(modeOf({...entry.target,id:entry.id})==='reps'&&row.r===null)
     const sets = (entry.sets || []).map(s => (isSideSet(s)
-      ? syncSideAggregate({ ...s, sides: { L: { ...s.sides.L, done: true }, R: { ...s.sides.R, done: true } } })
-      : { ...s, done: true }))
+      ? syncSideAggregate({ ...s, sides: { L: { ...s.sides.L, done: done(s.sides.L) }, R: { ...s.sides.R, done: done(s.sides.R) } } })
+      : { ...s, done: done(s) }))
     const next = { ...entry, sets }
     next.topW = bestWeightForEntry(next) || null
     return next

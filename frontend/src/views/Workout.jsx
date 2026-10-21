@@ -1,4 +1,6 @@
-import { Fragment, useEffect, useId, useRef, useState } from 'react'
+import {tappable} from '../lib/use-sheet-keyboard.js'
+import {blankRepRows,repReference,repsEntered} from '../lib/rep-reference.js'
+import { Fragment, useEffect, useId, useMemo, useRef, useState } from 'react'
 import SwipeCards from '../components/SwipeCards.jsx'
 import SwipeRow from '../components/SwipeRow.jsx'
 import { useNavigate } from 'react-router-dom'
@@ -8,7 +10,7 @@ import { useUI } from '../store/useUI.js'
 import { exOr, betterWeight } from '../lib/exercises.js'
 import { usesBar } from '../lib/bar.js'
 import { loadKindFor, baseWeightFor, inventoryFor, rowLoad, sameLoad, plateDelta, dropGrid } from '../lib/plates.js'
-import { effectiveRoutines, effectiveRoutineIds, lastEntryFor, bestWeightFor, bestWeightForEntry, buildSets, freestyleConfig, defaultConfig, setsDoneActive, setUnitsTotal, supersetUnits, unitOf, setLabel, modeOf, isBw, isPerSide, repStep, EFFORT, effortOf, stepEffort, capEffort, cascadeWeight, insertWarmupRow, barFloor, makeWarmupAt, canBeWarmup, makeWorkAt, removeRowAt, removeLastSet, setSpanAt, copyRowAt, copySpanAt, insertRowAt, pairAdjacent, unpairSuperset, cleanupSg, applyIntensifierPlan, pinnedNoteFor, exNoteFor, setsRepsOf } from '../lib/history.js'
+import { effectiveRoutines, lastEntryFor, bestWeightFor, bestWeightForEntry, buildSets, freestyleConfig, defaultConfig, setsDoneActive, setUnitsTotal, supersetUnits, unitOf, setLabel, modeOf, isBw, isPerSide, repStep, EFFORT, effortOf, stepEffort, capEffort, cascadeWeight, insertWarmupRow, barFloor, makeWarmupAt, canBeWarmup, makeWorkAt, removeRowAt, removeLastSet, setSpanAt, copyRowAt, copySpanAt, insertRowAt, pairAdjacent, unpairSuperset, cleanupSg, applyIntensifierPlan, pinnedNoteFor, exNoteFor, setsRepsOf } from '../lib/history.js'
 import { fmtNum, fmtPlate, exerciseNameText, fmtDate, fmtDaysAgo, todayISO, exCount, DAYN } from '../lib/format.js'
 import { speedUnitOf, toSpeed, fromSpeed } from '../lib/speed.js'
 import { clampIncline, hasIncline, inclineFits, inclineFrom, INCLINE_STEP } from '../lib/incline.js'
@@ -39,8 +41,9 @@ import { routineChangesFromEntry, updateRoutineFromEntry } from '../lib/routines
 import { sessionNoProg, setSessionNoProg, setEntryNoProg, joinSessionNoProg } from '../lib/session-noprog.js'
 import { glyphOf } from '../lib/glyphs.js'
 import { markAllSetsDone, sessionHistory } from '../lib/backfill.js'
+import { setFeedbackHistory, feedbackForSet } from '../lib/set-feedback.js'
 import { bestSetFor } from '../lib/exercise-history.js'
-import { isWarmupRow, isFailureSet, toggleFailure, isDropSet, isRestPauseSet, dropsOf, clustersOf, addDrop, addCluster, removeDropAt, removeClusterAt, setDropAt, setClusterAt, nextDropWeight, nextBurstReps, isSideSet, makeSideSet, setSideField, toggleSide, addSideDrop, removeSideDropAt, setSideDropAt, addSideCluster, removeSideClusterAt, setSideClusterAt, WEIGHT_ORIGIN_MANUAL } from '../lib/workout-model.js'
+import { isWarmupRow, isFailureSet, toggleFailure, isDropSet, isRestPauseSet, dropsOf, clustersOf, addDrop, addCluster, removeDropAt, removeClusterAt, setDropAt, setClusterAt, nextDropWeight, isSideSet, makeSideSet, setSideField, toggleSide, addSideDrop, removeSideDropAt, setSideDropAt, addSideCluster, removeSideClusterAt, setSideClusterAt, WEIGHT_ORIGIN_MANUAL } from '../lib/workout-model.js'
 import { canMoveActiveWorkoutUnit, moveActiveWorkoutUnit, canMoveActiveWorkoutEntry, moveActiveWorkoutEntry } from '../lib/active-workout-order.js'
 import { nextOpenSet, workoutKeyAction } from '../lib/workout-keys.js'
 import { MUSCLE_NAME } from '../lib/muscles.js'
@@ -56,12 +59,12 @@ const HOLD_KEY_GRACE_MS = 1500
 function StartChooser() {
   const nav = useNavigate()
   const S = useStore(s => s.S)
-  const todayIds = effectiveRoutineIds(S, todayISO())
-  const todayRoutines = effectiveRoutines(S, todayISO())
+  const todayRoutines = effectiveRoutines(S, todayISO()).filter(r=>r.ex?.length)
+  const todayIds = todayRoutines.map(r=>r.id)
   const todayName = todayRoutines.map(r => r.name).join(' + ')
   const todayOvr = S.dayPlan[todayISO()] !== undefined && pinState(S, S.dayPlan[todayISO()]) !== 'done' // a fulfilled pin is no override
   const idSet = new Set(todayIds)
-  const others = S.routines.filter(r => !idSet.has(r.id))
+  const others = S.routines.filter(r => r.ex?.length&&(!idSet.has(r.id)||todayRoutines.length>1))
   return <div className="narrow">
     <div className="hdr"><div><h1>{t('Start workout')}</h1><div className="sub">{t(DAYN[new Date().getDay()])} · {todayRoutines.length ? t('today is {0}', todayName) : t('rest day, but no one’s stopping you')}</div></div></div>
     {todayRoutines.length > 0 && <div className="card" style={{ borderColor: 'var(--acc)' }}>
@@ -72,14 +75,14 @@ function StartChooser() {
       </div>
       <Button variant="primary" icon="play" onClick={() => startFlow(todayIds)}>{t('Start {0}', todayName)}</Button>
     </div>}
-    {others.length > 0 && <><h4 className="sec">{t('Other routines')}</h4>
-      <div className="list">{others.map(r => <div key={r.id} className="item" onClick={() => startFlow([r.id])}>
+    {others.length > 0 && <><h4 className="sec">{t(todayRoutines.length>1?'All routines':'Other routines')}</h4>
+      <div className="list">{others.map(r => <div key={r.id} className="item" {...tappable(()=>startFlow([r.id]))}>
         <span className="lrow-i"><Icon name={glyphOf(r.emoji)} /></span>
         <div className="grow"><div className="tt">{r.name}</div><div className="ss">{exCount(r.ex.length)}</div></div>
         <span className="tag acc">{t('Start')}</span></div>)}</div></>}
     <div style={{ height: 14 }} />
     <Button icon="shuffle" onClick={() => startFlow([])}>{t('Freestyle workout (pick as you go)')}</Button>
-    {!S.routines.length && <><div style={{ height: 10 }} /><Button variant="primary" onClick={() => nav('/plan')}>{t('Build a plan first')}</Button></>}
+    {!S.routines.some(r=>r.ex?.length)&&<p role="status" className="empty">{t('No routines available to start.')}</p>}
   </div>
 }
 
@@ -131,24 +134,21 @@ function ExerciseBlock({ entryIdx, compact, dense, editing, onToggle, onToggleSi
     // A unilateral set drops per side (issue #60): addSideDrop seeds each side from its own weight.
     if (isSideSet(row)) {
       const pct = entry.target?.intensifier?.type === 'dropset' ? entry.target.intensifier.pct : undefined
-      return addSideDrop(row, pct, dropGrid(S, { ...entry.target, id: entry.id }))
+      return addSideDrop(row, pct, dropGrid(S, { ...entry.target, id: entry.id }),{blankReps:true})
     }
     const drops = dropsOf(row)
     const base = drops.length ? drops[drops.length - 1].w : (row.w || 0)
     const pct = entry.target?.intensifier?.type === 'dropset' ? entry.target.intensifier.pct : undefined
     // On a weight you can load: the plates you own, else the exercise's step (lib/plates.js).
-    return addDrop(row, { w: nextDropWeight(base, pct, dropGrid(S, { ...entry.target, id: entry.id })), r: row.r })
+    return addDrop(row, { w: nextDropWeight(base, pct, dropGrid(S, { ...entry.target, id: entry.id })), r: null })
   })
   // A rest-pause row's own reps are always the total across every burst (see
   // applyIntensifierPlan/history.js) — clusters are the breakdown of that total, not extra on
   // top of it — so adding, removing or editing one keeps `r` in step by the same delta.
   const addBurstRow = i => mutSet(i, row => {
     const restSec = entry.target?.intensifier?.type === 'restpause' ? entry.target.intensifier.restSec : (S.restPauseSec || 15)
-    if (isSideSet(row)) return addSideCluster(row, restSec)   // per side, each keeps its own r in step
-    const clusters = clustersOf(row)
-    const base = clusters.length ? clusters[clusters.length - 1].r : (row.r || 0)
-    const added = nextBurstReps(base)
-    return { ...addCluster(row, { r: added, restSec }), r: (row.r || 0) + added }
+    if (isSideSet(row)) return addSideCluster(row, restSec,{blankReps:true})   // per side, each keeps its own r in step
+    return addCluster(row,{r:null,restSec})
   })
   // Per-side weight/reps/effort edits (issue #60): patch one side of a unilateral row, keeping
   // the row's aggregate (r/w/done/effort) in step via the model helper so every other reader
@@ -200,6 +200,26 @@ function ExerciseBlock({ entryIdx, compact, dense, editing, onToggle, onToggleSi
   // Read in the meaning this session logs a dumbbell weight in (lib/dumbbells.js), so a past
   // "40 total" is not a record a "22 each" set has to beat.
   const meaning = entryDbLoad(entry)
+  const feedbackHistory = useMemo(() => setFeedbackHistory({ workouts: H.workouts }, entry),
+    [H.workouts, entry.id, entry.rid, mode, meaning])
+  const feedbackRows = useMemo(() => entry.sets.map((row, i) => {
+    const earlier = S.active.entries.slice(0, entryIdx)
+    return { main: feedbackForSet(feedbackHistory, entry, i, undefined, earlier),
+      ...(isSideSet(row) ? { L: feedbackForSet(feedbackHistory, entry, i, 'L', earlier), R: feedbackForSet(feedbackHistory, entry, i, 'R', earlier) } : {}) }
+  }), [feedbackHistory, entry, S.active.entries, entryIdx])
+  const feedback = (i, side) => feedbackRows[i]?.[side || 'main'] || {}
+  const feedbackLabel = state => state === 'higher' ? t('Above previous set') : state === 'equal' ? t('Matches previous set') : state === 'lower' ? t('Below previous set') : ''
+  const feedbackProps = (i, field, side) => {
+    const state = feedback(i, side)[field]
+    return state ? { 'data-comparison': state, title: feedbackLabel(state) } : {}
+  }
+  const doneCheck = (s, i, label, side) => {
+    const done = side ? s.sides?.[side]?.done : s.done
+    const record = !!done && feedback(i, side).record
+    return <Check checked={done} className={record ? 'set-record' : ''}
+      icon={record ? 'crown' : 'check'} label={label + (record ? ' · ' + t('New personal record') : '')}
+      onChange={() => side ? onToggleSide(i, side) : onToggle(i)} />
+  }
   const bestHist = bestWeightFor(H, entry.id, meaning)
   const bestKept = (H.exWeights[entry.id] || {}).w || 0
   const best = cardio ? 0
@@ -323,9 +343,9 @@ function ExerciseBlock({ entryIdx, compact, dense, editing, onToggle, onToggleSi
   // switch brings one of the old always-visible button rows back.
   const wc = workoutControls(S)
   const cell = (s, i, col, cls) => (
-    <div className={'stp ' + cls + (wc.steppers ? '' : ' plain')}>
+    <div className={'stp ' + cls + (wc.steppers ? '' : ' plain')} {...feedbackProps(i, col.f)}>
       {wc.steppers && <button aria-label={t('Decrease')} onClick={() => bump(s, i, col, -1)}><Icon name="minus" /></button>}
-      <span className="val"><NumberField decimal={col.dec} nullable={col.opt} value={viewOf(col, s[col.f]) ?? ''}
+      <span className="val"><NumberField decimal={col.dec} nullable={col.opt||col.f==='r'} placeholder={col.f==='r'?(repReference(sessionHistory(S),entry,i)||'—'):undefined} aria-label={col.hd} value={viewOf(col, s[col.f]) ?? ''}
         onChange={v => onField(i, col.f, col.store ? col.store(v) : v)} /></span>
       {wc.steppers && <button aria-label={t('Increase')} onClick={() => bump(s, i, col, 1)}><Icon name="plus" /></button>}
     </div>
@@ -509,9 +529,9 @@ function ExerciseBlock({ entryIdx, compact, dense, editing, onToggle, onToggleSi
     setSide(i, side, col.f, Math.max(0, Math.round(((cur || 0) + dir * step) * 100) / 100))
   }
   const sideCell = (sd, i, side, col, cls) => (
-    <div className={'stp ' + cls + (wc.steppers ? '' : ' plain')}>
+    <div className={'stp ' + cls + (wc.steppers ? '' : ' plain')} {...feedbackProps(i, col.f, side)}>
       {wc.steppers && <button aria-label={t('Decrease')} onClick={() => sideBump(i, side, col, -1)}><Icon name="minus" /></button>}
-      <span className="val"><NumberField decimal={col.dec} value={sd[col.f] ?? ''}
+      <span className="val"><NumberField decimal={col.dec} nullable={col.f==='r'} placeholder={col.f==='r'?(repReference(sessionHistory(S),entry,i,side)||'—'):undefined} aria-label={col.hd} value={sd[col.f] ?? ''}
         onChange={v => setSide(i, side, col.f, v)} /></span>
       {wc.steppers && <button aria-label={t('Increase')} onClick={() => sideBump(i, side, col, 1)}><Icon name="plus" /></button>}
     </div>
@@ -545,7 +565,7 @@ function ExerciseBlock({ entryIdx, compact, dense, editing, onToggle, onToggleSi
       {sideCell(sd, i, side, col1, 'w')}
       {col2 && sideCell(sd, i, side, col2, 'r')}
       {col3 && sideEffortCell(sd, i, side, col3)}
-      <Check checked={sd.done} label={t('Set {0} ({1}) done', setNumOf(s, i), side === 'L' ? t('Left') : t('Right'))} onChange={() => onToggleSide(i, side)} />
+      {doneCheck(s, i, t('Set {0} ({1}) done', setNumOf(s, i), side === 'L' ? t('Left') : t('Right')), side)}
     </div>
   }
   // A side's own drop-set/rest-pause sub-rows (issue #60): the intensifier is logged per limb, so
@@ -558,14 +578,14 @@ function ExerciseBlock({ entryIdx, compact, dense, editing, onToggle, onToggleSi
         <div className="subrow" key={'d' + di}>
           <span className="subn">{t('Drop {0}', di + 1)}</span>
           {miniStepper(d.w, loadStep, true, v => setDropField(i, di, 'w', v, side), true)}
-          {miniStepper(d.r, 1, false, v => setDropField(i, di, 'r', v, side))}
+          {miniStepper(d.r, 1, false, v => setDropField(i, di, 'r', v, side), false, repReference(sessionHistory(S),entry,i,side,['drops',di]))}
           <button className="iconbtn" aria-label={t('Remove drop')} onClick={() => removeDrop(i, di)}><Icon name="xmark" /></button>
         </div>
       ))}
       {clustersOf(sd).map((c, ci) => (
         <div className="subrow" key={'c' + ci}>
           <span className="subn">{t('Burst {0}', ci + 1)}</span>
-          {miniStepper(c.r, 1, false, v => setClusterField(i, ci, v, side))}
+          {miniStepper(c.r, 1, false, v => setClusterField(i, ci, v, side), false, repReference(sessionHistory(S),entry,i,side,['clusters',ci]))}
           <span className="dim small">{c.restSec}s</span>
           <button className="iconbtn" aria-label={t('Remove burst')} onClick={() => removeCluster(i, ci)}><Icon name="xmark" /></button>
         </div>
@@ -574,10 +594,10 @@ function ExerciseBlock({ entryIdx, compact, dense, editing, onToggle, onToggleSi
   }
   // A smaller stepper for a drop's weight/reps or a burst's reps — editing what the plan (or a
   // live "+ Drop"/"+ Burst" tap) already put on the row, not typing into a fresh field.
-  const miniStepper = (value, step, dec, onChange, snapWeightStep = false) => (
+  const miniStepper = (value, step, dec, onChange, snapWeightStep = false, reference = '') => (
     <div className="stp mini">
       <button aria-label={t('Decrease')} onClick={() => onChange(snapWeightStep ? stepLoad(value, step, -1) : Math.max(0, Math.round(((value || 0) - step) * 100) / 100))}><Icon name="minus" /></button>
-      <span className="val"><NumberField decimal={dec} value={value ?? ''} onChange={onChange} /></span>
+      <span className="val"><NumberField decimal={dec} nullable={!dec} placeholder={!dec?(reference||'—'):undefined} aria-label={dec?t('Weight ({0})',S.unit):t('Reps')} value={value ?? ''} onChange={onChange} /></span>
       <button aria-label={t('Increase')} onClick={() => onChange(snapWeightStep ? stepLoad(value, step, 1) : Math.max(0, Math.round(((value || 0) + step) * 100) / 100))}><Icon name="plus" /></button>
     </div>
   )
@@ -601,7 +621,7 @@ function ExerciseBlock({ entryIdx, compact, dense, editing, onToggle, onToggleSi
           set off itself. The checkbox stays for anyone who timed it on their own watch. */}
       {timed && !editing && <button className="setgo" aria-label={t('Start set')} disabled={s.done || !!working}
         onClick={() => onStartTimed(i)}><Icon name="play" /></button>}
-      <Check checked={s.done} label={sideTagOf(s) ? t('Set {0} ({1}) done', setNumOf(s, i), sideTagOf(s)) : t('Set {0} done', setNumOf(s, i))} onChange={() => onToggle(i)} />
+      {doneCheck(s, i, sideTagOf(s) ? t('Set {0} ({1}) done', setNumOf(s, i), sideTagOf(s)) : t('Set {0} done', setNumOf(s, i)))}
     </div>
   )
   // Swipe on sets (v1.3.11, Settings → Workout): a set row swiped toward the start of the line is
@@ -739,14 +759,14 @@ function ExerciseBlock({ entryIdx, compact, dense, editing, onToggle, onToggleSi
               <div className="subrow" key={'d' + di}>
                 <span className="subn">{t('Drop {0}', di + 1)}</span>
                 {miniStepper(d.w, loadStep, true, v => setDropField(i, di, 'w', v), true)}
-                {miniStepper(d.r, 1, false, v => setDropField(i, di, 'r', v))}
+                {miniStepper(d.r, 1, false, v => setDropField(i, di, 'r', v), false, repReference(sessionHistory(S),entry,i,undefined,['drops',di]))}
                 <button className="iconbtn" aria-label={t('Remove drop')} onClick={() => removeDrop(i, di)}><Icon name="xmark" /></button>
               </div>
             )).flatMap((el, di) => [el, <Fragment key={'dl' + di}>{loadLine(i + ':d' + di)}</Fragment>])}
             {clustersOf(s).map((c, ci) => (
               <div className="subrow" key={'c' + ci}>
                 <span className="subn">{t('Burst {0}', ci + 1)}</span>
-                {miniStepper(c.r, 1, false, v => setClusterField(i, ci, v))}
+                {miniStepper(c.r, 1, false, v => setClusterField(i, ci, v), false, repReference(sessionHistory(S),entry,i,undefined,['clusters',ci]))}
                 <span className="dim small">{c.restSec}s</span>
                 <button className="iconbtn" aria-label={t('Remove burst')} onClick={() => removeCluster(i, ci)}><Icon name="xmark" /></button>
               </div>
@@ -1067,6 +1087,10 @@ function ActiveWorkout() {
   // that is off screen, and never while a sheet is still putting the page back. Coming back to
   // the session with the row below the fold still brings it back, as it always did.
   const lastCur = useRef(null)
+  // Explicit progress also scrolls List/Compact, including when a partner was ticked
+  // manually and the next exercise already owns the current marker.
+  const [supersetAdvance, setSupersetAdvance] = useState(null)
+  const lastAdvance = useRef(null)
   useEffect(() => {
     // Judged by index alone. A unit moved up or down carries the marker's index with it, and
     // moveUnitAt records the new index here itself before this runs, so that reads as no move;
@@ -1075,33 +1099,44 @@ function ActiveWorkout() {
     const was = lastCur.current
     lastCur.current = cur
     const moved = was != null && was !== cur
-    if (!isSuperset || listMode) return
+    const progressed = supersetAdvance != null && lastAdvance.current !== supersetAdvance
+    const advanced = progressed && supersetAdvance.exerciseDone
+    lastAdvance.current = supersetAdvance
+    // A changed marker alone must not pull the page away from unfinished sets.
+    if (progressed && !advanced) return
+    if ((!isSuperset || listMode) && !advanced) return
     // A run the marker did not cause, with a sheet closing in the same tap, never scrolled: the
     // restore undid it. Keep that by not asking at all. Asking after the restore and then judging
     // the row would centre a first row that a tall first block (a note, "Last time", the
     // progression line) pushes partly under the tab bar, and scroll the header away.
-    if (!moved && scrollRestorePending()) return
+    if (!moved && !advanced && scrollRestorePending()) return
     // Rating the set (RIR or RPE, one picker) closes the sheet and ticks the set in one tap, and
     // the sheet's un-pin puts the page back where it stood, now and once more a frame later
     // (components/Modals.jsx). A scroll asked for in this same commit was undone a few ms later,
     // every time, and the partner's row stayed below the fold. With no sheet closing in the last
     // third of a second, afterScrollRestore runs this at once, as the tick always did.
     return afterScrollRestore(() => {
-      const { entries, cur: at } = shown.current
+      const { entries, cur: marked } = shown.current
+      // Older sessions can retain the partner marker after undo. On re-entry resume
+      // the first unfinished exercise in this superset rather than trusting that marker.
+      const at = advanced ? supersetAdvance.nextIdx : was == null && !focusMode
+        ? (unit.find(index => entries[index]?.sets.some(row => !row.done)) ?? marked) : marked
       const entry = entries[at]
       const firstIncomplete = entry?.sets.findIndex(s => !s.done) ?? -1
       const setIdx = firstIncomplete >= 0 ? firstIncomplete : (entry?.sets.length ?? 0) - 1
       const el = (setIdx >= 0 && setRefs.current.get(entry)?.get(setIdx)) || exRefs.current.get(entry)
       if (!el || typeof el.scrollIntoView !== 'function') return
-      if (!moved && rowOnScreen(el)) return
-      el.scrollIntoView({ behavior: 'smooth', block: 'center' })
+      if (!moved && !advanced && rowOnScreen(el)) return
+      const reduced = window.matchMedia?.('(prefers-reduced-motion: reduce)').matches
+      el.scrollIntoView({ behavior: reduced ? 'auto' : 'smooth', block: 'center' })
     })
-  }, [cur, isSuperset, listMode, A.entries.length])
+  }, [cur, isSuperset, listMode, A.entries.length, supersetAdvance])
   // The list opens at the exercise you are on, not at the top of the session (issue #224): you
-  // switch to it mid-workout to look at what comes before and after. Only on the way in — once
-  // the list is open, "current" moves because you tick rows in it, and a list that scrolls
-  // itself under your thumb is worse than one that stays put. List ↔ Compact counts as a way
+  // switch to it mid-workout to look at what comes before and after. Only on the way in — ordinary
+  // row ticks do not reposition the whole unit while reading the list. Superset transitions
+  // instead reveal the next set row above. List ↔ Compact counts as a way
   // in: the rows change height, so the same scroll offset lands somewhere else.
+  // Explicit superset progress is handled separately above, targeting a set row.
   //
   // The scroll waits for the next frame rather than running in the effect itself. App.jsx
   // restores the route's remembered position in a frame it asked for during the same commit
@@ -1130,7 +1165,7 @@ function ActiveWorkout() {
   // Clearing an optional field drops the key rather than storing null, so a set only carries
   // what was actually logged — in the session, in history and in a backup.
   const setField = (idx, i, field, v) => mutEntry(idx, e => {
-    if (v == null) delete e.sets[i][field]; else e.sets[i][field] = v
+    if(v==null&&field==='r'){e.sets[i].r=null;e.sets[i].done=false;}else if(v==null)delete e.sets[i][field];else e.sets[i][field]=v
     // Typing a duration IS the new plan, the same way ticking the row ends it: a plan a displaced
     // hold put aside must not outrank what you just typed, or the field would read 45 and the ▶
     // would still hold the 30 the row was asking for before.
@@ -1158,12 +1193,12 @@ function ActiveWorkout() {
     }
     else {
       // An extra set past a pyramid copies the last one's target, Max included.
-      const row = { w: l ? l.w : 0, r: l ? l.r : e.target.reps, done: false, ...(l && l.max ? { max: true } : {}) }
+      const row = { w: l ? l.w : 0, r: null, done: false, ...(l && l.max ? { max: true } : {}) }
       // A unilateral exercise keeps adding per-side rows (issue #60): seed each side from the
       // previous set's own side when it had one, else split the row's total evenly.
       e.sets.push(isPerSide({ ...(e.target || {}), id: e.id })
         ? (l && isSideSet(l)
-          ? makeSideSet({ w: l.sides.L.w, r: (l.sides.L.r || 0) * 2 })
+          ? makeSideSet({ w: l.sides.L.w, r: null })
           : makeSideSet(row))
         : row)
     }
@@ -1400,6 +1435,7 @@ function ActiveWorkout() {
             step: modeOf(full) === 'reps' ? (ownedWeightsFor(s, full) || weightIncrement(full, s.unit)) : defaultIncrement(ex.id, s.unit), preferLast: true,
           }), full, dropGrid(s, full)) }
           : buildPlannedEntry(past, full, routine, { noProg })
+        built.sets=blankRepRows(built.sets,full)
         const insertAt = insertionIndexAfterCurrentUnit(supersetUnits(s.active.entries), s.active.cur, s.active.entries.length)
         s.active.entries.splice(insertAt, 0, joinSessionNoProg(s.active, { id: ex.id, ...built, ...(curRid ? { rid: curRid } : {}), ...(noProg ? { noProg: true } : {}) }))
         s.active.cur = insertAt
@@ -1512,7 +1548,7 @@ function ActiveWorkout() {
         // Without a prescription only in a routine kept out of progression: an exercise kept out
         // by hand keeps its prescription, so its Undo leaves the numbers it should count at.
         const built = buildPlannedEntry(sessionHistory(s), full, activeRoutine, { noProg: builtOutOfProgression(activeEntry, activeRoutine) })
-        const fresh = built.sets
+        const fresh = blankRepRows(built.sets,full)
         const doneWarm = activeEntry.sets.filter(x => x.done && isWarmupRow(x))
         const doneWork = activeEntry.sets.filter(x => x.done && !isWarmupRow(x))
         const freshWarm = fresh.filter(isWarmupRow)
@@ -1628,6 +1664,8 @@ function ActiveWorkout() {
     // mid-screen on iOS (lib/viewport-guard.js).
     if (typeof document !== 'undefined') { const a = document.activeElement; if (a && (a.tagName === 'INPUT' || a.tagName === 'TEXTAREA')) a.blur?.() }
     const m = modeAt(idx)
+    const activeRow=useStore.getState().S.active?.entries[idx]?.sets[i]
+    if(m==='reps'&&!repsEntered(activeRow,side)&&!(side?activeRow?.sides?.[side]?.done:activeRow?.done)){useUI.getState().toast(t('Enter the repetitions performed.'));return}
     const cardioEntry = m === 'cardio'
     let exJustDone = false, workoutDone = false, checked = false
     update(s => {
@@ -1637,6 +1675,7 @@ function ActiveWorkout() {
       if (side) e.sets[i] = toggleSide(e.sets[i], side)
       else e.sets[i].done = !e.sets[i].done
       checked = e.sets[i].done
+      if (!editing && !focusMode && !checked && unitOf(units, idx).length > 1) s.active.cur = idx
       // When the work happened, for the session's end (lib/finish-workout.js sessionEnd).
       if (!editing && (side ? e.sets[i].sides[side].done : checked)) e.sets[i].at = Date.now()
       // A finished row has no use for a plan set aside by a hold that did not finish.
@@ -1658,12 +1697,15 @@ function ActiveWorkout() {
       }
     }, true)
     if (editing) return
+    if (!focusMode && !checked && unitOf(units, idx).length > 1) {
+      setSupersetAdvance({ nextIdx: idx, exerciseDone: false })
+    }
     if (workoutDone) workoutCompleteSheet()
     else if (exJustDone && cardioEntry) useUI.getState().toast(t('Cardio logged'))
     else if (exJustDone && m === 'time') useUI.getState().toast(t('Hold logged'))
 
-    // Only progress beyond this exercise's high-water mark may navigate or change rest. This
-    // prevents an uncheck/re-check of finished work from replaying the flow side effects.
+    // High-water guards progression/rest. Revealing a partner after the exercise is fully
+    // checked is also allowed on re-check, without replaying progression side effects.
     const fresh = useStore.getState().S.active
     if (fresh && checked && fresh.entries[idx]) {
       const progress = setProgressHighWater(fresh.entries[idx], progressHighWater.current[idx] || 0)
@@ -1692,6 +1734,12 @@ function ActiveWorkout() {
       // out and only shows Ready is not running: it has nothing left to time. A paused one is
       // still the rest you are in, held on purpose, and a re-check leaves it as it is.
       if (!progress.isNew) {
+        if (exJustDone && freshUnit?.length > 1) {
+          const reveal = supersetFlowStep(fresh.entries, freshUnit, idx)
+          if (reveal?.nextIdx != null && reveal.nextIdx !== idx) {
+            setSupersetAdvance({ nextIdx: reveal.nextIdx, exerciseDone: true })
+          }
+        }
         const rest = useUI.getState().timer
         if (!restBeforeWarmup && restOnRecheck({ timerRunning: !!(rest && !rest.ready), unitDone: freshUnitDone, lastUnit: freshWorkoutDone })) startRest(restAfter, idx, { forSet: i })
         return
@@ -1734,7 +1782,12 @@ function ActiveWorkout() {
       if (step.unitDone) {
         if (nextUnit?.length && !restBeforeWarmup) startRest(restAfter, idx, { forSet: i })
       } else {
-        if (step.nextIdx != null) update(s => { if (s.active) s.active.cur = step.nextIdx })
+        if (step.nextIdx != null) {
+          const exerciseDone = fresh.entries[idx].sets.every(row => row.done)
+          const nextIdx = !focusMode && !exerciseDone ? idx : step.nextIdx
+          if (step.nextIdx !== idx) setSupersetAdvance({ nextIdx, exerciseDone })
+          update(s => { if (s.active) s.active.cur = nextIdx })
+        }
         if (step.roundDone) startRest(restAfter, idx, { forSet: i })
       }
       onFocusProgress?.({ unitDone: freshUnitDone })

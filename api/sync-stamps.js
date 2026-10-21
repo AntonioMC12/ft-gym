@@ -37,6 +37,8 @@
 //      restored) bringing an entry back, and that cannot be told apart from a deliberate re-add:
 //      a deleted entry that comes back is one tap to remove again, a wanted one dropped is lost.
 
+import { mergePlanDeliveries, protectPlanDeliveryDeletions } from './plan-delivery-state.js';
+
 const isMap = v => !!v && typeof v === 'object' && !Array.isArray(v);
 const list = v => (Array.isArray(v) ? v : []);
 const same = (x, y) => JSON.stringify(x) === JSON.stringify(y);
@@ -65,8 +67,9 @@ const OWN_MERGE = new Set([
   '_ts', '_rev', '_wid', '_wids', '_unstamped', '_prior', 'active', 'unit', 'unitSet', 'resetAt', 'resetIds', 'deleted', 'edited', 'undone', 'routineOrder',
   'workouts', 'routines', 'customEx', 'equipProfiles', 'gymCards', 'bodyweight', 'measurements', 'favEx',
   'exWeights', 'balanceOverrides', 'loadKind', 'plates', 'dbLoad', 'dumbbells', 'dayNotes',
+  'planDeliveries',
 ]);
-const PER_KEY = new Set(['week', 'dayPlan', 'exNotes', 'barWeights']);
+const PER_KEY = new Set(['week', 'dayPlan', 'exNotes', 'barWeights', 'trainingPlans']);
 // The maps whose every entry carries its own edit time (sync-merge.js STAMPED_MAPS): merged per
 // key by the app, so never stamped here as a whole setting. dayNotes is a note per day off.
 export const STAMPED_MAPS = ['balanceOverrides', 'loadKind', 'plates', 'dbLoad', 'dumbbells', 'dayNotes'];
@@ -478,6 +481,10 @@ export function stampPut(cur, next, { overRead = false, stamped = false, now = D
   const t = Math.max(Number(now) || 0, highestStamp(cur) + 1, highestStamp(next) + 1);
   const reset = (Number(next.resetAt) || 0) > (Number(cur?.resetAt) || 0);
   const sent = isMap(next.edited) ? { ...next.edited } : null;
+  const deliveryBefore = report ? content(next) : null;
+  if (next.planDeliveries || (!reset && cur?.planDeliveries)) {
+    next.planDeliveries = mergePlanDeliveries(reset ? null : cur?.planDeliveries, next.planDeliveries);
+  }
   // The note of what the server stamped for an older app outlives the writes in between (an updated
   // app's, or one not over the revision it read), for as long as each stamp is still the stored one:
   // the older app's merge after the 409 such a write causes keeps its own record of edits, so its
@@ -488,6 +495,9 @@ export function stampPut(cur, next, { overRead = false, stamped = false, now = D
   if (cur && !reset) {
     const d = mergeDeletions(cur.deleted, next.deleted);
     if (d) next.deleted = d; else delete next.deleted;
+    // A delayed acceptance must not become an implicit add-back in keepHeld or
+    // in an older writer's stamping. Explicit Undo already carries a negative stamp.
+    protectPlanDeliveryDeletions(next);
     const e = mergeEdits(cur.edited, next.edited);
     // The write ids are the server's bookkeeping, never a setting: an older app's push used to get
     // them stamped as one it changed (QA 2026-10-07), and such a stamp is dropped here.
@@ -507,7 +517,9 @@ export function stampPut(cur, next, { overRead = false, stamped = false, now = D
     }
     if (before != null && content(next) !== before) report.changed = true;
   }
+  protectPlanDeliveryDeletions(next);
   keepHeld(next, t);
   if (cur && !reset) notePrior(cur, next);
+  if (report && content(next) !== deliveryBefore) report.changed = true;
   return next;
 }

@@ -1,4 +1,4 @@
-# Two targets from one file.
+# Runtime targets plus an explicit local-only centers preview.
 #
 #   default (built when no --target is given) — what every instance has always got. No AI
 #           runtime, no AI dependency: `npm ci --omit=optional` skips the Agent SDK and its
@@ -53,8 +53,10 @@ RUN npm ci --omit=dev --omit=optional && npm cache clean --force
 
 # Every module server.js imports from the api root has to be named here: the image carries nothing
 # else, and one that is missing only shows at boot, as ERR_MODULE_NOT_FOUND.
-COPY server.js push-messages.js nudge.js nudge-copy.js verify-error.js password.js rate-limit.js passkeys-store.js device-link.js media.js queue.js sync-stamps.js durable.js ./
+COPY server.js push-messages.js nudge.js nudge-copy.js verify-error.js password.js account-identity.js rate-limit.js passkeys-store.js device-link.js media.js queue.js sync-stamps.js plan-delivery-state.js durable.js ./
+COPY scripts/recover-account.mjs ./scripts/recover-account.mjs
 COPY coach ./coach
+COPY centers ./centers
 ENV NODE_ENV=production
 ENV PORT=3000
 EXPOSE 3000
@@ -87,6 +89,12 @@ RUN mkdir -p /coach-auth && chown coach:coach /coach-auth && chmod 700 /coach-au
 VOLUME ["/coach-auth"]
 
 # ---------------------------------------------------------------------------------------------
+# Fictional local preview only. Production/default never inherits its test carrier.
+FROM base AS centers-preview
+COPY test/centers-integration/preview.mjs test/centers-integration/preview-init.mjs test/centers-integration/preview-origin.mjs test/centers-integration/stripe-preview.mjs test/centers-integration/stripe-http-preload.mjs test/centers-integration/helpers.mjs ./test/centers-integration/
+RUN rm -rf /usr/local/lib/node_modules/npm /usr/local/bin/npm /usr/local/bin/npx
+CMD ["node", "test/centers-integration/stripe-preview.mjs"]
+
 # Last, so that a plain `docker build ./api` keeps producing the runtime-free image.
 FROM base AS default
 # npm itself is only a build-time tool here: the server is started with `node server.js` and

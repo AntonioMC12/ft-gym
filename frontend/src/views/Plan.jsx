@@ -1,4 +1,7 @@
-import { useRef, useState } from 'react'
+import {PLAN_VIEW_KEY,readPlanView as readView} from '../lib/plan-view.js'
+import TrainingPlanLibrary from '../components/TrainingPlanLibrary.jsx'
+import {planOf} from '../lib/training-plans.js'
+import { useEffect, useRef, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useStore } from '../store/useStore.js'
 import { useUI } from '../store/useUI.js'
@@ -30,10 +33,8 @@ import {
 // Plan has two views (v1.3.11): Schedule (how you train, and when) and Routines (what you
 // train). The last one you looked at comes back: a per-device convenience, never synced, so it
 // lives in this browser's storage and not in S.
-export const PLAN_VIEW_KEY = 'gym_plan_view'
-const readView = () => {
-  try { return localStorage.getItem(PLAN_VIEW_KEY) === 'routines' ? 'routines' : 'schedule' } catch { return 'schedule' }
-}
+export {PLAN_VIEW_KEY} from '../lib/plan-view.js'
+
 
 /* Undo for Plan's two removals (v1.3.11). Both go through the store's normal update, so sync
    sees an ordinary edit (a routine put back clears its own removal stamp, lib/sync-merge.js). */
@@ -377,24 +378,28 @@ function Schedule({ S, update, nav, mode }) {
 
 /* ================================ Routines ================================ */
 
-function Routines({ S, update, nav }) {
+export function Routines({ S, update, nav, management=false, initialPlanId='*', onPlanChange, onAssign, basePath='/plan' }) {
   const [edit, setEdit] = useState(false)
   const [flash, setFlash] = useState(null)
   const swipe = workoutControls(S).swipeSets
-  const routines = S.routines
+  const [planId,setPlanId]=useState(initialPlanId)
+  useEffect(()=>{if(management)setPlanId(initialPlanId)},[management,initialPlanId])
+  const selected=planId&&planId!=='*'&&!S.trainingPlans?.[planId]?null:planId
+  const routines = S.routines.filter(r=>selected==='*'||planOf(S,r)===selected)
   // The order of this list is the order of `S.routines`, and every other screen reads the same
   // array (the Start screen, the day sheets, the routine pickers), so moving a routine here moves
   // it everywhere (#142). Reordering lives behind Edit, like on an iPhone.
   const reorder = useListReorder(routines.length, (from, to) => update(s => {
-    if (to < 0 || to >= s.routines.length) return
-    const [m] = s.routines.splice(from, 1)
-    s.routines.splice(to, 0, m)
+    if(to<0||to>=routines.length)return
+    const fromId=routines[from].id,toId=routines[to].id
+    const at=s.routines.findIndex(r=>r.id===fromId),[m]=s.routines.splice(at,1)
+    const target=s.routines.findIndex(r=>r.id===toId);s.routines.splice(target+(from<to?1:0),0,m)
   }))
 
   const addRoutine = () => {
-    const r = { id: uid(), name: t('New routine'), emoji: DEFAULT_GLYPH, ex: [] }
+    const r = { id: uid(), name: t('New routine'), emoji: DEFAULT_GLYPH, ex: [],...(selected&&selected!=='*'?{planId:selected}:{}) }
     update(s => { s.routines.push(r) })
-    nav('/plan/r/' + r.id)
+    nav(basePath+'/r/' + r.id)
   }
   // The same delete as RoutineEdit's "Delete routine" button (lib/routines.js), with an Undo in
   // place of its confirm (v1.3.11): the swipe and the edit-mode minus both land here.
@@ -420,6 +425,7 @@ function Routines({ S, update, nav }) {
   const sub = r => [exCount(r.ex.length), daysOf(r.id).join(', ')].filter(Boolean).join(' · ')
 
   return <>
+    <>{management&&<TrainingPlanLibrary S={S} update={update} value={selected} onChange={id=>{setPlanId(id);onPlanChange?.(id)}} canAssign onAssign={onAssign}/>}</>
     <div className="row between plan-sec-h plan-routines-bar">
       {routines.length > 0
         ? <button className="plan-textbtn" aria-pressed={edit} onClick={() => setEdit(e => !e)}>{edit ? t('Done') : t('Edit')}</button>
@@ -437,7 +443,7 @@ function Routines({ S, update, nav }) {
               {...reorder.handle(i)}><Icon name="chevronsUpDown" /></button>}
           </div>)}</div>
         : <div className="list routine-list plan-routines">{routines.map(r => {
-          const row = <div key={r.id} className="item plan-routine" {...tappable(() => nav('/plan/r/' + r.id))}>
+          const row = <div key={r.id} className="item plan-routine" {...tappable(() => nav(basePath+'/r/' + r.id))}>
             <span className="lrow-i"><Icon name={glyphOf(r.emoji)} /></span>
             <div className="grow"><div className="tt">{r.name}</div><div className="ss">{sub(r)}</div></div>
             <Icon name="chevronRight" className="chev" /></div>

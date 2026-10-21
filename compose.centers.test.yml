@@ -1,0 +1,98 @@
+# Fully isolated, synthetic integration stack. No application data, .env or published ports.
+name: ft-gym-centers-tests
+services:
+  # CI never connects to the persistent database used by the local preview.
+  centers-ci-db:
+    image: postgres:18.6-alpine3.24
+    environment:
+      POSTGRES_USER: centers_bootstrap
+      POSTGRES_DB: ft_gym_ci_centers_test
+      POSTGRES_PASSWORD: fictional-bootstrap-test-only
+      CENTERS_APP_PASSWORD: fictional-runtime-test-only
+      CENTERS_MIGRATOR_PASSWORD: fictional-migrator-test-only
+      POSTGRES_INITDB_ARGS: --auth-host=scram-sha-256
+    tmpfs: [/var/lib/postgresql]
+    volumes:
+      - ./api/centers/docker/10-centers-roles.sh:/docker-entrypoint-initdb.d/10-centers-roles.sh:ro
+    networks: [test-internal]
+    healthcheck:
+      test: [CMD-SHELL, 'pg_isready -U centers_bootstrap -d ft_gym_ci_centers_test']
+      interval: 2s
+      timeout: 3s
+      retries: 15
+  centers-test-db:
+    image: postgres:18.6-alpine3.24
+    environment:
+      POSTGRES_USER: centers_bootstrap
+      POSTGRES_DB: ft_gym_centers_test
+      POSTGRES_PASSWORD: fictional-bootstrap-test-only
+      CENTERS_APP_PASSWORD: fictional-runtime-test-only
+      CENTERS_MIGRATOR_PASSWORD: fictional-migrator-test-only
+      POSTGRES_INITDB_ARGS: --auth-host=scram-sha-256
+    volumes:
+      - centers-test-data:/var/lib/postgresql
+      - ./api/centers/docker/10-centers-roles.sh:/docker-entrypoint-initdb.d/10-centers-roles.sh:ro
+    networks: [test-internal]
+    healthcheck:
+      test: [CMD-SHELL, 'pg_isready -U centers_bootstrap -d ft_gym_centers_test']
+      interval: 2s
+      timeout: 3s
+      retries: 15
+  centers-tests:
+    image: ft-gym-centers-test-api:local
+    build:
+      context: ./api
+      target: default
+    command:
+      - node
+      - --test
+      - --test-concurrency=1
+      - test/centers-integration/foundation.test.js
+      - test/centers-integration/authorization.test.js
+      - test/centers-integration/management.test.js
+      - test/centers-integration/members.test.js
+      - test/centers-integration/lifecycle.test.js
+      - test/centers-integration/invitations.test.js
+      - test/centers-integration/plans.test.js
+      - test/centers-integration/subscriptions.test.js
+      - test/centers-integration/billing-preview.test.js
+      - test/centers-integration/receipts.test.js
+      - test/centers-integration/payments.test.js
+      - test/centers-integration/debt.test.js
+      - test/centers-integration/member-portal.test.js
+      - test/centers-integration/jobs.test.js
+      - test/centers-integration/notifications.test.js
+      - test/centers-integration/stripe-foundation.test.js
+      - test/centers-integration/stripe-reconciliation.test.js
+      - test/centers-integration/stripe-http.test.js
+      - test/centers-integration/platform-pages.test.js
+      - test/centers-integration/training-proposals.test.js
+      - test/centers-integration/shared-progress.test.js
+      - test/centers-integration/community.test.js
+      - test/centers-integration/access.test.js
+      - test/centers-integration/metrics.test.js
+      - test/centers-integration/retention.test.js
+      - test/centers-integration/passes.test.js
+      - test/centers-integration/member-imports.test.js
+      - test/centers-integration/activations.test.js
+      - test/centers-integration/role-time.test.js
+      - test/centers-integration/freeze-requests.test.js
+      - test/centers-integration/maintenance.test.js
+      - test/centers-integration/classes.test.js
+      - test/centers-integration/class-series.test.js
+      - test/centers-integration/business-clock.test.js
+    environment:
+      CENTERS_TEST_DATABASE_URL: postgresql://centers_app:fictional-runtime-test-only@centers-ci-db/ft_gym_ci_centers_test
+      CENTERS_TEST_MIGRATION_DATABASE_URL: postgresql://centers_migrator:fictional-migrator-test-only@centers-ci-db/ft_gym_ci_centers_test
+    volumes:
+      - ./api/test/centers-integration:/app/test/centers-integration:ro
+    depends_on:
+      centers-ci-db:
+        condition: service_healthy
+    networks: [test-internal]
+    restart: "no"
+volumes:
+  centers-test-data:
+networks:
+  test-internal:
+    internal: true

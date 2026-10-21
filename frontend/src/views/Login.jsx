@@ -1,3 +1,7 @@
+import RegistrationDocument from '../components/RegistrationDocument.jsx'
+import {normalizeNationalDocument,validNationalDocument} from '../lib/national-document.js'
+import RegistrationCenter from '../components/RegistrationCenter.jsx'
+import {registrationCenterId} from '../lib/registration-center.js'
 import { useStore } from '../store/useStore.js'
 import { useUI } from '../store/useUI.js'
 import { webauthnOK, passkeyLogin, passkeyRegister, passkeyError, bio } from '../lib/api.js'
@@ -9,8 +13,7 @@ import { guestAllowed } from '../lib/guest.js'
 import { useState, useRef, useEffect } from 'react'
 import Icon from '../components/Icon.jsx'
 import { Button, Segmented } from '../components/ui.jsx'
-import { askAddDeviceData } from '../sheets.jsx'
-import { passwordOn, PasswordRegisterForm, openPasswordSignIn } from '../components/PasswordAuth.jsx'
+import { passwordOn, PasswordRegisterForm, openPasswordSignIn, finishSignIn } from '../components/PasswordAuth.jsx'
 import { openDeviceLinkRedeem } from '../components/Passkeys.jsx'
 
 function RegisterSheet({ close }) {
@@ -18,11 +21,12 @@ function RegisterSheet({ close }) {
   const config = useStore(s => s.config)
   const [name, setName] = useState('')
   const [code, setCode] = useState('')
-  const inviteOnly = !!config?.invite_only
+  const [nationalDocument,setNationalDocument]=useState('')
+  const inviteOnly = !config?.centers?.enabled&&!!config?.invite_only
   // A password is offered only where the instance allows it (#118), and is the only choice in a
-  // browser that cannot make a passkey. Where both work, the passkey stays the first one.
+  // browser that cannot make a passkey. Center signup starts with a password when available.
   const pwOn = passwordOn(config)
-  const [how, setHow] = useState(webauthnOK() ? 'passkey' : 'password')
+  const [how, setHow] = useState(config?.centers?.enabled&&pwOn?'password':webauthnOK()?'passkey':'password')
   const ref = useRef(null)
   useEffect(() => { setTimeout(() => ref.current?.focus(), 250) }, [])
   // Boot already fetched this; retry here only if that attempt failed, so the invite field still
@@ -31,30 +35,36 @@ function RegisterSheet({ close }) {
   const go = async () => {
     const n = name.trim()
     if (!n) { useUI.getState().toast(t('Enter a name')); return }
+    if(config?.centers?.enabled&&!validNationalDocument(nationalDocument)){useUI.getState().toast(t('Enter a valid DNI or NIE.'));return}
     if (inviteOnly && !code.trim()) { useUI.getState().toast(t('An invite code is required')); return }
     try {
-      const u = await passkeyRegister(n, code.trim())
+      const u = await passkeyRegister(n, code.trim(),...(config?.centers?.enabled?[normalizeNationalDocument(nationalDocument)]:[]))
       setUser(u); close()
+      if(config?.centers?.enabled)return
       if (hasData(useStore.getState().S)) { await pushState(); useUI.getState().toast(t('Profile created, and this device’s data moved into it')) }
       else { await pullState(); useUI.getState().toast(t('Welcome, {0}', u.name)) }
     } catch (e) { if (e.name !== 'NotAllowedError' && e.name !== 'AbortError') useUI.getState().toast(passkeyError(e, t('Registration failed'))) }
   }
-  const choose = pwOn && webauthnOK() && <>
+  const choose = !config?.document_login && pwOn && webauthnOK() && <>
     <Segmented options={[{ value: 'passkey', label: t('Passkey'), icon: 'fingerprint' }, { value: 'password', label: t('Password'), icon: 'key' }]}
       value={how} onChange={setHow} />
     <div style={{ height: 12 }} />
   </>
-  if (pwOn && how === 'password') return <>
+  if(config==null)return <><h3>{t('Create your profile')}</h3><p role="status">{t('Loading…')}</p><Button onClick={loadConfig}>{t('Retry')}</Button></>
+  if(config?.centers?.enabled&&!registrationCenterId())return <><h3>{t('Create your profile')}</h3><RegistrationCenter/></>
+  if (pwOn && (config?.document_login || how === 'password')) return <>
     <h3>{t('Create your profile')}</h3>
     {choose}
-    <div className="muted small" style={{ marginBottom: 14 }}>{t('Pick a name and a password. You sign in with both.')}</div>
-    <PasswordRegisterForm close={close} inviteOnly={inviteOnly} name={name} setName={setName} code={code} setCode={setCode} />
+    <div className="muted small" style={{ marginBottom: 14 }}>{t(config?.document_login?'Your DNI/NIE identifies your account. Choose a password and enter your full name.':'Pick a name and a password. You sign in with both.')}</div>
+    <PasswordRegisterForm close={close} inviteOnly={inviteOnly} name={name} setName={setName} code={code} setCode={setCode} nationalDocument={nationalDocument} setNationalDocument={setNationalDocument} />
   </>
   return <>
     <h3>{t('Create your profile')}</h3>
     {choose}
+    {config?.centers?.enabled&&<RegistrationCenter/>}
     <div className="muted small" style={{ marginBottom: 14 }}>{t('Pick a name, then confirm with {0}. The passkey lives on your device, so no password needed.', bio())}</div>
     <input ref={ref} className="input" placeholder={t('Your name')} maxLength={40} value={name} onChange={e => setName(e.target.value)} />
+    {config?.centers?.enabled&&<RegistrationDocument value={nationalDocument} onChange={setNationalDocument}/>}
     {inviteOnly && <>
       <div style={{ height: 10 }} />
       <input className="input" placeholder={t('Invite code')} maxLength={40} value={code}
@@ -67,13 +77,14 @@ function RegisterSheet({ close }) {
 }
 
 export default function Login() {
-  const { setUser, adoptProfile, setGuest } = useStore()
+  const { setGuest } = useStore()
   const config = useStore(s => s.config)
+  const centerAccess=!!config?.centers?.enabled
   const canGuest = guestAllowed(config)
   const pwOn = passwordOn(config)
   const register = () => useUI.getState().openSheet(close => <RegisterSheet close={close} />)
   const signIn = async () => {
-    try { const u = await passkeyLogin(); setUser(u, { adopt: true }); await adoptProfile(askAddDeviceData); useUI.getState().toast(t('Welcome back, {0}', u.name)) }
+    try { await finishSignIn(await passkeyLogin(),()=>{}) }
     catch (e) { if (e.name !== 'NotAllowedError' && e.name !== 'AbortError') useUI.getState().toast(passkeyError(e, t('Sign-in failed'))) }
   }
   const head = <>
@@ -94,6 +105,16 @@ export default function Login() {
       </div>
     </div>
   )
+
+  if(config==null)return <div className="narrow" style={wrap}>{head}<p role="status">{t('Loading…')}</p><Button onClick={()=>useStore.getState().loadConfig()}>{t('Retry')}</Button></div>
+  if(centerAccess)return <div className="narrow" style={wrap}>
+    {head}
+    <RegistrationCenter/>
+    {pwOn&&<Button variant="primary" icon="key" onClick={()=>openPasswordSignIn()}>{t('Sign in with password')}</Button>}
+    {!config?.document_login&&webauthnOK()&&<Button variant={pwOn?'plain':'primary'} icon="fingerprint" onClick={signIn}>{t('Sign in with passkey')}</Button>}
+    {(pwOn||webauthnOK())&&<Button variant="tinted" icon="plusCircle" disabled={!registrationCenterId()} onClick={register}>{t('Create account and request access')}</Button>}
+    {!pwOn&&!webauthnOK()&&<p>{t("This browser doesn't support passkeys, and this instance requires an account. Try a browser or device with passkey support.")}</p>}
+  </div>
 
   return (
     <div className="narrow" style={wrap}>

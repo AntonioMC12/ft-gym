@@ -1,6 +1,9 @@
+import {navBack} from '../lib/nav.js'
+import {plansOf,planOf,moveRoutineToPlan} from '../lib/training-plans.js'
 import { useNavigate, useParams } from 'react-router-dom'
 import { useEffect, useRef, useState } from 'react'
 import { useStore } from '../store/useStore.js'
+import { useCenters } from '../store/useCenters.js'
 import { useUI } from '../store/useUI.js'
 import { exOr } from '../lib/exercises.js'
 import { activeProfile, exAvailable } from '../lib/equipment.js'
@@ -362,14 +365,19 @@ export function undoRemoveRoutineExercise({ routineId, i, before, after, base, d
   return true
 }
 
-export default function RoutineEdit() {
+export default function RoutineEdit({basePath='/plan'}) {
   const nav = useNavigate()
   const { id } = useParams()
   const S = useStore(s => s.S)
+  const config = useStore(s => s.config)
+  const user = useStore(s => s.user)
+  const centers = useCenters()
+  const canOrganize = config != null && (!config.centers?.enabled || (centers.ownerUid === user?.id && centers.status === 'ready' && centers.platformCapabilities.includes('centers.manage')))
+  const controls = workoutControls(S)
   const update = useStore(s => s.update)
   const toast = useUI(s => s.toast)
   const r = S.routines.find(x => x.id === id)
-  useEffect(() => { if (!r) nav('/plan') }, [!!r])
+  useEffect(() => { if (!r) nav(basePath) }, [!!r])
   // Editing here has no explicit "save" — every field change persists immediately. A single
   // auto-backup on the way out (not per keystroke) covers the whole editing session, deletion
   // included: this still unmounts after the delete button navigates away.
@@ -464,7 +472,7 @@ export default function RoutineEdit() {
 
   return <div className="narrow">
     <div className="hdr">
-      <button className="iconbtn" onClick={() => nav('/plan')} aria-label={t('Plan')}><Icon name="chevronLeft" /></button>
+      <button className="iconbtn" onClick={() => navBack(basePath,nav)} aria-label={t('Back')}><Icon name="chevronLeft" /></button>
       <div style={{ flex: 1, margin: '0 12px' }}>
         <input className="input" defaultValue={r.name} style={{ fontWeight: 600, fontSize: 20, letterSpacing: '-.021em' }}
           onChange={e => update(s => { s.routines.find(x => x.id === id).name = e.target.value.trim() || t('Routine') })} />
@@ -472,29 +480,30 @@ export default function RoutineEdit() {
       <button className="iconbtn" aria-label={t('Pick an icon')} onClick={() => glyphPicker(r.emoji, g => update(s => { s.routines.find(x => x.id === id).emoji = g }))}><Icon name={glyphOf(r.emoji)} /></button>
     </div>
 
-    <div className="sect-b" style={{ marginBottom: 16 }}>
-      <SelectRow icon="chartLine" title={t('Progression')} sheetTitle={t('Progression')}
+    {(canOrganize || controls.routineProgression || controls.routineDeload) && <div className="sect-b" style={{ marginBottom: 16 }}>
+      {canOrganize && <SelectRow variant="field" title={t('Training plans')} value={planOf(S,r)||''} options={[{value:'',label:t('Unfiled')},...plansOf(S).map(p=>({value:p.id,label:p.name}))]} onChange={value=>update(s=>moveRoutineToPlan(s,id,value||null))}/>}
+      {controls.routineProgression && <SelectRow icon="chartLine" title={t('Progression')} sheetTitle={t('Progression')}
         value={r.prog || 'linear'} onChange={v => update(s => { s.routines.find(x => x.id === id).prog = v })}
-        options={POLICIES_FOR.reps.map(p => ({ value: p, label: t(POLICY_NAME[p]), subtitle: t(POLICY_DESC[p]) }))} />
+        options={POLICIES_FOR.reps.map(p => ({ value: p, label: t(POLICY_NAME[p]), subtitle: t(POLICY_DESC[p]) }))} />}
       {/* Two controls that read alike and are not (issue #294). Progression picks how this
           routine's own targets move, and "No automatic progression" keeps them where they are.
           This switch decides whether the routine's workouts count at all: a deload routine's
           sessions open at its own numbers and are never the baseline the next regular session
           progresses from (session-start.js, history.js entryExcluded). */}
-      <Row icon="chartLineSlash" iconTint="var(--orange)" title={t('Deload routine')}
+      {controls.routineDeload && <Row icon="chartLineSlash" iconTint="var(--orange)" title={t('Deload routine')}
         subtitle={t('Its workouts do not count toward progression. They still show in history and statistics.')}>
         <Switch checked={r.excludeFromProgression === true} onChange={v => update(s => {
           const routine = s.routines.find(x => x.id === id)
           if (v) routine.excludeFromProgression = true
           else delete routine.excludeFromProgression
         })} />
-      </Row>
-    </div>
-    <div className="small dim" style={{ margin: '-10px 2px 16px' }}>
+      </Row>}
+    </div>}
+    {(controls.routineProgression || (controls.routineDeload && r.excludeFromProgression)) && <div className="small dim" style={{ margin: '0 2px 16px' }}>
       {r.excludeFromProgression
         ? t('A deload routine opens at the numbers set here, so the progression above does not apply to it.') + ' ' + t('The next regular target continues from the last included workout.')
         : t(POLICY_DESC[r.prog || 'linear'] || POLICY_DESC.linear) + ' ' + t('Applies to every exercise in this routine that does not set its own rule.')}
-    </div>
+    </div>}
 
     {missingCount > 0 && <div className="card" style={{ marginBottom: 16, borderColor: 'var(--orange)' }}>
       <div className="row" style={{ gap: 8, alignItems: 'center' }}>
@@ -585,7 +594,7 @@ export default function RoutineEdit() {
     <Button onClick={() => {
       const copy = copyRoutine(r, t('Copy'))
       update(s => { s.routines.push(copy) })
-      nav('/plan/r/' + copy.id)
+      nav(basePath+'/r/' + copy.id)
     }}>{t('Copy routine')}</Button>
     <div style={{ height: 10 }} />
     <Button disabled={!r.ex.length} onClick={printRoutine}>{t('Print / Save as PDF')}</Button>
@@ -594,7 +603,7 @@ export default function RoutineEdit() {
       title: t('Delete routine?'), message: t('“{0}” and its exercises will be removed.', r.name), confirmText: t('Delete'), danger: true,
       onConfirm: () => {
         update(s => { deleteRoutine(s, id) })
-        nav('/plan')
+        nav(basePath)
       }
     })}>{t('Delete routine')}</Button>
   </div>

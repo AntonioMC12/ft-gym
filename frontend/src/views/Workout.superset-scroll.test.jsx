@@ -68,7 +68,8 @@ let dom, root, container
 const lifted = (id, sg) => ({
   id, sg,
   target: { mode: 'reps', sets: 3, reps: 8, weight: 60, restSec: 60 },
-  sets: Array.from({ length: 3 }, () => ({ r: 8, w: 60, done: false })),
+  // One remaining set: these cases test the transition after the exercise is complete.
+  sets: Array.from({ length: 3 }, (_, i) => ({ r: 8, w: 60, done: i > 0 })),
 })
 
 function installDom() {
@@ -136,8 +137,8 @@ describe('the superset card after a rating', () => {
     })
   }
 
-  it.each(['rir', 'rpe'])('%s: the scroll waits for the sheet to hand the page back, then lands on the partner row', async kind => {
-    await mount(superset(), 0)
+  it.each(['cards', 'list', 'compact'].flatMap(view => ['rir', 'rpe'].map(kind => [kind, view])))('%s / %s: the scroll waits for the sheet to hand the page back, then lands on the partner row', async (kind, workoutView) => {
+    await mount(superset(), 0, { workoutView })
     mocks.S = { ...mocks.S, effort: kind }; await rerender()
     const seen = watchScrolls()
     await press(container.querySelector('.setrow:not(.done) .effcell.is-empty'))
@@ -170,6 +171,114 @@ describe('the superset card after a rating', () => {
     expect(seen).toEqual([partnerFirstRow()])
   })
 
+  it.each(['list', 'compact'])('%s: completing a superset set reveals the partner first pending row, undo stays put', async workoutView => {
+    await mount(superset(), 0, { workoutView })
+    const seen = watchScrolls()
+    await press(container.querySelector('[role="checkbox"]'))
+    await rerender()
+    expect(mocks.S.active.cur).toBe(1)
+    expect(seen).toEqual([partnerFirstRow()])
+    seen.length = 0
+    await press(container.querySelector('[role="checkbox"]'))
+    await rerender()
+    expect(seen).toEqual([])
+  })
+
+  it('skips the partner completed rows and scrolls even if that partner is already current', async () => {
+    const entries = superset()
+    entries[1].sets[0].done = true
+    entries[1].sets[1].done = false
+    await mount(entries, 1, { workoutView: 'list' })
+    const seen = watchScrolls()
+    await press(container.querySelector('[role="checkbox"]'))
+    await rerender()
+    expect(mocks.S.active.cur).toBe(1)
+    expect(seen).toEqual([container.querySelectorAll('.setrow')[4]])
+  })
+
+  it.each(['cards', 'list', 'compact'])('%s: stays on the exercise until all its sets are complete', async workoutView => {
+    const entries = superset()
+    entries[0].sets.forEach(row => { row.done = false })
+    await mount(entries, 0, { workoutView })
+    const seen = watchScrolls()
+    await press(container.querySelectorAll('[role="checkbox"]')[0])
+    await rerender()
+    expect(seen).toEqual([])
+    expect(mocks.S.active.cur).toBe(0)
+    await press(container.querySelectorAll('[role="checkbox"]')[1])
+    await rerender()
+    expect(seen).toEqual([])
+    expect(mocks.S.active.cur).toBe(0)
+    await press(container.querySelectorAll('[role="checkbox"]')[2])
+    await rerender()
+    expect(seen).toEqual([partnerFirstRow()])
+  })
+
+  it('respects reduced motion when advancing a superset', async () => {
+    await mount(superset(), 0)
+    dom.matchMedia = () => ({ matches: true })
+    const seen = watchScrolls()
+    await press(container.querySelector('[role="checkbox"]'))
+    await rerender()
+    expect(seen).toEqual([partnerFirstRow()])
+    expect(dom.Element.prototype.scrollIntoView).toHaveBeenLastCalledWith({ behavior: 'auto', block: 'center' })
+  })
+
+  it.each(['cards', 'list', 'compact'])('%s: completing the exercise again scrolls without restarting a running rest', async workoutView => {
+    await mount(superset(), 0, { workoutView })
+    const seen = watchScrolls()
+    await press(container.querySelectorAll('[role="checkbox"]')[0])
+    await rerender()
+    expect(seen).toEqual([partnerFirstRow()])
+    for (let repeat = 0; repeat < 2; repeat++) {
+      seen.length = 0
+      await press(container.querySelectorAll('[role="checkbox"]')[0])
+      await rerender()
+      expect(seen).toEqual([])
+      mocks.timer = { ready: false, owner: 0 }
+      mocks.startRest.mockClear()
+      await press(container.querySelectorAll('[role="checkbox"]')[0])
+      await rerender()
+      expect(seen).toEqual([partnerFirstRow()])
+      expect(mocks.startRest).not.toHaveBeenCalled()
+    }
+  })
+
+  it('rechecking a set with other sets pending does not scroll', async () => {
+    const entries = superset()
+    entries[0].sets[1].done = false
+    await mount(entries)
+    const seen = watchScrolls()
+    for (let click = 0; click < 3; click++) {
+      await press(container.querySelectorAll('[role="checkbox"]')[0])
+      await rerender()
+    }
+    expect(seen).toEqual([])
+  })
+
+  it.each(['cards', 'list', 'compact'])('%s: undo then re-entry resumes the unfinished exercise', async workoutView => {
+    await mount(superset(), 0, { workoutView })
+    await press(container.querySelectorAll('[role="checkbox"]')[0])
+    await rerender()
+    expect(mocks.S.active.cur).toBe(1)
+    await press(container.querySelectorAll('[role="checkbox"]')[0])
+    await rerender()
+    expect(mocks.S.active.cur).toBe(0)
+    const saved = structuredClone(mocks.S.active)
+    await act(async () => { root.unmount() })
+    await mount(saved.entries, saved.cur, { workoutView }, () => rowsAt(889))
+    expect(mocks.S.active.cur).toBe(0)
+    const scroll = dom.Element.prototype.scrollIntoView
+    expect(scroll.mock.contexts).not.toContain(partnerFirstRow())
+    if (workoutView === 'cards') expect(scroll.mock.contexts).toEqual([container.querySelector('.setrow')])
+  })
+
+  it('re-entry with a legacy partner marker reveals the earlier unfinished exercise', async () => {
+    await mount(superset(), 1, {}, () => rowsAt(889))
+    const scroll = dom.Element.prototype.scrollIntoView
+    expect(scroll.mock.contexts).toEqual([container.querySelector('.setrow')])
+  })
+
   it('unpairing during the wait cancels the queued scroll', async () => {
     await mount(superset(), 0)
     mocks.S = { ...mocks.S, effort: 'rir' }; await rerender()
@@ -196,7 +305,9 @@ describe('the superset card after a rating', () => {
   })
   // Coming back to the session, or a fresh open, with the row below the fold.
   it('brings a row below the fold back on mount, as it always did', async () => {
-    await mount(superset(), 1, {}, () => rowsAt(889))
+    const entries = superset()
+    entries[0].sets.forEach(row => { row.done = true })
+    await mount(entries, 1, {}, () => rowsAt(889))
     const scroll = dom.Element.prototype.scrollIntoView
     expect(scroll).toHaveBeenCalledTimes(1)
     expect(scroll.mock.contexts[0]).toBe(partnerFirstRow())
@@ -228,6 +339,8 @@ describe('the superset card after a rating', () => {
     await press(container.querySelector('[role="checkbox"]'))
     await rerender()
     expect(mocks.S.active.cur).toBe(1)
+    expect(seen).toEqual([partnerFirstRow()])
+    seen.length = 0
     mocks.storeSnapshot().update(s => { s.active.workoutView = 'cards' }); await rerender()
     expect(seen).toEqual([])
   })
@@ -288,7 +401,9 @@ describe('the superset card after a rating', () => {
   // The installed app runs under the translucent status bar, and the connection bar sits below it
   // while there is no server: a row up there is not on screen.
   it('a row under the bars at the top counts as off screen', async () => {
-    await mount(superset(), 1, {}, () => { rowsAt(30); topBars(59) })
+    const entries = superset()
+    entries[0].sets.forEach(row => { row.done = true })
+    await mount(entries, 1, {}, () => { rowsAt(30); topBars(59) })
     const scroll = dom.Element.prototype.scrollIntoView
     expect(scroll).toHaveBeenCalledTimes(1)
     expect(scroll.mock.contexts[0]).toBe(partnerFirstRow())

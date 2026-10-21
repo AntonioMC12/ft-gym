@@ -1,3 +1,4 @@
+import {blankRepRows} from './rep-reference.js'
 // Building one session's entries from more than one routine (the "combine routines" feature).
 //
 // A combined session is just the concatenation of the entries each routine would have built on
@@ -19,14 +20,14 @@ import { buildSessionEntries } from './session-start.js'
  * Returns `{ entries, routineIds, routines }` — `routineIds` / `routines` are the resolved,
  * de-duplicated list, so a caller stores exactly what was built.
  */
-export function buildCombinedEntries(st, routineIds) {
+export function buildCombinedEntries(st, routineIds, {blankReps=false}={}) {
   const seen = new Set()
   const routines = [].concat(routineIds ?? [])
     .filter(id => id && !seen.has(id) && seen.add(id))
     .map(id => (st.routines || []).find(r => r.id === id))
     .filter(Boolean)
   const entries = routines.flatMap(r =>
-    buildSessionEntries(st, r).map(e => ({ ...e, rid: r.id }))
+    buildSessionEntries(st, r).map(e => ({ ...e, ...(blankReps?{sets:blankRepRows(e.sets,{...e.target,id:e.id})}:{}),rid: r.id }))
   )
   return { entries, routineIds: routines.map(r => r.id), routines }
 }

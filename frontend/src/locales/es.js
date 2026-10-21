@@ -1,5 +1,7 @@
 // Spanish UI strings. Keys are the English source strings (see lib/i18n.js).
+import { centersStrings } from './modules/centers.js'
 export default {
+  ...centersStrings('es'),
   'Confirm': 'Confirmar',
   'Cancel': 'Cancelar',
   'Press back again to exit': 'Pulsa atrás otra vez para salir',
@@ -2242,4 +2244,8 @@ export default {
   'Your sports watch, calling you back.': 'Tu reloj deportivo te llama de vuelta.',
   'Coach wants you back on the bar.': 'El coach te quiere de vuelta en la barra.',
   'Gentle, for headphones or a quiet room.': 'Suave, para auriculares o una sala tranquila.',
+  "Above previous set": "Por encima de la serie anterior",
+  "Matches previous set": "Iguala la serie anterior",
+  "Below previous set": "Por debajo de la serie anterior",
+  "New personal record": "Nuevo récord personal",
 }

@@ -1,0 +1,22 @@
+import {test} from 'node:test';import assert from 'node:assert/strict';import pg from 'pg';
+import {testUrls,startHttp} from './helpers.mjs';import {migrationFiles,applyMigrations} from '../../centers/migrate.js';import {createCentersDatabase} from '../../centers/db.js';
+test('upgrade041 to042 preserves a nonempty QR ledger, its operator and balance with FORCE RLS restored',async t=>{
+ const urls=testUrls(),migrator=new pg.Client({connectionString:urls.migration});await migrator.connect();const files=await migrationFiles();await applyMigrations(migrator,{files:files.filter(f=>f.version<='041'),kind:'test'});
+ const db=createCentersDatabase({enabled:true,databaseUrl:urls.app});t.after(async()=>{await db.close();await migrator.end()});
+ const p='up_'+Date.now(),root=p+'_root',operator=p+'_operator',account=p+'_member';const h=await startHttp(t,{app:urls.app,superadminUids:[root],users:[root,operator,account].map(id=>({id,name:id,admin:true}))});
+ const req=async(path,uid,body,extra={})=>{const r=await fetch(h.base+path,{headers:{...h.headers(uid),...extra},...(body?{method:'POST',body:JSON.stringify(body)}:{})}),result={status:r.status,body:await r.json()};assert.equal(result.status,200,JSON.stringify(result));return result.body};
+ const c=(await req('/api/platform/centers/create',root,{name:p,managerUid:operator,requestId:p+'_c'})).center.id;
+ const m=(await req('/api/centers/members/create',operator,{centerId:c,name:'Historical pass fixture',requestId:p+'_m'})).member.id;
+ const invite=await req('/api/centers/invitations/create',operator,{centerId:c,kind:'member',memberId:m,accountUid:account,requestId:p+'_invite'});await req('/api/centers/invitations/accept',account,{token:invite.token});const today=(await req('/api/centers/member?'+new URLSearchParams({centerId:c,id:m}),operator)).today;
+ const product=(await req('/api/centers/passes/products/create',operator,{centerId:c,fields:{name:'Historical pass',kind:'promotion',credits:2,validDays:30,priceMinor:'0',priceIncludesTax:true,taxBasisPoints:0},requestId:p+'_product'})).product;
+ const order={centerId:c,memberId:m,productId:product.id,startsOn:today},q=await req('/api/centers/passes/preview',operator,order),pass=(await req('/api/centers/passes/purchase',operator,{...order,quoteHash:q.quoteHash,requestId:p+'_purchase'})).pass;
+ await db.platformTransaction(root,client=>client.query('UPDATE centers.centers SET opening_hours=$2,version=version+1 WHERE id=$1',[c,Object.fromEntries(Array.from({length:7},(_,i)=>[i,[['00:00','24:00']]]))]),c);
+ await req('/api/centers/access/policy',operator,{centerId:c,version:0,policy:{enabled:true,requireSubscription:true,denyOverdue:false,graceDays:0,allowPasses:true},requestId:p+'_policy'});
+ const device=await req('/api/centers/access/devices/create',operator,{centerId:c,name:'Upgrade fixture',requestId:p+'_device'}),token=await req('/api/centers/own/access/token',account,{centerId:c,passId:pass.id,requestId:p+'_token'});
+ const scan=await req('/api/centers/access/consume',operator,{centerId:c,deviceId:device.device.id,token:token.token,requestId:p+'_scan'},{'X-Center-Device-Key':device.credential});assert.equal(scan.admitted,true);
+ const before=await db.transaction({uid:operator,centerId:c},client=>client.query('SELECT id,pass_id,created_at::text FROM centers.pass_consumptions WHERE center_id=$1',[c]));assert.equal(before.rows.length,1);
+ await applyMigrations(migrator,{kind:'test'});
+ const after=await db.transaction({uid:operator,centerId:c},client=>client.query('SELECT id,pass_id,created_at::text,used_on::text,actor_uid FROM centers.pass_consumptions WHERE center_id=$1',[c]));assert.equal(after.rows.length,1);assert.equal(after.rows[0].id,before.rows[0].id);assert.equal(after.rows[0].created_at,before.rows[0].created_at);assert.equal(after.rows[0].used_on,today);assert.equal(after.rows[0].actor_uid,operator);
+ const owned=await req('/api/centers/own/passes?centerId='+c,account);assert.equal(owned.passes[0].remaining,1);
+ const flags=await migrator.query("SELECT relname,relforcerowsecurity FROM pg_class WHERE oid IN ('centers.centers'::regclass,'centers.pass_consumptions'::regclass,'centers.access_visits'::regclass,'centers.renewals'::regclass)");assert.equal(flags.rows.length,4);assert.ok(flags.rows.every(r=>r.relforcerowsecurity));
+});

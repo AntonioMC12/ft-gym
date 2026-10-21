@@ -1,0 +1,2 @@
+# Linux entrypoints must keep LF even when cloned with core.autocrlf=true on Windows.
+*.sh text eol=lf

@@ -1,6 +1,10 @@
+import Community from './views/Community.jsx'
+import TrainingAdmin from './views/TrainingAdmin.jsx'
+import {useMembershipAccess,MembershipAccessScreen,MembershipGraceNotice} from './components/MembershipAccess.jsx'
 import { useEffect, useLayoutEffect, useRef } from 'react'
 import { HashRouter, Routes, Route, Navigate, useNavigate, useLocation, useNavigationType } from 'react-router-dom'
 import { useStore } from './store/useStore.js'
+import { useCenters } from './store/useCenters.js'
 import { useUI } from './store/useUI.js'
 import { bindUI } from './components/ui.jsx'
 import { setWeightDecimals } from './lib/format.js'
@@ -42,6 +46,9 @@ import StructuralBalance from './views/StructuralBalance.jsx'
 import ProgressPhotos from './views/ProgressPhotos.jsx'
 import { SettingsRoute } from './views/Settings.jsx'
 import Admin from './views/Admin.jsx'
+import Centers from './views/centers/Centers.jsx'
+import MyCenters from './views/centers/MyCenters.jsx'
+import InviteAccept from './views/centers/InviteAccept.jsx'
 import CoachChat from './views/CoachChat.jsx'
 import Measurements from './views/Measurements.jsx'
 import CoachIntake from './views/CoachIntake.jsx'
@@ -70,7 +77,17 @@ function Shell() {
   const navigate = useNavigate()
   const loc = useLocation()
   const navType = useNavigationType()
-  const { S, user, ready } = useStore()
+  const { S, user, ready, config } = useStore()
+  const membershipAccess=useMembershipAccess(user,config)
+  useEffect(()=>{if(membershipAccess.blocked)useUI.getState().closeAll()},[membershipAccess.blocked])
+  useEffect(() => {
+    if (!user || !config?.centers?.enabled) { useCenters.getState().reset(); return }
+    const refresh = () => { if (document.visibilityState !== 'hidden') useCenters.getState().load(user.id) }
+    refresh()
+    window.addEventListener('focus', refresh)
+    const timer = window.setInterval(refresh, 30000)
+    return () => { window.removeEventListener('focus', refresh); window.clearInterval(timer); useCenters.getState().reset() }
+  }, [user?.id, config?.centers?.enabled])
   // iOS: whether timer sounds get past the ring/silent switch (Settings → Sounds). Page-level,
   // so it is applied here on load and on change rather than at each beep.
   useEffect(() => { setPlayOnSilent(!!S.soundOnSilent) }, [S.soundOnSilent])
@@ -111,7 +128,6 @@ function Shell() {
   }, [S.theme, accent])
   // A profile that never picked a language follows the instance default or the browser (#303) —
   // worked out here, on this device, and never written into the synced state (lib/default-lang.js).
-  const config = useStore(s => s.config)
   const lang = effectiveLang(S, config)
   useEffect(() => { setLang(lang, S.enParens?.[baseLang(lang)] ?? true, S.enOnly?.[baseLang(lang)] === true) }, [lang, S.enParens, S.enOnly])
   // Same shape as the language: a module-level display setting, pushed when it changes (#139).
@@ -185,7 +201,7 @@ function Shell() {
   }, [inWorkout])
   // The chat owns the bottom of the screen as well: its composer sits where the tabs would be.
   // The first-launch card has no tabs either: they changed the route behind it.
-  const noTabs = inWorkout || loc.pathname === '/coach' || needsMobileOnboarding
+  const noTabs = !membershipAccess.allowed || inWorkout || loc.pathname === '/coach' || loc.pathname.startsWith('/centers') || loc.pathname.startsWith('/training-admin') || needsMobileOnboarding
 
   const authed = user || isGuest
   if (!ready && !authed) return (
@@ -202,12 +218,20 @@ function Shell() {
           re-mounts the boundary, so the tab bar is always a way out */}
       <div id="app" className="vfade" key={loc.pathname}>
         <ErrorBoundary>
-          {!authed ? <Login /> : needsMobileOnboarding ? <MobileOnboarding /> : (
+          {!authed ? <Login /> : needsMobileOnboarding ? <MobileOnboarding /> : !membershipAccess.allowed ? <MembershipAccessScreen access={membershipAccess}/> : (
+            <>
+            <MembershipGraceNotice warnings={membershipAccess.warnings}/>
             <Routes>
               <Route path="/home" element={<Home />} />
+              <Route path="/centers" element={<Centers />} />
+              <Route path="/centers/membership" element={<MyCenters onStart={startFlow} />} />
+              <Route path="/centers/invite" element={<InviteAccept />} />
               {/* Gym check-in — switched off in Settings, the route falls through to the
                   catch-all redirect below. */}
               {S.checkIn !== false && <Route path="/checkin" element={<CheckIn />} />}
+              <Route path="/training-admin" element={<TrainingAdmin />} />
+              <Route path="/training-admin/r/:id" element={<TrainingAdmin edit />} />
+              <Route path="/community" element={<Community />} />
               <Route path="/plan" element={<Plan />} />
               <Route path="/plan/r/:id" element={<RoutineEdit />} />
               <Route path="/workout" element={<Workout />} />
@@ -230,18 +254,19 @@ function Shell() {
               <Route path="/admin" element={user?.admin ? <Admin /> : <Navigate to="/home" replace />} />
               <Route path="*" element={<Navigate to="/home" replace />} />
             </Routes>
+            </>
           )}
         </ErrorBoundary>
       </div>
       {/* Outside #app: the view's fade-in animates a transform, and a fixed element inside it
           would ride along with the page for the length of it. Decides for itself when to show —
           including on the sign-in screen, when the server has just ended the session. */}
-      <SyncBanner />
+      {(!user||membershipAccess.allowed)&&<SyncBanner />}
       {!noTabs && <TabBar onStart={startFlow} />}
-      <RestTimer />
+      {membershipAccess.allowed&&<RestTimer />}
       <Modals />
       <Toast />
-      <TimerFlash />
+      {membershipAccess.allowed&&<TimerFlash />}
     </>
   )
 }

@@ -1,7 +1,7 @@
 // @vitest-environment happy-dom
 vi.mock('./Passes.jsx',()=>({default:()=>null}))
-vi.mock('./Subscriptions.jsx',()=>({default:()=> <div data-member-subscriptions/>}))
-vi.mock('./Receipts.jsx',()=>({default:props=> <div data-member-receipts data-can-record={String(props.canRecord)}/>}))
+vi.mock('./Subscriptions.jsx',()=>({default:props=> <div data-member-subscriptions><button onClick={()=>props.receiptCreated({receipt:{id:'issued'}})}>Simulate receipt issued</button></div>}))
+vi.mock('./Receipts.jsx',()=>({default:props=> <div data-member-receipts data-reveal={props.revealReceipt?.id} data-can-record={String(props.canRecord)}/>}))
 vi.mock('./Payments.jsx',()=>({default:props=> <div data-member-payments data-can-refund={String(props.canRefund)}/>}))
 import React,{act} from 'react'
 import {createRoot} from 'react-dom/client'
@@ -112,6 +112,7 @@ it('opens cash management only in its section and preserves separate recording a
   expect(host.querySelector('[data-member-receipts]').dataset.canRecord).toBe('false');expect(host.querySelector('[data-member-payments]').dataset.canRefund).toBe('false');
   await render('b',['members.manage','billing.manage','payments.record']);await act(async()=>host.querySelector('.centers-member-list-card button.lrow').click());await click('Fees and payments');
   expect(host.querySelector('[data-member-receipts]').dataset.canRecord).toBe('true');expect(host.querySelector('[data-member-payments]').dataset.canRefund).toBe('false');
+  await click('Simulate receipt issued');expect(host.querySelector('[data-member-receipts]').dataset.reveal).toBe('issued');
 })
 it('shows each member ID once while preserving different people with the same name',async()=>{
  centerMembers.mockResolvedValue({members:[sample,{...sample},{...sample,id:'two',number:'M-000002'}],nextCursor:null});await render();expect(host.querySelectorAll('.centers-member-list-card')).toHaveLength(2);expect(host.textContent).toContain('M-000001');expect(host.textContent).toContain('M-000002');

@@ -56,7 +56,7 @@ export function receiptsErrorKey(error) {
   if(code==='quote-changed')return 'The amount changed. Preview it again before creating the receipt.'
   if(code==='receipt-exists')return 'A receipt already exists for this period with a different due date.'
   if(code==='billing-policy-required')return 'Tax and proration must be configured before calculating charges.'
-  if(code==='invalid-input')return 'Check the billing period and due date.'
+  if(code==='invalid-input')return 'Check the billing period.'
   return centersErrorKey(error)
 }
 export const centerPayments=(centerId,memberId,options={})=>api('/api/centers/payments?'+new URLSearchParams({centerId,memberId,...options}))

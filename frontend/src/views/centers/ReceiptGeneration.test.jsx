@@ -25,6 +25,7 @@ it('confirms the visible amount/due date, sends only IDs and the server digest, 
   expect(confirmSheet.mock.calls[0][0].message).toContain('19.30 EUR');expect(confirmSheet.mock.calls[0][0].message).toContain('2026-11-05')
   const [path,body]=centerCommand.mock.calls[1];expect(path).toBe('/api/centers/receipts/generate');expect(body).toMatchObject({subscriptionId:'contract1',periodStart:'2026-10-01',expectedQuoteHash:hash});expect(body).not.toHaveProperty('totalMinor');expect(body).not.toHaveProperty('dueOn');expect(confirmSheet.mock.calls.at(-1)[0].message).toContain('2026-11-05')
   expect(generated).toHaveBeenCalledOnce();expect(host.textContent).toContain('Receipt created.');expect(host.textContent).not.toContain('Preview only. No receipt or payment is created.')
+  expect(host.querySelector('form')).toBeNull();expect([...host.querySelectorAll('button')].some(b=>['Create receipt','Preview charge'].includes(b.textContent))).toBe(false)
 })
 it('preserves the identical command/request ID across failed retries without announcing success',async()=>{
   centerCommand.mockResolvedValueOnce({quote,quoteHash:hash,dueOn:'2026-11-05'}).mockRejectedValue(new Error('temporary'));await preview();await click('Create receipt');await click('Create receipt')
@@ -39,7 +40,7 @@ it('a confirmation from the old center cannot create a receipt after changing co
   expect(centerCommand).toHaveBeenCalledTimes(1);expect(generated).not.toHaveBeenCalled()
 })
 it('replayed existing receipts display their issued snapshot and zero-charge replies do not invent a receipt',async()=>{
-  const original={...quote,totalMinor:'1210',netMinor:'1000',taxMinor:'210'};centerCommand.mockResolvedValueOnce({quote,quoteHash:hash,dueOn:'2026-11-05'}).mockResolvedValueOnce({receipt:{id:'existing',snapshot:original},alreadyExists:true});await preview();await click('Create receipt');expect(host.textContent).toContain('12.10 EUR');expect(host.textContent).toContain('Receipt already exists.')
+  const original={...quote,totalMinor:'1210',netMinor:'1000',taxMinor:'210'};centerCommand.mockResolvedValueOnce({quote,quoteHash:hash,dueOn:'2026-11-05'}).mockResolvedValueOnce({receipt:{id:'existing',snapshot:original},alreadyExists:true});await preview();await click('Create receipt');expect(host.textContent).toContain('12.10 EUR');expect(host.textContent).toContain('Receipt already exists.');expect([...host.querySelectorAll('button')].some(b=>b.textContent==='Create receipt')).toBe(false)
   await render('b');centerCommand.mockResolvedValueOnce({quote:{...quote,totalMinor:'0'},quoteHash:hash,dueOn:'2026-11-05'}).mockResolvedValueOnce({skipped:true,reason:'no-charge'});await click('Preview charge');await click('Preview charge');await click('Create receipt');expect(host.textContent).toContain('No charge for this period.')
 })
 it('future period previews remain readable but cannot issue a receipt',async()=>{
@@ -57,3 +58,12 @@ it('previewing an unchanged receipt form stays clean and cancels without a disca
 })
 
 it('shows the fixed deadline without an editable due-date field',async()=>{await preview();expect(host.querySelectorAll('input[type=date]')).toHaveLength(1);expect(host.querySelector('[data-error-field=dueOn]')).toBeNull();expect(host.textContent).toContain('Always the 5th of the month after the billing period.');expect(host.textContent).toContain('2026-11-05')})
+
+it('monthly receipts select a calendar month and send day 1 even when today is day 20',async()=>{
+ await act(async()=>root.render(<Guard><BillingPreview centerId="a" memberId="member1" contractId="contract1" ownerUid="manager" today="2026-10-20" intervalMonths={1} canGenerate/></Guard>));await click('Create receipt');expect(host.querySelector('input[type=date]')).toBeNull();expect(host.querySelector('input[type=month]').value).toBe('2026-10');expect(host.querySelector('.centers-unsaved-indicator')).toBeNull();await click('Preview charge');expect(centerCommand).toHaveBeenCalledWith('/api/centers/billing/preview',{centerId:'a',memberId:'member1',id:'contract1',periodStart:'2026-10-01'});expect(host.textContent).toContain('2026-11-05');await click('Cancel');expect(confirmSheet).not.toHaveBeenCalled();
+})
+
+it('changing a monthly period clears the stale quote and recalculates day 1 of the selected month',async()=>{
+ await act(async()=>root.render(<BillingPreview centerId="a" memberId="member1" contractId="contract1" ownerUid="manager" today="2026-10-20" intervalMonths={1} canGenerate/>));await click('Preview charge');await click('Preview charge');const input=host.querySelector('input[type=month]');await act(async()=>{Object.getOwnPropertyDescriptor(HTMLInputElement.prototype,'value').set.call(input,'2026-09');input.dispatchEvent(new Event('input',{bubbles:true}))});expect(host.textContent).not.toContain('Total amount');await click('Preview charge');expect(centerCommand.mock.calls.at(-1)[1].periodStart).toBe('2026-09-01');
+ await act(async()=>{Object.getOwnPropertyDescriptor(HTMLInputElement.prototype,'value').set.call(input,'');input.dispatchEvent(new Event('input',{bubbles:true}))});expect([...host.querySelectorAll('button')].find(b=>b.textContent==='Create receipt').disabled).toBe(true);await click('Preview charge');expect(centerCommand).toHaveBeenCalledTimes(2);expect(host.querySelector('[role=alert]').textContent).toBe('Check the billing period.');
+})

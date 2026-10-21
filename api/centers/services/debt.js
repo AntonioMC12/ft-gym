@@ -13,7 +13,7 @@ export function debtListOptions(params,{calendar=false,exporting=false}={}) {
 }
 const ledger=`WITH allocated AS (SELECT receipt_id,sum(amount_minor) AS amount FROM centers.payment_allocations WHERE center_id=$1 GROUP BY receipt_id),
   returned AS (SELECT receipt_id,sum(amount_minor) AS amount FROM centers.refunds WHERE center_id=$1 GROUP BY receipt_id),
-  debt AS (SELECT r.id,r.center_id,r.member_id,m.member_number,m.name,r.period_start,r.period_end,r.due_on,r.currency,r.total_minor,
+  debt AS (SELECT r.id,r.center_id,r.member_id,r.subscription_id,r.concept,m.member_number,m.name,r.period_start,r.period_end,r.due_on,r.currency,r.total_minor,
     coalesce(a.amount,0)-coalesce(f.amount,0) AS paid,coalesce(f.amount,0) AS refunded,
     r.total_minor-coalesce(a.amount,0)+coalesce(f.amount,0) AS balance
     FROM centers.receipts r JOIN centers.members m ON m.center_id=r.center_id AND m.id=r.member_id
@@ -37,7 +37,22 @@ export function listDebt(database,uid,centerId,options,{platform=false}={}) {
       coalesce(sum(balance) FILTER(WHERE due_on<$5::date-$6::integer),0)::text AS overdue`+filtered,[...values,today,policy.graceDays]);
     const {rows}=await client.query(ledger+'SELECT '+projection+filtered+" AND ($5::timestamptz IS NULL OR (due_on,id)>(($5::timestamptz AT TIME ZONE 'UTC')::date,$6::text)) ORDER BY due_on,id LIMIT $7",[...values,after?.at||null,after?.id||null,options.limit+1]);
     const page=rows.slice(0,options.limit);
-    return {today,policy,dueFrom:from,dueTo:to,summary:{receiptCount:summary[0].count,outstandingMinor:summary[0].outstanding,overdueMinor:summary[0].overdue,currency:'EUR'},receipts:page.map(row=>dto(row,today,policy)),nextCursor:rows.length>options.limit?nextCursor(scope,page.at(-1)):null};
+    const {rows:renewals}=await client.query(ledger+`, bounds AS (SELECT date_trunc('month',$2::date)::date AS month),
+      monthly AS (SELECT d.* FROM debt d JOIN centers.subscriptions s ON (s.center_id,s.id)=(d.center_id,d.subscription_id)
+        JOIN centers.membership_plan_versions v ON (v.center_id,v.id)=(s.center_id,s.price_version_id)
+        CROSS JOIN bounds b WHERE d.concept='membership' AND v.interval_months=1 AND d.period_start>=b.month-interval '1 month' AND d.period_start<b.month+interval '1 month'),
+      totals AS (SELECT member_id,sum(total_minor) FILTER(WHERE period_start<b.month) AS previous_total,
+        sum(balance) FILTER(WHERE period_start<b.month) AS previous_balance,
+        count(*) FILTER(WHERE period_start>=b.month) AS current_count,
+        sum(balance) FILTER(WHERE period_start>=b.month) AS current_balance FROM monthly CROSS JOIN bounds b GROUP BY member_id)
+      SELECT b.month::text AS month,(b.month-interval '1 month')::date::text AS previous_month,
+        (SELECT count(*)::integer FROM totals t JOIN centers.member_profiles m ON m.center_id=$1 AND m.id=t.member_id
+          WHERE t.previous_total>0 AND t.previous_balance=0 AND (t.current_count=0 OR t.current_balance>0)
+          AND m.state='active' AND m.joined_on<=$2::date AND (m.ends_on IS NULL OR m.ends_on>$2::date)
+          AND EXISTS(SELECT 1 FROM centers.subscriptions s JOIN centers.membership_plan_versions v ON (v.center_id,v.id)=(s.center_id,s.price_version_id)
+            WHERE s.center_id=$1 AND s.member_id=m.id AND s.canceled_at IS NULL AND s.starts_on<=$2::date AND (s.ends_on IS NULL OR s.ends_on>$2::date) AND v.interval_months=1)
+          AND NOT EXISTS(SELECT 1 FROM centers.renewals r WHERE r.center_id=$1 AND r.member_id=m.id AND r.receipt_id IS NULL AND r.period_start>=b.month AND r.period_start<b.month+interval '1 month')) AS member_count FROM bounds b`,[centerId,today]);
+    return {today,policy,dueFrom:from,dueTo:to,summary:{receiptCount:summary[0].count,outstandingMinor:summary[0].outstanding,overdueMinor:summary[0].overdue,currency:'EUR'},renewals:{month:renewals[0].month,previousMonth:renewals[0].previous_month,memberCount:renewals[0].member_count},receipts:page.map(row=>dto(row,today,policy)),nextCursor:rows.length>options.limit?nextCursor(scope,page.at(-1)):null};
   },{platform,allowInactive:platform});
 }
 export function exportDebt(database,uid,centerId,options,{platform=false}={}) {

@@ -305,8 +305,15 @@ fieldset.centers-fields{border:0;padding:0;min-width:0}
 .centers-debt .seg>button.on{background:var(--acc-soft);border-color:var(--acc);color:var(--label)}
 .centers-debt-description{display:flex;align-items:center;justify-content:space-between;gap:8px;flex-wrap:wrap;color:var(--label-2);font-size:14px}
 .centers-debt-description>p{margin:0}
-.centers-debt-filter{display:flex;gap:12px;align-items:flex-end;flex-wrap:wrap;padding-bottom:18px;border-bottom:1px solid var(--sep)}
-.centers-debt-filter>.centers-fields{flex:1;min-width:230px;margin:0}
+.centers-debt-filter{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:12px;align-items:end;min-width:0;padding-bottom:18px;border-bottom:1px solid var(--sep)}
+.centers-debt-filter>.centers-fields{width:100%;min-width:0;max-width:100%;margin:0}
+.centers-debt-filter input[type=date]{display:block;box-sizing:border-box;width:100%;min-width:0;max-width:100%;min-height:50px;appearance:none;-webkit-appearance:none;color-scheme:dark;text-align:start}
+.centers-debt-filter input[type=date]::-webkit-date-and-time-value{min-width:0;min-height:1.4em;text-align:start}
+.centers-debt-filter input[type=date]::-webkit-datetime-edit{min-width:0;padding:0}
+:root[data-theme=light] .centers-debt-filter input[type=date]{color-scheme:light}
+.centers-debt-quick-dates{display:flex;flex-wrap:wrap;gap:8px;margin-bottom:16px}
+.centers-debt-quick-dates>.btn{width:auto;min-height:44px;padding:10px 14px;white-space:normal}
+@media(max-width:600px){.centers-debt-filter{grid-template-columns:minmax(0,1fr)}.centers-debt-filter>.centers-fields{grid-template-columns:minmax(0,1fr)}}
 .centers-debt-filter .centers-field>span{min-height:44px;display:flex;align-items:center}
 .centers-debt .btn,.centers-billing-tools .btn{min-height:44px;padding:10px 16px;width:auto;border:1px solid var(--sep);border-radius:var(--r);white-space:normal}
 .centers-debt-summary{display:grid;grid-template-columns:2fr 2fr 1fr;gap:12px;margin-top:18px}
@@ -538,3 +545,15 @@ fieldset.centers-fields{border:0;padding:0;min-width:0}
 
 .centers-fixed-due-date{display:grid;gap:7px;padding:14px 16px;margin:16px 0;background:var(--surface);border:1px solid var(--sep);border-radius:var(--r)}
 .centers-fixed-due-date strong{font-size:14px;line-height:1.5}
+.centers-receipt-summary{margin:10px 0;border:1px solid var(--sep);border-radius:var(--r);background:var(--surface-2);overflow:hidden}
+.centers-receipt-summary:focus{outline:2px solid var(--acc);outline-offset:3px}
+.centers-page .centers-receipt-summary>.centers-entity-row{margin:0;border:0;border-radius:0;box-shadow:none;background:transparent}
+.centers-page .centers-receipt-summary>.centers-entity-row:focus-visible{outline-offset:-3px}
+.centers-receipt-settlement{display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:12px;padding:0 16px 16px}
+.centers-billing-preview input[type=month]{color-scheme:dark}
+:root[data-theme=light] .centers-billing-preview input[type=month]{color-scheme:light}
+.centers-debt-summary>.centers-renewals-pending{grid-column:1/-1;grid-template-columns:1fr auto;border-left:3px solid var(--orange)}
+.centers-renewals-pending>strong{grid-column:2;grid-row:1/3;align-self:center}
+.centers-debt-summary>.centers-renewals-pending>span.small{min-height:0}
+.centers-renewals-pending>p{grid-column:1/-1;margin:4px 0 0;line-height:1.5}
+@media(max-width:550px){.centers-debt-summary>article:nth-child(3){grid-column:1/-1;grid-template-columns:1fr auto;align-items:center}}

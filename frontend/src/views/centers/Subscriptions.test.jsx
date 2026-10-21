@@ -17,6 +17,9 @@ afterEach(()=>{act(()=>root.unmount());host.remove()})
 const render=(centerId='a',value=member)=>act(async()=>{root.render(<Subscriptions centerId={centerId} member={value} ownerUid="manager" changed={changed}/>);await Promise.resolve()})
 const click=text=>act(async()=>{[...host.querySelectorAll('button')].find(button=>button.textContent===text).click();await Promise.resolve()})
 const fill=(label,value)=>act(()=>{const field=[...host.querySelectorAll('label')].find(el=>el.textContent===label).querySelector('input,textarea'),prototype=field.tagName==='TEXTAREA'?HTMLTextAreaElement.prototype:HTMLInputElement.prototype;Object.getOwnPropertyDescriptor(prototype,'value').set.call(field,value);field.dispatchEvent(new Event('input',{bubbles:true}))})
+it('uses the pinned monthly interval to open a month selector for receipt issuance',async()=>{
+ const row={id:'active',planId:'p',name:'Monthly',intervalMonths:1,priceMinor:'2999',currency:'EUR',startsOn:today,status:'active',discountBasisPoints:0};centerSubscriptions.mockResolvedValue({member,today,changes:[],subscriptions:[row]});await render();await click('Create receipt');expect(host.querySelector('input[type=month]').value).toBe('2026-10');
+})
 it('sends the selected immutable price, current member version and exact discount, retaining the retry id',async()=>{
   centerCommand.mockRejectedValue(new Error('temporary'));await render();fill('Discount (%)','12,50');fill('Discount reason','Synthetic reason');await click('Save');await click('Save')
   expect(centerCommand.mock.calls[0]).toEqual(['/api/centers/subscriptions/create',expect.objectContaining({memberVersion:1,priceVersionId:'price1',effectiveOn:today,discountBasisPoints:1250,discountReason:'Synthetic reason'})]);expect(centerCommand.mock.calls[0][1].requestId).toBe(centerCommand.mock.calls[1][1].requestId)

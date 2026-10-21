@@ -44,3 +44,38 @@ test('center debt/calendar/export derive the ledger, retain account access and i
   const json=JSON.parse((await import('node:fs')).readFileSync(h.dir+'/db.json','utf8'));assert.ok(json.users.every(user=>!user.disabled),'debt does not suspend personal accounts');
   const audits=await db.platformTransaction(root,client=>client.query("SELECT details FROM centers.business_audit WHERE center_id=$1 AND action='debt.exported' ORDER BY created_at",[center]),center);assert.equal(audits.rows.length,3);assert.equal(audits.rows[0].details.count,4);assert.ok(!JSON.stringify(audits.rows).includes('Synthetic CSV'));
 });
+
+test('pending monthly renewals count settled prior months independently of receipts, filters and pagination',async t=>{
+ const {app,migrator}=await isolatedDatabase(),db=createCentersDatabase({enabled:true,databaseUrl:app});t.after(async()=>{await db.close();await migrator.end()});
+ const p='renewalwatch_'+randomBytes(5).toString('hex'),root=p+'_root',manager=p+'_manager',other=p+'_other';
+ const h=await startHttp(t,{app,superadminUids:[root],users:[root,manager,other].map(id=>({id,name:id}))});
+ const req=async(path,uid,body)=>{const r=await fetch(h.base+path,{headers:h.headers(uid),...(body?{method:'POST',body:JSON.stringify(body)}:{})});const value=await r.json();assert.equal(r.status,200,JSON.stringify(value));return value};
+ const center=(await req('/api/platform/centers/create',root,{name:p,managerUid:manager,requestId:p+'_c'})).center.id,elsewhere=(await req('/api/platform/centers/create',root,{name:p+'_other',managerUid:other,requestId:p+'_o'})).center.id;
+ const plan=(await req('/api/centers/plans/create',manager,{centerId:center,name:'Monthly watch fixture',priceMinor:'1000',currency:'EUR',intervalMonths:1,priceIncludesTax:true,taxBasisPoints:0,proration:'none',requestId:p+'_plan'})).plan;
+ const cases={};let today,month,previous,next;
+ const pay=async(row,receiptId,amount,tag)=>req('/api/centers/payments/record',manager,{centerId:center,memberId:row.member.id,amountMinor:amount,currency:'EUR',paidOn:today,method:'cash',allocations:[{receiptId,amountMinor:amount}],requestId:p+'_'+tag});
+ const insert=async(row,id,start,end,total='1000')=>db.platformTransaction(root,client=>client.query(`INSERT INTO centers.receipts(id,center_id,member_id,subscription_id,period_start,period_end,due_on,currency,net_minor,tax_minor,total_minor,snapshot,actor_uid) VALUES($1,$2,$3,$4,$5,$6,$6,'EUR',$7,0,$7,$8,$9)`,[id,center,row.member.id,row.contract.id,start,end,total,JSON.stringify(row.snapshot),root]),center);
+ for(const tag of ['unissued','partial','paid','refundPrevious','ended','noPrevious','freeCurrent','refundCurrent']){
+  const member=(await req('/api/centers/members/create',manager,{centerId:center,name:'Fictional '+tag,requestId:p+'_'+tag})).member;
+  if(!today){today=(await req(`/api/centers/member?centerId=${center}&id=${member.id}`,manager)).today;month=today.slice(0,7)+'-01';const date=new Date(month+'T00:00:00Z');date.setUTCMonth(date.getUTCMonth()-1);previous=date.toISOString().slice(0,10);date.setUTCMonth(date.getUTCMonth()+2);next=date.toISOString().slice(0,10)}
+  const assigned=await req('/api/centers/subscriptions/create',manager,{centerId:center,memberId:member.id,memberVersion:1,priceVersionId:plan.priceVersionId,effectiveOn:today,...(tag==='freeCurrent'?{discountBasisPoints:10000,discountReason:'Fictional waiver'}:{}),requestId:p+'_s_'+tag});
+  const row=cases[tag]={member:assigned.member,contract:assigned.subscriptions[0]};row.snapshot=(await req('/api/centers/billing/preview',manager,{centerId:center,memberId:member.id,id:row.contract.id,periodStart:month})).quote;
+  if(tag!=='noPrevious'){
+   row.previousId=p+'_prev_'+tag;await insert(row,row.previousId,previous,month);row.previousPayment=(await pay(row,row.previousId,'1000','prevpay_'+tag)).payment;
+   if(tag==='refundPrevious')await req('/api/centers/payments/refund',root,{centerId:center,memberId:member.id,paymentId:row.previousPayment.id,receiptId:row.previousId,amountMinor:'100',refundedOn:today,reason:'Fictional return',requestId:p+'_prevrefund'});
+  }
+  if(tag==='freeCurrent'){const preview=await req('/api/centers/renewals/preview',manager,{centerId:center,memberId:member.id});await req('/api/centers/renewals/cash',manager,{centerId:center,memberId:member.id,quoteHash:preview.quoteHash,requestId:p+'_zeroRenewal'})}
+  if(['partial','paid','refundCurrent'].includes(tag)){
+   row.currentId=p+'_current_'+tag;await insert(row,row.currentId,month,next,tag==='freeCurrent'?'0':'1000');
+   if(tag!=='freeCurrent'){const payment=(await pay(row,row.currentId,tag==='partial'?'400':'1000','curpay_'+tag)).payment;if(tag==='refundCurrent')await req('/api/centers/payments/refund',root,{centerId:center,memberId:member.id,paymentId:payment.id,receiptId:row.currentId,amountMinor:'100',refundedOn:today,reason:'Fictional return',requestId:p+'_currefund'})}
+  }
+  if(tag==='ended')await req('/api/centers/members/transition',manager,{centerId:center,id:member.id,version:row.member.version,action:'end',effectiveOn:today,reason:'Fictional termination',requestId:p+'_end'});
+ }
+ const query='/api/centers/billing/debts?centerId='+center;
+ const watch=(await req(query+'&limit=1',manager)).renewals;assert.deepEqual(watch,{month,previousMonth:previous,memberCount:3});
+ assert.equal((await req(query+'&dueFrom=1990-01-01&dueTo=1990-01-02',manager)).renewals.memberCount,3);
+ assert.equal((await req('/api/centers/billing/calendar?centerId='+center,manager)).renewals.memberCount,3);
+ assert.equal((await req('/api/centers/billing/debts?centerId='+elsewhere,other)).renewals.memberCount,0);
+ await pay(cases.partial,cases.partial.currentId,'600','finishPartial');assert.equal((await req(query,manager)).renewals.memberCount,2);
+ await pay(cases.refundPrevious,cases.refundPrevious.previousId,'100','finishPrevious');assert.equal((await req(query,manager)).renewals.memberCount,3);
+});

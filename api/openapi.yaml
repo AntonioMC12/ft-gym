@@ -1932,6 +1932,10 @@ paths:
         define not-due, due, grace and overdue; due date is inclusive, overdue starts after graceDays.
         Unsupported/missing policy fails closed. Never writes delinquency or disables personal accounts.
         Totals cover the full filtered set, independently of pagination. No DNI, IBAN or private notes.
+        renewals separately counts active members with a current monthly subscription, a positive fully
+        settled previous calendar month, and an unpaid/partially paid or unissued current month.
+        Net allocations include refunds. Zero-charge renewals are excluded. This count always uses
+        the current center-local month, independently of the due-date filter; it is not a debt amount.
         Stable due-date/id ascending cursor is bound to actor, center, filters, today and policy.
       security: [{ session: [] }, { bearer: [] }]
       parameters:
@@ -6726,6 +6730,14 @@ components:
       type: object
       properties:
         today: { type: string, format: date }
+        renewals:
+          type: object
+          description: Current calendar-month renewal watch, independent of receipt pagination and due-date filters. No estimated receivable is created.
+          required: [month, previousMonth, memberCount]
+          properties:
+            month: { type: string, format: date }
+            previousMonth: { type: string, format: date }
+            memberCount: { type: integer, minimum: 0 }
         dueFrom: { type: [string, 'null'], format: date }
         dueTo: { type: [string, 'null'], format: date }
         policy:

@@ -1,5 +1,7 @@
+import { sharedExerciseStrings } from './modules/shared-exercises.js'
 import { centersStrings } from './modules/centers.js'
 export default {
+  ...sharedExerciseStrings('zh-TW'),
   ...centersStrings('zh-TW'),
   'Confirm': '確認',
   'Cancel': '取消',

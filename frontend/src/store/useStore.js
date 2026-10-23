@@ -2,7 +2,7 @@ import { create } from 'zustand'
 import { api, setRemoteAuth } from '../lib/api.js'
 import { localTZ } from '../lib/format.js'
 import { t } from '../lib/i18n.js'
-import { registerCustom, healCustomEx } from '../lib/exercises.js'
+import { registerCustom, healCustomEx, retainSharedTraining } from '../lib/exercises.js'
 import { DEMO, DEMO_SEEDED } from '../lib/demo.js'
 import { rememberDefaultLang } from '../lib/default-lang.js'
 import { guestAllowed } from '../lib/guest.js'
@@ -573,7 +573,8 @@ export const useStore = create((set, get) => {
     // custom exercises marked as such (#378): one stored without the flag by an older plan import
     // goes out with it on the next push, without a stamp of its own (healCustomEx).
     S.customEx = healCustomEx(S.customEx)
-    registerCustom(S.customEx)
+    retainSharedTraining(S)
+    registerCustom(S.customEx, S.exerciseDefs)
     // A refused write used to take the change with it — Finish looked like it simply did
     // nothing. The copy is kept in memory either way and marked as owed to the server, so a
     // signed-in device still gets it there; and it is said out loud once, because a change that
@@ -851,7 +852,7 @@ export const useStore = create((set, get) => {
     seenWid = readWid()
     handedOver = false
     meta.set(S, { base: readStoredSync(), owed: storedOwed() })
-    registerCustom(S.customEx)
+    registerCustom(S.customEx, S.exerciseDefs)
     set({ S })
     followSignIn()
     return true
@@ -896,7 +897,7 @@ export const useStore = create((set, get) => {
     if (sameCopy(merged, theirs)) {
       merged._ts = Math.max(Number(theirs._ts) || 0, Number(mine._ts) || 0)
       meta.set(merged, { base: readStoredSync(), owed: storedOwed() })
-      registerCustom(merged.customEx)
+      registerCustom(merged.customEx, merged.exerciseDefs)
       set({ S: merged })
       return
     }
@@ -1286,7 +1287,7 @@ export const useStore = create((set, get) => {
 
   const S0 = loadState()
   S0.customEx = healCustomEx(S0.customEx)
-  registerCustom(S0.customEx)
+  registerCustom(S0.customEx, S0.exerciseDefs)
   // Which photos and videos are still waiting for the server, known before the first sign-out
   // check has to ask (lib/media-owed.js). A copy without any leaves the media store unopened.
   if (referencedHashes(S0).size) loadPending()
@@ -1324,6 +1325,7 @@ export const useStore = create((set, get) => {
       const prev = get().S
       const S = clone(prev)
       mut(S)
+      retainSharedTraining(S)
       // What the change removed, and which routines, workouts, settings and plan days it touched,
       // each with one time that comes after every stamp the copy already carries: a conflict then
       // keeps a removal and the edit made last, even from a device whose clock runs behind

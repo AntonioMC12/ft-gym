@@ -7,8 +7,14 @@
  */
 import { EXERCISES } from './library-data.js';
 
-export const LIBRARY = EXERCISES;
+export const LIBRARY = [...EXERCISES];
 export const LIB_BY_ID = new Map(LIBRARY.map(e => [e.id, e]));
+export const BUILTIN_IDS = new Set(LIB_BY_ID.keys());
+export function registerSharedLibrary(entries) {
+  LIBRARY.splice(0, LIBRARY.length, ...EXERCISES, ...entries.filter(e => !e.archived));
+  for (const id of LIB_BY_ID.keys()) if (!BUILTIN_IDS.has(id)) LIB_BY_ID.delete(id);
+  for (const row of entries) if (!BUILTIN_IDS.has(row.id)) LIB_BY_ID.set(row.id, row);
+}
 
 export const libraryHas = id => LIB_BY_ID.has(id);
 export const libraryName = id => LIB_BY_ID.get(id)?.n || null;
@@ -75,7 +81,7 @@ export function librarySlice(S, equipment, { keep = [], max = MAX_LIBRARY } = {}
   // gives every other name (NAME_MAX, 80) and id (ID_MAX, 64); a non-string reads as absent.
   const cut = (v, n) => (typeof v === 'string' ? v.slice(0, n) : undefined);
   const customs = (Array.isArray(S.customEx) ? S.customEx : [])
-    .filter(c => c && typeof c === 'object' && typeof c.id === 'string' && c.id)
+    .filter(c => c && typeof c === 'object' && typeof c.id === 'string' && c.id && !LIB_BY_ID.has(c.id))
     .map(c => ({ id: cut(c.id, 64), n: cut(c.n, 80), bp: cut(c.bp, 40), tg: null, eq: 'custom', custom: true }));
   // No equipment stated (or "everything") ⇒ the whole catalogue. Filtering to nothing would
   // leave the Coach unable to propose anything at all, which is a worse failure than a

@@ -1,6 +1,8 @@
+import { sharedExerciseStrings } from './modules/shared-exercises.js'
 // Ukrainian UI strings. Keys are the English source strings (see lib/i18n.js).
 import { centersStrings } from './modules/centers.js'
 export default {
+  ...sharedExerciseStrings('uk'),
   ...centersStrings('uk'),
   'Confirm': 'Підтвердити',
   'Cancel': 'Скасувати',

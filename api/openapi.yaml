@@ -168,6 +168,118 @@ security:
   - bearerAuth: []
 
 paths:
+  /api/exercises/shared:
+    get:
+      tags: [data]
+      summary: Installation FT Training catalogue, including archived definitions
+      description: Requires a current session and application access. Returns instance UUID, revision, entries and live canManage capability; no creator identity. Private ETag varies by capability. Archived entries resolve existing training but are omitted from new selections. Metadata is training content, never authorization.
+      responses:
+        '200':
+          description: Catalogue snapshot, instance, rev, entries, canManage and degraded flag
+        '304':
+          description: Unchanged catalogue and capability
+        '401':
+          description: Session required
+        '403':
+          description: Application access denied
+    post:
+      tags: [data]
+      summary: Publish a new FT Training exercise
+      description: Superadmin allowlist only; user.admin and center roles do not grant this permission. JSON body exercise and requestId (8–100 safe characters). Returns exercise, instance and revision. Idempotent by actor/requestId and payload. Uploaded media must already exist in the shared store. Name max80, description max1000. Movement type/equipment/assistance are immutable after creation; a different movement requires a new exercise.
+      responses:
+        '200':
+          description: Published exercise with stable server-issued ft_ ID
+        '400':
+          description: Invalid definition or request ID
+        '403':
+          description: Superadmin permission required
+        '409':
+          description: Idempotency conflict or missing shared media
+        '503':
+          description: Catalogue requires recovery; no data overwritten
+  /api/exercises/shared/{id}:
+    patch:
+      tags: [data]
+      summary: Edit a shared definition without changing its ID
+      description: Superadmin only. JSON exercise, revision and requestId. The revision check and durable write are synchronous in the single API writer. Previous definitions/media are retained. Archived definitions stay archived. Changing bp, eq or assisted returns exercise-semantics-immutable (409).
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: {type: string}
+      responses:
+        '200':
+          description: Updated definition and revision
+        '403':
+          description: Superadmin required
+        '404':
+          description: Unknown exercise
+        '409':
+          description: Revision or movement semantics conflict
+  /api/exercises/shared/{id}/archive:
+    post:
+      tags: [data]
+      summary: Archive without deleting existing routines or history
+      description: Superadmin only. JSON revision and requestId. Archived definitions/media remain readable by authorized users and usable in existing prescriptions; no personal state is changed.
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: {type: string}
+      responses:
+        '200':
+          description: Archived definition
+        '403':
+          description: Superadmin required
+        '409':
+          description: Revision conflict
+  /api/exercises/shared/media/{hash}:
+    get:
+      tags: [data]
+      summary: Read media referenced by a published definition or retained version
+      description: Session/application access required. Only referenced hashes can be read, never private user folders or unpublished drafts. Uses the existing safe media headers and supports byte ranges.
+      parameters:
+        - name: hash
+          in: path
+          required: true
+          schema: {type: string, pattern: '^[0-9a-f]{64}$'}
+      responses:
+        '200':
+          description: Verified media stream
+        '404':
+          description: Unreferenced or missing media
+    put:
+      tags: [data]
+      summary: Upload a shared media draft
+      description: Superadmin only. Raw body with supported image/video MIME; filename is SHA256. Reuses existing streaming/hash/type/duration/quota validation and throttling. Drafts are unreadable to other users until referenced by a published definition. Independent of creator deletion and personal media cleanup.
+      parameters:
+        - name: hash
+          in: path
+          required: true
+          schema: {type: string, pattern: '^[0-9a-f]{64}$'}
+      responses:
+        '200':
+          description: Already present
+        '201':
+          description: Stored draft
+        '403':
+          description: Superadmin required
+        '413':
+          description: Media quota or size exceeded
+        '415':
+          description: Unsupported media
+  /api/exercises/shared/publish:
+    post:
+      tags: [data]
+      summary: Simulate or commit selective publication of the caller's private exercises
+      description: Superadmin only. JSON ids (1–100 distinct owned IDs), commit (default false) and requestId (8–30 safe characters for commit). Simulation performs no writes and reports definition/ID/name issues and media absent from both private and shared stores. Commit streams and verifies private media into the shared store, retains IDs and skips already-published entries. Each entry is idempotent; interrupted batches can be resumed. No other account's state is read or rewritten. Back up DATA before publishing existing real data.
+      responses:
+        '200':
+          description: Simulation candidates or committed results
+        '403':
+          description: Superadmin required
+        '409':
+          description: Invalid selection, collision or missing media
   /api/centers/classes:
     get:
       tags: [centers]

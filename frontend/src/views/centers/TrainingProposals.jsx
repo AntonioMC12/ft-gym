@@ -8,6 +8,7 @@ import {applyPlanDelivery} from '../../lib/plan-delivery.js'
 import {exLine} from '../../lib/history.js'
 import {POLICY_NAME} from '../../lib/progression.js'
 import {EXIDX} from '../../lib/exercises.js'
+import {isSharedEx} from '../../lib/exercises.js'
 import {exerciseNameFor,t} from '../../lib/i18n.js'
 import {useAutoMore} from '../../lib/use-auto-more.js'
 import {useStore} from '../../store/useStore.js'
@@ -52,6 +53,8 @@ export default function TrainingProposals({centerId,member,ownerUid,own=false,ac
     try{
       const source=useStore.getState().S,chosen=new Set(selected),week=Object.fromEntries(Object.entries(source.week||{}).map(([day,ids])=>[day,[].concat(ids).filter(id=>chosen.has(id))]).filter(([,ids])=>ids.length))
       bundle=buildPlanBundle({...source,routines:source.routines.filter(row=>chosen.has(row.id)),week},name)
+      bundle.customEx=bundle.customEx.filter(ex=>!isSharedEx(ex))
+      delete bundle.catalogueInstance
       if(!bundle.routines.length||bundle.routines.length>20||bundle.customEx.length)throw {code:'invalid-training-plan'}
     }catch(e){failure(e);return}
     const previous=detail,body=revise?{centerId,id:previous.id,version:previous.version,bundle}:{centerId,memberId:member.id,memberVersion:member.version,bundle}

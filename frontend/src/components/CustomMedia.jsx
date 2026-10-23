@@ -17,7 +17,9 @@
 //
 // A link is only ever opened, after a tap, in a new browsing context without an opener or a
 // referrer. Nothing fetches it: no thumbnail, no favicon, no embed.
-import { useEffect, useRef, useState } from 'react'
+import { createContext, useContext, useEffect, useRef, useState } from 'react'
+import { useSharedExercises, sharedMediaBlob } from '../store/useSharedExercises.js'
+export const SharedMediaContext = createContext(false)
 import { useStore } from '../store/useStore.js'
 import { t, exerciseNameFor } from '../lib/i18n.js'
 import { mediaOf, cleanUrl, linkKind } from '../lib/media-refs.js'
@@ -42,6 +44,8 @@ export function openExternal(url) {
  * a tap on a tile that failed.
  */
 export function useMediaUrl(file, { auto = true } = {}) {
+  const isShared = useContext(SharedMediaContext)
+  const sharedScope = useSharedExercises(s => `${s.server}:${s.instance}:${s.owner}`)
   const hash = file && typeof file.hash === 'string' ? file.hash : null
   const canFetch = useStore(s => !!(s.user && s.config?.media))
   const [state, setState] = useState({ url: null, status: hash ? 'loading' : 'none' })
@@ -59,6 +63,15 @@ export function useMediaUrl(file, { auto = true } = {}) {
   }, [hash, ready])
   useEffect(() => {
     if (!hash) { setState({ url: null, status: 'none' }); return }
+    if (isShared) {
+      let alive = true, url = null
+      setState({ url: null, status: 'loading' })
+      sharedMediaBlob(file).then(blob => {
+        if (!alive) return
+        url = URL.createObjectURL(blob); setState({ url, status: 'ready' })
+      }).catch(() => { if (alive) setState({ url: null, status: 'offline' }) })
+      return () => { alive = false; if (url) URL.revokeObjectURL(url) }
+    }
     let alive = true
     let held = false
     const show = url => {
@@ -82,7 +95,7 @@ export function useMediaUrl(file, { auto = true } = {}) {
     })()
     return () => { alive = false; if (held) mediaStore.release(hash) }
     // `file` is described by its hash; the rest of it cannot change without the hash changing.
-  }, [hash, auto, asked, canFetch, rev])
+  }, [hash, auto, asked, canFetch, rev, isShared, sharedScope])
   return { ...state, load: () => setAsked(n => n + 1) }
 }
 

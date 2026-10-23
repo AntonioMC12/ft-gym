@@ -286,6 +286,10 @@ export function createMediaSync(deps = {}) {
     await withLock('opengym-media', async () => {
       const st = store.getState()
       const live = referencedHashes(st.S)
+      if (st.S.exerciseDefs && Object.keys(st.S.exerciseDefs).length) {
+        const { sharedMediaKey } = await import('../store/useSharedExercises.js')
+        for (const ex of Object.values(st.S.exerciseDefs)) for (const ref of [ex.media, ex.media?.poster].filter(Boolean)) live.add(await sharedMediaKey(ref.hash))
+      }
       try {
         const raw = d.storage?.getItem(PERSISTED_KEY)
         if (raw) for (const h of referencedHashes(JSON.parse(raw))) live.add(h)

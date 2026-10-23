@@ -9,6 +9,7 @@
 //     a page break — each exercise, and each routine that fits, stays in one place.
 
 import { EXIDX, canonicalExId, isBodyweightEq } from './exercises.js'
+import { isSharedEx, sharedInstanceId, portableExerciseState } from './exercises.js'
 import { cleanUrl } from './media-refs.js'
 import { modeOf, exLine, MAX_PLANNED_WARMUPS } from './history.js'
 import { deriveSessionName } from './session-merge.js'
@@ -171,6 +172,7 @@ const muscleList = v => inMuscleOrder([...new Set((Array.isArray(v) ? v : []).fi
  *  that are empty stay absent, so a file written before this change reads the same as one after. */
 function cleanCustom(c) {
   const o = { id: c.id, n: c.n, bp: c.bp }
+  if (typeof c.assisted === 'boolean') o.assisted = c.assisted
   if (c.desc) o.desc = c.desc
   // The link to a video or guide travels with a shared plan (#246), cleaned both ways like any
   // other field of someone else's file; the exercise's own photo or video never does — it is a
@@ -200,7 +202,7 @@ export function buildPlanBundle(S, name) {
     ex: (r.ex || []).map(cleanEx)
   }))
   const usedIds = new Set(routines.flatMap(r => r.ex.map(e => e.id)))
-  const customEx = (S.customEx || [])
+  const customEx = (portableExerciseState(S).customEx || [])
     .filter(c => usedIds.has(c.id))
     .map(cleanCustom)
   // A weekday can hold several routines (merge order preserved). `[].concat` normalises a
@@ -208,7 +210,8 @@ export function buildPlanBundle(S, name) {
   // written after are read the same way at the other end.
   const week = {}
   WEEK_DAYS.forEach(d => { if (S.week?.[d]?.length) week[d] = [].concat(S.week[d]) })
-  return { opengym_plan: PLAN_FMT, exported: todayISO(), name: name || '', unit, week, routines, customEx }
+  return { opengym_plan: PLAN_FMT, exported: todayISO(), name: name || '', unit, week, routines, customEx,
+    ...(customEx.some(ex => isSharedEx(ex)) ? { catalogueInstance: sharedInstanceId() } : {}) }
 }
 
 /**
@@ -256,6 +259,7 @@ export function parsePlan(raw, destinationUnit = 'kg') {
   }))
   return {
     name: (data.name || '').trim(),
+    ...(typeof data.catalogueInstance === 'string' ? { catalogueInstance: data.catalogueInstance } : {}),
     routines,
     week: data.week || {},
     customEx,
@@ -286,6 +290,7 @@ export function mergePlan(s, bundle, { schedule, routineIds } = {}) {
   s.customEx = s.customEx || []
   const exIdMap = {}
   ;(source.customEx || []).forEach(c => {
+    if (source.catalogueInstance === sharedInstanceId() && isSharedEx(c)) { exIdMap[c.id] = c.id; return }
     const same = s.customEx.find(x => (x.n || '').toLowerCase() === (c.n || '').toLowerCase() && x.bp === c.bp)
     if (same) { exIdMap[c.id] = same.id; return }
     const nid = uid()

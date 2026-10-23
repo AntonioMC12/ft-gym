@@ -14,11 +14,15 @@ import { Button } from './ui.jsx'
 import { tappable } from '../lib/use-sheet-keyboard.js'
 import { useAutoMore } from '../lib/use-auto-more.js'
 import { isFav, sortFavouritesFirst } from '../lib/favourites.js'
+import { byOrigin } from '../lib/exercises.js'
+import { ExerciseOriginBadge, ExerciseOriginFilter, useCatalogueRevision } from './ExerciseOrigin.jsx'
 
 // One explorer for the Library and every catalogue picker. Supplying `onPick` turns
 // a result into a selection; without it the explorer behaves like the normal Library.
 export default function MuscleExplorer({ onPick, onDetail, onPlan }) {
   const S = useStore(s => s.S)
+  const catalogueRev = useCatalogueRevision()
+  const [origin, setOrigin] = useState('')
   const [selected, setSelected] = useState(null)
   const [q, setQ] = useState('')
   const [bp, setBp] = useState('')
@@ -30,9 +34,9 @@ export default function MuscleExplorer({ onPick, onDetail, onPlan }) {
   // (and the per-muscle counts) unless the user asks for everything.
   const profile = activeProfile(S)
   const catalog = useMemo(() => {
-    const all = allExercises(S)
+    const all = byOrigin(allExercises(S), origin)
     return (profile && !showAll) ? all.filter(e => exAvailable(S, e)) : all
-  }, [S.customEx, S.equipFilterOn, S.activeEquipId, S.equipProfiles, showAll])
+  }, [S.customEx, S.equipFilterOn, S.activeEquipId, S.equipProfiles, showAll, catalogueRev, origin])
   const counts = useMemo(() => Object.fromEntries(MUSCLES.map(m => [m,
     catalog.filter(e => musclesOf(e)[m]).length
   ])), [catalog])
@@ -49,6 +53,7 @@ export default function MuscleExplorer({ onPick, onDetail, onPlan }) {
   const narrowed = !!(q.trim() || bp || eqOn)
 
   return <>
+    <ExerciseOriginFilter value={origin} onChange={value => { setOrigin(value); setShown(40) }} />
     {profile && <div className="small dim row" style={{ margin: '-4px 2px 10px', gap: 6, alignItems: 'center' }}>
       <Icon name="kettlebell" style={{ fontSize: 13 }} />
       {showAll ? t('Showing all equipment') : t('Showing what you have in "{0}"', profile.name)}
@@ -95,7 +100,7 @@ export default function MuscleExplorer({ onPick, onDetail, onPlan }) {
           const primary = musclesOf(e)[selected] === 1
           return <div key={e.id} className="item" {...tappable(() => choose(e))}>
             <Thumb ex={e} />
-            <div className="grow"><div className={`tt ${exerciseNameClass(e)}`}>{isFav(S, e.id) && <Icon name="starFill" className="fav-star" />}{exerciseNameFor(e)}</div><div className="ss">{t(primary ? 'Primary target' : 'Also trains')} · <span className="capitalize">{t(MUSCLE_NAME[e.tg] || e.tg || e.bp)} · {t(e.eq)}</span></div></div>
+            <div className="grow"><ExerciseOriginBadge ex={e} /><div className={`tt ${exerciseNameClass(e)}`}>{isFav(S, e.id) && <Icon name="starFill" className="fav-star" />}{exerciseNameFor(e)}</div><div className="ss">{t(primary ? 'Primary target' : 'Also trains')} · <span className="capitalize">{t(MUSCLE_NAME[e.tg] || e.tg || e.bp)} · {t(e.eq)}</span></div></div>
             {onPick ? <Icon name="plus" className="chev" /> : <>
               {best > 0 && <span className="tag acc">{fmtNum(best)}</span>}
               <Button size="sm" variant="tinted" icon="plus" onClick={ev => { ev.stopPropagation(); onPlan(e) }}>{t('Plan')}</Button>

@@ -54,6 +54,7 @@ RUN npm ci --omit=dev --omit=optional && npm cache clean --force
 # Every module server.js imports from the api root has to be named here: the image carries nothing
 # else, and one that is missing only shows at boot, as ERR_MODULE_NOT_FOUND.
 COPY server.js push-messages.js nudge.js nudge-copy.js verify-error.js password.js account-identity.js rate-limit.js passkeys-store.js device-link.js media.js queue.js sync-stamps.js plan-delivery-state.js durable.js ./
+COPY shared-exercises.js shared-exercise-routes.js ./
 COPY scripts/recover-account.mjs ./scripts/recover-account.mjs
 COPY coach ./coach
 COPY centers ./centers
@@ -92,6 +93,7 @@ VOLUME ["/coach-auth"]
 # Fictional local preview only. Production/default never inherits its test carrier.
 FROM base AS centers-preview
 COPY test/centers-integration/preview.mjs test/centers-integration/preview-init.mjs test/centers-integration/preview-origin.mjs test/centers-integration/stripe-preview.mjs test/centers-integration/stripe-http-preload.mjs test/centers-integration/helpers.mjs ./test/centers-integration/
+COPY test/centers-integration/exercise-sandbox.mjs test/centers-integration/exercise-fixtures.mjs ./test/centers-integration/
 RUN rm -rf /usr/local/lib/node_modules/npm /usr/local/bin/npm /usr/local/bin/npx
 CMD ["node", "test/centers-integration/stripe-preview.mjs"]
 

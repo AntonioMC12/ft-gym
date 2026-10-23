@@ -254,7 +254,7 @@ export function planChanged(planned, cfg) {
 // (issue #232).
 function loadOf(entry, sets) {
   const done = sets.filter(s => s.done).map(s => s.w || 0)
-  if (!isAssisted(entry && entry.id ? { id: entry.id } : entry)) return Math.max(0, ...done)
+  if (!isAssisted(entry)) return Math.max(0, ...done)
   const loaded = done.filter(w => w > 0)
   return loaded.length ? Math.min(...loaded) : 0
 }

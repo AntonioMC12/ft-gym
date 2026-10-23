@@ -1216,7 +1216,7 @@ export function bestWeightForEntry(entry = {}) {
     : workRows.filter(set => hasCompletedWork(set) && !isWarmupRow(set))
   // On an assistance machine the smallest load is the best set, so "best" folds the other way
   // (issue #232). Everything below still returns a plain number — the caller does not branch.
-  const assisted = isAssisted(entry.id ? { id: entry.id } : entry)
+  const assisted = isAssisted(entry)
   let best = 0
   let hasUsableWeight = false
   completedRows.forEach(set => {

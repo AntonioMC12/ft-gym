@@ -24,6 +24,7 @@ import { sha256Hex } from './sha256.js'
 import { mediaStore } from './media-store.js'
 import { DEFAULT_LIMITS, MB } from './media-limits.js'
 import { t } from './i18n-core.js'
+import { portableExerciseState } from './exercises.js'
 
 export const BACKUP_JSON = 'opengym-backup.json'
 const MEDIA_ENTRY = /^media\/([0-9a-f]{64})\.(jpg|png|webp|gif|mp4|mov|webm)$/
@@ -66,10 +67,16 @@ export function sanitizeCustomMedia(state) {
  * fetchToStore). `missing` counts those that could not be had; the export goes ahead without them.
  */
 export async function exportBackupZip(S, { media = mediaStore, fetchOne = null, now } = {}) {
+  const sharedHashes = new Set(Object.values(S.exerciseDefs || {}).flatMap(ex => [ex.media?.hash, ex.media?.poster?.hash]).filter(Boolean))
+  S = portableExerciseState(S)
   const entries = [{ name: BACKUP_JSON, blob: new Blob([JSON.stringify(S, null, 2)], { type: 'application/json' }) }]
   let missing = 0
   for (const f of referencedFiles(S)) {
     let rec = await media.get(f.hash)
+    if (sharedHashes.has(f.hash)) {
+      try { const { sharedMediaBlob } = await import('../store/useSharedExercises.js'); rec = { blob: await sharedMediaBlob(f), mime: f.mime } }
+      catch { rec = null }
+    }
     if (!rec && fetchOne) {
       try { await fetchOne(f.hash, f); rec = await media.get(f.hash) } catch { /* counted below */ }
     }

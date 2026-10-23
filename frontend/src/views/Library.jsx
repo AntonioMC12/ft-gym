@@ -10,6 +10,9 @@ import { t, tn, exerciseNameFor, exerciseNameClass } from '../lib/i18n.js'
 import { Thumb } from '../components/Media.jsx'
 import { exerciseDetailSheet, addToRoutineSheet, customExSheet } from '../sheets.jsx'
 import Icon from '../components/Icon.jsx'
+import { ExerciseOriginBadge, ExerciseOriginFilter, useCatalogueRevision } from '../components/ExerciseOrigin.jsx'
+import { byOrigin, isSharedEx } from '../lib/exercises.js'
+import { useSharedExercises } from '../store/useSharedExercises.js'
 import ExerciseViewToggle from '../components/ExerciseViewToggle.jsx'
 import { Button } from '../components/ui.jsx'
 import { tappable, useRevealActiveChip } from '../lib/use-sheet-keyboard.js'
@@ -17,6 +20,9 @@ import { useAutoMore } from '../lib/use-auto-more.js'
 import { isFav, sortFavouritesFirst, sortYoursFirst, usageOf } from '../lib/favourites.js'
 
 export default function Library() {
+  useCatalogueRevision()
+  const canManage = useSharedExercises(s => s.canManage)
+  const [origin, setOrigin] = useState('')
   const nav = useNavigate()
   const S = useStore(s => s.S)
   const [q, setQ] = useState('')
@@ -30,8 +36,9 @@ export default function Library() {
   const profile = activeProfile(S)
   // Your own exercises, counted the way the list below shows them (allExercises puts every
   // custom entry in front of the catalogue; deleting one removes it from customEx outright).
-  const ownCount = (S.customEx || []).filter(c => c && c.id).length
-  const inPart = searchExercises(allExercises(S).filter(e => !bp || e.bp === bp), q)
+  const ownCount = (S.customEx || []).filter(c => c && c.id && !isSharedEx(c)).length
+  const available = byOrigin(allExercises(S), origin)
+  const inPart = searchExercises(available.filter(e => !bp || e.bp === bp), q)
   // Kind of exercise (strength, stretching, cardio...), the same fallback as equipment below: a
   // choice the search or body part has narrowed away is ignored for now, never a dead end.
   const { opts: catOpts, on: catOn, list: base } = byCategory(inPart, cat)
@@ -49,19 +56,19 @@ export default function Library() {
   useRevealActiveChip(catStrip, catOn)
   // A live count at the end of the search field while a search or filter narrows the list
   // (idea and first version: GitLab !31) — how many are left, before scrolling to find out.
-  const narrowed = !!(q.trim() || bp || eqOn || catOn)
+  const narrowed = !!(q.trim() || bp || eqOn || catOn || origin)
   // Close but not exact (a typo too many, most of the words, a similar name), under the results
   // once they are all on screen, so a search almost never ends on "No match".
   // Worked out a beat behind the typing (useDeferredValue): the list itself never waits for it.
   const qLate = useDeferredValue(q)
   const similar = q.trim() && qLate === q && f.length <= shown
-    ? similarExercises(allExercises(S).filter(e => (!bp || e.bp === bp) && (!profile || showAll || exAvailable(S, e))), q, f, f.length ? 12 : 30)
+    ? similarExercises(available.filter(e => (!bp || e.bp === bp) && (!catOn || e.cat === catOn) && (!eqOn || e.eq === eqOn) && (!profile || showAll || exAvailable(S, e))), q, f, f.length ? 12 : 30)
     : []
   const row = e => {
     const best = bestWeightFor(S, e.id)
     return <div key={e.id} className="item" {...tappable(() => exerciseDetailSheet(e))}>
       <Thumb ex={e} />
-      <div className="grow"><div className={`tt ${exerciseNameClass(e)}`}>{isFav(S, e.id) && <Icon name="starFill" className="fav-star" />}{exerciseNameFor(e)}</div><div className="ss capitalize">{t(MUSCLE_NAME[e.tg] || e.tg || e.bp)} · {t(e.eq)}</div></div>
+      <div className="grow"><ExerciseOriginBadge ex={e} /><div className={`tt ${exerciseNameClass(e)}`}>{isFav(S, e.id) && <Icon name="starFill" className="fav-star" />}{exerciseNameFor(e)}</div><div className="ss capitalize">{t(MUSCLE_NAME[e.tg] || e.tg || e.bp)} · {t(e.eq)}</div></div>
       {best > 0 && <span className="tag acc">{fmtNum(best)}</span>}
       <Button size="sm" variant="tinted" icon="plus" onClick={ev => { ev.stopPropagation(); addToRoutineSheet(e) }}>{t('Plan')}</Button>
     </div>
@@ -101,10 +108,11 @@ export default function Library() {
       <button className={'chip nocap' + (!eqOn ? ' on' : '')} onClick={() => { setEq(''); setShown(40) }}>{t('Any equipment')}</button>
       {eqOpts.map(x => <button key={x} className={'chip' + (eqOn === x ? ' on' : '')} onClick={() => { setEq(x); setShown(40) }}>{t(x)}</button>)}
     </div>}
+    <ExerciseOriginFilter value={origin} onChange={value => { setOrigin(value); setShown(40) }} />
     <div className={'list' + (S.exerciseView === 'cards' ? ' ex-grid' : '')}>
       <div className="item ex-new" {...tappable(() => customExSheet(null, ex => exerciseDetailSheet(ex), q.trim()))}>
         <div className="thumb thumb-x"><Icon name="plusCircle" /></div>
-        <div className="grow"><div className="tt">{t('Create your own exercise')}</div><div className="ss">{t('name + body part, and a photo or video if you like')}</div></div><Icon name="plus" className="chev" />
+        <div className="grow"><div className="tt">{t(canManage ? 'Create FT Training exercise' : 'Create your own exercise')}</div><div className="ss">{t('name + body part, and a photo or video if you like')}</div></div><Icon name="plus" className="chev" />
       </div>
       {f.slice(0, shown).map(row)}
       {f.length === 0 && !similar.length && <div className="empty"><div className="ico"><Icon name="magnifier" /></div>{t('No match')}</div>}

@@ -1,6 +1,8 @@
+import { sharedExerciseStrings } from './modules/shared-exercises.js'
 // Spanish UI strings. Keys are the English source strings (see lib/i18n.js).
 import { centersStrings } from './modules/centers.js'
 export default {
+  ...sharedExerciseStrings('es'),
   ...centersStrings('es'),
   'Confirm': 'Confirmar',
   'Cancel': 'Cancelar',

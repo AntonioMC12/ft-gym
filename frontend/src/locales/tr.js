@@ -1,6 +1,8 @@
+import { sharedExerciseStrings } from './modules/shared-exercises.js'
 // Turkish UI strings. Keys are the English source strings (see lib/i18n.js).
 import { centersStrings } from './modules/centers.js'
 export default {
+  ...sharedExerciseStrings('tr'),
   ...centersStrings('tr'),
   'Confirm': 'Onayla',
   'Cancel': 'İptal',

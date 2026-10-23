@@ -1,0 +1,74 @@
+# Explicit fictional sandbox. Never combine with production Compose files.
+name: ft-gym-exercises-local
+services:
+  centers-test-db:
+    image: postgres:18.6-alpine3.24
+    environment:
+      POSTGRES_USER: centers_bootstrap
+      POSTGRES_DB: ft_gym_exercises_centers_test
+      POSTGRES_PASSWORD: fictional-bootstrap-test-only
+      CENTERS_APP_PASSWORD: fictional-runtime-test-only
+      CENTERS_MIGRATOR_PASSWORD: fictional-migrator-test-only
+      POSTGRES_INITDB_ARGS: --auth-host=scram-sha-256
+    volumes:
+      - exercises-local-db:/var/lib/postgresql
+      - ./api/centers/docker/10-centers-roles.sh:/docker-entrypoint-initdb.d/10-centers-roles.sh:ro
+    networks: [exercises-internal]
+    healthcheck:
+      test: [CMD-SHELL, 'pg_isready -U centers_bootstrap -d ft_gym_exercises_centers_test']
+      interval: 2s
+      timeout: 3s
+      retries: 30
+    restart: "no"
+  exercises-api:
+    image: ft-gym-exercises-local-api:local
+    build:
+      context: ./api
+      target: centers-preview
+    command: [node, test/centers-integration/exercise-sandbox.mjs]
+    environment:
+      EXERCISE_SANDBOX: fictional-local-only
+      CENTERS_TEST_DATABASE_URL: postgresql://centers_app:fictional-runtime-test-only@centers-test-db/ft_gym_exercises_centers_test
+      CENTERS_TEST_MIGRATION_DATABASE_URL: postgresql://centers_migrator:fictional-migrator-test-only@centers-test-db/ft_gym_exercises_centers_test
+      CENTERS_PREVIEW_ORIGIN: http://localhost:5180
+      CENTERS_PREVIEW_DATA_DIR: /tmp/ft-gym-centers-preview-data
+    volumes:
+      - ../informes/exercises-local-data:/tmp/ft-gym-centers-preview-data
+    networks: [exercises-internal]
+    depends_on:
+      centers-test-db:
+        condition: service_healthy
+    healthcheck:
+      test: [CMD, wget, --spider, -q, 'http://127.0.0.1:3000/api/health']
+      interval: 3s
+      timeout: 3s
+      retries: 40
+      start_period: 20s
+    restart: "no"
+  exercises-web:
+    image: ft-gym-exercises-local-web:local
+    build:
+      context: .
+      dockerfile: web/Dockerfile
+    ports: ['127.0.0.1:5180:80']
+    environment:
+      BACKEND: exercises-api
+      PORT: '3000'
+      NGINX_PORT: '80'
+      RESOLVER: 127.0.0.11
+    networks: [exercises-internal, exercises-web]
+    depends_on:
+      exercises-api:
+        condition: service_healthy
+    healthcheck:
+      test: [CMD, wget, --spider, -q, 'http://127.0.0.1/api/health']
+      interval: 3s
+      timeout: 3s
+      retries: 20
+    restart: "no"
+volumes:
+  exercises-local-db:
+networks:
+  exercises-internal:
+    internal: true
+  exercises-web: {}

@@ -34,7 +34,9 @@ import {createCloudflareEmailTransport} from './centers/services/notification-cl
 import { centersRoutes } from './centers/routes.js';
 import { createAccountLocks } from './centers/account-links.js';
 import { CentersError } from './centers/errors.js';
-import {libraryHas as hasTrainingExercise} from './coach/core/library.js';
+import {libraryHas, LIB_BY_ID, BUILTIN_IDS, registerSharedLibrary} from './coach/core/library.js';
+import {createSharedExercises, SharedExerciseError} from './shared-exercises.js';
+import {sharedExerciseRoutes} from './shared-exercise-routes.js';
 import { startCadence } from './coach/cadence.js';
 import { startWarmup } from './coach/warmup.js';
 import { dayReminderPush, nudgePush, restTimerPush, testPush } from './push-messages.js';
@@ -1900,6 +1902,7 @@ const passkeyRoutes = {
 const MEDIA_LIMITS = mediaLimits(process.env);
 const MEDIA_ON = MEDIA_LIMITS.enabled;
 const MEDIA = createMediaStore({ dir: path.join(DATA, 'uploads'), limits: MEDIA_LIMITS, readState });
+const SHARED_EXERCISES = createSharedExercises({ dir: DATA, limits: MEDIA_LIMITS, builtinHas: id => BUILTIN_IDS.has(id), changed: data => registerSharedLibrary(data.entries) });
 // Leftovers of uploads the previous process was receiving when it stopped.
 try { MEDIA.cleanTmp(); } catch (e) { console.error('media: boot cleanup failed', e.message); }
 // Per profile, not per address: every upload is signed in, and behind a proxy one address can be
@@ -1931,6 +1934,7 @@ function mediaThrottle(req, user, win) {
 function mediaSweepAll() {
   try {
     const r = MEDIA.sweepAll({ uids: db.users.map(u => u.id) });
+    SHARED_EXERCISES.sweep();
     if (r.removed || r.tmp) console.log(`media: swept ${r.removed} unreferenced file(s), ${(r.freedBytes / 1048576).toFixed(1)} MB, ${r.tmp} stale upload(s)`);
   } catch (e) { console.error('media: sweep failed', e); }
 }
@@ -2778,7 +2782,7 @@ const routes = {
   // a cycle. Every one of them is inert while the feature is unconfigured.
   ...coachRoutes({ json, readBody, readSession, requireAdmin }),
   ...centersRoutes({ config: CENTERS_CONFIG, database: CENTERS_DATABASE, json, readSession, readBody, documentMatches:(user,raw)=>!user.documentKey||user.documentKey===documentKey(raw,DOCUMENT_SECRET),
-    hasTrainingExercise,
+    hasTrainingExercise: id => libraryHas(id) && !LIB_BY_ID.get(id)?.archived,
     mintAccessCredential: (kind,id,version) => {
       if(!['device','token'].includes(kind)||!Number.isSafeInteger(version)||version<1||!new RegExp('^'+(kind==='device'?'ad_':'at_')+'[a-f0-9]{32}$').test(id))throw new TypeError('invalid access credential identity');
       // Domain-separated, reproducible private credentials. SQL stores only their
@@ -2792,6 +2796,9 @@ const routes = {
   /* ---------- photos & videos ---------- */
   // Absent, not refusing, when MEDIA_UPLOADS=0: a 404 is what a server from before the feature
   // answers, and the client already treats that as "this server does not store them".
+  ...sharedExerciseRoutes({ catalogue: SHARED_EXERCISES, json, readSession, readBody,
+    manage: user => isPlatformUser(CENTERS_CONFIG, user), sendFile: sendMediaFile, privateMedia: MEDIA, readOwn: readState,
+    audit, throttle: (req, user) => mediaThrottle(req, user, MEDIA_BURST) }),
   ...(MEDIA_ON ? mediaRoutes : {})
 };
 
@@ -2853,7 +2860,7 @@ const server = http.createServer(async (req, res) => {
     const pna = String(req.headers['access-control-request-private-network'] || '').toLowerCase() === 'true'
       && APP_ORIGINS.has(origin);
     res.writeHead(204, {
-      'Access-Control-Allow-Methods': 'GET,POST,PUT,DELETE,OPTIONS',
+      'Access-Control-Allow-Methods': 'GET,POST,PUT,PATCH,DELETE,OPTIONS',
       // The CF-Access-* pair: a phone's Cloudflare Access service token (frontend lib/cf-access.js),
       // for an Access application that passes OPTIONS through to the origin.
       'Access-Control-Allow-Headers': 'Content-Type, Authorization, CF-Access-Client-Id, CF-Access-Client-Secret',
@@ -2872,6 +2879,10 @@ const server = http.createServer(async (req, res) => {
   // above stays a plain lookup, and so csrfOk and the catch-all see one name for every file.
   const mm = /^\/api\/media\/([0-9a-f]{64})$/.exec(url.pathname);
   if (mm) { key = req.method + ' /api/media/{hash}'; req.mediaHash = mm[1]; }
+  const sm = /^\/api\/exercises\/shared\/media\/([0-9a-f]{64})$/.exec(url.pathname);
+  const se = /^\/api\/exercises\/shared\/([a-zA-Z0-9_-]{1,64})(\/archive)?$/.exec(url.pathname);
+  if (sm) { key = req.method + ' /api/exercises/shared/media/{hash}'; req.mediaHash = sm[1]; }
+  else if (se && (req.method === 'PATCH' || se[2])) { key = req.method + ' /api/exercises/shared/{id}' + (se[2] || ''); req.sharedId = se[1]; }
   if(CENTERS_CONFIG.enabled && (/^\/api\/(register|login)\/(options|verify)$/.test(url.pathname)||url.pathname.startsWith('/api/device-link/')||url.pathname.startsWith('/api/account/passkeys/')||url.pathname==='/api/account/device-link'))return json(res,404,{error:'Password sign-in is required.',code:'password-only'});
   const handler = routes[key];
   if (!handler) return json(res, 404, { error: 'not found' });
@@ -2901,6 +2912,7 @@ const server = http.createServer(async (req, res) => {
     await handler(req,res);
   }
   catch (e) {
+    if (e instanceof SharedExerciseError) return json(res, e.status, { error: e.message, code: e.code });
     if (e?.clientGone) { console.warn(key, 'client went away mid-body:', e.message); return; }
     if (e instanceof HttpError) {
       if (!res.headersSent) json(res, e.status, { error: e.message });

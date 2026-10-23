@@ -1,3 +1,4 @@
+import { sharedExerciseStrings } from './modules/shared-exercises.js'
 import {classStrings} from './modules/classes.js'
 import {memberImportStrings} from './modules/member-imports.js'
 // Brazilian Portuguese overrides. Shared, region-neutral strings inherit from pt-PT.
@@ -1452,4 +1453,5 @@ export const PT_BR_OVERRIDES = {
   'Releases are checked on GitHub. The download is verified against its checksum before the installer opens.': 'As versões são verificadas no GitHub. O download é conferido pela soma de verificação antes de abrir o instalador.',
 }
 
-export default { ...pt, ...PT_BR_OVERRIDES }
+export default {
+  ...sharedExerciseStrings('pt-BR'), ...pt, ...PT_BR_OVERRIDES }

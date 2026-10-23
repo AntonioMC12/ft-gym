@@ -81,14 +81,31 @@ export function byCategory(list, cat) {
 // Custom (user-created) exercises live in synced state S.customEx (issue #11) and are
 // merged into the id index here so every EXIDX[id] lookup keeps working unchanged.
 let customIds = new Set()
+let personal = [], fallbacks = {}, sharedInstance = ''
+const sharedExercises = new Map()
+const catalogueListeners = new Set()
+let catalogueVersion = 0
+export const subscribeCatalogue = fn => { catalogueListeners.add(fn); return () => catalogueListeners.delete(fn) }
+export const catalogueRevision = () => catalogueVersion
+export const sharedInstanceId = () => sharedInstance
+export function registerShared(list, instance = '') {
+  sharedExercises.clear(); sharedInstance = instance
+  for (const row of list || []) if (row?.id && !CATALOGUE.some(e => e.id === row.id)) sharedExercises.set(row.id, { ...row, custom: true })
+  registerCustom(personal, fallbacks)
+  catalogueVersion++; for (const fn of catalogueListeners) fn()
+}
+export const isSharedEx = ex => !!ex && sharedExercises.has(typeof ex === 'string' ? ex : ex.id)
+export const exerciseOrigin = ex => isSharedEx(ex) ? 'platform' : isCustomEx(ex) ? 'own' : 'base'
+export const byOrigin = (list, origin) => origin ? list.filter(ex => exerciseOrigin(ex) === origin) : list
 const BUILTIN = new Set(CATALOGUE)
-export function registerCustom(list) {
+export function registerCustom(list, definitions = {}) {
   customIds.forEach(id => {
     delete EXIDX[id]
     const builtIn = CATALOGUE.find(ex => ex.id === id)
     if (builtIn) EXIDX[id] = builtIn
   })
-  const xs = (Array.isArray(list) ? list : []).filter(e => e && e.id != null)
+  personal = Array.isArray(list) ? list : []; fallbacks = definitions || {}
+  const xs = [...Object.values(fallbacks).map(e => ({ ...e, custom: true })), ...personal, ...sharedExercises.values()].filter(e => e && e.id != null)
   customIds = new Set(xs.map(e => e.id))
   xs.forEach(e => { EXIDX[e.id] = e })
 }
@@ -115,7 +132,40 @@ export function healCustomEx(list) {
   return changed ? out : list
 }
 // Full searchable catalogue — customs first so your own exercises are easy to find.
-export const allExercises = st => [...(st.customEx || []), ...CATALOGUE]
+export const allExercises = st => {
+  const shared = [...sharedExercises.values()].filter(e => !e.archived)
+  return [...shared, ...(st.customEx || []).filter(e => !sharedExercises.has(e.id)), ...CATALOGUE]
+}
+
+// Minimal training definitions, not permissions. Backups can resolve these without a server.
+export function retainSharedTraining(st) {
+  const ids = new Set([...(st.routines || []).flatMap(r => (r.ex || []).map(e => e.id)),
+    ...(st.workouts || []).flatMap(w => (w.entries || []).map(e => e.id)), ...(st.active?.entries || []).map(e => e.id)])
+  const defs = { ...(st.exerciseDefs || {}) }
+  for (const id of ids) if (sharedExercises.has(id)) defs[id] = { ...sharedExercises.get(id) }
+  if (Object.keys(defs).length) st.exerciseDefs = Object.fromEntries(Object.entries(defs).filter(([id]) => ids.has(id)))
+  for (const entry of st.active?.entries || []) {
+    const ex = sharedExercises.get(entry.id) || defs[entry.id]
+    if (!ex || entry.exerciseSnapshot) continue
+    entry.exerciseSnapshot = structuredClone(entry.muscleSnapshot?.sharedRevision ? { ...ex, ...entry.muscleSnapshot, revision: entry.muscleSnapshot.sharedRevision } : ex)
+    entry.target = { ...entry.target, assisted: ex.assisted ?? false,
+      mode: entry.target?.mode || (ex.bp === 'cardio' ? 'cardio' : 'reps'),
+      bodyweight: entry.target?.bodyweight ?? BODYWEIGHT_EQ.has(ex.eq) }
+  }
+}
+export function portableExerciseState(st) {
+  const out = structuredClone(st)
+  retainSharedTraining(out)
+  if (!Object.keys(out.exerciseDefs || {}).length) return out
+  out.customEx = (out.customEx || []).filter(e => !isSharedEx(e))
+  const existing = new Set((out.customEx || []).map(e => e.id))
+  out.customEx = [...(out.customEx || []), ...Object.values(out.exerciseDefs || {}).filter(e => !existing.has(e.id)).map(e => {
+    const { origin, revision, archived, createdAt, updatedAt, ...fields } = e
+    return { ...fields, custom: true }
+  })]
+  delete out.exerciseDefs
+  return out
+}
 
 function searchableText(value) {
   if (Array.isArray(value)) return value.map(searchableText).join(' ')
@@ -260,6 +310,10 @@ export function defaultIncrement(exId, unit) {
 
 export function isAssisted(idOrEx) {
   if (!idOrEx) return false
+  if (typeof idOrEx === 'object') {
+    const frozen = idOrEx.exerciseSnapshot || (idOrEx.muscleSnapshot?.sharedRevision ? idOrEx.muscleSnapshot : null)
+    if (typeof frozen?.assisted === 'boolean') return frozen.assisted
+  }
   if (typeof idOrEx === 'string') return !!assistedShape(EXIDX[idOrEx])
   if (typeof idOrEx.assisted === 'boolean') return idOrEx.assisted
   if (typeof idOrEx.target?.assisted === 'boolean') return idOrEx.target.assisted

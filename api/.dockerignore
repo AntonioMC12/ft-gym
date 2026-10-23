@@ -1,0 +1,10 @@
+node_modules
+.env
+.env.*
+data
+uploads
+coach-auth
+*.log
+coverage
+.git
+# Test sources are intentionally retained: the explicit centers-preview target needs them.

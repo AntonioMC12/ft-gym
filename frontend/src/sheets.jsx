@@ -15,6 +15,12 @@ import { nav, closeThenNav, navToWorkout } from './lib/nav.js'
 import { buildStarterPlan, starterPlanDays, starterPlanOptions } from './lib/starter.js'
 import Media, { Thumb } from './components/Media.jsx'
 import CustomMediaField from './components/CustomMediaField.jsx'
+import { ExerciseOriginBadge, ExerciseOriginFilter, useCatalogueRevision } from './components/ExerciseOrigin.jsx'
+import { isSharedEx, byOrigin } from './lib/exercises.js'
+import { useSharedExercises } from './store/useSharedExercises.js'
+import { api } from './lib/api.js'
+import { SharedMediaContext } from './components/CustomMedia.jsx'
+import { blankRepRows } from './lib/rep-reference.js'
 import WorkoutMediaSection, { workoutMediaCount } from './components/WorkoutMedia.jsx'
 import { mediaOf, normalizeMediaRef, cleanUrl, workoutMediaOf } from './lib/media-refs.js'
 import { syncMedia } from './lib/media-sync.js'
@@ -962,7 +968,7 @@ export function detailTags(ex) {
   add(t(ex.bp), { acc: true })
   if (ex.bp === 'cardio') add(t(MUSCLE_NAME['cardiovascular system']), { icon: 'figureStrength' })
   else for (const s of (ex.primaries?.length ? ex.primaries : (ex.tg ? [ex.tg] : [])).filter(trainedBy(ex))) add(t(MUSCLE_NAME[s] || s), { icon: 'figureStrength' })
-  add(t(ex.eq), { icon: 'kettlebell' })
+  add(t(ex.eq || ''), { icon: 'kettlebell' })
   let helpers = 0
   for (const s of (ex.secondaries?.length ? ex.secondaries : smOf(ex)).filter(trainedBy(ex))) {
     if (helpers >= 3) break
@@ -972,6 +978,9 @@ export function detailTags(ex) {
 }
 
 function ExerciseDetail({ ex, close }) {
+  useCatalogueRevision()
+  const shared = useSharedExercises()
+  if (isSharedEx(ex)) ex = EXIDX[ex.id] || ex
   useLang() // the description and steps arrive in their own chunk the first time a sheet asks
   const st = useStore(s => s.S)
   const last = lastEntryFor(st, ex.id)
@@ -991,6 +1000,7 @@ function ExerciseDetail({ ex, close }) {
       </button>
     </div>
     <Media ex={ex} />
+    <ExerciseOriginBadge ex={ex} />
     <div className="row" style={{ gap: 6, flexWrap: 'wrap', margin: '10px 0' }}>
       {detailTags(ex).map(tg => <span key={tg.key} className={'tag' + (tg.acc ? ' acc' : '')}>{tg.icon && <Icon name={tg.icon} />}{tg.label}</span>)}
     </div>
@@ -998,10 +1008,22 @@ function ExerciseDetail({ ex, close }) {
     {best > 0 && <div className="small row" style={{ marginBottom: 6, gap: 5 }}><Icon name="trophy" style={{ fontSize: 14, color: 'var(--yellow)' }} />{t('Best:')} <b className="accent" style={{ whiteSpace: 'nowrap' }}>{fmtNum(best)} {st.unit}</b>{last ? ` · ${t('last')} ${fmtDate(last.d)}: ${last.sets.map(s => setLabel(ex.id, s, last.target, speedUnitOf(st))).join(', ')}` : ''}</div>}
     <Button variant="primary" icon="plus" style={{ margin: '10px 0 4px' }} onClick={() => addToRoutineSheet(ex)}>{t('Add to my plan')}</Button>
     {last && <Button icon="history" style={{ marginTop: 4 }} onClick={() => exerciseHistorySheet(ex.id)}>{t('History')}</Button>}
-    {isCustomEx(ex) && <div className="row" style={{ gap: 8, marginTop: 8 }}>
+    {isCustomEx(ex) && (!isSharedEx(ex) || shared.canManage) && <div className="row" style={{ gap: 8, marginTop: 8 }}>
       <Button icon="pencil" style={{ flex: 1 }} onClick={() => { close(); customExSheet(ex) }}>{t('Edit')}</Button>
-      <Button variant="danger" icon="trash" style={{ flex: 1 }} onClick={() => deleteCustomEx(ex, close)}>{t('Delete')}</Button>
+      <Button variant="danger" icon="trash" style={{ flex: 1 }} onClick={() => deleteCustomEx(ex, close)}>{t(isSharedEx(ex) ? 'Archive' : 'Delete')}</Button>
     </div>}
+    {isCustomEx(ex) && !isSharedEx(ex) && shared.canManage && <Button onClick={async () => {
+      try {
+        const result = await api('/api/exercises/shared/publish', { method: 'POST', body: JSON.stringify({ ids: [ex.id] }) })
+        const candidate = result.candidates[0]
+        if (candidate.issue && candidate.issue !== 'already-published') { toast(t('This exercise cannot be published. Check its definition and media.')); return }
+        confirmSheet({ title: t('Publish to FT Training'), message: t('This exercise will be available to everyone. Existing routines and history keep its identifier.'), confirmText: t('Publish'),
+          onConfirm: async () => { try {
+            await api('/api/exercises/shared/publish', { method: 'POST', body: JSON.stringify({ ids: [ex.id], commit: true, requestId: uid() + uid() }) })
+            await shared.load(shared.owner, shared.server); close(); toast(t('Saved'))
+          } catch { toast(t('This exercise cannot be published. Check its definition and media.')) } } })
+      } catch { toast(t('Something went wrong')) }
+    }}>{t('Publish to FT Training')}</Button>}
     {modeOf({ id: ex.id }) === 'reps' && <>
       <h4 className="sec">{t('Plate loading')}</h4>
       <BarWeightEditor ex={ex} extra={t('You still log the total weight. This only feeds the plate line under each set.')} />
@@ -1105,7 +1127,10 @@ function AddToRoutine({ ex, close }) {
     </div>
   </>
 }
-export const addToRoutineSheet = ex => ui().openSheet(close => <AddToRoutine ex={ex} close={close} />)
+export const addToRoutineSheet = ex => {
+  if (isSharedEx(ex) && EXIDX[ex.id]?.archived) { toast(t('Hidden from new selections. Existing routines and history remain available.')); return }
+  return ui().openSheet(close => <AddToRoutine ex={ex} close={close} />)
+}
 
 /* ============================ custom exercises (issue #11) ============================ */
 // Name + body part is all it takes — the exercise then behaves like any built-in one
@@ -1113,6 +1138,11 @@ export const addToRoutineSheet = ex => ui().openSheet(close => <AddToRoutine ex=
 // guide, are optional (components/CustomMediaField.jsx): the state keeps a small reference to the
 // file, never the file itself, and the link is cleaned on save and again whenever it is opened.
 function CustomExForm({ existing, prefill, onDone, close }) {
+  const shared = useSharedExercises()
+  const sharedExisting = isSharedEx(existing)
+  const publishing = sharedExisting || !existing && shared.canManage
+  const [saving, setSaving] = useState(false)
+  const requestId = useRef(uid() + uid())
   const nameRef = useRef(null)
   const onNameFocus = useSheetKeyboard(nameRef)
   const [n, setN] = useState(existing ? existing.n : (prefill || ''))
@@ -1152,7 +1182,9 @@ function CustomExForm({ existing, prefill, onDone, close }) {
     setPrimaries(current => current.includes(value) ? current.filter(m => m !== value) : [...current, value])
   }
   const toggleSecondary = value => setSecondaries(current => current.includes(value) ? current.filter(m => m !== value) : [...current, value])
-  const save = () => {
+  const save = async () => {
+    if (saving) return
+    if (useStore.getState().user && shared.status !== 'ready') { toast(t('Shared exercises are unavailable. Reconnect to load your routine safely.')); return }
     const name = n.trim()
     if (!name) { toast(t('Give it a name')); return }
     if (!bp) { toast(t('Pick a body part')); return }
@@ -1185,6 +1217,20 @@ function CustomExForm({ existing, prefill, onDone, close }) {
       if (!keepMedia) { if (ref) c.media = ref; else delete c.media }
       if (link) c.url = link; else delete c.url
     }
+    if (publishing) {
+      setSaving(true)
+      try {
+        const payload = { n: name, bp, desc: d, tg, sm, muscleGroups: groups, primaries: prim, secondaries: sm, eq,
+          ...(existing?.assisted != null ? { assisted: existing.assisted } : {}) }
+        const selectedMedia = keepMedia ? existing.media : ref
+        if (selectedMedia) payload.media = selectedMedia
+        if (link) payload.url = link
+        const result = await shared.save(payload, sharedExisting ? existing : null, requestId.current)
+        close(); toast(t('Saved')); onDone?.(EXIDX[result.id] || result)
+      } catch (error) { toast(t(error.code === 'exercise-semantics-immutable' ? 'Changing the movement type requires a new exercise.' : 'Could not save the shared exercise. Check connection and try again.')) }
+      finally { setSaving(false) }
+      return
+    }
     if (existing) update(s => { const c = (s.customEx || []).find(x => x.id === id); if (c) {
       c.n = name; c.bp = bp; c.desc = d; c.tg = tg; c.sm = sm; c.muscleGroups = groups; c.primaries = prim; c.secondaries = sm; c.eq = eq
       extra(c)
@@ -1201,14 +1247,15 @@ function CustomExForm({ existing, prefill, onDone, close }) {
     onDone && onDone(EXIDX[id])
   }
   return <>
-    <h3>{existing ? t('Edit custom exercise') : t('Create your own exercise')}</h3>
+    <h3>{t(publishing ? 'Create or edit FT Training exercise' : existing ? 'Edit custom exercise' : 'Create your own exercise')}</h3>
+    {publishing && <p className="small accent">{t('This exercise will be available to everyone.')}</p>}
     <div className="muted small" style={{ marginBottom: 12 }}>{t('Name it and pick a body part. It works just like any other exercise.')}</div>
     <input ref={nameRef} className="input" placeholder={t('Exercise name')} maxLength={80} value={n} onFocus={onNameFocus} onChange={e => setN(e.target.value)} />
     <div className="chips" style={{ margin: '12px 0' }}>
-      {BODYPARTS.map(b => <button key={b} className={'chip' + (bp === b ? ' on' : '')} onClick={() => setBp(b)}>{t(b)}</button>)}
+      {BODYPARTS.map(b => <button key={b} disabled={sharedExisting} className={'chip' + (bp === b ? ' on' : '')} onClick={() => setBp(b)}>{t(b)}</button>)}
     </div>
     <div className="chips" style={{ margin: '12px 0' }}>
-      {ALL_EQUIPMENT.map(k => (<button key={k} className={'chip' + (eq === k ? ' on' : '')} onClick={() => setEq(k)}>{t(k)}</button>))}
+      {ALL_EQUIPMENT.map(k => (<button key={k} disabled={sharedExisting} className={'chip' + (eq === k ? ' on' : '')} onClick={() => setEq(k)}>{t(k)}</button>))}
       {/* An imported exercise can carry equipment the list does not have (`custom` from a CSV or
           Hevy import). It stays a chip of its own, picked, so Save does not stop on "Pick equipment". */}
       {storedEq && <button key={storedEq} className={'chip' + (eq === storedEq ? ' on' : '')} onClick={() => setEq(storedEq)}>{t(storedEq)}</button>}
@@ -1227,15 +1274,21 @@ function CustomExForm({ existing, prefill, onDone, close }) {
     {bp === 'cardio' && <div className="small dim row" style={{ marginBottom: 10, gap: 5 }}><Icon name="figureRun" style={{ fontSize: 13 }} />{t('Cardio exercises log time + speed instead of weight × reps.')}</div>}
     <textarea className="input" rows={4} maxLength={1000} placeholder={t('Description (optional): setup, cues, anything you want to remember')}
       value={desc} onChange={e => setDesc(e.target.value)} />
-    <CustomMediaField media={media} url={url} onChange={onMedia} />
+    <SharedMediaContext.Provider value={sharedExisting && !mediaTouched}><CustomMediaField media={media} url={url} onChange={onMedia} /></SharedMediaContext.Provider>
     <div style={{ height: 14 }} />
-    <Button variant="primary" onClick={save}>{existing ? t('Save') : t('Create exercise')}</Button>
-    {existing && <><div style={{ height: 8 }} /><Button variant="danger" icon="trash" onClick={() => { close(); deleteCustomEx(existing) }}>{t('Delete exercise')}</Button></>}
+    <Button variant="primary" disabled={saving} onClick={save}>{existing ? t('Save') : t('Create exercise')}</Button>
+    {existing && <><div style={{ height: 8 }} /><Button variant="danger" icon="trash" onClick={() => { close(); deleteCustomEx(existing) }}>{t(sharedExisting ? 'Archive' : 'Delete exercise')}</Button></>}
   </>
 }
 export const customExSheet = (existing, onDone, prefill) => ui().openSheet(close => <CustomExForm existing={existing} prefill={prefill} onDone={onDone} close={close} />)
 
 export function deleteCustomEx(ex, afterDelete) {
+  if (isSharedEx(ex)) {
+    if (!useSharedExercises.getState().canManage) return
+    confirmSheet({ title: t('Archive'), message: t('Hidden from new selections. Existing routines and history remain available.'), confirmText: t('Archive'), danger: true,
+      onConfirm: async () => { try { await useSharedExercises.getState().archive(ex); afterDelete?.(); toast(t('Saved')) } catch { toast(t('Something went wrong')) } } })
+    return
+  }
   if (S().active?.entries.some(e => e.id === ex.id)) { toast(t('Finish your current workout first')); return }
   confirmSheet({
     title: t('Delete “{0}”?', ex.n),
@@ -1272,6 +1325,8 @@ function usageMap(st) {
 // The swap pickers' own scope (#473): exercises sharing the swapped exercise's target muscle.
 const SAME = '≈'
 function ExercisePicker({ onPick, title, close, like }) {
+  useCatalogueRevision()
+  const [origin, setOrigin] = useState('')
   const st = useStore(s => s.S)
   const usage = usageMap(st)
   const [q, setQ] = useState('')
@@ -1294,7 +1349,7 @@ function ExercisePicker({ onPick, title, close, like }) {
   const bpStrip = useRef(null), eqStrip = useRef(null), catStrip = useRef(null)
   const onSearchFocus = useSheetKeyboard(searchRef)
   const moreRef = useAutoMore(() => setShown(s => s + 50))
-  const all = allExercises(st)
+  const all = byOrigin(allExercises(st), origin)
   const profile = activeProfile(st)
   const inScope = e => bp === '★' ? usage[e.id] : bp === '☆' ? isFav(st, e.id) : (!bp || e.bp === bp)
   let inPart = searchExercises(bp === SAME ? sameMuscleFirst(all, likeEx) : all.filter(inScope), q)
@@ -1317,7 +1372,7 @@ function ExercisePicker({ onPick, title, close, like }) {
   const favCount = (st.favEx || []).length
   const special = bp === '★' || bp === '☆'
   // The Library's live result count (GitLab !31), for the same reason: how many are left.
-  const narrowed = !!(q.trim() || bp || eqOn || catOn)
+  const narrowed = !!(q.trim() || bp || eqOn || catOn || origin)
   useRevealActiveChip(bpStrip, bp)
   useRevealActiveChip(eqStrip, eqOn)
   useRevealActiveChip(catStrip, catOn)
@@ -1326,10 +1381,10 @@ function ExercisePicker({ onPick, title, close, like }) {
   // Worked out a beat behind the typing (useDeferredValue): the list itself never waits for it.
   const qLate = useDeferredValue(q)
   const similar = q.trim() && qLate === q && !special && f.length <= shown
-    ? similarExercises((profile && !showAll ? all.filter(e => exAvailable(st, e)) : all).filter(e => bp === SAME || !bp || e.bp === bp), q, f, f.length ? 12 : 30)
+    ? similarExercises((profile && !showAll ? all.filter(e => exAvailable(st, e)) : all).filter(e => (bp === SAME || !bp || e.bp === bp) && (!catOn || e.cat === catOn) && (!eqOn || e.eq === eqOn)), q, f, f.length ? 12 : 30)
     : []
   const pickRow = e => <div key={e.id} className="item" {...tappable(() => onPick(e))}>
-        <Thumb ex={e} /><div className="grow"><div className={`tt ${exerciseNameClass(e)}`}>{isFav(st, e.id) && <Icon name="starFill" className="fav-star" />}{exerciseNameFor(e)}</div><div className="ss capitalize">{t(MUSCLE_NAME[e.tg] || e.tg || e.bp)} · {t(e.eq)}</div></div>
+        <Thumb ex={e} /><div className="grow"><ExerciseOriginBadge ex={e} /><div className={`tt ${exerciseNameClass(e)}`}>{isFav(st, e.id) && <Icon name="starFill" className="fav-star" />}{exerciseNameFor(e)}</div><div className="ss capitalize">{t(MUSCLE_NAME[e.tg] || e.tg || e.bp)} · {t(e.eq)}</div></div>
         {/* Accent tag = already in a routine/log ("Chosen"); the yellow star by the name = favourite. */}
         {usage[e.id] && <span className="tag acc"><Icon name="starFill" /></span>}
         {/* A "+" glyph reads as "add this now" — it used to just open the same detail sheet as
@@ -1384,6 +1439,7 @@ function ExercisePicker({ onPick, title, close, like }) {
       <button className={'chip nocap' + (!eqOn ? ' on' : '')} onClick={() => { setEq(''); setShown(50) }}>{t('Any equipment')}</button>
       {eqOpts.map(x => <button key={x} className={'chip' + (eqOn === x ? ' on' : '')} onClick={() => { setEq(x); setShown(50) }}>{t(x)}</button>)}
     </div>}
+    <ExerciseOriginFilter value={origin} onChange={value => { setOrigin(value); setShown(50) }} />
     <div className={'list' + (st.exerciseView === 'cards' ? ' ex-grid' : '')}>
       {!special && <div className="item ex-new" {...tappable(() => customExSheet(null, ex => onPick(ex), q.trim()))}>
         <div className="thumb thumb-x"><Icon name="plusCircle" /></div>
@@ -1772,7 +1828,7 @@ function ExConfig({ ex, existing, onSave, onDelete, onReplace, close, routine, i
         turns into a translatable label. */}
     <div className="row" style={{ gap: 6, flexWrap: 'wrap', margin: '10px 0 14px' }}>
       {cardio && <span className="tag acc"><Icon name="figureRun" />{t('Cardio')}</span>}
-      <span className="tag">{t(MUSCLE_NAME[ex.tg] || ex.tg || ex.bp)}</span><span className="tag">{t(ex.eq)}</span>
+      <span className="tag">{t(MUSCLE_NAME[ex.tg] || ex.tg || ex.bp)}</span><span className="tag">{t(ex.eq || '')}</span>
       {!cardio && (ex.secondaries?.length ? ex.secondaries : smOf(ex)).filter(trainedBy(ex)).slice(0, 3)
         .map((s, i) => <span key={i} className="tag dim">{t(MUSCLE_NAME[s] || s)}</span>)}
     </div>
@@ -2016,7 +2072,7 @@ function ExConfig({ ex, existing, onSave, onDelete, onReplace, close, routine, i
         Replace (#110) seeds this sheet with the slot it replaces, and saving puts the exercise
         into that slot. */}
     <Button variant="primary" disabled={progressionStepInvalid||!!rangeError} onClick={save}>{saveLabel || (existing ? t('Save') : t('Add to routine'))}</Button>
-    {isCustomEx(ex) && <><div style={{ height: 8 }} /><Button icon="pencil" onClick={() => { close(); customExSheet(ex) }}>{t('Edit or delete this exercise')}</Button></>}
+    {isCustomEx(ex) && (!isSharedEx(ex) || useSharedExercises.getState().canManage) && <><div style={{ height: 8 }} /><Button icon="pencil" onClick={() => { close(); customExSheet(ex) }}>{t('Edit or delete this exercise')}</Button></>}
     {/* The routine editor's counterpart to a workout's Swap (#110): another exercise in this
         slot, with the slot's sets, reps, weight, rule and note kept (lib/routines.js). What was
         changed on this sheet and not saved is left behind, as closing it would. */}
@@ -3386,7 +3442,7 @@ function doFinishWorkout() {
   const w = buildCompletedWorkout(A, {
     end: past ? backfillEnd(A) : sessionEnd(A),
     prs,
-    snapshotFor: e => isCustomEx(EXIDX[e.id]) ? exerciseMuscleSnapshot(EXIDX[e.id]) : null,
+    snapshotFor: e => e.exerciseSnapshot ? exerciseMuscleSnapshot(e.exerciseSnapshot) : isCustomEx(EXIDX[e.id]) ? exerciseMuscleSnapshot(EXIDX[e.id]) : null,
   })
   if (!past) w.entries.forEach(e => {
     const loads = e.sets.filter(s => s.done && !isWarmupRow(s)).map(s => s.w).filter(w => w > 0)

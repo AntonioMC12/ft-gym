@@ -16,7 +16,7 @@ export function testUrls(env = process.env,{allowPreview=false}={}) {
   const a = postgresUrl(app, 'CENTERS_TEST_DATABASE_URL');
   const m = postgresUrl(migration, 'CENTERS_TEST_MIGRATION_DATABASE_URL');
   const name = decodeURIComponent(a.pathname.slice(1));
-  if(a.hostname==='centers-test-db'&&name==='ft_gym_centers_test'&&!allowPreview)throw new Error('ordinary suites must not target the persistent preview database');
+  if(a.hostname==='centers-test-db'&&['ft_gym_centers_test','ft_gym_exercises_centers_test'].includes(name)&&!allowPreview)throw new Error('ordinary suites must not target the persistent preview database');
   if (!/^[a-z0-9_]+_centers_test(?:_[a-z0-9_]+)?$/.test(name) || a.search || m.search ||
       a.hostname !== m.hostname || (a.port || '5432') !== (m.port || '5432') || a.pathname !== m.pathname ||
       decodeURIComponent(a.username) !== 'centers_app' || decodeURIComponent(m.username) !== 'centers_migrator') {

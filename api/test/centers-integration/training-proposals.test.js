@@ -188,3 +188,17 @@ test('only platform oversight bypasses consent for assigned routines, never for 
   assert.equal((await f.req('/api/centers/own/training/progress/share',f.ids.alice,{centerId:f.center,version:1,fields:{enabled:false},requestId:f.p+'_roster_revoke'})).status,200);
   assert.deepEqual((await f.req(route,f.ids.trainer)).body,{shared:false});assert.equal((await f.req(route,f.ids.root)).body.report.routines[0].sessions,1);
 });
+
+test('FT catalogue exercises are accepted in trainer proposals and archived IDs refuse new proposals',async t=>{
+ const f=await fixture(t);
+ const created=await f.req('/api/exercises/shared',f.ids.root,{requestId:f.p+'_shared',exercise:{n:'FT fictional row',bp:'back',eq:'cable',tg:'lats'}});
+ assert.equal(created.status,200,JSON.stringify(created));const exercise=created.body.exercise;
+ const plan=bundle();plan.routines[0].ex[0].id=exercise.id;
+ const accepted=await f.req('/api/centers/training/propose',f.ids.trainer,{centerId:f.center,memberId:f.alice.id,memberVersion:f.alice.version,bundle:plan,requestId:f.p+'_shared_offer'});
+ assert.equal(accepted.status,200,JSON.stringify(accepted));
+ assert.equal((await f.req('/api/exercises/shared',f.ids.alice)).body.entries[0].id,exercise.id);
+ assert.equal((await f.req('/api/exercises/shared',f.ids.trainer,{requestId:f.p+'_forbidden',exercise:{n:'No',bp:'back',eq:'cable'}})).status,403);
+ assert.equal((await f.req('/api/exercises/shared/'+exercise.id+'/archive',f.ids.root,{revision:1,requestId:f.p+'_archive'})).status,200);
+ const blocked=await f.req('/api/centers/training/propose',f.ids.trainer,{centerId:f.center,memberId:f.bob.id,memberVersion:f.bob.version,bundle:plan,requestId:f.p+'_archived_offer'});
+ assert.equal(blocked.status,400,JSON.stringify(blocked));
+});

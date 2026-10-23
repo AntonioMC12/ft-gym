@@ -10,6 +10,9 @@ data/
 .env
 .env.centers
 .env.demo
+.env.local
+.env.*.local
+coach-auth/
 .demo-pages/
 
 # Build output / deps

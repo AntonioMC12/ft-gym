@@ -37,6 +37,7 @@ function lastWorkSetAt(S, id) {
 }
 
 function snapshotWeights(entry) {
+  if (entry?.muscleSnapshot?.sharedRevision) return musclesOf(entry.muscleSnapshot)
   const catalogue = entry && typeof entry === 'object' ? EXIDX[entry.id] : null
   if (catalogue) return musclesOf(catalogue)
   const direct = entry && typeof entry === 'object'

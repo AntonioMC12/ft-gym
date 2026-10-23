@@ -14,6 +14,13 @@ const env = {
   CENTERS_TEST_MIGRATION_DATABASE_URL: 'postgresql://centers_migrator:fictional@localhost/ft_gym_centers_test',
 };
 
+test('ordinary suites also refuse the persistent exercise sandbox', () => {
+  const sandbox = { CENTERS_TEST_DATABASE_URL: 'postgresql://centers_app:fictional@centers-test-db/ft_gym_exercises_centers_test',
+    CENTERS_TEST_MIGRATION_DATABASE_URL: 'postgresql://centers_migrator:fictional@centers-test-db/ft_gym_exercises_centers_test' };
+  assert.throws(() => testUrls(sandbox), /persistent preview/);
+  assert.equal(testUrls(sandbox, { allowPreview: true }).app, sandbox.CENTERS_TEST_DATABASE_URL);
+});
+
 test('integration tests never fall back to runtime DSNs', () => {
   assert.throws(() => testUrls({ CENTERS_DATABASE_URL: env.CENTERS_TEST_DATABASE_URL }), /PostgreSQL URL/);
   assert.equal(testUrls(env).app, env.CENTERS_TEST_DATABASE_URL);

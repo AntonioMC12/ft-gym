@@ -4,12 +4,16 @@ import {useMembershipAccess,MembershipAccessScreen,MembershipGraceNotice} from '
 import { useEffect, useLayoutEffect, useRef } from 'react'
 import { HashRouter, Routes, Route, Navigate, useNavigate, useLocation, useNavigationType } from 'react-router-dom'
 import { useStore } from './store/useStore.js'
+import { useSharedExercises, sharedMediaBlob } from './store/useSharedExercises.js'
+import { useCatalogueRevision } from './components/ExerciseOrigin.jsx'
+import { EXIDX } from './lib/exercises.js'
+import { prefetchAllowed } from './lib/media-prefetch.js'
 import { useCenters } from './store/useCenters.js'
 import { useUI } from './store/useUI.js'
 import { bindUI } from './components/ui.jsx'
 import { setWeightDecimals } from './lib/format.js'
 import { accentValue, applyAccent } from './lib/accent.js'
-import { setLang, useLang, baseLang } from './lib/i18n.js'
+import { setLang, useLang, baseLang, t } from './lib/i18n.js'
 import { effectiveLang } from './lib/default-lang.js'
 import { setPlayOnSilent, setVibrate, setAlarmBuzzer } from './lib/sound.js'
 import { buzzAsAlarm } from './lib/rest-alert.js'
@@ -78,6 +82,27 @@ function Shell() {
   const loc = useLocation()
   const navType = useNavigationType()
   const { S, user, ready, config } = useStore()
+  useCatalogueRevision()
+  const sharedStatus = useSharedExercises(s => s.status)
+  const server = useStore(s => s.sync?.server || '')
+  useEffect(() => {
+    if (!user) { useSharedExercises.getState().reset(); return }
+    const refresh = async () => {
+      if (document.visibilityState === 'hidden') return
+      const before = `${useSharedExercises.getState().instance}:${useSharedExercises.getState().rev}`
+      await useSharedExercises.getState().load(user.id, server)
+      if (useStore.getState().user?.id !== user.id) return
+      if (before !== `${useSharedExercises.getState().instance}:${useSharedExercises.getState().rev}`) useStore.getState().update(() => {}, false)
+      const state = useStore.getState().S
+      const ids = new Set([...(state.routines || []).flatMap(r => (r.ex || []).map(e => e.id)), ...(state.active?.entries || []).map(e => e.id)])
+      for (const id of ids) for (const ref of [EXIDX[id]?.media, EXIDX[id]?.media?.poster].filter(Boolean)) {
+        if (prefetchAllowed() && useSharedExercises.getState().entries.some(e => e.id === id)) sharedMediaBlob(ref).catch(() => {})
+      }
+    }
+    refresh(); window.addEventListener('focus', refresh); window.addEventListener('online', refresh)
+    const timer = setInterval(refresh, 30000)
+    return () => { clearInterval(timer); window.removeEventListener('focus', refresh); window.removeEventListener('online', refresh); useSharedExercises.getState().reset() }
+  }, [user?.id, server])
   const membershipAccess=useMembershipAccess(user,config)
   useEffect(()=>{if(membershipAccess.blocked)useUI.getState().closeAll()},[membershipAccess.blocked])
   useEffect(() => {
@@ -204,6 +229,12 @@ function Shell() {
   const noTabs = !membershipAccess.allowed || inWorkout || loc.pathname === '/coach' || loc.pathname.startsWith('/centers') || loc.pathname.startsWith('/training-admin') || needsMobileOnboarding
 
   const authed = user || isGuest
+  const unresolvedShared = [...(S.routines || []).flatMap(r => (r.ex || []).map(e => e.id)), ...(S.active?.entries || []).map(e => e.id)]
+    .some(id => !EXIDX[id])
+  if (user && (['idle','loading'].includes(sharedStatus) || unresolvedShared && sharedStatus !== 'ready')) return <div id="app" style={{ padding: 24 }}>
+    <p>{['idle','loading'].includes(sharedStatus) ? t('Loading…') : t('Shared exercises are unavailable. Reconnect to load your routine safely.')}</p>
+    <button className="btn" onClick={() => useSharedExercises.getState().load(user.id, server)}>{t('Retry')}</button>
+  </div>
   if (!ready && !authed) return (
     <div id="app">
       <div style={{ paddingTop: '44vh', display: 'flex', justifyContent: 'center', fontSize: 34, color: 'var(--label-3)' }}>

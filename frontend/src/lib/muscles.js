@@ -232,6 +232,7 @@ export function musclesOf(ex) {
 export function exerciseMuscleSnapshot(ex) {
   if (!ex || typeof ex !== 'object') return {}
   const out = {}
+  if (ex.origin === 'platform' && ex.revision) Object.assign(out, { sharedRevision: ex.revision, eq: ex.eq, assisted: ex.assisted, tg: ex.tg })
   if (ex.n != null) out.n = ex.n
   if (ex.bp != null) out.bp = ex.bp
   const weights = muscleWeightsOf(ex)
@@ -259,7 +260,8 @@ export function loadOf(items) {
     const { id, sets } = item || {}
     if (!sets) return
     const historical = item.ex || item.exercise
-    const source = historical?.muscleWeights ? historical : (EXIDX[id] || historical || item)
+    const frozen = historical?.exerciseSnapshot || (historical?.muscleSnapshot?.sharedRevision ? historical.muscleSnapshot : null)
+    const source = frozen || (historical?.muscleWeights ? historical : (EXIDX[id] || historical || item))
     const m = musclesOf(source)
     for (const slug in m) load[slug] = (load[slug] || 0) + m[slug] * sets
   })

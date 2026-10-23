@@ -3,6 +3,15 @@
    tool call without a restart. */
 import fs from 'node:fs'
 import path from 'node:path'
+import { registerShared } from '../../frontend/src/lib/exercises.js'
+let sharedStamp = null
+function refreshSharedCatalogue() {
+  const file = path.join(DATA_DIR, 'shared-exercises.json')
+  try {
+    const stamp = fs.statSync(file).mtimeMs
+    if (stamp !== sharedStamp) { const data = readJsonOrNull(file); registerShared(data.entries, data.instance); sharedStamp = stamp }
+  } catch (error) { if (error.code !== 'ENOENT') throw error }
+}
 
 const DATA_DIR = process.env.OPENGYM_DATA || path.join(process.cwd(), 'data')
 
@@ -109,12 +118,14 @@ export function init() {
     // merely closes the pipe would leak a process per session. Watching is unaffected: the
     // stdio transport is what keeps the loop alive while a client is actually attached.
     _watcher.unref()
+    _watcher.on('error', () => { _watcher?.close(); _watcher = null; _loadedMtime = 0 })
   } catch { /* fs.watch unsupported on this platform; tools will re-read on mtime change */ }
 }
 
 // Returns the state object, or null for a fresh account that never signed in on a device.
 export function getState() {
   init()
+  refreshSharedCatalogue()
   const file = stateFile(_uid)
   // Re-read if the file's mtime changed since our last load — covers watcher omissions and
   // platforms with no fs.watch.

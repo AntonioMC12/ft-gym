@@ -14,10 +14,10 @@ export function assignedStrength(state,{routineIds,allowedExercises,from,to}){
   const key=String(workout.id??(workout.d+'|'+workout.start));if(seen.has(key)||Number(state?.deleted?.workouts?.[key])>0)continue;seen.add(key);
   const entries=Array.isArray(workout.entries)?workout.entries:[],hasRids=entries.some(entry=>entry?.rid),ids=Array.isArray(workout.routineIds)?workout.routineIds:workout.routineId?[workout.routineId]:[];
   for(const entry of entries){
-   const rid=entry?.rid||(!hasRids&&ids.length===1?ids[0]:null),routine=groups.get(rid),catalogue=LIB_BY_ID.get(entry?.id);
+   const rid=entry?.rid||(!hasRids&&ids.length===1?ids[0]:null),routine=groups.get(rid),catalogue=entry?.muscleSnapshot?.sharedRevision?entry.muscleSnapshot:LIB_BY_ID.get(entry?.id);
    if(!routine||!catalogue||!allowedExercises.get(rid)?.has(entry.id)||!Array.isArray(entry.sets))continue;
    const target=entry.target||{},mode=target.mode;
-   const assisted=typeof target.assisted==='boolean'?target.assisted:catalogue.eq==='leverage machine'&&/\bassist(ed)?\b/i.test(catalogue.n||'');
+   const assisted=typeof target.assisted==='boolean'?target.assisted:typeof catalogue.assisted==='boolean'?catalogue.assisted:catalogue.eq==='leverage machine'&&/\bassist(ed)?\b/i.test(catalogue.n||'');
    const dbLoad=['each','total'].includes(target.dbLoad)?target.dbLoad:'as';
    for(const row of entry.sets){
     if(!work(row))continue;

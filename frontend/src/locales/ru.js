@@ -1,6 +1,8 @@
+import { sharedExerciseStrings } from './modules/shared-exercises.js'
 // Russian UI strings. Keys are the English source strings (see lib/i18n.js).
 import { centersStrings } from './modules/centers.js'
 export default {
+  ...sharedExerciseStrings('ru'),
   ...centersStrings('ru'),
   'Confirm': 'Подтвердить',
   'Cancel': 'Отмена',

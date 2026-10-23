@@ -54,7 +54,8 @@ describe('WorkoutDetail — repeat today', () => {
     const active = useStore.getState().S.active
     expect(active).toMatchObject({ d: todayISO(), routineIds: [], name: 'Push', cur: 0, bw: null })
     expect(active.entries.map(e => e.id)).toEqual([A, B])
-    expect(active.entries[0].sets.map(s => [s.w, s.r, s.done])).toEqual([[45, 8, false], [45, 7, false]])
+    // Fresh rep inputs must be entered again; the saved workout remains untouched below.
+    expect(active.entries[0].sets.map(s => [s.w, s.r, s.done])).toEqual([[45, null, false], [45, null, false]])
     expect(active.entries.some(e => 'rid' in e)).toBe(false)
     expect(navigated).toBe('/workout')
     expect(useStore.getState().S.workouts[0]).toEqual(saved)

@@ -14,7 +14,7 @@
  * model verbatim for the one repair round (FR-48) — and a list of six problems produces a
  * better second attempt than the first of them does.
  */
-import { libraryHas, libraryName, equipmentAllows } from './library.js';
+import { libraryHas, libraryName, equipmentAllows, LIB_BY_ID } from './library.js';
 
 // A catalogue exercise the person's equipment does not reach, and that was not in the library
 // slice they were offered (which already pins what they train). The prompt says "their
@@ -119,7 +119,7 @@ export function validatePlan(data, ctx = {}) {
       if (!e || !isStr(e.id)) { errors.push(`${where}.id is required`); return; }
       // FR-16: an id that resolves to nothing invalidates the proposal rather than being
       // dropped into a plan that renders blank the first time it is trained.
-      if (!libraryHas(e.id) && !proposedIds.has(e.id)) {
+      if (LIB_BY_ID.get(e.id)?.archived || !libraryHas(e.id) && !proposedIds.has(e.id)) {
         errors.push(`${where}.id "${e.id}" is not in the exercise library and is not one of your own customEx entries — use an id from the library provided in the payload`);
         return;
       }
@@ -327,6 +327,7 @@ export function validateReview(data, plan, ctx = {}) {
     // off the plan above, which is the only copy either side should trust.
     switch (c.type) {
       case 'add-exercise': {
+        if (LIB_BY_ID.get(c.after?.id)?.archived) { errors.push(`${where}: archived exercise`); return; }
         // The bundle path forbids the same exercise twice in one routine; so must this. A
         // duplicate makes every later reorder unsatisfiable, makes each targeted change resolve
         // to whichever copy comes first, and makes one "drop it" delete both.
@@ -357,6 +358,7 @@ export function validateReview(data, plan, ctx = {}) {
         break;
       }
       case 'swap-exercise': {
+        if (LIB_BY_ID.get(c.after?.id)?.archived) { errors.push(`${where}: archived exercise`); return; }
         // Same rule, minus the exercise being swapped out — replacing A with B when B is
         // already there is a duplicate, not a swap.
         if ((routine.ex || []).some(e => e.id === (c.after || {}).id && e.id !== target.exId)) {

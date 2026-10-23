@@ -557,3 +557,6 @@ fieldset.centers-fields{border:0;padding:0;min-width:0}
 .centers-debt-summary>.centers-renewals-pending>span.small{min-height:0}
 .centers-renewals-pending>p{grid-column:1/-1;margin:4px 0 0;line-height:1.5}
 @media(max-width:550px){.centers-debt-summary>article:nth-child(3){grid-column:1/-1;grid-template-columns:1fr auto;align-items:center}}
+
+/* Keep membership price fields and selectors visually separated. */
+.centers-membership-plan-editor{display:flex;flex-direction:column;gap:14px}

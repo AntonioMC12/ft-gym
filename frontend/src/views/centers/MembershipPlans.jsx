@@ -39,7 +39,7 @@ function PlanEditor({centerId,ownerUid,detail,close,saved,duplicate=false}) {
     if(!current())return;setBusy(true)
     try{const result=await centerCommand('/api/centers/plans/archive',{centerId,id:plan.id,version:plan.version});if(current())saved(result.plan)}catch(e){failure(e)}finally{pending.current=false;if(current())setBusy(false)}
   }})
-  return <><Section title={duplicate?t('Duplicate'):plan?t('New price version'):t('New membership plan')}><form ref={saveForm} aria-label={t('Membership plans')} className="centers-form" onSubmit={submit}>
+  return <><Section title={duplicate?t('Duplicate'):plan?t('New price version'):t('New membership plan')}><form ref={saveForm} aria-label={t('Membership plans')} className="centers-form centers-membership-plan-editor" onSubmit={submit}>
     {plan&&<p className="small muted">{t('Version')}: {plan.revision} · {plan.archived?t('Archived plans'):conditions(plan)}</p>}
     {input('name',t('Membership plan name'))}
     {!duplicate&&<>{input('price',t('Price (EUR)'))}

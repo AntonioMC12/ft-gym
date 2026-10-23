@@ -78,4 +78,16 @@ describe('WorkoutDetail — repeat today', () => {
     const host = (workoutDetailSheet(saved), renderTop())
     expect(button(host, 'Repeat today').disabled).toBe(true)
   })
+
+  it('opens member workout and exercise history sheets with their data and no editing actions',()=>{
+    const saved=workout(),member={...useStore.getState().S,unit:'lb',workouts:[saved]},definitions=Object.fromEntries(saved.entries.map(e=>[e.id,{id:e.id,n:'Member '+e.id,eq:'barbell',bp:'chest'}]));
+    const before=JSON.stringify(useStore.getState().S);
+    workoutDetailSheet(saved,{state:member,definitions});const host=renderTop();
+    expect(host.textContent).toContain('Member '+A);expect(host.textContent).toContain('lb');
+    for(const label of ['Edit workout','Repeat today','Change date & time','Change duration','Save as routine'])expect(button(host,label)).toBeUndefined();
+    expect(host.querySelector('textarea')).toBeNull();
+    act(()=>host.querySelector('.wd-ex').click());const history=renderTop();
+    expect(history.textContent).toContain('Member '+A);expect(history.textContent).toContain('Exercise history');expect(history.textContent).toContain('lb');
+    act(()=>mounted.splice(0).forEach(root=>root.unmount()));expect(JSON.stringify(useStore.getState().S)).toBe(before);
+  })
 })

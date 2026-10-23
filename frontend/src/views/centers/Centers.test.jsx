@@ -7,7 +7,7 @@ import { createRoot } from 'react-dom/client'
 import { MemoryRouter,Routes,Route,useLocation,useNavigate } from 'react-router-dom'
 import { beforeEach, afterEach, expect, it, vi } from 'vitest'
 vi.mock('../../lib/i18n.js', () => ({ t: value => value }))
-vi.mock('../../sheets.jsx',()=>({confirmSheet:vi.fn()}))
+vi.mock('../../sheets.jsx',()=>({confirmSheet:vi.fn(),startFlow:vi.fn()}))
 vi.mock('./Retention.jsx',()=>({default:()=>null}))
 vi.mock('./BillingAutomation.jsx',()=>({default:()=>null}))
 vi.mock('./NotificationSettings.jsx',()=>({default:()=>null}))
@@ -16,7 +16,7 @@ vi.mock('./AccessPanel.jsx',()=>({default:({centerId,canManage,canVerify})=><div
 vi.mock('./Classes.jsx',()=>({default:({centerId,canManage})=><div data-classes-center={centerId} data-classes-manage={String(canManage)}>Class list</div>}))
 vi.mock('./Metrics.jsx',()=>({default:({centerId,global,period,onPeriod})=><div data-metrics={global?'global':centerId}><output data-period>{JSON.stringify(period)}</output><button onClick={()=>onPeriod({from:'2026-09-01',to:'2026-09-30'})}>Choose report period</button></div>}))
 vi.mock('../../store/useStore.js', () => {
-  const state = { user: { id: 'platform' }, config: { centers: { enabled: true } }, S: {} }
+  const state = { user: { id: 'platform' }, config: { centers: { enabled: true } }, S: {routines:[],workouts:[]},isGuest:()=>false }
   const useStore = selector => selector ? selector(state) : state
   useStore.getState = () => state
   return { useStore }
@@ -148,7 +148,7 @@ it('center selection and panes enter router history, so Back restores the previo
   await click('Center details');expect(host.querySelector('output').textContent).toBe('/centers?centerId=one')
   await click('Members');expect(host.querySelector('output').textContent).toBe('/centers?centerId=one&pane=members')
   await act(async()=>host.querySelector('button[aria-label="Back"]').click());expect(host.querySelector('output').textContent).toBe('/centers?centerId=one');expect(host.querySelector('.centers-profile-data dd').textContent).toBe(center.name)
-  expect(useStore.getState().S).toEqual({});history.replaceState(previous,'',location.href)
+  expect(useStore.getState().S).toEqual({routines:[],workouts:[]});history.replaceState(previous,'',location.href)
 })
 it('switching the URL center discards the previous center response and clears private form state',async()=>{
   let release;centerDetail.mockImplementation(id=>id==='one'?new Promise(resolve=>release=resolve):Promise.resolve({center:{...center,id:'two',name:'Second synthetic center'}}))
@@ -213,8 +213,9 @@ it('offers direct Home navigation while protecting an unsaved new center',async(
 })
 
 it('returns directly to Centers preserving its filter only after confirming edited details',async()=>{
+ window.history.replaceState({idx:0},'')
   function Location(){return <output data-path>{useLocation().search}</output>}
-  await act(async()=>{root.render(<MemoryRouter initialEntries={['/centers?centerId=one&q=Synthetic']}><Centers/><Location/></MemoryRouter>);await Promise.resolve()});await click('Edit center');input(host.querySelector('input'),'Changed details');await click('Centers');expect(host.querySelector('[data-path]').textContent).toContain('centerId=one');await act(async()=>confirmSheet.mock.calls.at(-1)[0].onConfirm());expect(host.querySelector('[data-path]').textContent).toBe('?q=Synthetic');expect(host.textContent).toContain('Synthetic center')
+  await act(async()=>{root.render(<MemoryRouter initialEntries={['/centers?centerId=one&q=Synthetic']}><Centers/><Location/></MemoryRouter>);await Promise.resolve()});await click('Edit center');input(host.querySelector('input'),'Changed details');await act(async()=>host.querySelector('button[aria-label="Back"]').click());expect(host.querySelector('[data-path]').textContent).toContain('centerId=one');await act(async()=>confirmSheet.mock.calls.at(-1)[0].onConfirm());expect(host.querySelector('[data-path]').textContent).toBe('?q=Synthetic');expect(host.textContent).toContain('Synthetic center')
 })
 
 it('discarding edited details clears the hidden draft and browsing plan lists does not ask for a nonexistent save',async()=>{

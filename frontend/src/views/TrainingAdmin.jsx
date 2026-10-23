@@ -1,3 +1,4 @@
+import CenterTabBar from './centers/CenterTabBar.jsx'
 import {useEffect,useState} from 'react'
 import {Navigate,useNavigate,useSearchParams} from 'react-router-dom'
 import {useStore} from '../store/useStore.js'
@@ -29,7 +30,6 @@ function Content({edit}){
  const assign=id=>requestNavigation(()=>{const next=new URLSearchParams(params);next.set('pane','assign');if(id==='*')next.delete('plan');else next.set('plan',id||'');setParams(next)})
  return <div className="narrow centers-page training-admin-page">
   <div className="hdr"><button className="iconbtn" aria-label={t('Back')} onClick={()=>requestNavigation(()=>navBack('/home',nav))}><Icon name="chevronLeft"/></button><h1>{t('Manage routines')}</h1></div>
-  <nav className="centers-navigation"><Button icon="house" onClick={()=>requestNavigation(()=>nav('/home'))}>{t('Home')}</Button><Button icon="list" onClick={()=>requestNavigation(()=>nav('/centers'))}>{t('Centers')}</Button></nav>
   <CenterWorkspace label={t('Manage routines')} options={options} value={pane} onChange={go}>
    {pane==='library'&&(edit?<RoutineEdit basePath="/training-admin"/>:<Routines S={S} update={update} nav={nav} management initialPlanId={planId} onPlanChange={selectPlan} onAssign={assign} basePath="/training-admin"/>)}
    {pane!=='library'&&(pane==='assign'&&!routineIds.length?<Section title={t('Send plan')}><div className="centers-form"><p>{t('No routines yet.')}</p><Button onClick={()=>go('library')}>{t('Routines')}</Button></div></Section>:<TrainingAssignments routineIds={routineIds} planName={plan?.name||''} mode={pane} onManageAccounts={()=>go('accounts')} planPicker={<SelectRow variant="field" title={t('Training plans')} value={planId??''} options={[{value:'*',label:t('All routines')},{value:'',label:t('Unfiled')},...plansOf(S).map(p=>({value:p.id,label:p.name}))]} onChange={id=>selectPlan(id||null)}/>}/>)}
@@ -54,5 +54,5 @@ export default function TrainingAdmin({edit=false}){
  if(verified?.uid===user.id&&!verified.error&&!verified.allowed)return <Navigate to="/home" replace/>
  if(verified?.uid!==user.id||verified.error||state.ownerUid!==user.id||state.status!=='ready')return <div className="narrow centers-page"><h1>{t('Manage routines')}</h1><p role={verified?.error?'alert':'status'}>{t(verified?.error?'Centers are unavailable. Try again.':'Loading centers')}</p><Button onClick={()=>{setRetry(n=>n+1);useCenters.getState().load(user.id)}}>{t('Reload centers')}</Button><Button onClick={()=>navBack('/home',nav)}>{t('Back')}</Button></div>
  if(!state.platformCapabilities.includes('centers.manage'))return <Navigate to="/home" replace/>
- return <CenterNavigationGuard key={user.id} contextKey={user.id}><Content edit={edit}/></CenterNavigationGuard>
+ return <CenterNavigationGuard key={user.id} contextKey={user.id}><Content edit={edit}/><CenterTabBar/></CenterNavigationGuard>
 }

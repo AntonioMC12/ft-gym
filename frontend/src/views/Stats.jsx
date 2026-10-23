@@ -1,8 +1,8 @@
 import { useEffect, useMemo, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useStore } from '../store/useStore.js'
-import { EXIDX, matchExercise, betterWeight, isAssisted } from '../lib/exercises.js'
-import { lastBW, streakWeeks, setLabel, modeOf, effortOf, entriesForExercise, metricEntriesForExercise, metricModeForEntry, bestWeightForEntry, completedRepsOf, workoutDay, workoutAt } from '../lib/history.js'
+import { EXIDX as BASE_EXIDX, EXDB, matchExercise, betterWeight, isAssisted } from '../lib/exercises.js'
+import { lastBW, streakWeeks, setLabel, modeOf, effortOf, entriesForExercise, metricEntriesForExercise, workoutVolume, metricModeForEntry, bestWeightForEntry, completedRepsOf, workoutDay, workoutAt } from '../lib/history.js'
 import { fmtNum, fmtDate, fmtVol, todayISO, isoOf, weekKey, weekStartOf, exerciseNameText } from '../lib/format.js'
 import { speedUnitOf, speedLabel, toSpeed } from '../lib/speed.js'
 import { t, exerciseNameFor, exerciseNameClass, getLang } from '../lib/i18n.js'
@@ -29,6 +29,7 @@ import { tappable } from '../lib/use-sheet-keyboard.js'
 import { isWarmupRow } from '../lib/workout-model.js'
 
 // Set 1 to 5 on the per-set chart — system colours, so each line keeps its hue in dark mode.
+const EXIDX = BASE_EXIDX
 const SET_COLORS = ['var(--blue)', 'var(--green)', 'var(--orange)', 'var(--purple)', 'var(--pink)']
 
 // The date range buttons under Body weight, and since issue #511 under Exercise progress too.
@@ -40,14 +41,14 @@ const rangeStart = days => (days ? Date.now() - days * 86400000 : 0)
 
 // Which muscles the training in a window actually hit — and, the point of the card,
 // which ones it keeps missing. Shading is relative within the window (lib/muscles.js).
-function latestMuscleTraining(workouts) {
+function latestMuscleTraining(workouts, index = EXIDX) {
   const latest = {}
   for (const workout of workouts || []) {
     const timestamp = workoutAt(workout)
     if (!Number.isFinite(timestamp)) continue
     for (const entry of workout.entries || []) {
       if (!(entry.sets || []).some(set => set?.done === true && !isWarmupRow(set))) continue
-      const exercise = EXIDX[entry.id] || entry.exercise || entry
+      const exercise = entry.exerciseSnapshot || index[entry.id] || entry.exercise || entry
       for (const slug of Object.keys(musclesOf(exercise))) {
         if (latest[slug] == null || timestamp > latest[slug]) latest[slug] = timestamp
       }
@@ -122,7 +123,7 @@ function profileBodyweightKg(S) {
   return S.unit === 'lb' ? last.w * LB_TO_KG : last.w
 }
 
-function MuscleBalance({ S }) {
+function MuscleBalance({ S, readOnly = false, index = EXIDX }) {
   const [view, setView] = useState('balance')
   const [win, setWin] = useState(7)
   const [weekOffset, setWeekOffset] = useState(0)
@@ -136,7 +137,7 @@ function MuscleBalance({ S }) {
   const fatigue = useMemo(() => fatigueOf(workouts, now, { bodyweightKg, unit: S.unit }), [workouts, now, bodyweightKg, S.unit])
   const strength = useMemo(() => strengthOf(workouts, now, { bodyweightKg, unit: S.unit }), [workouts, now, bodyweightKg, S.unit])
   const muscleExercises = useMemo(() => (sel ? strengthExerciseRowsForMuscle(S, now, sel) : []), [S, now, sel, lang])
-  const lastTrained = useMemo(() => latestMuscleTraining(workouts), [workouts])
+  const lastTrained = useMemo(() => latestMuscleTraining(workouts, index), [workouts, index])
   const strengthHint = slug => {
     if (lastTrained[slug] == null) return t('not trained')
     const weeks = weeksSinceTraining(now, lastTrained[slug])
@@ -268,10 +269,10 @@ function MuscleBalance({ S }) {
         {/* A row quotes the exercise's estimated 1RM, so a tap opens the exercise history
             sheet — the curve behind that number plus the last sessions set by set. */}
         {muscleExercises.length ? muscleExercises.map(row => (
-          <div key={row.id} className="mrow" style={{ minHeight: 48, alignItems: 'stretch', cursor: 'pointer' }} {...tappable(() => exerciseHistorySheet(row.id))}>
+          <div key={row.id} className="mrow" style={{ minHeight: 48, alignItems: 'stretch', cursor: 'pointer' }} {...tappable(() => { if (!readOnly) exerciseHistorySheet(row.id) })}>
             <span className="nm" style={{ whiteSpace: 'normal', lineHeight: 1.35, display: 'flex', flexDirection: 'column', justifyContent: 'center' }}>
               <span style={{ display: 'block', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                <span className={EXIDX[row.id] ? exerciseNameClass(EXIDX[row.id]) : undefined}>{row.name}</span>
+                <span className={index[row.id] ? exerciseNameClass(index[row.id]) : undefined}>{row.name}</span>
                 {row.primary === sel
                   ? <span className="dim" style={{ fontSize: 11, marginInlineStart: 6 }}>{t('primary')}</span>
                   : <span className="dim" style={{ fontSize: 11, marginInlineStart: 6 }}>{t('secondary')}</span>}
@@ -404,9 +405,14 @@ export function WeeklyPlanVolume({ S }) {
   </div>
 }
 
-export default function Stats() {
+export default function Stats({ progress = null, memberName = null }) {
   const nav = useNavigate()
-  const S = useStore(s => s.S)
+  const personal = useStore(s => s.S)
+  const S = progress || personal
+  const readOnly = !!progress
+  const EXIDX = readOnly ? { ...Object.fromEntries(EXDB.map(e=>[e.id,BASE_EXIDX[e.id] || e])), ...progress.definitions } : BASE_EXIDX
+  const [heatMetric, setHeatMetric] = useState(null)
+  const [showHistory, setShowHistory] = useState(false)
   const [range, setRange] = useState(90)
   // Plan's "Weekly muscle volume" row lands here (/stats?focus=weekly-volume). The router is a
   // HashRouter, so the query sits in the hash; the scroll waits a frame for the page's own
@@ -444,7 +450,7 @@ export default function Stats() {
     const best = mode === 'reps' ? sameMode.reduce((value, item) => {
       const candidate = bestWeightForEntry(item.entry)
       if (!(candidate > 0)) return value
-      return value > 0 ? betterWeight(id, value, candidate) : candidate
+      return value > 0 ? betterWeight(EXIDX[id] || entryOf(id), value, candidate) : candidate
     }, 0) : 0
     return { mode, entries: sameMode, rows: sameMode.flatMap(item => item.rows), best }
   }
@@ -544,7 +550,7 @@ export default function Stats() {
           exPts.push({ t: w.start, y: mx, d: w.d, sets: doneSets, target: representative?.target })
           // Weighted work on an assistance machine reads the other way: the smallest load is the
           // best (issue #232). Reps, duration and speed are always "more is better".
-          const better = curMode === 'reps' && !repsOnly ? betterWeight(curEx, exBest || mx, mx) : Math.max(exBest, mx)
+          const better = curMode === 'reps' && !repsOnly ? betterWeight(EXIDX[curEx] || entryOf(curEx), exBest || mx, mx) : Math.max(exBest, mx)
           exBest = exBest > 0 ? better : mx
         }
       }
@@ -589,7 +595,7 @@ export default function Stats() {
   const perSet = useMemo(() => {
     if (!curEx || curMode !== 'reps') return null
     const usable = list => list.length >= 2 && list.some(s => s.sets.length >= 2)
-    let metric = repsOnly || isAssisted(curEx) ? 'reps' : 'e1rm'
+    let metric = repsOnly || isAssisted(EXIDX[curEx] || entryOf(curEx)) ? 'reps' : 'e1rm'
     let sessions = perSetSessions(workouts, curEx, { metric, formula: oneRmFormula })
     if (metric === 'e1rm' && !usable(sessions)) sessions = perSetSessions(workouts, curEx, { metric: metric = 'reps' })
     if (!usable(sessions)) return null
@@ -633,8 +639,8 @@ export default function Stats() {
   if (showMax) exOpts.push({ value: 'max', label: t('Max reps') })
 
   return <>
-    <div className="hdr"><div><h1>{t('Stats')}</h1><div className="sub">{t('Progress & history')}</div></div>
-      <button className="iconbtn" onClick={() => nav('/history')} aria-label={t('History')}><Icon name="history" /></button></div>
+    <div className="hdr"><div><h1>{t('Stats')}</h1><div className="sub">{memberName || t('Progress & history')}{readOnly ? ' · ' + t('Read only') : ''}</div></div>
+      <button className="iconbtn" onClick={() => readOnly ? setShowHistory(v => !v) : nav('/history')} aria-label={t('History')}><Icon name="history" /></button></div>
 
     <div className="tiles">
       <div className="tile"><div className="l"><Icon name="dumbbell" />{t('Workouts')}</div><div className="v">{workouts.length}</div></div>
@@ -648,47 +654,47 @@ export default function Stats() {
       <h2>{t('Activity (last 12 months)')}</h2>
       <Heatmap
         S={S}
-        metric={S.heatmapMetric === 'vol' ? 'vol' : 'time'}
-        onMetricChange={metric => useStore.getState().update(s => { s.heatmapMetric = metric })}
-        onDay={iso => { const ws = workouts.filter(w => workoutDay(w) === iso); if (ws.length === 1) workoutDetailSheet(ws[0]); else if (ws.length) calendarSheet(iso); else dayOverrideSheet(iso) }}
+        metric={heatMetric || (S.heatmapMetric === 'vol' ? 'vol' : 'time')}
+        onMetricChange={metric => readOnly ? setHeatMetric(metric) : useStore.getState().update(s => { s.heatmapMetric = metric })}
+        onDay={iso => { if (readOnly) { setShowHistory(true); return } const ws = workouts.filter(w => workoutDay(w) === iso); if (ws.length === 1) workoutDetailSheet(ws[0]); else if (ws.length) calendarSheet(iso); else dayOverrideSheet(iso) }}
       />
     </div>
 
-    {(workouts.length > 0 || Object.keys(loadOfWeeklyPlan(S)).length > 0) && <MuscleBalance S={S} />}
+    {(workouts.length > 0 || Object.keys(loadOfWeeklyPlan(S)).length > 0) && <MuscleBalance S={S} readOnly={readOnly} index={EXIDX} />}
     {S.routines.length > 0 && <WeeklyPlanVolume S={S} />}
-    {workouts.length > 0 && <div className="card row between" style={{ alignItems: 'center', gap: 12 }}>
+    {!readOnly && workouts.length > 0 && <div className="card row between" style={{ alignItems: 'center', gap: 12 }}>
       <div style={{ minWidth: 0 }}><h2 style={{ margin: 0 }}>{t('Structural balance')}</h2>
         <div className="muted small" style={{ marginTop: 4 }}>{t('See which lift is holding back the rest.')}</div></div>
       <Button size="sm" variant="tinted" trailingIcon="chevronRight" style={{ flexShrink: 0 }} onClick={() => nav('/structural-balance')}>{t('Open')}</Button>
     </div>}
-    {workouts.length > 0 && <div className="card row between" style={{ alignItems: 'center', gap: 12 }}>
+    {!readOnly && workouts.length > 0 && <div className="card row between" style={{ alignItems: 'center', gap: 12 }}>
       <div style={{ minWidth: 0 }}><h2 style={{ margin: 0 }}>{t('Progress photos')}</h2>
         <div className="muted small" style={{ marginTop: 4 }}>{t('Every photo you kept with a workout, lined up by date. Plus a before/after slider.')}</div></div>
       <Button size="sm" variant="tinted" trailingIcon="chevronRight" style={{ flexShrink: 0 }} onClick={() => nav('/progress-photos')}>{t('Open')}</Button>
     </div>}
-    <div className="card row between" style={{ alignItems: 'center', gap: 12 }}>
+    {!readOnly && <div className="card row between" style={{ alignItems: 'center', gap: 12 }}>
       <div style={{ minWidth: 0 }}><h2 style={{ margin: 0 }}>{t('Body measurements')}</h2>
         <div className="muted small" style={{ marginTop: 4 }}>{(S.measurements || []).length
           ? t('Last check-in {0}', fmtDate(S.measurements[S.measurements.length - 1].d, true))
           : t('Waist, arms, body fat and anything else you measure, each with its own curve.')}</div></div>
       <Button size="sm" variant="tinted" trailingIcon="chevronRight" style={{ flexShrink: 0 }} onClick={() => nav('/measurements')}>{t('Open')}</Button>
-    </div>
+    </div>}
     {(hasEffort(S) || hasEstimableEffort(S)) && <EffortCard S={S} />}
 
     <div className="cols">
       <div className="card">
         <div className="row between bw-head" style={{ marginBottom: 8 }}>
           <h2 style={{ margin: 0 }}>{t('Body weight')}</h2>
-          <div className="row" style={{ gap: 8 }}>
+          {!readOnly && <div className="row" style={{ gap: 8 }}>
             <Button size="sm" icon="target" style={S.targetW ? { color: 'var(--yellow)' } : undefined} onClick={goalSheet}>{S.targetW ? fmtNum(S.targetW) : t('Goal')}</Button>
             <Button size="sm" icon="plus" onClick={() => bwSheet()}>{t('Log')}</Button>
-          </div>
+          </div>}
         </div>
         <Segmented className="seg-range" value={range} onChange={setRange}
           options={rangeOptions()} />
         <div className="chart"><LineChart points={bwPts} h={160} unit={S.unit} goal={S.targetW} /></div>
         {/* every weigh-in, week by week with its average (Discord 'Weight') */}
-        {S.bodyweight.length > 0 && <div className="row" style={{ justifyContent: 'flex-end', marginTop: 4 }}>
+        {!readOnly && S.bodyweight.length > 0 && <div className="row" style={{ justifyContent: 'flex-end', marginTop: 4 }}>
           <Button size="sm" variant="ghost" trailingIcon="chevronRight" onClick={weighInsSheet}>{t('All weigh-ins')}</Button>
         </div>}
       </div>
@@ -748,9 +754,9 @@ export default function Stats() {
     {workouts.length > 0 && <>
       <div className="row between" style={{ marginBottom: 10 }}>
         <h4 className="sec" style={{ margin: 0 }}>{t('Recent workouts')}</h4>
-        <Button size="sm" variant="ghost" trailingIcon="chevronRight" onClick={() => nav('/history')}>{t('All')} {workouts.length}</Button>
+        <Button size="sm" variant="ghost" trailingIcon="chevronRight" onClick={() => readOnly ? setShowHistory(v=>!v) : nav('/history')}>{t('All')} {workouts.length}</Button>
       </div>
-      <div className="list">{[...workouts].reverse().slice(0, 6).map(w => <WorkoutRow key={w.id} w={w} onClick={() => workoutDetailSheet(w)} />)}</div>
+      <div className="list">{[...workouts].reverse().slice(0, readOnly && showHistory ? workouts.length : 6).map(w => <WorkoutRow key={w.id} w={readOnly ? {...w,vol:workoutVolume(w)} : w} state={readOnly ? S : null} onClick={() => workoutDetailSheet(w, readOnly ? {state:S,definitions:EXIDX} : {})} />)}</div>
     </>}
   </>
 }

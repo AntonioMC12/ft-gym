@@ -1052,9 +1052,10 @@ export const exerciseDetailSheet = ex => ui().openSheet(close => <ExerciseDetail
 // without leaving the workout for Stats. Derived once per log change — the sheet re-renders on
 // every store tick while a session runs, and LineChart drops its hover whenever `points`
 // changes identity, so a series rebuilt per render would lose the tooltip under your finger.
-function ExerciseHistory({ exId }) {
-  const st = useStore(s => s.S)
-  const ex = exOr(exId)
+function ExerciseHistory({ exId, state = null, definitions = null }) {
+  const personal = useStore(s => s.S)
+  const st = state || personal
+  const ex = definitions ? (definitions[exId] || {id:exId,n:exId}) : exOr(exId)
   const h = useMemo(() => exerciseHistory(st, exId), [st.workouts, exId])
   const [curve, setCurve] = useState('top')
   const onE1 = curve === 'e1rm' && h.e1rmPoints.length > 0
@@ -1094,7 +1095,7 @@ function ExerciseHistory({ exId }) {
     </div>
   </>
 }
-export const exerciseHistorySheet = exId => ui().openSheet(close => <ExerciseHistory exId={exId} close={close} />)
+export const exerciseHistorySheet = (exId, options = {}) => ui().openSheet(close => <ExerciseHistory exId={exId} close={close} {...options} />)
 
 /* ============================ add to routine ============================ */
 function AddToRoutine({ ex, close }) {
@@ -2491,10 +2492,14 @@ function WorkoutDurationEdit({ w, onDone, close }) {
 }
 export const workoutDurationSheet = (w, onDone) => ui().openSheet(close => <WorkoutDurationEdit w={w} onDone={onDone} close={close} />)
 
-function WorkoutDetail({ w, close }) {
+const globalExerciseIndex = EXIDX
+function WorkoutDetail({ w, close, state = null, definitions = null }) {
   const noteRef = useRef(null)
   const onNoteFocus = useSheetKeyboard(noteRef)
-  const st = useStore(s => s.S)
+  const personal = useStore(s => s.S)
+  const st = state || personal
+  const readOnly = !!state
+  const EXIDX = definitions || globalExerciseIndex
   const update = useStore(s => s.update)
   // The session note is editable here rather than only at the finish sheet: what you want to
   // record about a session is often clearer once you have looked at what you actually did.
@@ -2502,14 +2507,14 @@ function WorkoutDetail({ w, close }) {
   // A note written here is an edit of the saved workout, stamped for the sync to keep it over an
   // older copy of the same workout (stampWorkout) — and only when it changed, since a stamp
   // outranks what another device wrote since.
-  const saveNote = () => update(s => {
+  const saveNote = () => { if (readOnly) return; update(s => {
     const rec = s.workouts.find(x => sameWorkout(x, w))
     if (!rec) return
     const text = note.trim().slice(0, NOTE_MAX)
     if (text === (rec.note || '')) return
     if (text) rec.note = text; else delete rec.note
     stampWorkout(rec)
-  })
+  }) }
   // onBlur alone loses the note: Escape, the Android back gesture and swipe-to-dismiss all
   // close the sheet without ever moving focus out of the textarea. Flush on unmount too. The
   // ref is what makes that work — a cleanup closes over the note from its own render, which
@@ -2518,6 +2523,7 @@ function WorkoutDetail({ w, close }) {
   latest.current = note
   const initial = useRef(w.note || '')
   useEffect(() => () => {
+    if (readOnly) return
     const text = latest.current.trim().slice(0, NOTE_MAX)
     if (text === initial.current) return
     update(s => {
@@ -2532,7 +2538,7 @@ function WorkoutDetail({ w, close }) {
   // curve it sits on, which is the question a past workout raises most often.
   const entryRow = (e, i) => {
     const ex = EXIDX[e.id]
-    return <div key={i} className="row wd-ex" style={{ alignItems: 'flex-start' }} {...tappable(() => exerciseHistorySheet(e.id))}>
+    return <div key={i} className="row wd-ex" style={{ alignItems: 'flex-start' }} {...tappable(() => exerciseHistorySheet(e.id, readOnly ? {state:st,definitions:EXIDX} : {}))}>
       {ex && <Thumb ex={ex} />}
       <div className="grow"><div className={`tt ${exerciseNameClass(ex)}`} style={{ fontWeight: 600 }}>{nameOf(e)} {w.prs && w.prs.includes(e.id) && <span className="pr"><Icon name="trophy" />PR</span>}</div>
         <div className="ss">{e.sets.filter(hasCompletedWork).map(s => setLabel(e.id, s, e.target, speedUnitOf(st))).join('  ·  ') || t('no sets')}</div>
@@ -2575,6 +2581,7 @@ function WorkoutDetail({ w, close }) {
   // anywhere) renders flat.
   const groups = sessionSections(w.entries)
   const grouped = groups.length > 1 || (groups[0] && groups[0].rid && (w.routineIds || []).length > 1)
+  if (readOnly) return <><h3>{w.name}</h3><div className="muted small" style={{marginBottom:12}}>{[fmtDate(w.d,true),...durPart(w.end-w.start),fmtVol(workoutVolume(w),st.unit),t('Read only')].join(' · ')}</div>{groups.flatMap(g=>entryRows(g.units))}</>
   return <>
     <h3>{w.name}</h3>
     <div className="muted small" style={{ marginBottom: 12 }}>{[fmtDate(w.d, true), ...durPart(w.end - w.start), fmtVol(w.vol, st.unit), ...(w.bw ? [fmtNum(w.bw) + ' ' + st.unit] : [])].join(' · ')}</div>
@@ -2744,7 +2751,7 @@ function mediaGoesToo(rec) {
   const n = workoutMediaOf(rec, Infinity).length
   return n ? ' ' + tn('Its photo or video is deleted with it.', 'Its {0} photos or videos are deleted with it.', n) : ''
 }
-export const workoutDetailSheet = w => ui().openSheet(close => <WorkoutDetail w={w} close={close} />)
+export const workoutDetailSheet = (w, options = {}) => ui().openSheet(close => <WorkoutDetail w={w} close={close} {...options} />)
 
 /* ============================ calendar ============================ */
 function Calendar({ start, close }) {
@@ -2801,8 +2808,9 @@ function Calendar({ start, close }) {
 export const calendarSheet = start => ui().openSheet(close => <Calendar start={start} close={close} />)
 
 /* shared small workout row (used in lists) */
-export function WorkoutRow({ w, onClick }) {
-  const st = useStore(s => s.S)
+export function WorkoutRow({ w, onClick, state = null }) {
+  const personal = useStore(s => s.S)
+  const st = state || personal
   const glyph = glyphOf((st.routines.find(r => r.id === w.routineId) || {}).emoji)
   const mediaN = workoutMediaCount(w)
   return <div className="item" {...tappable(onClick)}>

@@ -18,7 +18,7 @@ function writePreference(uid,id){try{if(id)localStorage.setItem(preferenceKey(ui
 export default function HomeGymCard(){
   const nav=useNavigate(),user=useStore(s=>s.user),enabled=useStore(s=>s.config?.centers?.enabled)
   const {ownerUid,status,platformCapabilities}=useCenters()
-  if(enabled&&user&&ownerUid===user.id&&status==='ready'&&platformCapabilities.includes('centers.manage'))return <><CenterShortcut key={user.id} uid={user.id}/><HomeActivationCard/><section className="card home-routines-shortcut"><Row icon="dumbbell" iconTint="var(--purple)" title={t('Routines')} subtitle={t('Training plans')} accessory="chevron" onClick={()=>nav('/training-admin')}/></section></>
+  if(enabled&&user&&ownerUid===user.id&&status==='ready'&&platformCapabilities.includes('centers.manage'))return <><CenterShortcut key={user.id} uid={user.id}/><HomeActivationCard/><section className="card home-routines-shortcut"><Row icon="dumbbell" iconTint="var(--purple)" title={t('Routines')} subtitle={t('Training plans')} accessory="chevron" onClick={()=>nav('/training-admin')}/></section><section className="card"><Row icon="chart" title={t('Member progress')} subtitle={t('Progress & history')} accessory="chevron" onClick={()=>nav('/member-progress')}/></section></>
   return null
 }
 

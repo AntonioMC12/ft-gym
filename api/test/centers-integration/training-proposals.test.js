@@ -176,6 +176,10 @@ test('only platform oversight bypasses consent for assigned routines, never for 
   fs.writeFileSync(path.join(f.h.dir,'state-'+f.ids.bob+'.json'),'corrupt private training');
   const unassigned=await f.req('/api/centers/training/assigned-progress?'+new URLSearchParams({centerId:f.center,memberId:f.bob.id}),f.ids.root);
   assert.equal(unassigned.status,200);assert.deepEqual(unassigned.body.report.routines,[]);
+  personal.workouts.push({id:'old_assigned',d:'2020-01-01',routineIds:[rid],entries:[{id:'0025',rid,sets:[{w:20,r:10,done:true}]}]});
+  fs.writeFileSync(path.join(f.h.dir,'state-'+f.ids.alice+'.json'),JSON.stringify(personal));
+  const allDates=await f.req(route,f.ids.root);assert.equal(allDates.body.report.period.from,'2020-01-01');assert.ok(allDates.body.report.routines[0].weeks.some(w=>w.from==='2019-12-30'));
+  personal.workouts.pop();fs.writeFileSync(path.join(f.h.dir,'state-'+f.ids.alice+'.json'),JSON.stringify(personal));
   const oversight=await f.req(route,f.ids.root);assert.equal(oversight.status,200,JSON.stringify(oversight));assert.equal(oversight.body.shared,true);assert.equal(oversight.body.report.routines.length,1);assert.equal(oversight.body.report.routines[0].sessions,1);
   for(const word of ['PRIVATE','777','888','bodyweight',rid,f.ids.alice])assert.ok(!JSON.stringify(oversight.body).includes(word),word);
   assert.equal(oversight.body.report.routines[0].exercises[0].weeks[0].load,999);assert.equal(oversight.body.report.routines[0].exercises[0].weeks[0].reps,99);
@@ -201,4 +205,17 @@ test('FT catalogue exercises are accepted in trainer proposals and archived IDs 
  assert.equal((await f.req('/api/exercises/shared/'+exercise.id+'/archive',f.ids.root,{revision:1,requestId:f.p+'_archive'})).status,200);
  const blocked=await f.req('/api/centers/training/propose',f.ids.trainer,{centerId:f.center,memberId:f.bob.id,memberVersion:f.bob.version,bundle:plan,requestId:f.p+'_archived_offer'});
  assert.equal(blocked.status,400,JSON.stringify(blocked));
+});
+
+test('platform member progress reads all saved dates without touching state; other roles cannot read or list',async t=>{
+ const {ids,center,alice,bob,req,h,db}=await fixture(t);
+ const state={unit:'kg',active:{id:'private-active'},bodyweight:[{d:'2020-01-01',w:80}],customEx:[{id:'own',n:'Own press',bp:'chest',eq:'barbell'}],notes:{secret:'private'},workouts:[{id:'old',d:'2020-01-01',dur:300,notes:'private',entries:[{id:'own',sets:[{w:20,r:10,done:true}]}]}]};
+ const file=path.join(h.dir,`state-${ids.alice}.json`),before=JSON.stringify(state);fs.writeFileSync(file,before);
+ for(const uid of [ids.alice,ids.manager,ids.trainer,ids.other]){
+  assert.equal((await req('/api/platform/progress/members',uid)).status,403);
+  assert.equal((await req(`/api/platform/progress/member?centerId=${center}&memberId=${alice.id}`,uid)).status,403);
+ }
+ const list=await req('/api/platform/progress/members',ids.root);assert.equal(list.status,200,JSON.stringify(list));assert.ok(list.body.members.some(m=>m.id===alice.id));assert.ok(!list.body.members.some(m=>m.id===bob.id));
+ const detail=await req(`/api/platform/progress/member?centerId=${center}&memberId=${alice.id}`,ids.root);assert.equal(detail.status,200,JSON.stringify(detail));assert.equal(detail.body.progress.workouts[0].d,'2020-01-01');assert.equal(detail.body.progress.definitions.own.n,'Own press');assert.ok(!JSON.stringify(detail.body).includes('private'));assert.equal(fs.readFileSync(file,'utf8'),before);
+ const audit=await db.platformTransaction(ids.root,c=>c.query("SELECT action FROM centers.business_audit WHERE center_id=$1 AND target_id=$2 AND action='platform.member-progress.read'",[center,alice.id]),center);assert.equal(audit.rows.length,1);
 });

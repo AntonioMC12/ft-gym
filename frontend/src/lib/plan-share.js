@@ -512,3 +512,13 @@ export function printPlan(S, owner, opts) {
   if (doc.readyState === 'complete') setTimeout(run, 120)
   else ifr.onload = () => setTimeout(run, 120)
 }
+
+// Proposals refer to the installation's authoritative catalogue, unlike portable exports.
+export function buildTrainingProposal(S, name) {
+  const bundle = buildPlanBundle(S, name)
+  bundle.customEx = bundle.customEx.filter(ex => !isSharedEx(ex))
+  delete bundle.catalogueInstance
+  if (bundle.customEx.length) throw {code:'training-exercise-private'}
+  if (!bundle.routines.length || bundle.routines.length > 20) throw {code:'invalid-training-plan'}
+  return bundle
+}

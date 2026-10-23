@@ -21,7 +21,7 @@ describe('Stats mixed-entry metric contract', () => {
     expect((source.match(/muscleExercises\.length \? muscleExercises\.map\(row =>/g) || []).length).toBe(1)
     // The handler must be one that exists: the previous `onExercise` was never defined and
     // every tap threw (QA C13), so the row opens the exercise history sheet instead.
-    expect(source).toContain('{...tappable(() => exerciseHistorySheet(row.id))}')
+    expect(source).toContain('{...tappable(() => { if (!readOnly) exerciseHistorySheet(row.id) })}')
     expect(source).not.toContain('onExercise')
   })
 
@@ -37,7 +37,7 @@ describe('Stats mixed-entry metric contract', () => {
   it('stacks the Stats exercise selector value without changing shared SelectRow defaults', () => {
     expect(source).toContain("onChange={setExId} stackedValue")
     expect(uiSource).toContain('sheetTitle, stackedValue = false')
-    expect(uiSource).toContain("className={stackedValue ? 'lrow-stack-value' : ''}")
+    expect(uiSource).toContain("stackedValue?'lrow-stack-value':''")
     expect(cssSource).toContain('.lrow.lrow-stack-value .lrow-m{grid-column:1;grid-row:1}')
     expect(cssSource).toContain('.lrow.lrow-stack-value .lrow-v{grid-column:1;grid-row:2;width:100%;max-width:none;text-align:start}')
     expect(cssSource).toContain('flex:0 1 auto;max-width:55%;min-width:0;')

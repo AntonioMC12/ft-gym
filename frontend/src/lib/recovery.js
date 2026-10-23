@@ -105,7 +105,7 @@ function emptyMuscleMap(value) {
 // Current catalogue metadata stays authoritative. Finished entries retain a nested muscle
 // snapshot specifically so deleted custom exercises can still contribute to recovery maps.
 function exerciseFor(entry) {
-  return EXIDX[entry?.id] || entry
+  return entry?.exerciseSnapshot || EXIDX[entry?.id] || entry
 }
 
 export const LB_TO_KG = 0.45359237

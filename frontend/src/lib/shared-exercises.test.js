@@ -4,7 +4,7 @@ import { buildSessionEntries } from './session-start.js'
 import { buildCompletedWorkout } from './finish-workout.js'
 import { repeatSessionEntries } from './session-repeat.js'
 import { exerciseMuscleSnapshot, loadOfWorkouts } from './muscles.js'
-import { buildPlanBundle, parsePlan, mergePlan } from './plan-share.js'
+import { buildPlanBundle, buildTrainingProposal, parsePlan, mergePlan } from './plan-share.js'
 import { mergeStates } from './sync-merge.js'
 import { convertStateUnit } from './units.js'
 const exercise = { id: 'ft_test', n: 'Remo FT', bp: 'back', eq: 'cable', tg: 'lats', primaries: ['lats'], assisted: false, origin: 'platform', revision: 1, archived: false }
@@ -74,3 +74,15 @@ describe('shared catalogue training lifecycle', () => {
     expect(st.routines[0].ex[0].weight).toBe(40)
   })
 })
+
+
+it('proposal payload uses shared IDs without portable definitions or installation fields',()=>{
+ registerShared([exercise],'installation-a');const S=state();retainSharedTraining(S);
+ const portable=buildPlanBundle(S);expect(portable.customEx).toHaveLength(1);
+ const proposal=buildTrainingProposal(S);expect(proposal.customEx).toEqual([]);expect(proposal.catalogueInstance).toBeUndefined();expect(proposal.routines[0].ex[0].id).toBe(exercise.id);
+});
+it('legacy private admin exercises require selective publication, then retain their IDs in proposals',()=>{
+ const privateEx={...exercise,id:'legacy',custom:true};registerCustom([privateEx]);const S=state();S.customEx=[privateEx];S.routines[0].ex[0].id='legacy';
+ expect(()=>buildTrainingProposal(S)).toThrow();registerShared([{...exercise,id:'legacy'}],'installation-a');
+ expect(buildTrainingProposal(S).routines[0].ex[0].id).toBe('legacy');expect(buildTrainingProposal(S).customEx).toEqual([]);
+});

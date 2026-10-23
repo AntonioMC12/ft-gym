@@ -20,6 +20,7 @@ export const centerTraining=(centerId,options={},own=false)=>api('/api/centers/'
 export const centerTrainingProposal=(centerId,id,own=false,versionId=null)=>api('/api/centers/'+(own?'own/':'')+'training/proposal?'+new URLSearchParams({centerId,id,...(versionId?{versionId}:{})}))
 export function trainingErrorKey(error){
   const code=error?.data?.code||error?.code
+  if(code==='training-exercise-private')return 'Publish private exercises to FT Training from their exercise details before sending this plan.'
   if(code==='invalid-training-plan')return 'Check the proposed routines. Only catalogue exercises are supported.'
   if(['training-not-synced','training-state-unavailable'].includes(code))return 'Sync your training, then retry delivery.'
   if(code==='training-account-required')return 'Link this member to an account before proposing routines.'

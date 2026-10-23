@@ -1,4 +1,6 @@
 const es = {
+ 'Publish private exercises to FT Training from their exercise details before sending this plan.': 'Publica los ejercicios privados en FT Training desde su ficha antes de enviar este plan.',
+ 'Member progress': 'Progreso Socios', 'Read only': 'Solo consulta', 'No training data': 'No hay entrenamientos registrados', 'Could not load member progress': 'No se pudo cargar el progreso del socio',
   'Exercise origin': 'Origen del ejercicio', 'FT Training': 'FT Training', 'Base catalogue': 'Catálogo base', 'My exercises': 'Mis ejercicios',
   'Create FT Training exercise': 'Crear ejercicio FT Training', 'Create or edit FT Training exercise': 'Crear o editar ejercicio FT Training',
   'This exercise will be available to everyone.': 'Este ejercicio estará disponible para todos.',

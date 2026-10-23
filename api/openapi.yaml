@@ -2953,6 +2953,30 @@ paths:
         '404': { description: Module off or resource not accessible. }
         '409': { description: 'Conflict; version-conflict, duplicate, last-manager, account-inactive, center-inactive, idempotency-conflict or invalid-state.' }
         '503': { description: Centers unavailable. }
+  /api/platform/progress/members:
+    get:
+      tags: [centers]
+      summary: List members with saved workouts; platform only, cursor pages
+      responses:
+        '200':
+          description: members and nextCursor; empty pages may have nextCursor
+        '403':
+          description: Current platform allowlist required
+        '404':
+          description: Account or linked member unavailable
+
+  /api/platform/progress/member:
+    get:
+      tags: [centers]
+      summary: Read member progress; platform only, audited, no personal state writes
+      responses:
+        '200':
+          description: member and read-only progress projection across all logged dates
+        '403':
+          description: Current platform allowlist required
+        '404':
+          description: Account or linked member unavailable
+
   /api/platform/centers/accounts:
     get:
       tags: [centers]

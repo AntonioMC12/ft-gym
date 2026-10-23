@@ -10,7 +10,7 @@ import {useStore} from '../store/useStore.js'
 import {useCenters} from '../store/useCenters.js'
 import {Section,Button,Row,SelectRow,MultiSelectRow,SearchField} from './ui.jsx'
 import {platformCenters,centerMembers,centerMember,centerCommand,trainingErrorKey} from '../lib/centers-api.js'
-import {buildPlanBundle} from '../lib/plan-share.js'
+import {buildTrainingProposal} from '../lib/plan-share.js'
 import TrainingProposals from '../views/centers/TrainingProposals.jsx'
 import TrainingRoster from './TrainingRoster.jsx'
 import {t} from '../lib/i18n.js'
@@ -37,7 +37,7 @@ export default function TrainingAssignments({routineIds,planName,mode='all',onMa
  const assign=async()=>{if(busy||sending.current||!selected.length||!chosenRoutines.length)return;sending.current=true;const epoch=life.current;setBusy(true);setError(null);setMessage('');try{
   const source=useStore.getState().S,ids=new Set(chosenRoutines),routines=source.routines.filter(r=>ids.has(r.id)),week={}
   for(const [day,rows] of Object.entries(source.week||{})){const kept=[].concat(rows).filter(id=>ids.has(id));if(kept.length)week[day]=kept}
-  const bundle=buildPlanBundle({...source,routines,week},planName)
+  const bundle=buildTrainingProposal({...source,routines,week},planName)
   for(const id of selected){if(epoch!==life.current||useStore.getState().user?.id!==uid)return
    const detail=await centerMember(center,id);if(epoch!==life.current||useStore.getState().user?.id!==uid)return;const key=JSON.stringify([center,id,bundle]);if(!requests.current.has(key))requests.current.set(key,crypto.randomUUID())
    await centerCommand('/api/centers/training/propose',{centerId:center,memberId:id,memberVersion:detail.member.version,bundle,requestId:requests.current.get(key)})

@@ -3,7 +3,7 @@ import {useCenterNavigation,useUnsavedCenterForm} from './NavigationGuard.jsx'
 import {useEffect,useRef,useState} from 'react'
 import {Section,Row,Button,TextField,MultiSelectRow,Switch} from '../../components/ui.jsx'
 import {centerTraining,centerTrainingProposal,centerCommand,trainingErrorKey} from '../../lib/centers-api.js'
-import {buildPlanBundle} from '../../lib/plan-share.js'
+import {buildTrainingProposal} from '../../lib/plan-share.js'
 import {applyPlanDelivery} from '../../lib/plan-delivery.js'
 import {exLine} from '../../lib/history.js'
 import {POLICY_NAME} from '../../lib/progression.js'
@@ -52,10 +52,7 @@ export default function TrainingProposals({centerId,member,ownerUid,own=false,ac
     let bundle
     try{
       const source=useStore.getState().S,chosen=new Set(selected),week=Object.fromEntries(Object.entries(source.week||{}).map(([day,ids])=>[day,[].concat(ids).filter(id=>chosen.has(id))]).filter(([,ids])=>ids.length))
-      bundle=buildPlanBundle({...source,routines:source.routines.filter(row=>chosen.has(row.id)),week},name)
-      bundle.customEx=bundle.customEx.filter(ex=>!isSharedEx(ex))
-      delete bundle.catalogueInstance
-      if(!bundle.routines.length||bundle.routines.length>20||bundle.customEx.length)throw {code:'invalid-training-plan'}
+      bundle=buildTrainingProposal({...source,routines:source.routines.filter(row=>chosen.has(row.id)),week},name)
     }catch(e){failure(e);return}
     const previous=detail,body=revise?{centerId,id:previous.id,version:previous.version,bundle}:{centerId,memberId:member.id,memberVersion:member.version,bundle}
     confirmSheet({title:t(revise?'New proposal version':'Propose routines'),message:member.name+' · '+bundle.routines.map(row=>row.name).join(', '),confirmText:t('Propose routines'),onConfirm:async()=>{

@@ -59,9 +59,11 @@ export async function readSharedProgress({database,user,checkSession,accountLock
       }
       routineIds=platformAssigned?[...assigned]:routineIds.filter(id=>assigned.has(id));
     }
-    const end=member.local_today,start=new Date(end+'T00:00:00Z');start.setUTCDate(start.getUTCDate()-365);
-    const from=platformAssigned?start.toISOString().slice(0,10):share.starts_on,to=platformAssigned?end:share.ends_on>end?end:share.ends_on;
+    const end=member.local_today;
     checkSession();const state=assignedOnly&&!routineIds.length?null:readOwnTraining(recipient);
+    const earliest=(state?.workouts||[]).map(w=>w?.d).filter(d=>typeof d==='string'&&/^\d{4}-\d{2}-\d{2}$/.test(d)&&d<=end).sort()[0]||end;
+    const from=platformAssigned?earliest:share.starts_on,to=platformAssigned?end:share.ends_on>end?end:share.ends_on;
+    checkSession();
     const report=sharedProgress(state,{routineIds,from,to});
     if(platformAssigned){
       const exercises=assignedStrength(state,{routineIds,allowedExercises,from,to});

@@ -1,3 +1,4 @@
+import MemberProgress from './views/MemberProgress.jsx'
 import Community from './views/Community.jsx'
 import TrainingAdmin from './views/TrainingAdmin.jsx'
 import {useMembershipAccess,MembershipAccessScreen,MembershipGraceNotice} from './components/MembershipAccess.jsx'
@@ -266,6 +267,7 @@ function Shell() {
               <Route path="/plan" element={<Plan />} />
               <Route path="/plan/r/:id" element={<RoutineEdit />} />
               <Route path="/workout" element={<Workout />} />
+              <Route path="/member-progress" element={<MemberProgress />} />
               <Route path="/stats" element={<Stats />} />
               <Route path="/history" element={<History />} />
               <Route path="/library" element={<Library />} />

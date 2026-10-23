@@ -1,3 +1,4 @@
+import CenterTabBar from './CenterTabBar.jsx'
 import Activations from './Activations.jsx'
 import PassManagement from './PassManagement.jsx'
 import CenterWorkspace from './CenterWorkspace.jsx'
@@ -212,7 +213,6 @@ function Content({ user }) {
   const choices=listed.filter(c=>platform||c.capabilities?.includes('center.read'))
   if(detail?.id===centerId&&!choices.some(c=>c.id===centerId))choices.push(detail)
   return <div className="narrow centers-page"><div className="hdr"><button className="iconbtn" onClick={() => back(centerId||globalMetrics?listRoute:'/home')} aria-label={t('Back')}><Icon name="chevronLeft" /></button><h1>{t('Manage centers')}</h1></div>
-    <nav className="centers-navigation" aria-label={t('Manage centers')}><Button type="button" icon="house" onClick={()=>requestNavigation(()=>nav('/home',{replace:onSheetEntry()}))}>{t('Home')}</Button><Button type="button" icon="list" onClick={()=>requestNavigation(()=>{setCreating(false);state.select(null);setParams(query?{q:query}:{},{replace:onSheetEntry()})})}>{t('Centers')}</Button></nav>
     {!centerId&&<div className="centers-actions"><Button variant="tinted" onClick={()=>requestNavigation(refresh)}>{t('Reload centers')}</Button>{canGlobalMetrics&&!globalMetrics&&<Button variant="tinted" onClick={()=>requestNavigation(()=>{state.select(null);setCreating(false);setParams({pane:'metrics',...(query?{q:query}:{})},{replace:onSheetEntry()})})}>{t('Global center metrics')}</Button>}{platform && <Button variant="primary" onClick={() => requestNavigation(()=>{ state.select(null); setCreating(true) })}>{t('New center')}</Button>}</div>}
     {platform&&!centerId&&!creating&&!globalMetrics&&<SearchField value={draft} onChange={e=>setDraft(e.target.value)} placeholder={t('Search…')} aria-label={t('Search…')}/>}
     {(state.status === 'loading' || state.ownerUid !== user.id||listLoading) && <p className="muted" role="status">{t('Loading centers')}</p>}
@@ -231,5 +231,5 @@ export default function Centers() {
   if (!user) return <Navigate to="/home" replace />
   if(config==null)return <ConfigPending fallback={params.get('centerId')||params.get('pane')==='metrics'?'/centers':'/home'}/>
   if(!config.centers?.enabled)return <Navigate to="/home" replace />
-  return <CenterNavigationGuard key={user.id} contextKey={location.pathname+location.search}><Content user={user}/></CenterNavigationGuard>
+  return <CenterNavigationGuard key={user.id} contextKey={location.pathname+location.search}><Content user={user}/><CenterTabBar/></CenterNavigationGuard>
 }

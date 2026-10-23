@@ -1,3 +1,4 @@
+import {registerShared,retainSharedTraining} from '../lib/exercises.js'
 // @vitest-environment happy-dom
 import React,{act} from 'react'
 import {createRoot} from 'react-dom/client'
@@ -62,3 +63,14 @@ it('account management opens the center activation queue without the old member 
  await act(async()=>root.render(<TrainingAssignments routineIds={['r']} mode="accounts"/>));await act(async()=>vi.advanceTimersByTimeAsync(1));
  expect(host.textContent).toContain('Activation queue: c');expect(host.textContent).not.toContain('Account linking:');expect(centerMembers).not.toHaveBeenCalled();expect(centerCommand).not.toHaveBeenCalled()
 })
+
+it('sends FT Training routine IDs to the member without portable custom definitions',async()=>{
+ const exercise={id:'ft_delivery_test',n:'FT press',bp:'chest',eq:'barbell',origin:'platform',revision:1};
+ registerShared([exercise],'local-installation');
+ try{
+ useStore.setState(st=>{const S={...st.S,routines:[{...st.S.routines[0],ex:[{id:exercise.id,sets:3,reps:8,weight:40}]}]};retainSharedTraining(S);return {S}});
+ await render();await click('Alice');centerCommand.mockResolvedValue({});await click('Send plan');
+ expect(centerCommand).toHaveBeenCalledTimes(1);const bundle=centerCommand.mock.calls[0][1].bundle;
+ expect(bundle.routines[0].ex[0].id).toBe(exercise.id);expect(bundle.customEx).toEqual([]);expect(bundle.catalogueInstance).toBeUndefined();
+ }finally{registerShared([])}
+});

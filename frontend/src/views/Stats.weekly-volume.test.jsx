@@ -1,3 +1,4 @@
+import {workoutDetailSheet} from '../sheets.jsx'
 // @vitest-environment happy-dom
 import React, { act } from 'react'
 import { createRoot } from 'react-dom/client'
@@ -13,7 +14,7 @@ vi.mock('../store/useStore.js', () => ({ useStore: selector => selector({ S: moc
 vi.mock('react-router-dom', () => ({ useNavigate: () => vi.fn() }))
 vi.mock('../sheets.jsx', () => ({
   bwSheet: vi.fn(), goalSheet: vi.fn(), calendarSheet: vi.fn(), workoutDetailSheet: vi.fn(),
-  exerciseHistorySheet: vi.fn(), WorkoutRow: () => React.createElement('div'), bwDeltaColor: () => '', weighInsSheet: vi.fn(),
+  exerciseHistorySheet: vi.fn(), WorkoutRow: ({w,onClick}) => React.createElement('button',{onClick,'data-workout':w.id},w.name || 'Saved workout'), bwDeltaColor: () => '', weighInsSheet: vi.fn(),
 }))
 vi.mock('../components/Heatmap.jsx', () => ({ default: () => React.createElement('div') }))
 vi.mock('../components/LineChart.jsx', () => ({ default: () => React.createElement('div') }))
@@ -274,3 +275,23 @@ describe('Stats — weekly planned vs completed volume', () => {
     expect(row('biceps')).toBeNull()
   })
 })
+
+it('renders another profile read-only without logging controls or personal mutations',()=>{
+ const progress=state({definitions:{private:{id:'private',n:'Member private press',eq:'barbell',bp:'chest'}},routines:[],workouts:[{id:'old',d:'2020-01-01',dur:60,entries:[{id:'private',exerciseSnapshot:{n:'Member private press',eq:'barbell',primaries:['chest']},sets:[{w:20,r:10,done:true}]}]}]});
+ const before=JSON.stringify(mocks.S);
+ act(()=>root.render(<Stats progress={progress} memberName="Alba"/>));
+ expect(host.textContent).toContain('Alba');expect(host.querySelector('[data-workout="old"]')).not.toBeNull();expect(host.textContent).not.toContain('Body measurements');expect(host.textContent).not.toContain('Progress photos');expect([...host.querySelectorAll('button')].some(b=>b.textContent==='Log')).toBe(false);expect(JSON.stringify(mocks.S)).toBe(before);
+});
+
+
+it('opens member workouts on initial render and keeps All inside member progress',()=>{
+ const workouts=Array.from({length:8},(_,i)=>({id:'session'+i,name:'Member session '+i,d:'2020-01-01',entries:[{id:'private',exerciseSnapshot:{n:'Private exercise',eq:'barbell'},sets:[{w:20,r:10,done:true}]}]}));
+ const progress=state({routines:[],definitions:{private:{id:'private',n:'Private exercise',eq:'barbell'}},workouts});
+ const before=JSON.stringify(mocks.S);
+ act(()=>root.render(<Stats progress={progress} memberName="Alba"/>));
+ expect(host.querySelectorAll('[data-workout]').length).toBe(6);
+ act(()=>host.querySelector('[data-workout="session7"]').click());
+ expect(workoutDetailSheet).toHaveBeenLastCalledWith(workouts[7],expect.objectContaining({state:progress,definitions:expect.objectContaining({private:progress.definitions.private})}));
+ act(()=>[...host.querySelectorAll('button')].find(b=>b.textContent==='All 8').click());
+ expect(host.querySelectorAll('[data-workout]').length).toBe(8);expect(JSON.stringify(mocks.S)).toBe(before);
+});

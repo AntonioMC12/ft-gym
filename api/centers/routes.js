@@ -1,3 +1,4 @@
+import {progressMembers,memberProgress,progressPageOptions} from './services/member-progress.js';
 import {communityRead,communityCommand,communitySummary} from './services/community.js';
 import {registrationCenter,requestActivation,ownActivations,listActivations,decideActivation,platformActivationSummary} from './services/activations.js';
 import {previewRenewal,renewCash} from './services/renewals.js';
@@ -417,6 +418,16 @@ export function centersRoutes({ config, database, json, readSession, readBody, d
       try{const result=await listPlatformCenters(database,user.id,platformCenterListOptions(new URL(req.url,'http://x').searchParams));if(!current(req,user,sv))return json(res,401,{error:'not signed in'});return json(res,200,result);}
       catch(error){return failure(res,error);}
     },
+    'GET /api/platform/progress/members':async(req,res)=>{
+ const user=guard(req,res);if(!user)return;const sv=user.sv||0;
+ const checkSession=()=>{if(!current(req,user,sv)||!isPlatformUser(config,user))throw new CentersError(403,'forbidden','forbidden')};
+ try{checkSession();const params=new URL(req.url,'http://x').searchParams;const result=await progressMembers({database,user,readOwnTraining,lookupAccount,checkSession},progressPageOptions(params));checkSession();return json(res,200,result)}catch(e){return failure(res,e)}
+ },
+    'GET /api/platform/progress/member':async(req,res)=>{
+ const user=guard(req,res);if(!user)return;const sv=user.sv||0;
+ const checkSession=()=>{if(!current(req,user,sv)||!isPlatformUser(config,user))throw new CentersError(403,'forbidden','forbidden')};
+ try{checkSession();const params=new URL(req.url,'http://x').searchParams;const result=await memberProgress({database,user,accountLocks,readOwnTraining,lookupAccount,checkSession},params.get('centerId'),progressSelectors(params).memberId);checkSession();return json(res,200,result)}catch(e){return failure(res,e)}
+ },
     'GET /api/platform/centers/accounts': async (req,res) => {
       const user=guard(req,res);if(!user)return;
       if(!isPlatformUser(config,user))return json(res,403,{error:'forbidden',code:'forbidden'});

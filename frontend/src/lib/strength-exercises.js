@@ -37,6 +37,7 @@ function lastWorkSetAt(S, id) {
 }
 
 function snapshotWeights(entry) {
+  if (entry?.exerciseSnapshot) return musclesOf(entry.exerciseSnapshot)
   if (entry?.muscleSnapshot?.sharedRevision) return musclesOf(entry.muscleSnapshot)
   const catalogue = entry && typeof entry === 'object' ? EXIDX[entry.id] : null
   if (catalogue) return musclesOf(catalogue)
@@ -67,6 +68,7 @@ function resolvedExerciseName(entry) {
   // Imported history often has no name snapshot (entries are { id, sets, topW }) - the
   // catalogue (or the registered custom) is the canonical name source.
   const ex = entry && typeof entry === 'object' ? EXIDX[entry.id] : null
+  if (entry?.exerciseSnapshot?.n) return entry.exerciseSnapshot.n
   if (ex?.n) return exerciseNameFor(ex)
   if (entry?.muscleSnapshot?.n) return entry.muscleSnapshot.n
   return entry && typeof entry === 'object' && entry.n ? entry.n : null

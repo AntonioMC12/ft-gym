@@ -1,5 +1,5 @@
 import {it,expect} from 'vitest'
-import {blankRepRows,repReference,repsEntered} from './rep-reference.js'
+import {blankRepRows,repReference,repsEntered,acceptRepReference} from './rep-reference.js'
 import {markAllSetsDone} from './backfill.js'
 import {buildCompletedWorkout} from './finish-workout.js'
 const entry={id:'0001',rid:'r',target:{reps:12},planned:{reps:12,repsMin:8},sets:[{r:null,w:20,done:false}]}
@@ -32,3 +32,13 @@ it('an emptied completed row cannot inflate the saved top weight',()=>{
  const saved=buildCompletedWorkout({entries:[{...entry,sets:[{r:10,w:20,done:true},{r:null,w:200,done:true}]}]});
  expect(saved.entries[0].topW).toBe(20);expect(saved.entries[0].sets[1].done).toBe(false);
 });
+
+it('accepts defaults without replacing manual input or mutating the original',()=>{
+ expect(acceptRepReference({},entry,0)).toMatchObject({r:8,w:20,done:false});expect(entry.sets[0].r).toBeNull()
+ for(const r of [0,7])expect(acceptRepReference({}, {...entry,sets:[{r,w:20}]},0).r).toBe(r)
+ expect(acceptRepReference({}, {...entry,target:{},planned:{}},0).r).toBeNull()
+})
+it('uses historical and side defaults independently',()=>{
+ const S={workouts:[{id:'w',d:'2026-10-16',routineIds:['r'],entries:[{id:'0001',rid:'r',sets:[{r:10,w:20,done:true}]}]}]};expect(acceptRepReference(S,entry,0).r).toBe(10)
+ const e={...entry,planned:{reps:12},sets:[{sides:{L:{r:null,w:10},R:{r:9,w:12}}}]};const row=acceptRepReference({},e,0,'L');expect(row.sides.L.r).toBe(6);expect(row.sides.R.r).toBe(9)
+})

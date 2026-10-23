@@ -1,4 +1,5 @@
 const es = {
+ 'Archived routines':'Rutinas archivadas',
  'Refresh proposals':'Actualizar propuestas',
  'Change member':'Cambiar socio',
  'Personal routine':'Personal',

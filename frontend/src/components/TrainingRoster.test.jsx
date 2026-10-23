@@ -26,3 +26,9 @@ it('searches on the server and renders an informative empty state',async()=>{
 it('ignores a report arriving after the signed-in account changed',async()=>{
  let resolve;centerAssignedProgress.mockImplementation(()=>new Promise(r=>{resolve=r}));await render();await open();await act(async()=>{useStore.setState({user:{id:'other'}});resolve({shared:true,report:{period:{from:'2026-10-01',to:'2026-10-20'},routines:[{name:'PRIVATE LATE'}]}})});expect(host.textContent).not.toContain('PRIVATE LATE')
 })
+
+it('keeps deleted routines and their saved activity in a closed archive section',async()=>{
+ centerAssignedProgress.mockResolvedValue({shared:true,report:{period:{from:'2026-10-01',to:'2026-10-20'},routines:[{name:null,sessions:4,days:3,lastSessionOn:'2026-10-18',weeks:[]},{name:'Active plan',sessions:1,days:1,lastSessionOn:'2026-10-19',weeks:[]}]}})
+ await render();await open();const archive=host.querySelector('.training-roster-archives');expect(archive).not.toBeNull();expect(archive.open).toBe(false);expect(archive.querySelector('summary').textContent).toContain('Archived routines · 1');expect(archive.textContent).toContain('Saved sessions · 4');expect(archive.textContent).not.toContain('Active plan');expect(host.querySelectorAll('.training-routine-trend')).toHaveLength(2);await act(async()=>{archive.open=true});expect(archive.open).toBe(true)
+})
+it('does not show an empty archive section',async()=>{await render();await open();expect(host.querySelector('.training-roster-archives')).toBeNull()})

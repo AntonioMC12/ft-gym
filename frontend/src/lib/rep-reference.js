@@ -22,3 +22,12 @@ export function repReference(S,entry,index,side,path=[]){
  return plannedRepReference(entry,index,side)
 }
 export const repsEntered=(row,side)=>{const s=side?row?.sides?.[side]:row;return typeof s?.r==='number'&&Number.isFinite(s.r)&&s.r>=0}
+
+// Checking accepts the visible suggestion; a range uses its lower bound.
+export function acceptRepReference(S,entry,index,side){
+ const row=entry.sets[index],actual=side?row?.sides?.[side]:row
+ if(!actual||repsEntered(row,side)||actual.done)return row
+ const value=Number(repReference(S,entry,index,side).split('–')[0])
+ if(!Number.isSafeInteger(value)||value<=0)return row
+ return side?{...row,sides:{...row.sides,[side]:{...actual,r:value}}}:{...row,r:value}
+}

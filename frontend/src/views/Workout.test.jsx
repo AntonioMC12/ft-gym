@@ -3481,3 +3481,21 @@ it('shows the same comparisons and historical crown in focus view', async () => 
   expect(container.querySelector('button[aria-label="Complete set · New personal record"]')).toBeTruthy()
   expect(container.querySelector('.focus-dots .set-record')).toBeTruthy()
 })
+
+it('accepts the displayed reps when checking an untouched set',async()=>{
+ await mount([exercise('plain-bench',[false],{target:{mode:'reps',reps:15},sets:[{w:10,r:null,done:false}]})])
+ await toggleSet(0)
+ expect(mocks.S.active.entries[0].sets[0]).toMatchObject({w:10,r:15,done:true})
+})
+
+it('accepts suggested reps in focus view',async()=>{
+ await mount([exercise('plain-bench',[false],{target:{mode:'reps',reps:12},sets:[{w:10,r:null,done:false}]})],0,{active:{workoutView:'focus'}})
+ const check=container.querySelector('button[aria-label="Complete set"]');expect(check).toBeTruthy();await click(check)
+ expect(mocks.S.active.entries[0].sets[0]).toMatchObject({r:12,w:10,done:true})
+})
+
+it('shows only one crown on the strongest completed set',async()=>{
+ const previous={id:'previous',d:'2026-10-18',entries:[exercise('plain-bench',[true],{sets:[{w:0,r:5,done:true}]})]}
+ await mount([exercise('plain-bench',[true,true,true],{sets:[{w:0,r:2,done:true},{w:0,r:6,done:true},{w:0,r:8,done:true}]})],0,{workouts:[previous]})
+ const checks=[...container.querySelectorAll('.setrow button[aria-checked]')];expect(checks.filter(b=>b.classList.contains('set-record'))).toHaveLength(1);expect(checks[2].classList.contains('set-record')).toBe(true)
+})

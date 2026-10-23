@@ -16,11 +16,11 @@ function Evolution({centerId,ownerUid,member,onBack}){
   centerAssignedProgress(centerId,member.id).then(result=>{if(live&&useStore.getState().user?.id===ownerUid)setData(result)}).catch(e=>{if(live&&useStore.getState().user?.id===ownerUid){setError(e);useCenters.getState().revokeOn(e)}}).finally(()=>{if(live&&useStore.getState().user?.id===ownerUid)setBusy(false)})
   return()=>{live=false}
  },[centerId,ownerUid,member.id,revision])
- const routines=data?.report?.routines||[],last=routines.map(row=>row.lastSessionOn).filter(Boolean).sort().at(-1)
+ const routines=data?.report?.routines||[],activeRoutines=routines.filter(row=>row.name),archivedRoutines=routines.filter(row=>!row.name),last=routines.map(row=>row.lastSessionOn).filter(Boolean).sort().at(-1)
  return <div className="training-evolution">
   <Button icon="chevronLeft" onClick={onBack}>{t('Back to members')}</Button>
   <header className="training-evolution-header"><span className="training-roster-avatar" aria-hidden="true"><Icon name="person"/></span><div><h2>{member.name}</h2><p className="small muted">{member.number}</p></div><Button size="sm" disabled={busy} onClick={()=>setRevision(n=>n+1)}>{t('Refresh members')}</Button></header>
-  <div className="training-evolution-stats"><div><span>{t('Accepted plans')}</span><strong>{member.plans}</strong></div><div><span>{t('Assigned routines')}</span><strong>{data?.shared?routines.length:'—'}</strong></div><div><span>{t('Last logged day')}</span><strong className="training-evolution-date">{last||'—'}</strong></div></div>
+  <div className="training-evolution-stats"><div><span>{t('Accepted plans')}</span><strong>{member.plans}</strong></div><div><span>{t('Assigned routines')}</span><strong>{data?.shared?activeRoutines.length:'—'}</strong></div><div><span>{t('Last logged day')}</span><strong className="training-evolution-date">{last||'—'}</strong></div></div>
   {busy&&<p role="status">{t('Loading…')}</p>}
   {error&&<div className="training-roster-notice" role="alert"><Icon name="info"/><p>{t(progressErrorKey(error))}</p><Button disabled={busy} onClick={()=>setRevision(n=>n+1)}>{t('Retry')}</Button></div>}
   {data&&!data.shared&&<div className="training-roster-notice" role="status"><Icon name="info"/><div><h3>{t('Training evolution')}</h3><p className="small muted">{t('Training data is unavailable. Reload or sync your profile.')}</p></div></div>}
@@ -28,7 +28,7 @@ function Evolution({centerId,ownerUid,member,onBack}){
    <div className="training-evolution-period"><h3>{t('Training evolution')}</h3><span className="small muted">{data.report.period.from} → {data.report.period.to}</span></div>
    <p className="small muted">{t('Saved sessions are records, not proof of completed exercise.')}</p>
    {!routines.length&&<div className="training-roster-notice" role="status"><Icon name="info"/><p>{t('No assigned routines are available in this period.')}</p></div>}
-   {routines.map((row,index)=>{const points=routineTrend(row,data.report.period),peak=Math.max(1,...points.map(point=>point.sessions));return <article className="training-routine-trend" key={index}>
+   {[activeRoutines,archivedRoutines].map((group,groupIndex)=>{const cards=group.map((row,index)=>{const points=routineTrend(row,data.report.period),peak=Math.max(1,...points.map(point=>point.sessions));return <article className="training-routine-trend" key={index}>
     <div className="training-trend-heading"><h3>{row.name||t('Deleted routine')}</h3><span className="tag">{t('Saved sessions')} · {row.sessions}</span></div>
     <p className="small muted">{t('Logged days')} · {row.days} <span aria-hidden="true"> / </span> {t('Last logged day')} · {row.lastSessionOn||'—'}</p>
     {Array.isArray(row.exercises)&&<ExerciseWeeklyProgress exercises={row.exercises} period={data.report.period} unit={data.report.unit}/>}
@@ -37,7 +37,7 @@ function Evolution({centerId,ownerUid,member,onBack}){
     </div><div className="training-trend-axis small muted"><span>{points[0]?.from}</span><span>{t('Sessions by week')}</span><span>{points.at(-1)?.from}</span></div>
     {row.sessions===0&&<p className="small muted">{t('No saved sessions in this period.')}</p>}
     <details><summary>{t('View weekly breakdown')}</summary>{points.map(point=><Row key={point.from} title={point.from} value={String(point.sessions)}/>)}</details></details>
-   </article>})}
+   </article>});return groupIndex===0?<div key="active" className="training-active-routines">{cards}</div>:group.length>0?<details key="archived" className="training-roster-archives"><summary>{t('Archived routines')} · {group.length}</summary>{cards}</details>:null})}
   </>}
   <details className="training-roster-proposals" onToggle={event=>setPlansOpen(event.currentTarget.open)}><summary>{t('Plans and proposals')}</summary>{plansOpen&&<TrainingProposals centerId={centerId} member={member} ownerUid={ownerUid} canAssign active/>}</details>
  </div>

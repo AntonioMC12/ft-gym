@@ -76,3 +76,15 @@ describe('live set comparisons and records', () => {
     expect(feedbackForSet(setFeedbackHistory(sessionHistory(S), en), en, 0)).toMatchObject({ record: true })
   })
 })
+
+it('moves the crown to the best completed reps and restores it on undo',()=>{
+ const sets=[set(0,2),set(0,6),set(0,8)];expect(sets.map((_,i)=>feedback([set(0,5)],sets,i).record)).toEqual([false,false,true])
+ sets[2].done=false;expect(sets.map((_,i)=>sets[i].done&&feedback([set(0,5)],sets,i).record)).toEqual([false,true,false])
+ sets[2]={...set(0,6)};expect(sets.map((_,i)=>feedback([set(0,5)],sets,i).record)).toEqual([false,true,false])
+})
+it('considers later repeated entries and reversed assistance loads',()=>{
+ const en=entry([set(65,10)]),H=setFeedbackHistory({workouts:[workout([entry([set()])])]},en)
+ expect(feedbackForSet(H,en,0,undefined,[],[entry([set(70,8)])]).record).toBe(false)
+ const id=EXDB.find(isAssisted).id,rows=[set(35,10),set(30,8)]
+ expect(rows.map((_,i)=>feedback([set(40,10)],rows,i,undefined,{id}).record)).toEqual([false,true])
+})

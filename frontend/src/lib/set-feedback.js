@@ -23,7 +23,7 @@ export function setFeedbackHistory(S, entry) {
 // Colours compare the same working-set ordinal, independently for weight and reps.
 // Records compare all routines, only completed working sets and matching laterality.
 // Repetition records require at least the earlier load (less help on assisted machines).
-export function feedbackForSet(history, entry, index, side, earlierEntries = []) {
+export function feedbackForSet(history, entry, index, side, earlierEntries = [], laterEntries = []) {
   if (!history || isWarmupRow(entry.sets[index])) return {}
   const current = entry.sets[index]
   const value = side ? current.sides?.[side] : current
@@ -44,5 +44,11 @@ export function feedbackForSet(history, entry, index, side, earlierEntries = [])
   const weightRecord = value.w > 0 && candidates.every(s => betterLoad(value.w, s.w))
   const comparable = candidates.filter(s => same(value.w, s.w) || betterLoad(s.w, value.w))
   const repsRecord = candidates.some(s => same(value.w, s.w)) && comparable.every(s => value.r > s.r)
-  return { ...result, record: weightRecord || repsRecord }
+  // Only the strongest completed set keeps the crown. Later equal sets leave it on
+  // the first occurrence; unfinished rows never displace an earned record.
+  const later = [...entry.sets.slice(index + 1).filter(s => !isWarmupRow(s)),
+    ...laterEntries.filter(en => en.id === entry.id).flatMap(en => metricRowsForEntry(entryAs(en, entryDbLoad(entry)), 'reps'))]
+    .map(s => side ? s.sides?.[side] : !isSideSet(s) ? s : null).filter(completed)
+  const surpassed = later.some(s => betterLoad(s.w, value.w) || (same(s.w, value.w) && s.r > value.r))
+  return { ...result, record: (weightRecord || repsRecord) && !surpassed }
 }

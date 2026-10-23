@@ -1,6 +1,6 @@
 import RoutineOriginBadge from '../components/RoutineOriginBadge.jsx'
 import {tappable} from '../lib/use-sheet-keyboard.js'
-import {blankRepRows,repReference,repsEntered} from '../lib/rep-reference.js'
+import {blankRepRows,repReference,repsEntered,acceptRepReference} from '../lib/rep-reference.js'
 import { Fragment, useEffect, useId, useMemo, useRef, useState } from 'react'
 import SwipeCards from '../components/SwipeCards.jsx'
 import SwipeRow from '../components/SwipeRow.jsx'
@@ -204,9 +204,9 @@ function ExerciseBlock({ entryIdx, compact, dense, editing, onToggle, onToggleSi
   const feedbackHistory = useMemo(() => setFeedbackHistory({ workouts: H.workouts }, entry),
     [H.workouts, entry.id, entry.rid, mode, meaning])
   const feedbackRows = useMemo(() => entry.sets.map((row, i) => {
-    const earlier = S.active.entries.slice(0, entryIdx)
-    return { main: feedbackForSet(feedbackHistory, entry, i, undefined, earlier),
-      ...(isSideSet(row) ? { L: feedbackForSet(feedbackHistory, entry, i, 'L', earlier), R: feedbackForSet(feedbackHistory, entry, i, 'R', earlier) } : {}) }
+    const earlier = S.active.entries.slice(0, entryIdx), later = S.active.entries.slice(entryIdx + 1)
+    return { main: feedbackForSet(feedbackHistory, entry, i, undefined, earlier, later),
+      ...(isSideSet(row) ? { L: feedbackForSet(feedbackHistory, entry, i, 'L', earlier, later), R: feedbackForSet(feedbackHistory, entry, i, 'R', earlier, later) } : {}) }
   }), [feedbackHistory, entry, S.active.entries, entryIdx])
   const feedback = (i, side) => feedbackRows[i]?.[side || 'main'] || {}
   const feedbackLabel = state => state === 'higher' ? t('Above previous set') : state === 'equal' ? t('Matches previous set') : state === 'lower' ? t('Below previous set') : ''
@@ -1665,12 +1665,14 @@ function ActiveWorkout() {
     // mid-screen on iOS (lib/viewport-guard.js).
     if (typeof document !== 'undefined') { const a = document.activeElement; if (a && (a.tagName === 'INPUT' || a.tagName === 'TEXTAREA')) a.blur?.() }
     const m = modeAt(idx)
-    const activeRow=useStore.getState().S.active?.entries[idx]?.sets[i]
+    const currentState=useStore.getState().S,currentEntry=currentState.active?.entries[idx]
+    const activeRow=m==='reps'&&currentEntry?acceptRepReference(sessionHistory(currentState),currentEntry,i,side):currentEntry?.sets[i]
     if(m==='reps'&&!repsEntered(activeRow,side)&&!(side?activeRow?.sides?.[side]?.done:activeRow?.done)){useUI.getState().toast(t('Enter the repetitions performed.'));return}
     const cardioEntry = m === 'cardio'
     let exJustDone = false, workoutDone = false, checked = false
     update(s => {
       const e = s.active.entries[idx]
+      if(m==='reps')e.sets[i]=acceptRepReference(sessionHistory(s),e,i,side)
       // A per-side tick flips just that side; the row's own `done` (both sides) is then
       // recomputed by toggleSide, so every completion check below still reads a single boolean.
       if (side) e.sets[i] = toggleSide(e.sets[i], side)

@@ -25,9 +25,10 @@ export default function HomeTrainingCard(){
    try{
     const rows=[]
     for(const center of centers){let cursor=null;do{const page=await centerTraining(center.id,{limit:50,...(cursor?{cursor}:{})},true);if(!alive||useStore.getState().user?.id!==uid)return;rows.push(...page.proposals.map(p=>({...p,centerId:center.id})));cursor=page.nextCursor}while(cursor)}
-    const snapshots=rows.map(p=>[p.centerId,p.id,p.versionId,p.state,p.proposalState,p.acceptedAt,p.deliveryResult]).sort((a,b)=>JSON.stringify(a).localeCompare(JSON.stringify(b)))
+    const available=rows.filter(p=>!(p.acceptedAt&&new Set((p.retirements||[]).map(r=>r.routineId)).size>=p.routineCount))
+    const snapshots=rows.map(p=>[p.centerId,p.id,p.versionId,p.state,p.proposalState,p.acceptedAt,p.deliveryResult,p.retirements||[]]).sort((a,b)=>JSON.stringify(a).localeCompare(JSON.stringify(b)))
     const digest=await sha256Hex(new TextEncoder().encode(JSON.stringify(snapshots)))
-    if(alive&&useStore.getState().user?.id===uid){setSeen(readReview(uid));setResult({uid,scope,digest,target:rows.find(p=>p.state==='offered'&&p.proposalState==='offered'&&!p.acceptedAt)||rows.find(p=>p.acceptedAt&&!p.deliveryResult)||null,total:rows.length,resume:rows.filter(p=>p.acceptedAt&&!p.deliveryResult).length,pending:rows.filter(p=>p.state==='offered'&&p.proposalState==='offered'&&!p.acceptedAt).length});setError(null)}
+    if(alive&&useStore.getState().user?.id===uid){setSeen(readReview(uid));setResult({uid,scope,digest,target:available.find(p=>p.state==='offered'&&p.proposalState==='offered'&&!p.acceptedAt)||available.find(p=>p.acceptedAt&&!p.deliveryResult)||null,total:available.length,resume:available.filter(p=>p.acceptedAt&&!p.deliveryResult).length,pending:available.filter(p=>p.state==='offered'&&p.proposalState==='offered'&&!p.acceptedAt).length});setError(null)}
    }catch(e){if(alive&&useStore.getState().user?.id===uid){setError({uid,scope,cause:e});if([401,403].includes(e.status))useCenters.getState().revokeOn(e)}}finally{pending=false}
   }
   const visible=()=>{if(document.visibilityState!=='hidden')refresh()}

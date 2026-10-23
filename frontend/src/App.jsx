@@ -1,3 +1,4 @@
+import AssignmentLifecycle from './components/AssignmentLifecycle.jsx'
 import MemberProgress from './views/MemberProgress.jsx'
 import Community from './views/Community.jsx'
 import TrainingAdmin from './views/TrainingAdmin.jsx'
@@ -252,7 +253,7 @@ function Shell() {
         <ErrorBoundary>
           {!authed ? <Login /> : needsMobileOnboarding ? <MobileOnboarding /> : !membershipAccess.allowed ? <MembershipAccessScreen access={membershipAccess}/> : (
             <>
-            <MembershipGraceNotice warnings={membershipAccess.warnings}/>
+            <AssignmentLifecycle/><MembershipGraceNotice warnings={membershipAccess.warnings}/>
             <Routes>
               <Route path="/home" element={<Home />} />
               <Route path="/centers" element={<Centers />} />

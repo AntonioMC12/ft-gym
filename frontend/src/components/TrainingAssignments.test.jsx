@@ -74,3 +74,10 @@ it('sends FT Training routine IDs to the member without portable custom definiti
  expect(bundle.routines[0].ex[0].id).toBe(exercise.id);expect(bundle.customEx).toEqual([]);expect(bundle.catalogueInstance).toBeUndefined();
  }finally{registerShared([])}
 });
+
+it('compacts recipient selection when viewing sent proposals and can reopen it',async()=>{
+ centerMember.mockResolvedValue({member:{id:'a',name:'Alice',number:'M-000001',version:3,state:'active',accountLinked:true}});
+ await act(async()=>root.render(<TrainingAssignments routineIds={['r']} mode="proposals"/>));await act(async()=>vi.advanceTimersByTimeAsync(1));
+ await click('Alice');expect(host.querySelector('.training-selected-member').textContent).toContain('Alice');expect(host.querySelector('.training-recipient-list')).toBeNull();
+ await click('Change member');expect(host.querySelector('.training-recipient-list')).not.toBeNull();
+});

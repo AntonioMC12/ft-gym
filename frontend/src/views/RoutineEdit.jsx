@@ -1,3 +1,4 @@
+import RoutineOriginBadge from '../components/RoutineOriginBadge.jsx'
 import {navBack} from '../lib/nav.js'
 import {plansOf,planOf,moveRoutineToPlan} from '../lib/training-plans.js'
 import { useNavigate, useParams } from 'react-router-dom'
@@ -480,6 +481,7 @@ export default function RoutineEdit({basePath='/plan'}) {
       <button className="iconbtn" aria-label={t('Pick an icon')} onClick={() => glyphPicker(r.emoji, g => update(s => { s.routines.find(x => x.id === id).emoji = g }))}><Icon name={glyphOf(r.emoji)} /></button>
     </div>
 
+    <div style={{marginBottom:16}}><RoutineOriginBadge state={S} routine={r}/></div>
     {(canOrganize || controls.routineProgression || controls.routineDeload) && <div className="sect-b" style={{ marginBottom: 16 }}>
       {canOrganize && <SelectRow variant="field" title={t('Training plans')} value={planOf(S,r)||''} options={[{value:'',label:t('Unfiled')},...plansOf(S).map(p=>({value:p.id,label:p.name}))]} onChange={value=>update(s=>moveRoutineToPlan(s,id,value||null))}/>}
       {controls.routineProgression && <SelectRow icon="chartLine" title={t('Progression')} sheetTitle={t('Progression')}

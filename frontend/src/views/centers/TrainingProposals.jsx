@@ -1,7 +1,7 @@
 import {nav} from '../../lib/nav.js'
 import {useCenterNavigation,useUnsavedCenterForm} from './NavigationGuard.jsx'
 import {useEffect,useRef,useState} from 'react'
-import {Section,Row,Button,TextField,MultiSelectRow,Switch} from '../../components/ui.jsx'
+import {Section,Row,Button,TextField,MultiSelectRow,Switch,SelectRow} from '../../components/ui.jsx'
 import {centerTraining,centerTrainingProposal,centerCommand,trainingErrorKey} from '../../lib/centers-api.js'
 import {buildTrainingProposal} from '../../lib/plan-share.js'
 import {applyPlanDelivery} from '../../lib/plan-delivery.js'
@@ -16,6 +16,8 @@ import {useCenters} from '../../store/useCenters.js'
 import {confirmSheet} from '../../sheets.jsx'
 
 export default function TrainingProposals({centerId,member,ownerUid,own=false,active=true,canAssign=false,onLinkAccount,initialProposalId=null,initialVersionId=null,onCloseProposal}){
+  const centerState=useCenters(),[assignmentFilter,setAssignmentFilter]=useState('active')
+  const platform=centerState.ownerUid===ownerUid&&centerState.status==='ready'&&centerState.platformCapabilities.includes('centers.manage')
   const S=useStore(s=>s.S),[rows,setRows]=useState([]),[cursor,setCursor]=useState(null),[detail,setDetail]=useState(null),[error,setError]=useState(null),[busy,setBusy]=useState(false),[revision,setRevision]=useState(0)
   const [selected,setSelected]=useState([]),[name,setName]=useState(''),[schedule,setSchedule]=useState(false)
   const accountRequired=!own&&(member?.accountLinked===false||(error?.data?.code||error?.code)==='training-account-required')
@@ -47,6 +49,12 @@ export default function TrainingProposals({centerId,member,ownerUid,own=false,ac
     const signature=JSON.stringify([path,body]);if(intent.current?.signature!==signature)intent.current={signature,id:crypto.randomUUID()}
     const used=intent.current,result=await centerCommand(path,{...body,requestId:used.id});if(intent.current===used)intent.current=null;return result
   }
+  const retireRoutine=row=>confirmSheet({title:t('Retire assignment?'),message:(member?.name||'')+' · '+row.name+' · '+t('Saved workouts and the current session are kept. Removal applies when the member synchronizes.'),confirmText:t('Retire assignment'),danger:true,onConfirm:async()=>{
+   const epoch=life.current;if(!current(epoch)||pending.current||!platform)return;pending.current=true;setBusy(true)
+   try{await command('/api/centers/training/retire',{centerId,versionId:detail.versionId,routineId:detail.routineIds[row.id]});if(current(epoch)){setDetail(null);setRevision(n=>n+1)}}catch(e){if(current(epoch))failure(e)}finally{if(current(epoch)){pending.current=false;setBusy(false)}}
+  }})
+  const archived=row=>new Set((row.retirements||[]).map(r=>r.routineId)).size>=row.routineCount
+  const visibleRows=rows.filter(row=>assignmentFilter==='all'||(assignmentFilter==='archived'?archived(row):!archived(row)))
   const offer=(revise=false)=>{
     const epoch=life.current;if(!canAssign||!active||accountRequired||pending.current||!selected.length)return
     let bundle
@@ -84,8 +92,8 @@ export default function TrainingProposals({centerId,member,ownerUid,own=false,ac
   const sourceRoutines=S?.routines||[]
   return <Section className={own?'own-training-proposals':''} title={t('Training proposals')}><div className="centers-form">
     {detail?<>
-      <Row title={detail.name} subtitle={t('Proposal version')+' '+detail.revision} value={detail.unit}/>
-      {detail.bundle.routines.map(row=><details className="training-proposal-routine" key={row.id}><summary><strong>{row.name}</strong><span className="small muted">{row.ex.length} {t('Exercises')}</span></summary>{row.prog&&<p className="small muted">{t('Progression')}: {t(POLICY_NAME[row.prog]||'Off')}</p>}{row.ex.map((ex,index)=><div key={index}>
+      <Row title={detail.name||t('Plan')} subtitle={t('Proposal version')+' '+detail.revision} value={detail.unit}/>
+      {detail.bundle.routines.map(row=><details className="training-proposal-routine" key={row.id}><summary><strong>{row.name}</strong><span className="small muted">{row.ex.length} {t('Exercises')}</span></summary>{(detail.retirements||[]).filter(r=>r.routineId===detail.routineIds?.[row.id]).map(r=><p key={r.reason} className="small muted">{t(r.reason==='platform'?'Withdrawn by superadmin':'Removed by member')}{r.at?' · '+new Date(r.at).toLocaleDateString():''}{r.pending?' · '+t('Pending synchronization'):''}</p>)}{platform&&detail.acceptedAt&&!(detail.retirements||[]).some(r=>r.routineId===detail.routineIds?.[row.id]&&r.reason==='platform')&&<Button className="training-retire-action" size="sm" variant="tinted" disabled={busy} onClick={()=>retireRoutine(row)}>{t('Retire assignment')}</Button>}{row.prog&&<p className="small muted">{t('Progression')}: {t(POLICY_NAME[row.prog]||'Off')}</p>}{row.ex.map((ex,index)=><div key={index}>
         <Row title={exerciseNameFor(EXIDX[ex.id])} subtitle={exLine(ex,detail.bundle.unit,S?.speedUnit)}/>
         {ex.note&&<p className="small">{ex.note}</p>}
         {ex.restSec>0&&<Row title={t('Rest (s)')} value={ex.restSec}/>}{ex.warmupSets>0&&<Row title={t('Warm-up sets')} value={ex.warmupSets}/>}
@@ -94,28 +102,29 @@ export default function TrainingProposals({centerId,member,ownerUid,own=false,ac
         {ex.intensifier?.type==='dropset'&&<p className="small muted">{t('Every set becomes a drop-set: after the main set, {0} drop(s) with no rest, each about {1}% lighter.',ex.intensifier.count,ex.intensifier.pct)}</p>}
         {ex.intensifier?.type==='restpause'&&<p className="small muted">{t('Every set becomes rest-pause: {0} reps to start, then {1} more split into short bursts, {2}s rest before each, roughly halving each time.',ex.reps||0,ex.intensifier.totalReps,ex.intensifier.restSec)}</p>}
       </div>)}</details>)}
-      {detail.acceptedAt&&<p role="status">{t('Proposal accepted')}</p>}{detail.deliveryResult&&<p role="status">{t('Delivery confirmed')}</p>}
+      {detail.acceptedAt&&<p className="tag acc training-state-label" role="status">{t('Proposal accepted')}</p>}{detail.deliveryResult&&<p className="tag training-state-label" role="status">{t('Delivery confirmed')}</p>}
       {!detail.acceptedAt&&(detail.state!=='offered'||detail.proposalState!=='offered')&&<p role="status">{t('This training proposal is not available. Reload it.')}</p>}
-      {own&&!detail.deliveryResult&&<>
+      {own&&!detail.deliveryResult&&!archived(detail)&&<>
         {!detail.acceptedAt&&detail.bundle.week&&Object.keys(detail.bundle.week).length>0&&<Row title={t('Use this weekly schedule')} subtitle={t('Replaces your current Mon–Sun assignments.')} value={<Switch checked={schedule} aria-label={t('Use this weekly schedule')} onChange={setSchedule}/>}/>}
         {(detail.acceptedAt||active&&detail.state==='offered'&&detail.proposalState==='offered')&&<Button variant="primary" disabled={busy} onClick={deliver}>{t(detail.acceptedAt?'Retry delivery':'Accept routines')}</Button>}
       </>}
       {canOffer&&detail.proposalState==='offered'&&!detail.acceptedAt&&<Button disabled={busy} onClick={withdraw}>{t('Withdraw proposal')}</Button>}
       <Button disabled={busy} onClick={()=>{life.current++;setDetail(null);setSchedule(false);if(own&&initialProposalId)onCloseProposal?.()}}>{t('Back')}</Button>
     </>:<>
-      {rows.map(row=><Row className="centers-entity-row" key={row.versionId} title={row.name} subtitle={t('Proposal version')+' '+row.revision+(row.acceptedAt?' · '+t('Proposal accepted'):'')} value={t(row.deliveryResult?'Delivery confirmed':row.acceptedAt?'Retry delivery':row.state==='offered'&&row.proposalState==='offered'?'Pending acceptance':'This training proposal is not available. Reload it.')} accessory="chevron" onClick={()=>open(row)}/>)}
-      {!rows.length&&!busy&&!error&&<p className="muted">{t('No training proposals')}</p>}
+      <SelectRow title={t('Assignments')} value={assignmentFilter} options={[{value:'active',label:t('Active assignments')},{value:'archived',label:t('Archived assignments')},{value:'all',label:t('All')}]} onChange={setAssignmentFilter}/>
+      {visibleRows.map(row=><Row className="centers-entity-row" key={row.versionId} title={row.name} subtitle={t('Proposal version')+' '+row.revision+(row.acceptedAt?' · '+t('Proposal accepted'):'')+(archived(row)?' · '+t('Archived'):(row.retirements||[]).length?' · '+t('Partially archived'):'')} value={t(archived(row)?'Archived':row.deliveryResult?'Delivery confirmed':row.acceptedAt?'Retry delivery':row.state==='offered'&&row.proposalState==='offered'?'Pending acceptance':'This training proposal is not available. Reload it.')} accessory="chevron" onClick={()=>open(row)}/>)}
+      {!visibleRows.length&&!busy&&!error&&<p className="muted">{t('No training proposals')}</p>}
       {cursor&&<Button ref={moreRef} disabled={busy} onClick={more}>{t('Show more')}</Button>}
     </>}
     {canOffer&&accountRequired&&<div className="centers-import-notice" role="status"><p>{t('Link this member to an account before proposing routines.')}</p>{onLinkAccount&&<Button type="button" variant="tinted" onClick={onLinkAccount}>{t('Member details')}</Button>}</div>}
-    {canOffer&&!accountRequired&&(!detail||detail.proposalState==='offered')&&<form ref={saveForm} aria-label={t('Training proposals')} onSubmit={e=>{e.preventDefault();offer(!!detail)}}>
+    {canOffer&&!accountRequired&&(!detail||detail.proposalState==='offered')&&<details className="training-proposal-compose" open={draftDirty}><summary>{t(detail?'New proposal version':'Propose routines')}</summary><form ref={saveForm} aria-label={t('Training proposals')} onSubmit={e=>{e.preventDefault();offer(!!detail)}}>
       <p className="small muted">{t('Choose your routines to offer to this member. Their training stays unchanged until acceptance.')}</p>
       <label className="centers-field"><span>{t('Plan name')}</span><TextField value={name} onChange={e=>setName(e.target.value)} maxLength={120}/></label>
       <MultiSelectRow title={t('Routines')} values={selected} options={sourceRoutines.map(row=>({value:row.id,label:row.name}))} onToggle={id=>setSelected(ids=>ids.includes(id)?ids.filter(x=>x!==id):[...ids,id])}/>
       <Button type="submit" disabled={busy||!selected.length||selected.length>20}>{t(detail?'New proposal version':'Propose routines')}</Button>
-    </form>}
+    </form></details>}
     {draftDirty&&<Button type="button" disabled={busy} onClick={()=>requestNavigation(clearDraft)}>{t('Cancel')}</Button>}
-    {own?<Button variant="primary" icon="play" disabled={busy} onClick={()=>requestNavigation(()=>nav('/workout'))}>{t('Start training')}</Button>:<Button disabled={busy} onClick={()=>setRevision(n=>n+1)}>{t('Reload centers')}</Button>}
+    {own?<Button variant="primary" icon="play" disabled={busy} onClick={()=>requestNavigation(()=>nav('/workout'))}>{t('Start training')}</Button>:<Button size="sm" variant="ghost" disabled={busy} onClick={()=>setRevision(n=>n+1)}>{t('Refresh proposals')}</Button>}
     {busy&&<p role="status">{t('Loading…')}</p>}{error&&<p role="alert">{t(trainingErrorKey(error))}</p>}
   </div></Section>
 }

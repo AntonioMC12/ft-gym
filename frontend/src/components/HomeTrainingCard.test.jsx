@@ -46,3 +46,7 @@ it('shows failures instead of claiming there are no proposals and allows a retry
 it('keeps accepted but undelivered proposals highlighted so delivery can be retried',async()=>{
  centerTraining.mockResolvedValue({proposals:[{...offer,acceptedAt:'2026-10-19T12:00:00Z'}],nextCursor:null});await mount();await open();await remount();expect(host.textContent).toContain('Retry delivery');expect(host.querySelector('.has-updates')).not.toBeNull();
 })
+
+it('does not advertise retry delivery for a fully retired assignment',async()=>{
+ centerTraining.mockResolvedValue({proposals:[{...offer,acceptedAt:'2026-10-19T12:00:00Z',routineCount:1,retirements:[{routineId:'cr_retired',reason:'platform'}]}],nextCursor:null});await mount();expect(host.textContent).not.toContain('Retry delivery');expect(host.textContent).not.toContain('Pending acceptance')
+})

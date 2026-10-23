@@ -1557,6 +1557,30 @@ paths:
         '400': { description: Invalid/forbidden input. }
         '404': { description: Current own link or original recipient does not match. }
         '409': { description: training-proposal-unavailable, training-member-inactive, center-inactive or idempotency-conflict. }
+  /api/centers/training/retire:
+    post:
+      tags: [centers]
+      summary: Retire one accepted routine assignment; platform only; idempotent and audited
+      responses:
+        '200':
+          description: Lifecycle operation completed; no workout history is changed
+        '403':
+          description: Current permissions required
+        '404':
+          description: Linked accepted assignment unavailable
+
+  /api/centers/own/training/lifecycle:
+    post:
+      tags: [centers]
+      summary: Reconcile own assignment deletions from synced state and receive platform removals
+      responses:
+        '200':
+          description: Lifecycle operation completed; no workout history is changed
+        '403':
+          description: Current permissions required
+        '404':
+          description: Linked accepted assignment unavailable
+
   /api/centers/own/training/ack:
     post:
       tags: [centers]

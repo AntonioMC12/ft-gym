@@ -1,3 +1,4 @@
+import RoutineOriginBadge from '../components/RoutineOriginBadge.jsx'
 import {tappable} from '../lib/use-sheet-keyboard.js'
 import {blankRepRows,repReference,repsEntered} from '../lib/rep-reference.js'
 import { Fragment, useEffect, useId, useMemo, useRef, useState } from 'react'
@@ -70,7 +71,7 @@ function StartChooser() {
     {todayRoutines.length > 0 && <div className="card" style={{ borderColor: 'var(--acc)' }}>
       <h2 className="accent">{t("Today's plan")}{todayOvr ? ' · ' + t('rescheduled') : ''}</h2>
       <div className="row between" style={{ marginBottom: 12 }}>
-        <div><div className="big">{todayName}</div><div className="muted small">{exCount(todayRoutines.reduce((n, r) => n + r.ex.length, 0))}</div></div>
+        <div><div className="big">{todayName}</div><div className="row" style={{gap:8,flexWrap:'wrap',marginBlock:6}}>{todayRoutines.map(r=><span key={r.id}>{todayRoutines.length>1&&<span className="small">{r.name}</span>}<RoutineOriginBadge state={S} routine={r}/></span>)}</div><div className="muted small">{exCount(todayRoutines.reduce((n, r) => n + r.ex.length, 0))}</div></div>
         <span className="lrow-i" style={{ width: 38, height: 38, borderRadius: 9, fontSize: 22 }}><Icon name={glyphOf(todayRoutines[0].emoji)} /></span>
       </div>
       <Button variant="primary" icon="play" onClick={() => startFlow(todayIds)}>{t('Start {0}', todayName)}</Button>
@@ -78,7 +79,7 @@ function StartChooser() {
     {others.length > 0 && <><h4 className="sec">{t(todayRoutines.length>1?'All routines':'Other routines')}</h4>
       <div className="list">{others.map(r => <div key={r.id} className="item" {...tappable(()=>startFlow([r.id]))}>
         <span className="lrow-i"><Icon name={glyphOf(r.emoji)} /></span>
-        <div className="grow"><div className="tt">{r.name}</div><div className="ss">{exCount(r.ex.length)}</div></div>
+        <div className="grow"><div className="tt">{r.name}<RoutineOriginBadge state={S} routine={r}/></div><div className="ss">{exCount(r.ex.length)}</div></div>
         <span className="tag acc">{t('Start')}</span></div>)}</div></>}
     <div style={{ height: 14 }} />
     <Button icon="shuffle" onClick={() => startFlow([])}>{t('Freestyle workout (pick as you go)')}</Button>

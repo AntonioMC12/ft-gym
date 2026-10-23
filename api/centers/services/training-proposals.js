@@ -10,14 +10,22 @@ import {cursorScope,readCursor,nextCursor} from '../domain/pagination.js';
 const missing=()=>{throw new CentersError(404,'not-found','not found')};
 const conflict=code=>{throw new CentersError(409,code,'training proposal changed; reload')};
 const opaque=prefix=>prefix+randomBytes(16).toString('hex');
-const projection=`v.*,p.version,p.state AS proposal_state,p.current_revision,a.accepted_at,k.result AS delivery_result,k.acknowledged_at`;
+const projection=`v.*,p.version,p.state AS proposal_state,p.current_revision,a.accepted_at,k.result AS delivery_result,k.acknowledged_at,(SELECT m.account_uid FROM centers.members m WHERE m.center_id=v.center_id AND m.id=v.member_id) AS live_recipient,COALESCE((SELECT jsonb_agg(jsonb_build_object('routineId',x.routine_id,'reason',x.reason,'at',x.changed_at)) FROM centers.training_routine_archives x WHERE x.version_id=v.id AND x.active),'[]'::jsonb) AS retirements`;
 const joins=`FROM centers.training_versions v JOIN centers.training_proposals p ON p.center_id=v.center_id AND p.id=v.proposal_id
   LEFT JOIN centers.training_acceptances a ON a.version_id=v.id AND a.recipient_uid=v.recipient_uid
   LEFT JOIN centers.training_delivery_acks k ON k.version_id=v.id AND k.recipient_uid=v.recipient_uid`;
-function dto(row,{own=false,content=false}={}){
+function dto(row,{own=false,content=false,readOwnTraining=null}={}){
+  let retirements=row.retirements||[];
+  if(readOwnTraining&&row.accepted_at&&row.live_recipient===row.recipient_uid){
+    const state=readOwnTraining(row.recipient_uid),present=new Set((state?.routines||[]).map(r=>r.id));
+    const removed=new Set([...Object.keys(state?.deleted?.routines||{}).filter(id=>state.deleted.routines[id]>0),...(state?.resetIds?.routines||[])]);
+    retirements=retirements.filter(r=>r.reason==='platform'||!present.has(r.routineId)).map(r=>({...r,pending:r.reason==='platform'&&(!removed.has(r.routineId)||present.has(r.routineId))}));
+    for(const id of Object.values(row.routine_ids))if(!present.has(id)&&removed.has(id)&&!retirements.some(r=>r.routineId===id))retirements.push({routineId:id,reason:'member',at:state?.deleted?.routines?.[id]>0?new Date(Math.min(Date.now(),state.deleted.routines[id])).toISOString():null,pending:false});
+  }
+  const unique=new Map();for(const r of retirements)if(!unique.has(r.routineId)||r.reason==='platform')unique.set(r.routineId,r);retirements=[...unique.values()];
   const result={id:row.proposal_id,version:row.version,versionId:row.id,revision:row.revision,state:row.state,proposalState:row.proposal_state,
     name:row.bundle.name,unit:row.bundle.unit,routineCount:row.bundle.routines.length,exerciseCount:row.bundle.routines.reduce((n,r)=>n+r.ex.length,0),
-    createdAt:row.created_at,acceptedAt:row.accepted_at||null,deliveryResult:row.delivery_result||null,acknowledgedAt:row.acknowledged_at||null};
+    retirements,createdAt:row.created_at,acceptedAt:row.accepted_at||null,deliveryResult:row.delivery_result||null,acknowledgedAt:row.acknowledged_at||null};
   if(!own)result.memberId=row.member_id;
   if(content){result.bundle=row.bundle;result.deliveryKey=row.delivery_key;result.routineIds=row.routine_ids}
   return result;
@@ -40,7 +48,7 @@ async function insertVersion(client,centerId,proposalId,memberId,recipient,revis
   await client.query(`INSERT INTO centers.training_versions(id,center_id,proposal_id,member_id,recipient_uid,revision,actor_uid,delivery_key,bundle,bundle_hash,routine_ids)
     VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11)`,[id,centerId,proposalId,memberId,recipient,revision,uid,opaque('td_'),JSON.stringify(bundle),commandHash(bundle),JSON.stringify(routineIds)]);
 }
-export function proposeTraining({database,user,checkSession,hasTrainingExercise},raw,{platform=false,revise=false}={}){
+export function proposeTraining({database,user,checkSession,hasTrainingExercise,readOwnTraining=null},raw,{platform=false,revise=false}={}){
   objectBody(raw,revise?['centerId','id','version','bundle','requestId']:['centerId','memberId','memberVersion','bundle','requestId']);
   const centerId=idField(raw.centerId),requestId=requestField(raw.requestId),bundle=trainingPlan(raw.bundle,hasTrainingExercise),id=revise?idField(raw.id):null,
     version=versionField(revise?raw.version:raw.memberVersion),memberId=revise?null:idField(raw.memberId),operation=revise?'training.revise':'training.propose',hash=commandHash({id,memberId,version,bundle});
@@ -55,8 +63,10 @@ export function proposeTraining({database,user,checkSession,hasTrainingExercise}
       // The center advisory lock already serializes membership changes. A trainer
       // must not need UPDATE permission on the member just to offer a routine.
       member=await linkedMember(client,centerId,memberId);if(member.version!==version)conflict('version-conflict');recipient=member.account_uid;target=opaque('tp_');
-      const {rows:duplicates}=await client.query("SELECT p.id FROM centers.training_proposals p JOIN centers.training_versions v ON (v.center_id,v.proposal_id,v.revision)=(p.center_id,p.id,p.current_revision) WHERE p.center_id=$1 AND p.member_id=$2 AND p.recipient_uid=$3 AND p.actor_uid=$4 AND p.state='offered' AND v.bundle_hash=$5 AND v.state IN ('offered','accepted') LIMIT 1",[centerId,member.id,recipient,user.id,commandHash(bundle)]);
-      if(duplicates.length){const result={proposal:dto(await record(client,centerId,duplicates[0].id),{content:true})};await rememberCommand(client,centerId,user.id,operation,requestId,hash,result);checkSession();return result}
+      const {rows:duplicates}=await client.query("SELECT p.id,v.routine_ids FROM centers.training_proposals p JOIN centers.training_versions v ON (v.center_id,v.proposal_id,v.revision)=(p.center_id,p.id,p.current_revision) WHERE p.center_id=$1 AND p.member_id=$2 AND p.recipient_uid=$3 AND p.actor_uid=$4 AND p.state='offered' AND v.bundle_hash=$5 AND v.state IN ('offered','accepted') AND NOT EXISTS(SELECT 1 FROM centers.training_routine_archives x WHERE x.version_id=v.id AND x.active) LIMIT 1",[centerId,member.id,recipient,user.id,commandHash(bundle)]);
+      const personal=readOwnTraining?.(recipient);
+      const removedIds=new Set([...Object.keys(personal?.deleted?.routines||{}).filter(id=>personal.deleted.routines[id]>0),...(personal?.resetIds?.routines||[])]);
+      if(duplicates.length&&!Object.values(duplicates[0].routine_ids).some(id=>removedIds.has(id))){const result={proposal:dto(await record(client,centerId,duplicates[0].id),{content:true})};await rememberCommand(client,centerId,user.id,operation,requestId,hash,result);checkSession();return result}
       checkSession();await client.query('INSERT INTO centers.training_proposals(id,center_id,member_id,recipient_uid,actor_uid) VALUES($1,$2,$3,$4,$5)',[target,centerId,member.id,recipient,user.id]);
     }
     await insertVersion(client,centerId,target,member.id,recipient,revision,bundle,user.id);
@@ -81,19 +91,19 @@ export function trainingListOptions(params,{own=false}={}){
   if(!Number.isSafeInteger(limit)||limit<1||limit>50||cursor?.length>1024)throw new CentersError(400,'invalid-input','invalid training page');
   return {limit,cursor,memberId};
 }
-export function listTraining(database,uid,centerId,{limit=20,cursor=null,memberId=null}={}, {own=false,platform=false}={}){
+export function listTraining(database,uid,centerId,{limit=20,cursor=null,memberId=null}={}, {own=false,platform=false,readOwnTraining=null}={}){
   const scope=cursorScope(['training',own,uid,centerId,memberId]),after=readCursor(cursor,scope);
   return businessTransaction(database,uid,centerId,own?'training.own.read':'training.assign',async client=>{
     if(memberId)await memberRecord(client,centerId,memberId);
     const {rows}=await client.query(`SELECT ${projection},v.created_at::text AS cursor_at,v.id AS cursor_id ${joins}
-      WHERE v.center_id=$1 AND (v.revision=p.current_revision OR ($3::boolean AND a.accepted_at IS NOT NULL AND k.result IS NULL)) AND ($2::text IS NULL OR v.member_id=$2)
+      WHERE v.center_id=$1 AND (v.revision=p.current_revision OR a.accepted_at IS NOT NULL) AND ($2::text IS NULL OR v.member_id=$2)
       AND (NOT $3::boolean OR (v.recipient_uid=$4 AND centers.owns_member(v.center_id,v.member_id)))
       AND ($5::timestamptz IS NULL OR (v.created_at,v.id)<($5::timestamptz,$6::text)) ORDER BY v.created_at DESC,v.id DESC LIMIT $7`,[centerId,memberId,own,uid,after?.at||null,after?.id||null,limit+1]);
-    const page=rows.slice(0,limit);return {proposals:page.map(row=>dto(row,{own})),nextCursor:rows.length>limit?nextCursor(scope,page.at(-1)):null};
+    const page=rows.slice(0,limit);return {proposals:page.map(row=>dto(row,{own,readOwnTraining})),nextCursor:rows.length>limit?nextCursor(scope,page.at(-1)):null};
   },{platform:!own&&platform,allowInactive:true});
 }
-export function getTraining(database,uid,centerId,id,{own=false,platform=false,versionId=null}={}){
-  return businessTransaction(database,uid,centerId,own?'training.own.read':'training.assign',async client=>({proposal:dto(await record(client,centerId,id,{own,uid,versionId}),{own,content:true})}),{platform:!own&&platform,allowInactive:true});
+export function getTraining(database,uid,centerId,id,{own=false,platform=false,versionId=null,readOwnTraining=null}={}){
+  return businessTransaction(database,uid,centerId,own?'training.own.read':'training.assign',async client=>({proposal:dto(await record(client,centerId,id,{own,uid,versionId}),{own,content:true,readOwnTraining})}),{platform:!own&&platform,allowInactive:true});
 }
 export function acceptTraining({database,user,checkSession},raw){
   objectBody(raw,['centerId','id','versionId','requestId']);const centerId=idField(raw.centerId),id=idField(raw.id),versionId=idField(raw.versionId),requestId=requestField(raw.requestId),hash=commandHash({id,versionId});

@@ -1,3 +1,4 @@
+import RoutineOriginBadge from '../components/RoutineOriginBadge.jsx'
 import {PLAN_VIEW_KEY,readPlanView as readView} from '../lib/plan-view.js'
 import TrainingPlanLibrary from '../components/TrainingPlanLibrary.jsx'
 import {planOf} from '../lib/training-plans.js'
@@ -331,7 +332,7 @@ function Schedule({ S, update, nav, mode }) {
             <span className={'plan-order' + (item?.state === 'next' ? ' next' : '')}>{item?.state === 'done' ? <Icon name="check" /> : i + 1}</span>
             <span className="lrow-i"><Icon name={glyphOf(r?.emoji)} /></span>
             <div className="grow" style={{ minWidth: 0 }}>
-              <div className="tt">{r?.name ?? id}</div>
+              <div className="tt">{r?.name ?? id}<RoutineOriginBadge state={S} routine={r||id}/></div>
               <div className="ss">{item ? stateWord(item) : r ? exCount(r.ex.length) : ''}</div>
             </div>
             {editing && seq.length > 1 && <button className="plan-handle" aria-label={t('Move {0}', r?.name ?? id)} title={t('Drag to reorder')}
@@ -438,14 +439,14 @@ export function Routines({ S, update, nav, management=false, initialPlanId='*', 
           <div key={r.id} data-reorder-row className="item plan-routine" style={reorder.rowStyle(i)}>
             <button className="plan-minus" aria-label={t('Delete {0}', r.name)} title={t('Delete routine')} onClick={() => remove(r)}><Icon name="minus" /></button>
             <span className="lrow-i"><Icon name={glyphOf(r.emoji)} /></span>
-            <div className="grow"><div className="tt">{r.name}</div><div className="ss">{sub(r)}</div></div>
+            <div className="grow"><div className="tt">{r.name}<RoutineOriginBadge state={S} routine={r}/></div><div className="ss">{sub(r)}</div></div>
             {routines.length > 1 && <button className="plan-handle" aria-label={t('Move {0}', r.name)} title={t('Drag to reorder')}
               {...reorder.handle(i)}><Icon name="chevronsUpDown" /></button>}
           </div>)}</div>
         : <div className="list routine-list plan-routines">{routines.map(r => {
           const row = <div key={r.id} className="item plan-routine" {...tappable(() => nav(basePath+'/r/' + r.id))}>
             <span className="lrow-i"><Icon name={glyphOf(r.emoji)} /></span>
-            <div className="grow"><div className="tt">{r.name}</div><div className="ss">{sub(r)}</div></div>
+            <div className="grow"><div className="tt">{r.name}<RoutineOriginBadge state={S} routine={r}/></div><div className="ss">{sub(r)}</div></div>
             <Icon name="chevronRight" className="chev" /></div>
           // Swipe (v1.3.11, Settings → Swipe actions): toward the start deletes with an Undo,
           // toward the end duplicates. Edit's minus and the routine's own page stay the way in

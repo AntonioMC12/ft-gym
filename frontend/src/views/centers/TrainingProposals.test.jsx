@@ -7,12 +7,13 @@ vi.mock('../../lib/i18n.js',()=>({t:key=>key,exerciseNameFor:ex=>ex?.n||''}))
 vi.mock('../../sheets.jsx',()=>({confirmSheet:vi.fn()}))
 vi.mock('../../lib/centers-api.js',()=>({centerTraining:vi.fn(),centerTrainingProposal:vi.fn(),centerCommand:vi.fn(),trainingErrorKey:()=> 'Delivery error'}))
 vi.mock('../../store/useStore.js',()=>{const state={user:{id:'actor'},S:{},update:vi.fn(),syncNow:vi.fn()};return {useStore:Object.assign(selector=>selector(state),{getState:()=>state})}})
-vi.mock('../../store/useCenters.js',()=>({useCenters:{getState:()=>({revokeOn:vi.fn()})}}))
-vi.mock('../../components/ui.jsx',async original=>({...await original(),MultiSelectRow:({onToggle})=><button type="button" onClick={()=>onToggle('source')}>Choose routine</button>}))
+vi.mock('../../store/useCenters.js',()=>({useCenters:Object.assign(vi.fn(()=>({ownerUid:'actor',status:'ready',platformCapabilities:[]})),{getState:()=>({revokeOn:vi.fn()})})}))
+vi.mock('../../components/ui.jsx',async original=>({...await original(),SelectRow:({title,value,options,onChange})=><select aria-label={title} value={value} onChange={e=>onChange(e.target.value)}>{options.map(o=><option key={o.value} value={o.value}>{o.label}</option>)}</select>,MultiSelectRow:({onToggle})=><button type="button" onClick={()=>onToggle('source')}>Choose routine</button>}))
 import {centerTraining,centerTrainingProposal,centerCommand} from '../../lib/centers-api.js'
 import {confirmSheet} from '../../sheets.jsx'
 import {useStore} from '../../store/useStore.js'
 import {nav} from '../../lib/nav.js'
+import {useCenters} from '../../store/useCenters.js'
 import TrainingProposals from './TrainingProposals.jsx'
 import Guard from './NavigationGuard.jsx'
 
@@ -23,7 +24,7 @@ const routine={id:'source',name:'Push',ex:[{id:'0025',sets:3,reps:8,weight:60}]}
 const proposal={id:'proposal',version:1,versionId:'version1',revision:1,name:'Trainer plan',unit:'kg',state:'offered',proposalState:'offered',acceptedAt:null,deliveryResult:null,deliveryKey:key,routineIds:{source:rid},bundle:{opengym_plan:1,name:'Trainer plan',unit:'kg',routines:[routine],customEx:[],week:{1:['source']}}}
 const member={id:'member1',name:'Member One',version:2,state:'active',accountLinked:true}
 beforeEach(()=>{
-  vi.clearAllMocks();const state=useStore.getState();state.user={id:'actor'};state.S={unit:'kg',routines:[structuredClone(routine)],customEx:[],week:{2:['source']},dayPlan:{'2026-10-16':['source']},active:{id:'live'}}
+  vi.clearAllMocks();useCenters.mockReturnValue({ownerUid:'actor',status:'ready',platformCapabilities:[]});const state=useStore.getState();state.user={id:'actor'};state.S={unit:'kg',routines:[structuredClone(routine)],customEx:[],week:{2:['source']},dayPlan:{'2026-10-16':['source']},active:{id:'live'}}
   state.update.mockImplementation(mut=>mut(state.S));state.syncNow.mockResolvedValue({status:'ok'})
   centerTraining.mockResolvedValue({proposals:[proposal],nextCursor:null});centerTrainingProposal.mockResolvedValue({proposal:structuredClone(proposal)})
   centerCommand.mockImplementation(async path=>({proposal:{...proposal,acceptedAt:stamp,...(path.endsWith('/ack')?{deliveryResult:'applied'}:{})}}))
@@ -120,3 +121,24 @@ it('rejects an unavailable direct proposal without importing or accepting anythi
 it('opens the workout chooser from the personal proposal view instead of reloading centers',async()=>{
  await render();expect(button('Reload centers')).toBeUndefined();await click('Start training');expect(nav).toHaveBeenCalledWith('/workout');expect(centerCommand).not.toHaveBeenCalled();
 })
+
+
+it('only platform can retire an accepted routine after confirmation',async()=>{
+ useCenters.mockReturnValue({ownerUid:'actor',status:'ready',platformCapabilities:['centers.manage']});
+ centerTrainingProposal.mockResolvedValue({proposal:{...proposal,acceptedAt:stamp,routineCount:1}});
+ await render({own:false,member,canAssign:true});await open();expect(button('Retire assignment')).toBeTruthy();
+ await click('Retire assignment');expect(centerCommand).not.toHaveBeenCalled();await act(async()=>confirm().onConfirm());
+ expect(centerCommand).toHaveBeenCalledWith('/api/centers/training/retire',expect.objectContaining({centerId:'center1',versionId:'version1',routineId:rid,requestId:expect.any(String)}));
+});
+it('archived assignments are separate from active ones and other staff cannot retire them',async()=>{
+ const retired={...proposal,routineCount:1,acceptedAt:stamp,retirements:[{routineId:rid,reason:'member',at:stamp}]};
+ centerTraining.mockResolvedValue({proposals:[retired],nextCursor:null});centerTrainingProposal.mockResolvedValue({proposal:retired});
+ await render({own:false,member,canAssign:true});expect(host.textContent).not.toContain('Trainer plan');
+ await act(async()=>{const field=host.querySelector('select');field.value='archived';field.dispatchEvent(new Event('change',{bubbles:true}))});await open();
+ expect(host.textContent).toContain('Removed by member');expect(button('Retire assignment')).toBeUndefined();
+});
+
+it('keeps the revision form collapsed while reviewing a proposal without losing its controls',async()=>{
+ await render({own:false,member,canAssign:true});await open();
+ const compose=host.querySelector('.training-proposal-compose');expect(compose).not.toBeNull();expect(compose.open).toBe(false);expect(compose.querySelector('summary').textContent).toBe('New proposal version');expect(compose.querySelector('form')).not.toBeNull();
+});

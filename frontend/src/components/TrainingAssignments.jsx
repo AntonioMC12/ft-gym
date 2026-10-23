@@ -18,6 +18,8 @@ export default function TrainingAssignments({routineIds,planName,mode='all',onMa
  const uid=useStore(s=>s.user?.id),state=useCenters(),platform=state.ownerUid===uid&&state.platformCapabilities.includes('centers.manage')
  const [centers,setCenters]=useState([]),[center,setCenter]=useState(''),[members,setMembers]=useState([]),[selected,setSelected]=useState([]),[query,setQuery]=useState(''),[cursor,setCursor]=useState(null),[busy,setBusy]=useState(false),[error,setError]=useState(null),[message,setMessage]=useState(''),[member,setMember]=useState(null),[linking,setLinking]=useState(false)
  const [expandedMembers,setExpandedMembers]=useState(false)
+ const [choosingMember,setChoosingMember]=useState(false)
+ useEffect(()=>setChoosingMember(false),[member?.id,mode])
  const memberNames=useRef(new Map())
  const [loadingCenters,setLoadingCenters]=useState(true),[retry,setRetry]=useState(0)
  const [chosenRoutines,setChosenRoutines]=useState(routineIds)
@@ -79,6 +81,8 @@ export default function TrainingAssignments({routineIds,planName,mode='all',onMa
   <Row className={'select-field'+(center?' has-selection':'')} title={t('Centers')} value={centers.find(c=>c.id===center)?.name||center} accessory="dropdown" disabled={busy||loadingCenters} onClick={openCenters}/>
   {showAssign&&<>{planPicker||planName&&<Row title={t('Plan')} value={planName}/>}
   <div className="training-routine-choice"><MultiSelectRow title={t('Routines')} values={chosenRoutines} options={routines.filter(r=>routineIds.includes(r.id)).map(r=>({value:r.id,label:r.name}))} onToggle={id=>{if(!busy)setChosenRoutines(rows=>rows.includes(id)?rows.filter(x=>x!==id):[...rows,id])}}/></div></>}
+  {proposalPicker&&member&&<div className="training-selected-member"><Row title={member.name} subtitle={number(member)} accessory="chevron" onClick={()=>setChoosingMember(value=>!value)}/><Button size="sm" variant="tinted" aria-expanded={choosingMember} onClick={()=>setChoosingMember(value=>!value)}>{t('Change member')}</Button></div>}
+  {(!proposalPicker||!member||choosingMember)&&<>
   <SearchField ref={searchRef} aria-label={t('Search members')} placeholder={t('Search members')} value={query} readOnly={sending.current} aria-busy={busy} onChange={e=>{if(!sending.current)setQuery(e.target.value)}} onClear={()=>{if(!sending.current){setQuery('');searchRef.current?.focus()}}}/>
   {(showAssign||proposalPicker)&&<div className="training-recipient-picker">
    <div className="training-recipient-heading"><h3>{t('Members')}</h3><span className="small muted" role="status">{t('Selected')} · {proposalPicker?(member?1:0):selected.length}</span></div>
@@ -98,6 +102,7 @@ export default function TrainingAssignments({routineIds,planName,mode='all',onMa
   {!showAssign&&!proposalPicker&&cursor&&<Button disabled={busy} onClick={more}>{t('Show more')}</Button>}
   {!members.length&&!busy&&<p>{t('No members available')}</p>}
   {mode==='accounts'?<div className="training-member-results"><p className="small muted">{t('Choose a center member, with or without a linked account.')}</p><div className="centers-accounts-list">{members.map(m=><Row key={m.id} title={m.name} subtitle={number(m)+' · '+t(m.accountLinked?'Account linked':'No linked account')} value={member?.id===m.id?t('Selected'):null} accessory={member?.id===m.id?'check':'chevron'} disabled={busy} onClick={()=>navigate(()=>inspect(m.id,true))}/>)}</div><div className="training-member-toolbar"><Button variant="plain" disabled={busy||!center} onClick={reloadMembers}>{t('Refresh members')}</Button></div></div>:<Button className="training-refresh-members" disabled={busy||!center} onClick={reloadMembers}>{t('Refresh members')}</Button>}
+  </>}
   {!loadingCenters&&!centers.length&&!error&&<p role="status">{t('No centers available')}</p>}
   {(busy||loadingCenters)&&<p role="status">{t('Loading…')}</p>}
   {showAssign&&<div className="centers-form-actions training-assignment-actions" data-center-form-actions><ActionReason reason={reason}><Button variant="primary" disabled={!!reason} onClick={assign}>{t(sending.current?'Saving…':'Send plan')}{selected.length>0?' · '+selected.length:''}</Button></ActionReason></div>}

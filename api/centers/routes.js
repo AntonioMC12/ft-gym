@@ -1,3 +1,4 @@
+import {retireAssignedRoutine,reconcileAssignments} from './services/training-lifecycle.js';
 import {progressMembers,memberProgress,progressPageOptions} from './services/member-progress.js';
 import {communityRead,communityCommand,communitySummary} from './services/community.js';
 import {registrationCenter,requestActivation,ownActivations,listActivations,decideActivation,platformActivationSummary} from './services/activations.js';
@@ -90,13 +91,13 @@ export function centersRoutes({ config, database, json, readSession, readBody, d
     const user=guard(req,res);if(!user)return;const sv=user.sv||0,params=new URL(req.url,'http://x').searchParams,centerId=params.get('centerId');
     if(!recordId(centerId))return json(res,404,{error:'not found',code:'not-found'});
     try{
-      let result;
+      let result;const snapshots=new Map(),lifecycleRead=uid=>{if(!snapshots.has(uid))snapshots.set(uid,readOwnTraining(uid));return snapshots.get(uid)};
       if(detail){
         const id=params.get('id'),versionId=params.get('versionId');
         if(!recordId(id)||(versionId!==null&&!recordId(versionId)))return json(res,404,{error:'not found',code:'not-found'});
         if([...params.keys()].some(key=>!['centerId','id','versionId'].includes(key)))throw new CentersError(400,'invalid-input','invalid training selectors');
-        result=await getTraining(database,user.id,centerId,id,{own,platform:isPlatformUser(config,user),versionId});
-      }else result=await listTraining(database,user.id,centerId,trainingListOptions(params,{own}),{own,platform:isPlatformUser(config,user)});
+        result=await getTraining(database,user.id,centerId,id,{own,platform:isPlatformUser(config,user),versionId,readOwnTraining:lifecycleRead});
+      }else result=await listTraining(database,user.id,centerId,trainingListOptions(params,{own}),{own,platform:isPlatformUser(config,user),readOwnTraining:lifecycleRead});
       if(!current(req,user,sv))return json(res,401,{error:'not signed in'});return json(res,200,result);
     }catch(error){return failure(res,error)}
   };
@@ -255,6 +256,8 @@ export function centersRoutes({ config, database, json, readSession, readBody, d
     'POST /api/centers/training/revise':mutate(false,(context,body)=>proposeTraining(context,body,{platform:isPlatformUser(config,context.user),revise:true})),
     'POST /api/centers/training/withdraw':mutate(false,(context,body)=>withdrawTraining(context,body,{platform:isPlatformUser(config,context.user)})),
     'POST /api/centers/own/training/accept':mutate(false,acceptTraining),
+    'POST /api/centers/training/retire':mutate(true,retireAssignedRoutine),
+    'POST /api/centers/own/training/lifecycle':mutate(false,reconcileAssignments),
     'POST /api/centers/own/training/ack':mutate(false,acknowledgeTraining),
     'POST /api/centers/stripe/webhook': async(req,res)=>{
       if(!config.enabled)return json(res,404,{error:'not found'});

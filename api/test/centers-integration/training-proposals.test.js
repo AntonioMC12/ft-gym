@@ -219,3 +219,37 @@ test('platform member progress reads all saved dates without touching state; oth
  const detail=await req(`/api/platform/progress/member?centerId=${center}&memberId=${alice.id}`,ids.root);assert.equal(detail.status,200,JSON.stringify(detail));assert.equal(detail.body.progress.workouts[0].d,'2020-01-01');assert.equal(detail.body.progress.definitions.own.n,'Own press');assert.ok(!JSON.stringify(detail.body).includes('private'));assert.equal(fs.readFileSync(file,'utf8'),before);
  const audit=await db.platformTransaction(ids.root,c=>c.query("SELECT action FROM centers.business_audit WHERE center_id=$1 AND target_id=$2 AND action='platform.member-progress.read'",[center,alice.id]),center);assert.equal(audit.rows.length,1);
 });
+
+test('accepted routines can be retired only by platform, user deletions archive without deleting history and undo reactivates',async t=>{
+ const f=await fixture(t),{ids,req,center,h}=f;
+ const offered=(await f.propose()).body.proposal,accepted=(await req('/api/centers/own/training/accept',ids.alice,f.own(offered))).body.proposal;
+ const rid=accepted.routineIds.r1,file=path.join(h.dir,`state-${ids.alice}.json`),history=[{id:'historic',d:'2020-01-01',routineIds:[rid],entries:[{id:'0025',sets:[{w:20,r:10,done:true}]}]}];
+ const state={routines:[{id:rid,name:'Assigned',ex:[]}],workouts:history,deleted:{routines:{}}};fs.writeFileSync(file,JSON.stringify(state));
+ const detail=()=>req(`/api/centers/training/proposal?centerId=${center}&id=${accepted.id}&versionId=${accepted.versionId}`,ids.root);
+ state.routines=[];state.deleted.routines[rid]=Date.now();fs.writeFileSync(file,JSON.stringify(state));
+ assert.equal((await detail()).body.proposal.retirements[0].reason,'member');
+ const lifecycle='/api/centers/own/training/lifecycle';assert.equal((await req(lifecycle,ids.alice,{centerId:center})).status,200);
+ const events=await f.db.platformTransaction(ids.root,c=>c.query('SELECT * FROM centers.training_routine_archives WHERE version_id=$1',[accepted.versionId]),center);assert.equal(events.rows[0].active,true);
+ state.routines=[{id:rid,name:'Restored',ex:[]}];state.deleted.routines[rid]=-Date.now();fs.writeFileSync(file,JSON.stringify(state));
+ await req(lifecycle,ids.alice,{centerId:center});assert.deepEqual((await detail()).body.proposal.retirements,[]);
+ const body={centerId:center,versionId:accepted.versionId,routineId:rid,requestId:f.p+'_retire'};
+ for(const uid of [ids.alice,ids.manager,ids.trainer,ids.technical])assert.equal((await req('/api/centers/training/retire',uid,body)).status,403);
+ await assert.rejects(f.db.transaction({uid:ids.manager,centerId:center},c=>c.query(`INSERT INTO centers.training_routine_archives(center_id,version_id,member_id,recipient_uid,routine_id,reason,actor_uid) VALUES($1,$2,$3,$4,$5,'platform',$6)`,[center,accepted.versionId,f.alice.id,ids.alice,rid,ids.manager])),e=>e.code==='42501');
+ assert.equal((await req('/api/centers/training/retire',ids.root,body)).status,200);assert.equal((await req('/api/centers/training/retire',ids.root,body)).status,200);
+ assert.equal((await req('/api/centers/training/retire',ids.root,{...body,routineId:'cr_'+'f'.repeat(32),requestId:f.p+'_wrong'})).status,404);
+ const pending=(await detail()).body.proposal.retirements[0];assert.equal(pending.reason,'platform');assert.equal(pending.pending,true);
+ const result=await req(lifecycle,ids.alice,{centerId:center});assert.equal(result.body.retirements[0].id,rid);
+ assert.deepEqual(JSON.parse(fs.readFileSync(file)).workouts,history);assert.equal(JSON.parse(fs.readFileSync(file)).routines.length,1);
+ assert.deepEqual((await req(lifecycle,ids.bob,{centerId:center})).body.retirements,[]);
+ state.routines=[];state.deleted.routines[rid]=Date.now();fs.writeFileSync(file,JSON.stringify(state));await req(lifecycle,ids.alice,{centerId:center});assert.equal((await detail()).body.proposal.retirements[0].pending,false);
+ const again=(await f.propose(f.alice,ids.trainer,'resent')).body.proposal;assert.notEqual(again.id,accepted.id);assert.notEqual(again.routineIds.r1,rid);
+});
+
+test('platform can still retire an older accepted version after a newer proposal version exists',async t=>{
+ const f=await fixture(t),old=(await f.propose()).body.proposal;
+ const accepted=(await f.req('/api/centers/own/training/accept',f.ids.alice,f.own(old))).body.proposal;
+ const newer=(await f.req('/api/centers/training/revise',f.ids.trainer,{centerId:f.center,id:old.id,version:old.version,bundle:{...bundle(),name:'New revision'},requestId:f.p+'_newversion'})).body.proposal;
+ const list=await f.req(`/api/centers/training?centerId=${f.center}&memberId=${f.alice.id}`,f.ids.root);assert.equal(list.status,200);assert.ok(list.body.proposals.some(p=>p.versionId===accepted.versionId));assert.ok(list.body.proposals.some(p=>p.versionId===newer.versionId));
+ assert.equal((await f.req('/api/centers/training/retire',f.ids.root,{centerId:f.center,versionId:accepted.versionId,routineId:accepted.routineIds.r1,requestId:f.p+'_old_retire'})).status,200);
+ const detail=await f.req(`/api/centers/training/proposal?centerId=${f.center}&id=${newer.id}&versionId=${newer.versionId}`,f.ids.root);assert.deepEqual(detail.body.proposal.retirements,[]);
+});

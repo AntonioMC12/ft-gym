@@ -560,3 +560,17 @@ fieldset.centers-fields{border:0;padding:0;min-width:0}
 
 /* Keep membership price fields and selectors visually separated. */
 .centers-membership-plan-editor{display:flex;flex-direction:column;gap:14px}
+
+/* Proposal workspace: keep recipient context compact while reviewing content. */
+.training-selected-member{display:flex;align-items:center;gap:12px;padding:8px 12px;background:var(--surface-2);border:1px solid var(--sep);border-radius:var(--r)}
+.training-selected-member>.lrow{flex:1;min-width:0;background:transparent;padding-inline:0}
+.training-selected-member>.btn{flex:none;width:auto;min-height:44px}
+.training-proposal-compose{margin-block:16px;border:1px solid var(--sep);border-radius:var(--r);overflow:hidden;background:var(--surface-2)}
+.training-proposal-compose>summary{padding:16px;font-weight:600;cursor:pointer;min-height:48px}
+.training-proposal-compose>form{display:grid;gap:14px;padding:0 16px 16px}
+.training-proposal-compose>form>p{margin:0;line-height:1.5}
+.training-proposal-routine>.training-retire-action{width:auto;margin:0 16px 12px;min-height:44px}
+.training-proposal-routine>p{margin:0 16px 12px;line-height:1.5}
+.training-state-label{display:inline-flex;margin:8px 8px 8px 0}
+.training-proposal-compose>summary:focus-visible{outline:2px solid var(--acc);outline-offset:-3px}
+@media(max-width:600px){.training-selected-member{flex-wrap:wrap}.training-selected-member>.lrow{flex-basis:55%}.training-selected-member>.btn{max-width:100%}}

@@ -1,4 +1,10 @@
 const es = {
+ 'Refresh proposals':'Actualizar propuestas',
+ 'Change member':'Cambiar socio',
+ 'Personal routine':'Personal',
+ 'Active assignments':'Activas','Archived assignments':'Archivadas',
+ 'Pending synchronization':'Pendiente de sincronización',
+ 'Assignments':'Asignaciones','Archived':'Archivadas','Partially archived':'Parcialmente archivada','Withdrawn by superadmin':'Retirada por el superadmin','Removed by member':'Retirada por el socio','Retire assignment?':'¿Retirar asignación?','Retire assignment':'Retirar asignación','Saved workouts and the current session are kept. Removal applies when the member synchronizes.':'Se conservan los entrenamientos guardados y la sesión en curso. La retirada se aplica cuando el socio sincronice.',
  'Publish private exercises to FT Training from their exercise details before sending this plan.': 'Publica los ejercicios privados en FT Training desde su ficha antes de enviar este plan.',
  'Member progress': 'Progreso Socios', 'Read only': 'Solo consulta', 'No training data': 'No hay entrenamientos registrados', 'Could not load member progress': 'No se pudo cargar el progreso del socio',
   'Exercise origin': 'Origen del ejercicio', 'FT Training': 'FT Training', 'Base catalogue': 'Catálogo base', 'My exercises': 'Mis ejercicios',

@@ -1,3 +1,4 @@
+import {applyAssignmentRetirements} from './assignment-lifecycle.js'
 import {t} from './i18n-core.js'
 import {createTrainingPlan} from './training-plans.js'
 import {parsePlan,mergePlan} from './plan-share.js'
@@ -8,6 +9,7 @@ export function applyPlanDelivery(state,delivery,{schedule=false}={}){
   if(!ids||typeof ids!=='object'||Array.isArray(ids))throw new Error('invalid delivery routine map')
   const marker=mergePlanDeliveries([{id:key,acceptedAt,routineIds:ids&&Object.values(ids)}],[])[0]
   if(!marker||marker.id!==key||typeof schedule!=='boolean')throw new Error('invalid accepted plan delivery')
+  applyAssignmentRetirements(state,(delivery.retirements||[]).filter(r=>r.reason==='platform'))
   const previous=mergePlanDeliveries(state.planDeliveries,[])
   const applied=previous.find(row=>row.id===key)
   if(applied){

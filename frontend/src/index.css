@@ -1051,6 +1051,9 @@ body.chips-dragging *{cursor:inherit}
 .sethead .n-sp{width:24px;flex:none}
 .sethead .w-sp{flex:1.4;text-align:center}
 .sethead .r-sp{flex:1;text-align:center}
+.rep-plan{display:flex;align-items:center;flex-wrap:wrap;gap:6px 10px;margin:6px 0}
+.rep-goal{display:inline-flex;align-items:center;flex-wrap:wrap;gap:4px 8px;padding:6px 9px;border:1px solid var(--acc-line);border-radius:8px;background:var(--acc-soft);font-size:12px;line-height:1.4;color:var(--label-2)}
+.rep-goal strong{font-size:14px;font-weight:600;color:var(--acc);white-space:nowrap;font-variant-numeric:tabular-nums}
 .sethead .eff-sp{text-align:center}
 .sethead .ck-sp{width:30px;flex:none}
 .setrow{display:flex;align-items:center;gap:8px;padding:7px 0;position:relative}
@@ -2324,3 +2327,13 @@ button.wl-summary{width:100%;padding:0 0 10px;text-align:start;border-radius:var
 .account-auth-field>span{font-size:13px;color:var(--label-2)}
 .account-auth-field>small{line-height:1.45}
 .registration-center-notice{margin:14px 0;padding:14px;border:1px solid var(--sep);border-radius:var(--r);background:var(--surface-2);line-height:1.5;font-size:14px}
+
+/* Range suggestions pan only while the repetition field is empty. */
+.stp .val:has(.rep-range-scroll){position:relative}
+.rep-range-scroll{position:absolute;inset:0 2px;display:flex;align-items:center;overflow:hidden;pointer-events:none;container-type:inline-size;color:var(--label-3);font-size:18px;font-variant-numeric:tabular-nums}
+.rep-range-scroll>span{display:block;flex:none;min-width:100%;width:max-content;white-space:nowrap;text-align:center;animation:rep-range-pan 3s ease-in-out infinite alternate}
+.stp .val:has(.rep-range-scroll) .num::placeholder{color:transparent}
+.stp .val:focus-within .rep-range-scroll{visibility:hidden}
+.stp .val:focus-within:has(.rep-range-scroll) .num::placeholder{color:var(--label-3)}
+@keyframes rep-range-pan{0%,25%{transform:translateX(0)}75%,100%{transform:translateX(min(0px,calc(100cqw - 100%)))}}
+@media(prefers-reduced-motion:reduce){.rep-range-scroll>span{animation:none;font-size:12px}}

@@ -25,9 +25,18 @@ const entry=()=>({id:'0025',rid:'r',target:{mode:'reps',reps:12,repsMin:8,weight
 const active=e=>({id:'active',d:todayISO(),start:Date.now(),name:'Test',cur:0,routineIds:['r'],entries:[e],workoutView:'cards'});
 const input=()=>host.querySelector('input[aria-label="Reps"]');
 const type=async value=>act(async()=>{Object.getOwnPropertyDescriptor(HTMLInputElement.prototype,'value').set.call(input(),value);input().dispatchEvent(new Event('input',{bubbles:true}))});
+it('shows the full range as scrolling text until actual reps are entered',async()=>{
+ useStore.setState(s=>({S:{...s.S,active:active(entry())}}));await render();
+ expect(host.querySelector('.rep-range-scroll').textContent).toBe('8–12');
+ expect(input().placeholder).toBe('8');expect(input().value).toBe('');
+ expect(useStore.getState().S.active.entries[0].sets[0].r).toBeNull();
+ await type('14');expect(host.querySelector('.rep-range-scroll')).toBeNull();expect(input().value).toBe('14');
+ await type('');expect(host.querySelector('.rep-range-scroll').textContent).toBe('8–12');
+});
 it('shows previous repetitions only as a placeholder; typing and clearing keep the actual input separate',async()=>{
  useStore.setState(s=>({S:{...s.S,active:active(entry()),workouts:[{id:'old',d:'2026-10-15',routineIds:['r'],entries:[{id:'0025',rid:'r',sets:[{w:20,r:10,done:true}]}]}]}}));
  await render();expect(input().value).toBe('');expect(input().placeholder).toBe('10');expect(host.textContent).toContain('8–12');expect(useStore.getState().S.active.entries[0].sets[0].r).toBeNull();
+ expect(host.querySelector('.rep-goal').textContent).toContain('Repetition target');expect(host.querySelector('.rep-goal strong').textContent).toBe('8–12');
  await type('11');expect(input().value).toBe('11');expect(useStore.getState().S.active.entries[0].sets[0].r).toBe(11);
  await type('');expect(input().value).toBe('');expect(input().placeholder).toBe('10');expect(useStore.getState().S.active.entries[0].sets[0].r).toBeNull();
 });

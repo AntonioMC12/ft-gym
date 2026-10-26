@@ -89,6 +89,8 @@ function PlanBadge({ entry, mode }) {
   const planned = entry.planned && mode !== 'cardio' ? entry.planned : null
   if (!planned) return null
   const today = entry.target || {}
+  if (mode === 'reps' && !today.pyramid && planned.repsMin > 0 && planned.repsMin < planned.reps)
+    return <span className="rep-goal"><span>{t('Repetition target')}</span><strong>{planned.repsMin}–{planned.reps}</strong></span>
   const todaySets = today.sets || planned.sets || 1
   const inPlan = mode === 'time'
     ? today.sec == null || today.sec === planned.sec

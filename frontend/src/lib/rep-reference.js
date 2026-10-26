@@ -23,6 +23,9 @@ export function repReference(S,entry,index,side,path=[]){
 }
 export const repsEntered=(row,side)=>{const s=side?row?.sides?.[side]:row;return typeof s?.r==='number'&&Number.isFinite(s.r)&&s.r>=0}
 
+// Inputs show one suggested count; the full target range belongs in the heading/plan.
+export const repInputReference=(...args)=>repReference(...args).split('–')[0]
+
 // Checking accepts the visible suggestion; a range uses its lower bound.
 export function acceptRepReference(S,entry,index,side){
  const row=entry.sets[index],actual=side?row?.sides?.[side]:row

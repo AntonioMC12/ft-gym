@@ -1,6 +1,6 @@
 import RoutineOriginBadge from '../components/RoutineOriginBadge.jsx'
 import {tappable} from '../lib/use-sheet-keyboard.js'
-import {blankRepRows,repReference,repsEntered,acceptRepReference} from '../lib/rep-reference.js'
+import {blankRepRows,repReference,repInputReference,repsEntered,acceptRepReference} from '../lib/rep-reference.js'
 import { Fragment, useEffect, useId, useMemo, useRef, useState } from 'react'
 import SwipeCards from '../components/SwipeCards.jsx'
 import SwipeRow from '../components/SwipeRow.jsx'
@@ -248,6 +248,10 @@ function ExerciseBlock({ entryIdx, compact, dense, editing, onToggle, onToggleSi
     const note = todaySets !== (planned.sets || 1) || !inPlan
       ? t('today {0}', setsRepsOf({ mode, sets: todaySets, reps: today.reps, sec: today.sec }))
       : entry.carried ? t('reps from your last session') : null
+    if (mode === 'reps' && planned.repsMin > 0 && planned.repsMin < planned.reps) return <div className="planline rep-plan">
+      <span className="rep-goal"><span>{t('Repetition target')}</span><strong>{planned.repsMin}–{planned.reps}</strong></span>
+      <span className="small dim">{tn('{0} set', '{0} sets', planned.sets || 1)}{note ? ' · ' + note : ''}</span>
+    </div>
     return <div className="small dim planline" style={{ marginBottom: 4 }}>
       {t('Plan: {0}', setsRepsOf({ ...planned, mode }))}{note ? ' · ' + note : ''}
     </div>
@@ -343,11 +347,13 @@ function ExerciseBlock({ entryIdx, compact, dense, editing, onToggle, onToggleSi
   // workout → Workout controls). The lean default keeps the sets and one "more" button; each
   // switch brings one of the old always-visible button rows back.
   const wc = workoutControls(S)
+  const rangeText = (value, reference) => (value == null || value === '') && reference.includes('–')
+    ? <span className="rep-range-scroll" aria-label={t('Repetition target') + ': ' + reference} dir="ltr"><span>{reference}</span></span> : null
   const cell = (s, i, col, cls) => (
     <div className={'stp ' + cls + (wc.steppers ? '' : ' plain')} {...feedbackProps(i, col.f)}>
       {wc.steppers && <button aria-label={t('Decrease')} onClick={() => bump(s, i, col, -1)}><Icon name="minus" /></button>}
-      <span className="val"><NumberField decimal={col.dec} nullable={col.opt||col.f==='r'} placeholder={col.f==='r'?(repReference(sessionHistory(S),entry,i)||'—'):undefined} aria-label={col.hd} value={viewOf(col, s[col.f]) ?? ''}
-        onChange={v => onField(i, col.f, col.store ? col.store(v) : v)} /></span>
+      <span className="val"><NumberField decimal={col.dec} nullable={col.opt||col.f==='r'} placeholder={col.f==='r'?(repInputReference(sessionHistory(S),entry,i)||'—'):undefined} aria-label={col.hd} value={viewOf(col, s[col.f]) ?? ''}
+        onChange={v => onField(i, col.f, col.store ? col.store(v) : v)} />{col.f === 'r' && rangeText(s[col.f], repReference(sessionHistory(S),entry,i))}</span>
       {wc.steppers && <button aria-label={t('Increase')} onClick={() => bump(s, i, col, 1)}><Icon name="plus" /></button>}
     </div>
   )
@@ -532,8 +538,8 @@ function ExerciseBlock({ entryIdx, compact, dense, editing, onToggle, onToggleSi
   const sideCell = (sd, i, side, col, cls) => (
     <div className={'stp ' + cls + (wc.steppers ? '' : ' plain')} {...feedbackProps(i, col.f, side)}>
       {wc.steppers && <button aria-label={t('Decrease')} onClick={() => sideBump(i, side, col, -1)}><Icon name="minus" /></button>}
-      <span className="val"><NumberField decimal={col.dec} nullable={col.f==='r'} placeholder={col.f==='r'?(repReference(sessionHistory(S),entry,i,side)||'—'):undefined} aria-label={col.hd} value={sd[col.f] ?? ''}
-        onChange={v => setSide(i, side, col.f, v)} /></span>
+      <span className="val"><NumberField decimal={col.dec} nullable={col.f==='r'} placeholder={col.f==='r'?(repInputReference(sessionHistory(S),entry,i,side)||'—'):undefined} aria-label={col.hd} value={sd[col.f] ?? ''}
+        onChange={v => setSide(i, side, col.f, v)} />{col.f === 'r' && rangeText(sd[col.f], repReference(sessionHistory(S),entry,i,side))}</span>
       {wc.steppers && <button aria-label={t('Increase')} onClick={() => sideBump(i, side, col, 1)}><Icon name="plus" /></button>}
     </div>
   )
@@ -598,7 +604,7 @@ function ExerciseBlock({ entryIdx, compact, dense, editing, onToggle, onToggleSi
   const miniStepper = (value, step, dec, onChange, snapWeightStep = false, reference = '') => (
     <div className="stp mini">
       <button aria-label={t('Decrease')} onClick={() => onChange(snapWeightStep ? stepLoad(value, step, -1) : Math.max(0, Math.round(((value || 0) - step) * 100) / 100))}><Icon name="minus" /></button>
-      <span className="val"><NumberField decimal={dec} nullable={!dec} placeholder={!dec?(reference||'—'):undefined} aria-label={dec?t('Weight ({0})',S.unit):t('Reps')} value={value ?? ''} onChange={onChange} /></span>
+      <span className="val"><NumberField decimal={dec} nullable={!dec} placeholder={!dec?(reference.split('–')[0]||'—'):undefined} aria-label={dec?t('Weight ({0})',S.unit):t('Reps')} value={value ?? ''} onChange={onChange} />{!dec && rangeText(value, reference)}</span>
       <button aria-label={t('Increase')} onClick={() => onChange(snapWeightStep ? stepLoad(value, step, 1) : Math.max(0, Math.round(((value || 0) + step) * 100) / 100))}><Icon name="plus" /></button>
     </div>
   )

@@ -2,6 +2,9 @@ import { sharedExerciseStrings } from './modules/shared-exercises.js'
 // German UI strings. Keys are the English source strings (see lib/i18n.js).
 import { centersStrings } from './modules/centers.js'
 export default {
+  "Load recommendation": "Gewichtsempfehlung",
+  "You exceeded the prescribed repetition range last session. Increase the load for this session.": "In der letzten Einheit hast du den vorgegebenen Wiederholungsbereich überschritten. Erhöhe für diese Einheit das Gewicht.",
+  "You fell below the prescribed repetition range last session. Reduce the load until you can complete the prescribed range.": "In der letzten Einheit hast du den vorgegebenen Wiederholungsbereich nicht erreicht. Reduziere das Gewicht, bis du den Bereich erreichst.",
   ...sharedExerciseStrings('de'),
   ...centersStrings('de'),
   // --- generic ---

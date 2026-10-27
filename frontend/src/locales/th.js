@@ -2,6 +2,9 @@ import { sharedExerciseStrings } from './modules/shared-exercises.js'
 // Thai UI strings. Keys are the English source strings (see lib/i18n.js).
 import { centersStrings } from './modules/centers.js'
 export default {
+  "Load recommendation": "คำแนะนำเรื่องน้ำหนัก",
+  "You exceeded the prescribed repetition range last session. Increase the load for this session.": "ครั้งก่อนคุณทำจำนวนครั้งเกินช่วงที่กำหนด ครั้งนี้ให้เพิ่มน้ำหนัก",
+  "You fell below the prescribed repetition range last session. Reduce the load until you can complete the prescribed range.": "ครั้งก่อนคุณทำจำนวนครั้งไม่ถึงช่วงที่กำหนด ลดน้ำหนักจนกว่าจะทำได้ตามช่วงที่กำหนด",
   ...sharedExerciseStrings('th'),
   ...centersStrings('th'),
   // --- generic ---

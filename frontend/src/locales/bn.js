@@ -2,6 +2,9 @@ import { sharedExerciseStrings } from './modules/shared-exercises.js'
 // Bengali UI strings. Keys are the English source strings (see lib/i18n.js).
 import { centersStrings } from './modules/centers.js'
 export default {
+  "Load recommendation": "ওজনের পরামর্শ",
+  "You exceeded the prescribed repetition range last session. Increase the load for this session.": "আগের সেশনে আপনি নির্ধারিত পুনরাবৃত্তির সীমা অতিক্রম করেছেন। এই সেশনে ওজন বাড়ান।",
+  "You fell below the prescribed repetition range last session. Reduce the load until you can complete the prescribed range.": "আগের সেশনে আপনি নির্ধারিত পুনরাবৃত্তির সীমায় পৌঁছাতে পারেননি। সেই সীমা পূরণ করতে পারা পর্যন্ত ওজন কমান।",
   ...sharedExerciseStrings('bn'),
   ...centersStrings('bn'),
   'Confirm': 'নিশ্চিত করুন',

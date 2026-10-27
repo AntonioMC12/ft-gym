@@ -2,6 +2,9 @@ import { sharedExerciseStrings } from './modules/shared-exercises.js'
 // Turkish UI strings. Keys are the English source strings (see lib/i18n.js).
 import { centersStrings } from './modules/centers.js'
 export default {
+  "Load recommendation": "Ağırlık önerisi",
+  "You exceeded the prescribed repetition range last session. Increase the load for this session.": "Önceki antrenmanda belirlenen tekrar aralığını aştın. Bu antrenmanda ağırlığı artır.",
+  "You fell below the prescribed repetition range last session. Reduce the load until you can complete the prescribed range.": "Önceki antrenmanda belirlenen tekrar aralığına ulaşamadın. Aralığı tamamlayabilene kadar ağırlığı azalt.",
   ...sharedExerciseStrings('tr'),
   ...centersStrings('tr'),
   'Confirm': 'Onayla',

@@ -2,6 +2,9 @@ import { sharedExerciseStrings } from './modules/shared-exercises.js'
 // Arabic UI strings. Keys are the English source strings (see lib/i18n.js).
 import { centersStrings } from './modules/centers.js'
 export default {
+  "Load recommendation": "توصية بالحمل",
+  "You exceeded the prescribed repetition range last session. Increase the load for this session.": "تجاوزت نطاق التكرارات المحدد في الجلسة السابقة. زد الحمل في هذه الجلسة.",
+  "You fell below the prescribed repetition range last session. Reduce the load until you can complete the prescribed range.": "لم تصل إلى نطاق التكرارات المحدد في الجلسة السابقة. خفّض الحمل حتى تتمكن من إكمال النطاق المحدد.",
   ...sharedExerciseStrings('ar'),
   ...centersStrings('ar'),
   'Confirm': 'تأكيد',

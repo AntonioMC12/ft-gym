@@ -2,6 +2,9 @@ import { sharedExerciseStrings } from './modules/shared-exercises.js'
 // French UI strings. Keys are the English source strings (see lib/i18n.js).
 import { centersStrings } from './modules/centers.js'
 export default {
+  "Load recommendation": "Conseil de charge",
+  "You exceeded the prescribed repetition range last session. Increase the load for this session.": "Lors de la séance précédente, tu as dépassé la plage de répétitions prévue. Augmente la charge pour cette séance.",
+  "You fell below the prescribed repetition range last session. Reduce the load until you can complete the prescribed range.": "Lors de la séance précédente, tu n’as pas atteint la plage de répétitions prévue. Réduis la charge jusqu’à pouvoir la respecter.",
   ...sharedExerciseStrings('fr'),
   ...centersStrings('fr'),
   'Confirm': 'Confirmer',

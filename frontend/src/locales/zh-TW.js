@@ -1,6 +1,9 @@
 import { sharedExerciseStrings } from './modules/shared-exercises.js'
 import { centersStrings } from './modules/centers.js'
 export default {
+  "Load recommendation": "負重建議",
+  "You exceeded the prescribed repetition range last session. Increase the load for this session.": "上次訓練的重複次數超過了設定範圍。本次訓練請增加負重。",
+  "You fell below the prescribed repetition range last session. Reduce the load until you can complete the prescribed range.": "上次訓練的重複次數未達到設定範圍。請降低負重，直到能完成規定範圍。",
   ...sharedExerciseStrings('zh-TW'),
   ...centersStrings('zh-TW'),
   'Confirm': '確認',

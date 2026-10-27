@@ -2,6 +2,9 @@ import { sharedExerciseStrings } from './modules/shared-exercises.js'
 // Simplified Chinese UI strings. Keys are the English source strings (see lib/i18n.js).
 import { centersStrings } from './modules/centers.js'
 export default {
+  "Load recommendation": "负重建议",
+  "You exceeded the prescribed repetition range last session. Increase the load for this session.": "上次训练的重复次数超过了设定范围。本次训练请增加负重。",
+  "You fell below the prescribed repetition range last session. Reduce the load until you can complete the prescribed range.": "上次训练的重复次数未达到设定范围。请降低负重，直到能完成规定范围。",
   ...sharedExerciseStrings('zh'),
   ...centersStrings('zh'),
   'Confirm': '确认',

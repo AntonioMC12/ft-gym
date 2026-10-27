@@ -37,6 +37,8 @@ import Icon from '../components/Icon.jsx'
 import { Button, Check, NumberField } from '../components/ui.jsx'
 import { defaultIncrement, weightIncrement, stepWeight } from '../lib/progression.js'
 import { progressionGuidance } from '../lib/progression-copy.js'
+import { repRangeAdvice } from '../lib/rep-range-advice.js'
+import RepRangeNotice from '../components/RepRangeNotice.jsx'
 import { buildPlannedEntry, plannedConfigOf, builtOutOfProgression } from '../lib/session-start.js'
 import { routineChangesFromEntry, updateRoutineFromEntry } from '../lib/routines.js'
 import { sessionNoProg, setSessionNoProg, setEntryNoProg, joinSessionNoProg } from '../lib/session-noprog.js'
@@ -229,6 +231,7 @@ function ExerciseBlock({ entryIdx, compact, dense, editing, onToggle, onToggleSi
   // the session was built so the reason matches the numbers already in the rows.
   const plan = entry.plan
   const guidance = progressionGuidance(plan)
+  const loadAdvice = editing ? null : repRangeAdvice(S, entry)
   // The plan this exercise was built from (issue #275), on one quiet line in every view — the
   // routine's "2 × 10" is the thing the rows are measured against. When today's rows open
   // somewhere else, the same line says so: progression moved the sets or reps (a bodyweight
@@ -706,12 +709,13 @@ function ExerciseBlock({ entryIdx, compact, dense, editing, onToggle, onToggleSi
     {entry.note && <div className="exnote">{entry.note}</div>}
     {planLine}
     {refLine}
-    {guidance && onProgressionSettings && <button type="button" className={'progline' + (plan.kind === 'deload' ? ' warn' : '')}
+    {guidance && !loadAdvice && onProgressionSettings && <button type="button" className={'progline' + (plan.kind === 'deload' ? ' warn' : '')}
       aria-label={t('Open exercise settings')} onClick={onProgressionSettings}>
       <Icon name={plan.kind === 'up' ? 'arrowUp' : plan.kind === 'deload' ? 'arrowDown' : 'lightbulb'} />
       <span><strong>{t(guidance.policyLabel)}</strong> · {t(...guidance.why)}</span>
     </button>}
     </>}
+    <RepRangeNotice advice={loadAdvice} />
     <div className="card" style={{ marginTop: 10, marginBottom: 0 }}>
       {/* the header carries the same eff3/timed sizing as the rows, or the labels drift off their
           columns; over L/R rows it also has to skip the side badge that sits in front of the weight cell */}

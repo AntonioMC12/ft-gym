@@ -2,6 +2,9 @@ import { sharedExerciseStrings } from './modules/shared-exercises.js'
 // Russian UI strings. Keys are the English source strings (see lib/i18n.js).
 import { centersStrings } from './modules/centers.js'
 export default {
+  "Load recommendation": "Рекомендация по нагрузке",
+  "You exceeded the prescribed repetition range last session. Increase the load for this session.": "На прошлой тренировке вы превысили заданный диапазон повторений. Увеличьте нагрузку на этой тренировке.",
+  "You fell below the prescribed repetition range last session. Reduce the load until you can complete the prescribed range.": "На прошлой тренировке вы не достигли заданного диапазона повторений. Уменьшите нагрузку, чтобы выполнить нужное число повторений.",
   ...sharedExerciseStrings('ru'),
   ...centersStrings('ru'),
   'Confirm': 'Подтвердить',

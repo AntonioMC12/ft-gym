@@ -12,6 +12,9 @@ import {metricsStrings} from './modules/metrics.js'
 import {centerUiStrings} from './modules/center-ui.js'
 
 export const PT_BR_OVERRIDES = {
+  "Load recommendation": "Recomendação de carga",
+  "You exceeded the prescribed repetition range last session. Increase the load for this session.": "Na sessão anterior você superou a faixa de repetições definida. Aumente a carga nesta sessão.",
+  "You fell below the prescribed repetition range last session. Reduce the load until you can complete the prescribed range.": "Na sessão anterior você não atingiu a faixa de repetições definida. Reduza a carga até conseguir completá-la.",
   ...centersStrings('pt'),
   ...classStrings('pt-BR'),
   ...trainingStrings('pt-BR'),

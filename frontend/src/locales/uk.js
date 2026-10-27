@@ -2,6 +2,9 @@ import { sharedExerciseStrings } from './modules/shared-exercises.js'
 // Ukrainian UI strings. Keys are the English source strings (see lib/i18n.js).
 import { centersStrings } from './modules/centers.js'
 export default {
+  "Load recommendation": "Рекомендація щодо навантаження",
+  "You exceeded the prescribed repetition range last session. Increase the load for this session.": "На попередньому тренуванні ви перевищили заданий діапазон повторень. Збільште навантаження на цьому тренуванні.",
+  "You fell below the prescribed repetition range last session. Reduce the load until you can complete the prescribed range.": "На попередньому тренуванні ви не досягли заданого діапазону повторень. Зменште навантаження, щоб виконати потрібну кількість повторень.",
   ...sharedExerciseStrings('uk'),
   ...centersStrings('uk'),
   'Confirm': 'Підтвердити',

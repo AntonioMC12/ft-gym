@@ -2,6 +2,9 @@ import { sharedExerciseStrings } from './modules/shared-exercises.js'
 // Hungarian UI strings. Keys are the English source strings (see lib/i18n.js).
 import { centersStrings } from './modules/centers.js'
 export default {
+  "Load recommendation": "Terhelési javaslat",
+  "You exceeded the prescribed repetition range last session. Increase the load for this session.": "Az előző edzésen túllépted az előírt ismétléstartományt. Ezen az edzésen növeld a terhelést.",
+  "You fell below the prescribed repetition range last session. Reduce the load until you can complete the prescribed range.": "Az előző edzésen nem érted el az előírt ismétléstartományt. Csökkentsd a terhelést, amíg teljesíteni tudod a tartományt.",
   ...sharedExerciseStrings('hu'),
   ...centersStrings('hu'),
   // --- generic ---

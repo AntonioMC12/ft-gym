@@ -2,6 +2,9 @@ import { sharedExerciseStrings } from './modules/shared-exercises.js'
 // Korean UI strings. Keys are the English source strings (see lib/i18n.js).
 import { centersStrings } from './modules/centers.js'
 export default {
+  "Load recommendation": "중량 권장 사항",
+  "You exceeded the prescribed repetition range last session. Increase the load for this session.": "지난 세션에서 정해진 반복 범위를 초과했습니다. 이번 세션에서는 중량을 늘리세요.",
+  "You fell below the prescribed repetition range last session. Reduce the load until you can complete the prescribed range.": "지난 세션에서 정해진 반복 범위에 도달하지 못했습니다. 해당 범위를 완료할 수 있을 때까지 중량을 줄이세요.",
   ...sharedExerciseStrings('ko'),
   ...centersStrings('ko'),
   'Confirm': '확인',

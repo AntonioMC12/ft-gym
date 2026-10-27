@@ -2,6 +2,9 @@ import { sharedExerciseStrings } from './modules/shared-exercises.js'
 // Hindi UI strings. Keys are the English source strings (see lib/i18n.js).
 import { centersStrings } from './modules/centers.js'
 export default {
+  "Load recommendation": "वज़न संबंधी सुझाव",
+  "You exceeded the prescribed repetition range last session. Increase the load for this session.": "पिछले सत्र में आपने तय दोहराव सीमा से अधिक दोहराव किए। इस सत्र में वज़न बढ़ाएँ।",
+  "You fell below the prescribed repetition range last session. Reduce the load until you can complete the prescribed range.": "पिछले सत्र में आप तय दोहराव सीमा तक नहीं पहुँच पाए। उस सीमा को पूरा कर पाने तक वज़न कम करें।",
   ...sharedExerciseStrings('hi'),
   ...centersStrings('hi'),
   'Confirm': 'पुष्टि करें',

@@ -12,6 +12,8 @@ import { EFFORT, effortOf, modeOf } from '../lib/history.js'
 import { lastEntryFor, pinnedNoteFor, setsRepsOf } from '../lib/history.js'
 import { effortColor, rirOf } from '../lib/effort.js'
 import { progressionGuidance } from '../lib/progression-copy.js'
+import { repRangeAdvice } from '../lib/rep-range-advice.js'
+import RepRangeNotice from '../components/RepRangeNotice.jsx'
 import {
   addCluster, addDrop, addSideCluster, addSideDrop, clustersOf, dropsOf,
   isFailureSet, isSideSet, isWarmupRow, toggleFailure, nextDropWeight, setClusterAt,
@@ -132,6 +134,7 @@ export default function FocusView({
   const last = lastEntryFor(H, entry.id, entry.rid)
   const pinnedNote = pinnedNoteFor(S, entry.id)
   const guidance = progressionGuidance(entry.plan)
+  const loadAdvice = repRangeAdvice(S, entry)
   // Exercise operations use indexes, so their local-only epoch discards stale pointers instead
   // of letting a moved, removed, or newly inserted entry inherit one.
   const [pointerState, setPointerState] = useState(() => ({ epoch: pointerEpoch, pointers: new Map() }))
@@ -291,7 +294,8 @@ export default function FocusView({
         {pinnedNote && <div className="focus-note pinned"><Icon name="flag" />{t('From {0}:', fmtDate(pinnedNote.d, true))} {pinnedNote.note}</div>}
         {entry.note && <div className="focus-note">{entry.note}</div>}
         {last && <div className="focus-last">{t('Last time')} · {fmtDate(last.d)}</div>}
-        {guidance && <button className="focus-guidance" onClick={onProgressionSettings}><Icon name="lightbulb" />{t(guidance.policyLabel)}</button>}
+        {guidance && !loadAdvice && <button className="focus-guidance" onClick={onProgressionSettings}><Icon name="lightbulb" />{t(guidance.policyLabel)}</button>}
+        <RepRangeNotice advice={loadAdvice} />
       </div>
       <Prescription entry={entry} setIdx={setIdx} unit={S.unit} fallbackRest={S.restSec}>
         <PlanBadge entry={entry} mode={mode} />

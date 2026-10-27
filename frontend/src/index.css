@@ -1475,6 +1475,11 @@ body.chips-dragging *{cursor:inherit}
 }
 .progline.warn{color:var(--yellow)}
 .progline svg{flex:none;margin-top:2px}
+.rep-load-notice{display:flex;align-items:flex-start;gap:9px;margin:10px 0;padding:12px;border:1px solid var(--acc-line);border-radius:10px;background:var(--acc-soft);color:var(--label);font-size:13px;line-height:1.45;overflow-wrap:anywhere}
+.rep-load-notice>svg{flex:none;color:var(--acc);margin-top:2px}
+.rep-load-notice strong{font-size:13px}
+.rep-load-notice p{margin:4px 0 0;color:var(--label)}
+.rep-load-notice.decrease>svg{color:var(--label)}
 /* "Last time" / "Best set" under the plan line (#173): a button that switches between the two,
    looking like the plain line it replaced, with a small icon to say it can be tapped. */
 .refline{width:100%;display:flex;align-items:flex-start;gap:6px;margin-bottom:4px;padding:0;text-align:start}

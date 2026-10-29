@@ -1840,7 +1840,17 @@ function ExConfig({ ex, existing, onSave, onDelete, onReplace, close, routine, i
         options={[{ value: 'reps', label: t('Reps') }, { value: 'time', label: t('Time') }]} />
     </div>}
     {mode==='reps'&&!pyramid&&<div className="rep-target-mode"><Segmented label={t('Repetition target')} value={manualRange?'range':activePolicy==='off'?'fixed':'progression'} options={[{value:'fixed',label:t('Fixed repetitions')},{value:'range',label:t('Rep range')},{value:'progression',label:t('Progression')}]} onChange={v=>{setManualRange(v==='range');setC(x=>({...x,prog:v==='progression'?(x.prog&&x.prog!=='off'?x.prog:'linear'):'off',repsMin:v==='range'?(x.repsMin||8):undefined,reps:x.reps||12,pyramid:undefined}))}}/></div>}
-    {ranged&&manualRange&&<div className="rep-range-fields"><label><span>{t('Reps from')}</span><TextField inputMode="numeric" aria-label={t('Reps from')} value={c.repsMin??''} onChange={e=>{const raw=e.target.value;setC(x=>({...x,repsMin:raw===''?null:Number.isNaN(Number(raw))?raw:Number(raw)}))}} aria-invalid={!!rangeError} aria-describedby={rangeError?rangeErrorId:undefined}/></label><label><span>{t('Reps up to')}</span><TextField inputMode="numeric" aria-label={t('Reps up to')} value={c.reps??''} onChange={e=>{const raw=e.target.value;setC(x=>({...x,reps:raw===''?null:Number.isNaN(Number(raw))?raw:Number(raw)}))}} aria-invalid={!!rangeError} aria-describedby={rangeError?rangeErrorId:undefined}/></label></div>}
+    {ranged && manualRange && <div className="rep-range-fields">
+      {['repsMin', 'reps'].map((key, index) => {
+        const label = t(index === 0 ? 'Reps from' : 'Reps up to')
+        return <Stepper key={key} label={label} value={c[key]} min={perSide ? 2 : 1} step={perSide ? 2 : 1}
+          className={rangeError ? 'invalid' : ''}
+          onChange={v => setC(x => ({ ...x, [key]: v }))}
+          input={<input className="num" type="text" inputMode="numeric" aria-label={label} value={c[key] ?? ''}
+            onChange={e => { const raw = e.target.value; setC(x => ({ ...x, [key]: raw === '' ? null : Number.isNaN(Number(raw)) ? raw : Number(raw) })) }}
+            aria-invalid={!!rangeError} aria-describedby={rangeError ? rangeErrorId : undefined} />} />
+      })}
+    </div>}
     {rangeError&&<p id={rangeErrorId} role="alert">{rangeError}</p>}
     <div className="row cfgrow" style={{ marginBottom: mode === 'time' ? 8 : 18 }}>
       {cardio ? <>

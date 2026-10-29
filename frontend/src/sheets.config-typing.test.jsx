@@ -121,6 +121,29 @@ describe('exercise settings: a timed bodyweight hold', () => {
 describe('manual repetition ranges use the existing prescription fields',()=>{
  beforeEach(()=>{globalThis.IS_REACT_ACT_ENVIRONMENT=true;useUI.setState({sheets:[]});useStore.setState(s=>({S:{...s.S,unit:'kg'}}));document.body.innerHTML=''})
  afterEach(()=>act(()=>mounted.splice(0).forEach(root=>root.unmount())))
+ it('steps both range bounds with the shared plus/minus controls and saves the result',()=>{
+  const {host,onSave}=renderConfig({prog:'off',reps:12,repsMin:8})
+  const bounds=host.querySelectorAll('.rep-range-fields .stp-w')
+  expect(bounds).toHaveLength(2)
+  for(const bound of bounds){
+   expect(bound.querySelectorAll('button')).toHaveLength(2)
+   const input=bound.querySelector('input'),initial=Number(input.value)
+   act(()=>bound.querySelectorAll('button')[1].click());expect(Number(input.value)).toBe(initial+1)
+   act(()=>bound.querySelectorAll('button')[0].click());expect(Number(input.value)).toBe(initial)
+  }
+  act(()=>bounds[0].querySelectorAll('button')[0].click())
+  act(()=>bounds[1].querySelectorAll('button')[1].click())
+  act(()=>save(host));expect(onSave.mock.calls[0][0]).toMatchObject({repsMin:7,reps:13,prog:'off'})
+ })
+ it('does not step below one repetition or silently fix an inverted range',()=>{
+  const {host,onSave}=renderConfig({prog:'off',reps:2,repsMin:1})
+  const bounds=host.querySelectorAll('.rep-range-fields .stp-w')
+  act(()=>bounds[0].querySelector('button').click());expect(field(host,'Reps from').value).toBe('1')
+  act(()=>bounds[0].querySelectorAll('button')[1].click())
+  act(()=>bounds[0].querySelectorAll('button')[1].click())
+  expect(host.querySelector('[role=alert]')).not.toBeNull()
+  act(()=>save(host));expect(onSave).not.toHaveBeenCalled()
+ })
  it('persists 8–12 without enabling a progression, and rejects empty, negative and inverted bounds',()=>{
   const {host,onSave}=renderConfig({prog:'off',reps:12,repsMin:8})
   const min=host.querySelector('input[aria-label="Reps from"]'),max=host.querySelector('input[aria-label="Reps up to"]')

@@ -1,5 +1,27 @@
 // Plans are organizational containers over the existing routine IDs, never copies.
 import {uid} from './format.js'
+import {mergePlanDeliveries} from './plan-delivery-state.js'
+export const deliveryForPlan=(S,id)=>mergePlanDeliveries(S?.planDeliveries,[]).find(d=>'delivery_'+d.id===id)
+export const routineIsActive=(S,r)=>!S?.trainingPlans?.[r?.planId]?.archivedAt
+// One scalar selection converges across devices without allowing multiple favorites.
+export function favoriteTrainingPlan(S,id){
+ if(id!=null&&(!S.trainingPlans?.[id]||S.trainingPlans[id].archivedAt))throw new Error('Plan unavailable')
+ S.favoriteTrainingPlanId=id||null
+}
+export function archiveTrainingPlan(S,id,archived=true){
+ if(!S.trainingPlans?.[id])throw new Error('Plan unavailable')
+ S.trainingPlans[id]={...S.trainingPlans[id],archivedAt:archived?Date.now():null}
+ if(archived&&S.favoriteTrainingPlanId===id)S.favoriteTrainingPlanId=null
+}
+// Only server-issued delivery maps can recover old membership. Never infer it from names.
+export function recoverDeliveredPlans(S){
+ for(const d of mergePlanDeliveries(S.planDeliveries,[])){
+  const id='delivery_'+d.id,rows=(S.routines||[]).filter(r=>d.routineIds.includes(r.id)&&r.planId===undefined)
+  if(!rows.length)continue
+  if(!S.trainingPlans?.[id])S.trainingPlans={...S.trainingPlans,[id]:{name:'Assigned plan',acceptedAt:d.acceptedAt}}
+  for(const r of rows)r.planId=id
+ }
+}
 export const plansOf=S=>Object.entries(S?.trainingPlans||{}).filter(([id,p])=>id&&p&&typeof p.name==='string').map(([id,p])=>({...p,id}))
 export const planOf=(S,r)=>plansOf(S).some(p=>p.id===r?.planId)?r.planId:null
 export function createTrainingPlan(S,name,id=uid(),folderId=S.trainingPlans?.[id]?.folderId||null){
@@ -10,12 +32,13 @@ export function createTrainingPlan(S,name,id=uid(),folderId=S.trainingPlans?.[id
 export function removeTrainingPlan(S,id){
  if(!S.trainingPlans?.[id])return false
  delete S.trainingPlans[id]
- for(const r of S.routines||[])if(r.planId===id)delete r.planId
+ if(S.favoriteTrainingPlanId===id)S.favoriteTrainingPlanId=null
+ for(const r of S.routines||[])if(r.planId===id)r.planId=null
  return true
 }
 export function moveRoutineToPlan(S,rid,id){
  const r=S.routines?.find(r=>r.id===rid);if(!r||id&&!S.trainingPlans?.[id])return false
- if(id)r.planId=id;else delete r.planId
+ r.planId=id||null
  return true
 }
 export function stateForPlan(S,id){

@@ -49,9 +49,10 @@ async function insertVersion(client,centerId,proposalId,memberId,recipient,revis
     VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11)`,[id,centerId,proposalId,memberId,recipient,revision,uid,opaque('td_'),JSON.stringify(bundle),commandHash(bundle),JSON.stringify(routineIds)]);
 }
 export function proposeTraining({database,user,checkSession,hasTrainingExercise,readOwnTraining=null},raw,{platform=false,revise=false}={}){
-  objectBody(raw,revise?['centerId','id','version','bundle','requestId']:['centerId','memberId','memberVersion','bundle','requestId']);
+  objectBody(raw,revise?['centerId','id','version','bundle','requestId']:['centerId','memberId','memberVersion','bundle','requestId','newAssignment']);
+  if(raw.newAssignment!==undefined&&typeof raw.newAssignment!=='boolean')throw new CentersError(400,'invalid-input','newAssignment must be boolean');
   const centerId=idField(raw.centerId),requestId=requestField(raw.requestId),bundle=trainingPlan(raw.bundle,hasTrainingExercise),id=revise?idField(raw.id):null,
-    version=versionField(revise?raw.version:raw.memberVersion),memberId=revise?null:idField(raw.memberId),operation=revise?'training.revise':'training.propose',hash=commandHash({id,memberId,version,bundle});
+    version=versionField(revise?raw.version:raw.memberVersion),memberId=revise?null:idField(raw.memberId),operation=revise?'training.revise':'training.propose',hash=commandHash({id,memberId,version,bundle,...(raw.newAssignment?{newAssignment:true}:{})});
   return businessTransaction(database,user.id,centerId,'training.assign',async client=>{
     const replay=await commandReplay(client,centerId,user.id,operation,requestId,hash);if(replay){await record(client,centerId,replay.proposal.id);return replay}
     let target=id,revision=1,recipient,member;
@@ -66,7 +67,7 @@ export function proposeTraining({database,user,checkSession,hasTrainingExercise,
       const {rows:duplicates}=await client.query("SELECT p.id,v.routine_ids FROM centers.training_proposals p JOIN centers.training_versions v ON (v.center_id,v.proposal_id,v.revision)=(p.center_id,p.id,p.current_revision) WHERE p.center_id=$1 AND p.member_id=$2 AND p.recipient_uid=$3 AND p.actor_uid=$4 AND p.state='offered' AND v.bundle_hash=$5 AND v.state IN ('offered','accepted') AND NOT EXISTS(SELECT 1 FROM centers.training_routine_archives x WHERE x.version_id=v.id AND x.active) LIMIT 1",[centerId,member.id,recipient,user.id,commandHash(bundle)]);
       const personal=readOwnTraining?.(recipient);
       const removedIds=new Set([...Object.keys(personal?.deleted?.routines||{}).filter(id=>personal.deleted.routines[id]>0),...(personal?.resetIds?.routines||[])]);
-      if(duplicates.length&&!Object.values(duplicates[0].routine_ids).some(id=>removedIds.has(id))){const result={proposal:dto(await record(client,centerId,duplicates[0].id),{content:true})};await rememberCommand(client,centerId,user.id,operation,requestId,hash,result);checkSession();return result}
+      if(!raw.newAssignment&&duplicates.length&&!Object.values(duplicates[0].routine_ids).some(id=>removedIds.has(id))){const result={proposal:dto(await record(client,centerId,duplicates[0].id),{content:true})};await rememberCommand(client,centerId,user.id,operation,requestId,hash,result);checkSession();return result}
       checkSession();await client.query('INSERT INTO centers.training_proposals(id,center_id,member_id,recipient_uid,actor_uid) VALUES($1,$2,$3,$4,$5)',[target,centerId,member.id,recipient,user.id]);
     }
     await insertVersion(client,centerId,target,member.id,recipient,revision,bundle,user.id);

@@ -2413,3 +2413,25 @@ button.wl-summary{width:100%;padding:0 0 10px;text-align:start;border-radius:var
 @media(max-width:650px){.plan-detail-header{flex-direction:column;gap:12px}.plan-detail-header .training-plan-actions{width:100%}.plan-detail-routines{padding:12px;margin-top:18px}.plan-detail-header h2{font-size:26px}.plan-routine-open{padding:12px;gap:8px}.plan-type-icon{min-width:30px;height:32px}.plan-routine-main{padding-inline-end:6px}.plan-detail-routines>.training-plan-actions>.btn{flex-basis:100%}}
 .training-library-workspace .plan-library-entry.is-folder>.icn:first-child{color:var(--label-2)}
 .training-library-workspace .btn.plain{color:var(--label-2)}
+
+.member-plans>details{margin-block:18px}
+.member-plans summary{cursor:pointer;min-height:44px;display:list-item;align-content:center;color:var(--label-2);font-size:14px;padding:6px 4px}
+.member-plans details .member-plan-list{margin-top:8px}
+#app .member-plan-list{display:flex;flex-direction:column}
+.member-plan-row{padding:0;gap:0}
+.member-plan-open{display:flex;align-items:center;gap:12px;background:none;color:var(--label);text-align:start;font:inherit;width:100%;min-width:0;padding:10px 12px;border:0;border-radius:var(--r-card);cursor:pointer;min-height:60px;flex:1}
+.member-plan-open>.grow{min-width:0;flex:1}.member-plan-open .tt,.member-plan-open .ss{display:block}
+.member-plan-open .tt{overflow-wrap:anywhere}.member-plan-open .tag{margin-inline-start:8px}
+.member-plan-open .chev{flex:none}.member-plan-row>.btn{margin-inline-end:12px}
+.member-plan-open:focus-visible,.member-plans summary:focus-visible{outline:2px solid var(--acc);outline-offset:3px}
+.member-plan-header{display:flex;align-items:flex-start;justify-content:space-between;gap:12px;margin:18px 0}
+.member-plan-header h2{margin:0 0 8px}.member-plan-header p{margin:6px 0;color:var(--label-2)}
+.member-plans .plan-routine .grow{min-width:0}.member-plans .plan-routine .tt{overflow-wrap:anywhere}
+.member-plans .plan-routine{flex-wrap:wrap}.member-plans form{margin-block:16px}
+.member-plans h2:focus{outline:none}.member-plans .row.between{gap:12px;flex-wrap:wrap}
+
+.member-plans>.member-plan-back{width:auto;justify-content:flex-start;padding-inline:4px;margin-block:4px 0}.member-plan-header{margin-block:16px}.member-plan-header h2{font-size:22px}.member-plan-header p{font-size:13px;margin:4px 0}
+.member-plans .sr-only{position:absolute;width:1px;height:1px;padding:0;margin:-1px;overflow:hidden;clip-path:inset(50%);white-space:nowrap;border:0}
+
+.member-plan-open .member-plan-favorite{background:color-mix(in srgb,var(--yellow) 18%,var(--surface));color:var(--yellow)}
+.member-plan-row>.iconbtn[aria-pressed="true"]{color:var(--yellow)}

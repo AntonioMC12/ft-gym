@@ -125,6 +125,7 @@ export function buildCompletedWorkout(active, { end = Date.now(), prs = [], snap
     start: active.start,
     end,
     routineIds,
+    ...(Array.isArray(active.plans)?{plans:structuredClone(active.plans)}:{}),
     routineId: routineIds[0] ?? null,
     name: active.name,
     bw: active.bw,

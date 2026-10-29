@@ -475,12 +475,13 @@ export function bestWeightFor(S, exId, as) {
  * other days. Once the session is done the pin is fulfilled and the day reads as if unpinned.
  */
 export function effectiveRoutineIds(S, iso, today = todayISO()) {
+  const available=id=>S.routines.some(r=>r.id===id&&!S.trainingPlans?.[r.planId]?.archivedAt)
   const ov = S.dayPlan[iso]
   if (ov === 'rest') return []
   const pin = pinState(S, ov)
-  if (!pin && ov && S.routines.some(r => r.id === ov)) return [ov]
+  if (!pin && ov && available(ov)) return [ov]
   const wd = new Date(iso + 'T12:00:00').getDay()
-  const weekday = [].concat(S.week[wd] || []).filter(id => S.routines.some(r => r.id === id))
+  const weekday = [].concat(S.week[wd] || []).filter(available)
   const q = pin === 'open' ? ov : queueNext(S, iso, today)
   // The planner's weekday pointers stay hidden on the queue's day even when it has no session for
   // it (every remaining one pinned to another day): those sessions have their days.

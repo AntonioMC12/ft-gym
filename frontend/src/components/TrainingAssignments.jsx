@@ -8,7 +8,7 @@ import {useUI} from '../store/useUI.js'
 import {useEffect,useRef,useState} from 'react'
 import {useStore} from '../store/useStore.js'
 import {useCenters} from '../store/useCenters.js'
-import {Section,Button,Row,SelectRow,MultiSelectRow,SearchField} from './ui.jsx'
+import {Section,Button,Row,SelectRow,MultiSelectRow,SearchField,Switch} from './ui.jsx'
 import {platformCenters,centerMembers,centerMember,centerCommand,trainingErrorKey} from '../lib/centers-api.js'
 import {buildTrainingProposal} from '../lib/plan-share.js'
 import TrainingProposals from '../views/centers/TrainingProposals.jsx'
@@ -18,6 +18,7 @@ import {routinesForPlan} from '../lib/training-plans.js'
 export default function TrainingAssignments({routineIds,planName,planId,mode='all',onManageAccounts,planPicker}){
  const uid=useStore(s=>s.user?.id),state=useCenters(),platform=state.ownerUid===uid&&state.platformCapabilities.includes('centers.manage')
  const [centers,setCenters]=useState([]),[center,setCenter]=useState(''),[members,setMembers]=useState([]),[selected,setSelected]=useState([]),[query,setQuery]=useState(''),[cursor,setCursor]=useState(null),[busy,setBusy]=useState(false),[error,setError]=useState(null),[message,setMessage]=useState(''),[member,setMember]=useState(null),[linking,setLinking]=useState(false)
+ const [newAssignment,setNewAssignment]=useState(false)
  const [expandedMembers,setExpandedMembers]=useState(false)
  const [choosingMember,setChoosingMember]=useState(false)
  useEffect(()=>setChoosingMember(false),[member?.id,mode])
@@ -42,8 +43,9 @@ export default function TrainingAssignments({routineIds,planName,planId,mode='al
   for(const [day,rows] of Object.entries(source.week||{})){const kept=[].concat(rows).filter(id=>ids.has(id));if(kept.length)week[day]=kept}
   const bundle=buildTrainingProposal({...source,routines,week},planName)
   for(const id of selected){if(epoch!==life.current||useStore.getState().user?.id!==uid)return
-   const detail=await centerMember(center,id);if(epoch!==life.current||useStore.getState().user?.id!==uid)return;const key=JSON.stringify([center,id,bundle]);if(!requests.current.has(key))requests.current.set(key,crypto.randomUUID())
-   await centerCommand('/api/centers/training/propose',{centerId:center,memberId:id,memberVersion:detail.member.version,bundle,requestId:requests.current.get(key)})
+   const detail=await centerMember(center,id);if(epoch!==life.current||useStore.getState().user?.id!==uid)return;const key=JSON.stringify([center,id,bundle,newAssignment]);if(!requests.current.has(key))requests.current.set(key,crypto.randomUUID())
+   await centerCommand('/api/centers/training/propose',{centerId:center,memberId:id,memberVersion:detail.member.version,bundle,...(newAssignment?{newAssignment:true}:{}),requestId:requests.current.get(key)})
+   requests.current.delete(key)
    if(epoch===life.current){setSelected(old=>old.filter(x=>x!==id));setMessage(t('Training proposals saved. Each recipient must accept the proposal.'))}
   }
  }catch(e){if(epoch===life.current)setError(e)}finally{sending.current=false;if(epoch===life.current)setBusy(false)}}
@@ -106,6 +108,7 @@ export default function TrainingAssignments({routineIds,planName,planId,mode='al
   </>}
   {!loadingCenters&&!centers.length&&!error&&<p role="status">{t('No centers available')}</p>}
   {(busy||loadingCenters)&&<p role="status">{t('Loading…')}</p>}
+  {showAssign&&<Row title={t('Create a separate assignment even if this plan was sent before')}><Switch aria-label={t('Create a separate assignment even if this plan was sent before')} checked={newAssignment} disabled={busy} onChange={setNewAssignment}/></Row>}
   {showAssign&&<div className="centers-form-actions training-assignment-actions" data-center-form-actions><ActionReason reason={reason}><Button variant="primary" disabled={!!reason} onClick={assign}>{t(sending.current?'Saving…':'Send plan')}{selected.length>0?' · '+selected.length:''}</Button></ActionReason></div>}
   {message&&<p role="status">{message}</p>}{error&&<><p role="alert">{t(trainingErrorKey(error))}</p><Button disabled={busy} onClick={()=>setRetry(n=>n+1)}>{t('Retry')}</Button></>}
   {(showProposals||showAccounts)&&mode!=='accounts'&&!proposalPicker&&<SelectRow variant="field" title={t(showAccounts&&!showProposals?'Members':'Training proposals')} value={member?.id||''} disabled={busy} options={[{value:'',label:t('Members')},...members.map(m=>({value:m.id,label:m.name}))]} onChange={id=>inspect(id,mode==='accounts')}/>}

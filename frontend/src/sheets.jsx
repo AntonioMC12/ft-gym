@@ -1121,7 +1121,7 @@ function AddToRoutine({ ex, close }) {
     <div className="list">
       {st.routines.map(r => <div key={r.id} className="item" {...tappable(() => pick(r.id))}>
         <span className="lrow-i"><Icon name={glyphOf(r.emoji)} /></span>
-        <div className="grow"><div className="tt">{r.name}</div><div className="ss">{exCount(r.ex.length)}</div></div>
+        <div className="grow"><div className="tt">{r.name}</div><div className="ss">{[st.trainingPlans?.[r.planId]?.name,exCount(r.ex.length)].filter(Boolean).join(' · ')}</div></div>
         {r.ex.some(e => e.id === ex.id) && <span className="tag">{t('already in')}</span>}<Icon name="plus" className="chev" />
       </div>)}
       <div className="item" {...tappable(() => pick('_new'))}><span className="lrow-i" style={{ background: 'var(--surface-3)' }}><Icon name="plusCircle" /></span>
@@ -2404,11 +2404,11 @@ function DayAssign({ day, close }) {
     <div className="muted small" style={{ marginBottom: 10 }}>{t('Pick one routine, or more to train them together.')}</div>
     <div className="list menu-list">
       <div className="item menu-item" {...tappable(rest)}><span className="lrow-i" style={{ background: 'var(--surface-3)' }}><Icon name="moon" /></span><div className="grow"><div className="tt">{t('Rest day')}</div></div><span className={'menu-on' + (!cur.length ? ' is-on' : '')}><Icon name="check" /></span></div>
-      {st.routines.map(r => {
+      {st.routines.filter(r=>!st.trainingPlans?.[r.planId]?.archivedAt).map(r => {
         const on = cur.includes(r.id)
         return <div key={r.id} className="item menu-item" aria-pressed={on} {...tappable(() => toggle(r.id))}>
           <span className="lrow-i"><Icon name={glyphOf(r.emoji)} /></span>
-          <div className="grow"><div className="tt">{r.name}</div><div className="ss">{exCount(r.ex.length)}</div></div>
+          <div className="grow"><div className="tt">{r.name}</div><div className="ss">{[st.trainingPlans?.[r.planId]?.name,exCount(r.ex.length)].filter(Boolean).join(' · ')}</div></div>
           <span className={'menu-on' + (on ? ' is-on' : '')}><Icon name="check" /></span>
         </div>
       })}
@@ -2852,6 +2852,7 @@ export function beginWorkout(routineIds, bw) {
       // A session tracks its routines as a list; per-entry `rid` carries which one each
       // exercise came from. No top-level `excludeFromProgression` — per-entry `noProg` does it.
       routineIds: rids,
+      plans: routines.map(r=>({routineId:r.id,planId:r.planId||null,planName:st.trainingPlans?.[r.planId]?.name||null})),
       name: routines.length ? deriveSessionName(routines.map(r => r.name)) : t('Freestyle'),
       bw: bw || null, cur: 0, entries,
       // Snapshot the layout at start so the header ⋮ can change it for this session only —

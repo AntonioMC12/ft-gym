@@ -59,7 +59,7 @@ export const queueOf = S => {
   // First valid occurrence of each id: a queue is a set of sessions, and a repeated id would
   // otherwise show twice in the progress row and count twice in the week's tally. The persisted
   // payload is never rewritten — normalizing is a read, not a migration.
-  const ids = q.ids.filter((id, i) => q.ids.indexOf(id) === i && routines.some(r => r.id === id))
+  const ids = q.ids.filter((id, i) => q.ids.indexOf(id) === i && routines.some(r => r.id === id && !S.trainingPlans?.[r.planId]?.archivedAt))
   if (!ids.length) return null
   return { ...q, ids, startsOn: typeof q.startsOn === 'string' ? q.startsOn : isoOf(new Date(q.since || 0)) }
 }

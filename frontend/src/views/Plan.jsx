@@ -1,3 +1,5 @@
+import MemberPlans from '../components/MemberPlans.jsx'
+import {routinesForPlan,routineIsActive,reorderPlanRoutine,moveRoutineToPlan} from '../lib/training-plans.js'
 import RoutineOriginBadge from '../components/RoutineOriginBadge.jsx'
 import {PLAN_VIEW_KEY,readPlanView as readView} from '../lib/plan-view.js'
 import { useEffect, useRef, useState } from 'react'
@@ -170,9 +172,9 @@ export default function Plan() {
     </div>
     <input ref={fileRef} type="file" accept="application/json,.json" onChange={pickFile} hidden />
     <Segmented className="plan-views" value={view} onChange={setView}
-      options={[{ value: 'schedule', label: t('Schedule') }, { value: 'routines', label: t('Routines') }]} />
+      options={[{ value: 'schedule', label: t('Schedule') }, { value: 'routines', label: t('My plans') }]} />
     {view === 'routines'
-      ? <Routines S={S} update={update} nav={nav} />
+      ? <MemberPlans S={S} update={update} renderRoutines={(planId,archived)=><Routines key={planId||'unfiled'} S={S} update={update} nav={nav} planId={planId} archived={archived}/>}/>
       : <Schedule S={S} update={update} nav={nav} mode={mode} />}
   </div>
 }
@@ -187,7 +189,7 @@ function Schedule({ S, update, nav, mode }) {
      somebody else wrote, the adoption), so there is no half-edited state to lose. `since` and
      `startsOn` carry over, so progress already logged survives a reorder. */
   const liveQ = queueOf(S)
-  const seq = liveQ?.ids ?? rotationIds(S)
+  const seq = (liveQ?.ids ?? rotationIds(S)).filter(id=>S.routines.some(r=>r.id===id&&routineIsActive(S,r)))
   // A loop the app makes has no name of its own: Home shows it as 'Rotation' in the language on
   // screen. Stored as text, it stayed in the language it was made in (QA 2026-10-06).
   const seqLabel = liveQ?.label || S.rotation?.label || ''
@@ -229,7 +231,7 @@ function Schedule({ S, update, nav, mode }) {
   const swipe = workoutControls(S).swipeSets && !external
   const addToSeq = () => menuSheet({
     title: t('Add to the rotation'),
-    items: S.routines.filter(r => !seq.includes(r.id)).map(r => ({
+    items: S.routines.filter(r => routineIsActive(S,r)&&!seq.includes(r.id)).map(r => ({
       icon: glyphOf(r.emoji), label: r.name, onClick: () => setSeq([...seq, r.id]),
     })),
   })
@@ -252,7 +254,7 @@ function Schedule({ S, update, nav, mode }) {
   const ws = weekStartOf(S)
   const todayDow = new Date().getDay()
   const routineOf = id => S.routines.find(x => x.id === id)
-  const dayRoutines = d => [].concat(S.week[d] || []).map(routineOf).filter(Boolean)
+  const dayRoutines = d => [].concat(S.week[d] || []).map(routineOf).filter(r=>r&&routineIsActive(S,r))
   // One weekday: what is on it at a glance, and a tap to change it (dayAssignSheet picks one
   // routine, several for a combined day, or a rest day).
   const dayRow = (d, rs = dayRoutines(d)) => {
@@ -260,7 +262,7 @@ function Schedule({ S, update, nav, mode }) {
       <span className={'plan-day-n' + (d === todayDow ? ' today' : '')} aria-hidden="true">{t(DAYS[d])}</span>
       <span className={'lrow-i' + (rs.length ? '' : ' rest')}><Icon name={rs.length ? glyphOf(rs[0].emoji) : 'moon'} /></span>
       <div className="grow">
-        <div className="tt">{rs.length ? deriveSessionName(rs.map(r => r.name)) : t('Rest day')}</div>
+        <div className="tt">{rs.length ? deriveSessionName(rs.map(r => [S.trainingPlans?.[r.planId]?.name,r.name].filter(Boolean).join(' · '))) : t('Rest day')}</div>
         <div className="ss">{rs.length === 1 ? exCount(rs[0].ex.length) : rs.length ? routineCount(rs.length) : t('Tap to plan something')}</div>
       </div>
       <Icon name="chevronRight" className="chev" />
@@ -331,7 +333,7 @@ function Schedule({ S, update, nav, mode }) {
             <span className="lrow-i"><Icon name={glyphOf(r?.emoji)} /></span>
             <div className="grow" style={{ minWidth: 0 }}>
               <div className="tt">{r?.name ?? id}<RoutineOriginBadge state={S} routine={r||id}/></div>
-              <div className="ss">{item ? stateWord(item) : r ? exCount(r.ex.length) : ''}</div>
+              <div className="ss">{[S.trainingPlans?.[r?.planId]?.name,item ? stateWord(item) : r ? exCount(r.ex.length) : ''].filter(Boolean).join(' · ')}</div>
             </div>
             {editing && seq.length > 1 && <button className="plan-handle" aria-label={t('Move {0}', r?.name ?? id)} title={t('Drag to reorder')}
               {...loopReorder.handle(i)}><Icon name="chevronsUpDown" /></button>}
@@ -377,16 +379,18 @@ function Schedule({ S, update, nav, mode }) {
 
 /* ================================ Routines ================================ */
 
-export function Routines({ S, update, nav, basePath='/plan' }) {
+export function Routines({ S, update, nav, basePath='/plan', planId=undefined, archived=false }) {
   const [edit, setEdit] = useState(false)
   const [flash, setFlash] = useState(null)
-  const swipe = workoutControls(S).swipeSets
-  const routines = S.routines
+  useEffect(()=>{if(archived)setEdit(false)},[archived])
+  const swipe = workoutControls(S).swipeSets && !archived
+  const routines = planId===undefined?S.routines:routinesForPlan(S,planId)
   // The order of this list is the order of `S.routines`, and every other screen reads the same
   // array (the Start screen, the day sheets, the routine pickers), so moving a routine here moves
   // it everywhere (#142). Reordering lives behind Edit, like on an iPhone.
   const reorder = useListReorder(routines.length, (from, to) => update(s => {
     if(to<0||to>=routines.length)return
+    if(planId){reorderPlanRoutine(s,planId,routines[from].id,to-from);return}
     const fromId=routines[from].id,toId=routines[to].id
     const at=s.routines.findIndex(r=>r.id===fromId),[m]=s.routines.splice(at,1)
     const target=s.routines.findIndex(r=>r.id===toId);s.routines.splice(target+(from<to?1:0),0,m)
@@ -394,7 +398,7 @@ export function Routines({ S, update, nav, basePath='/plan' }) {
 
   const addRoutine = () => {
     const r = { id: uid(), name: t('New routine'), emoji: DEFAULT_GLYPH, ex: [] }
-    update(s => { s.routines.push(r) })
+    update(s => { if(planId){if(!s.trainingPlans?.[planId]||s.trainingPlans[planId].archivedAt)return;r.planId=planId} s.routines.push(r) })
     nav(basePath+'/r/' + r.id)
   }
   // The same delete as RoutineEdit's "Delete routine" button (lib/routines.js), with an Undo in
@@ -422,10 +426,10 @@ export function Routines({ S, update, nav, basePath='/plan' }) {
 
   return <>
     <div className="row between plan-sec-h plan-routines-bar">
-      {routines.length > 0
+      {routines.length > 0 && !archived
         ? <button className="plan-textbtn" aria-pressed={edit} onClick={() => setEdit(e => !e)}>{edit ? t('Done') : t('Edit')}</button>
         : <span />}
-      <Button size="sm" variant="tinted" icon="plus" onClick={addRoutine}>{t('New routine')}</Button>
+      {!archived&&<Button size="sm" variant="tinted" icon="plus" onClick={addRoutine}>{t(planId?'Create routine in this plan':'New routine')}</Button>}
     </div>
     {routines.length ? <>
       {edit
@@ -434,6 +438,7 @@ export function Routines({ S, update, nav, basePath='/plan' }) {
             <button className="plan-minus" aria-label={t('Delete {0}', r.name)} title={t('Delete routine')} onClick={() => remove(r)}><Icon name="minus" /></button>
             <span className="lrow-i"><Icon name={glyphOf(r.emoji)} /></span>
             <div className="grow"><div className="tt">{r.name}<RoutineOriginBadge state={S} routine={r}/></div><div className="ss">{sub(r)}</div></div>
+            {planId&&!archived&&<Button size="sm" onClick={()=>update(s=>moveRoutineToPlan(s,r.id,null))}>{t('Remove routine from plan')}</Button>}
             {routines.length > 1 && <button className="plan-handle" aria-label={t('Move {0}', r.name)} title={t('Drag to reorder')}
               {...reorder.handle(i)}><Icon name="chevronsUpDown" /></button>}
           </div>)}</div>
@@ -453,8 +458,8 @@ export function Routines({ S, update, nav, basePath='/plan' }) {
         })}</div>}
       <p className="sect-f">{edit ? t('Drag to reorder. Tap the minus to delete.') : t('Tap a routine to edit it. Reorder and delete are behind Edit.')}</p>
     </> : <>
-      <div className="empty"><div className="ico"><Icon name="clipboard" /></div>{t('No routines yet.')}<br />{t('Make one, or grab the starter plan to get going.')}</div>
-      <Button icon="clipboard" onClick={starterPlanSheet}>{t('Load starter plan')}</Button>
+      <div className="empty"><div className="ico"><Icon name="clipboard" /></div>{t('No routines yet.')}<br />{t(planId?'Create a routine in this plan to get started.':'Make one, or grab the starter plan to get going.')}</div>
+      {planId===undefined&&<Button icon="clipboard" onClick={starterPlanSheet}>{t('Load starter plan')}</Button>}
     </>}
   </>
 }

@@ -1488,6 +1488,10 @@ paths:
               additionalProperties: false
               required: [centerId, memberId, memberVersion, bundle, requestId]
               properties:
+                newAssignment:
+                  type: boolean
+                  default: false
+                  description: Intentional separate assignment; requestId still deduplicates retries.
                 centerId: { type: string }
                 memberId: { type: string }
                 memberVersion: { type: integer, minimum: 1 }
@@ -7430,6 +7434,10 @@ components:
               name: { type: string, minLength: 1, maxLength: 120 }
               parentId: { type: string, nullable: true }
               category: { type: boolean }
+        favoriteTrainingPlanId:
+          type: string
+          nullable: true
+          description: Single personal favorite plan ID, synchronized as one scalar. Cleared on archive or deletion.
         trainingPlans:
           type: object
           description: >-
@@ -7442,6 +7450,13 @@ components:
             properties:
               name: { type: string, minLength: 1, maxLength: 120 }
               folderId: { type: string, nullable: true }
+              archivedAt:
+                type: integer
+                nullable: true
+                description: Personal archive timestamp in milliseconds. Null or absent means active. Schedules and history are preserved.
+              acceptedAt:
+                type: integer
+                description: Acceptance timestamp for an assigned copy. Provenance comes from planDeliveries.
               routineOrder:
                 type: array
                 description: Optional order of routine IDs in this plan only; missing IDs are ignored and new members follow existing ones. Does not reorder the global routine library.

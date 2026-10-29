@@ -31,13 +31,13 @@ const dayAfter = iso => { const d = new Date(iso + 'T12:00:00'); d.setDate(d.get
 export const scheduleModeOf = S => (queueOf(S) || S?.scheduleMode === 'rotation') ? 'rotation' : 'week'
 
 /** A queue payload arrived but is unusable (malformed, duplicate-only, all-deleted): Week + a fix-up in Plan. */
-export const queueRecovery = S => S?.queue != null && !queueOf(S)
+export const queueRecovery = S => S?.queue != null && !queueOf(S) && !(Array.isArray(S.queue.ids)?S.queue.ids:[]).some(id=>S.routines?.some(r=>r.id===id&&S.trainingPlans?.[r.planId]?.archivedAt))
 
 /** The saved sequence's routines that still exist, first occurrence of each — the ids a new pass gets. */
 export const rotationIds = S => {
   const seq = Array.isArray(S?.rotation?.sequence) ? S.rotation.sequence : []
   const routines = Array.isArray(S?.routines) ? S.routines : []
-  return seq.filter((id, i) => seq.indexOf(id) === i && routines.some(r => r.id === id))
+  return seq.filter((id, i) => seq.indexOf(id) === i && routines.some(r => r.id === id && !S.trainingPlans?.[r.planId]?.archivedAt))
 }
 
 const newPass = (ids, label, rotationId, startsOn, since) => ({ ids, since, startsOn, label, rotationId })

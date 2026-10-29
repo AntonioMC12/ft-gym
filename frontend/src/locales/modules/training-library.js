@@ -99,4 +99,31 @@ const detailEs = {
   "Add exercises to a routine before assigning this plan.": "Añade ejercicios a una rutina antes de asignar este plan."
 }
 detailEs['This plan will be offered with the routines listed below. The member must accept it before their training changes.']='Se enviará este plan con las rutinas indicadas a continuación. El socio debe aceptarlo antes de que cambie su entrenamiento.'
+Object.assign(detailEs,{
+  "My plans": "Mis planes",
+  "Back to my plans": "Volver a mis planes",
+  "Assigned by your trainer": "Asignado por tu entrenador",
+  "Created by you": "Creado por ti",
+  "Assigned plan": "Plan asignado",
+  "Active": "Activo",
+  "Archived": "Archivado",
+  "Archive plan": "Archivar plan",
+  "Reactivate plan": "Reactivar plan",
+  "Archived plans": "Planes archivados",
+  "Routines without a plan": "Rutinas sin plan",
+  "Routines in {0}": "Rutinas de {0}",
+  "Create routine in this plan": "Crear rutina en este plan",
+  "Remove routine from plan": "Quitar rutina del plan",
+  "Add existing routine": "Añadir rutina existente",
+  "Create plan": "Crear plan",
+  "View routines": "Ver rutinas",
+  "No active plans. Create your own plan or accept one from your trainer.": "No tienes planes activos. Crea un plan propio o acepta uno de tu entrenador.",
+  "Existing routines are preserved. Open a personal plan to organize them.": "Tus rutinas existentes se conservan. Abre un plan propio para organizarlas.",
+  "Routines, scheduling and workout history are preserved. Archived plans do not appear in pending workouts.": "Se conservan las rutinas, su programación y el historial. Los planes archivados dejan de aparecer como entrenamientos pendientes.",
+  "Create a separate assignment even if this plan was sent before": "Crear una asignación independiente aunque este plan ya se haya enviado",
+  "Create a routine in this plan to get started.": "Crea una rutina en este plan para empezar.",
+  "Archive a previous plan": "Archivar un plan anterior",
+  "Favorite plan": "Plan favorito",
+  "Remove favorite plan": "Quitar plan favorito"
+})
 const detailStrings = lang => lang === 'es' ? detailEs : Object.fromEntries(Object.keys(detailEs).map(key => [key,key]))

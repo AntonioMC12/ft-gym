@@ -1,6 +1,5 @@
 import {applyAssignmentRetirements} from './assignment-lifecycle.js'
 import {t} from './i18n-core.js'
-import {createTrainingPlan} from './training-plans.js'
 import {parsePlan,mergePlan} from './plan-share.js'
 import {mergePlanDeliveries} from './plan-delivery-state.js'
 
@@ -23,7 +22,8 @@ export function applyPlanDelivery(state,delivery,{schedule=false}={}){
   const eligible={...bundle,routines:bundle.routines.filter(row=>!removed.has(ids[row.id]))}
   const result=mergePlan(state,eligible,{schedule,routineIds:ids})
   const planId='delivery_'+key
-  createTrainingPlan(state,bundle.name||t('Plan'),planId)
+  // Repeated names are valid: identity belongs to the accepted delivery, not its title.
+  state.trainingPlans={...state.trainingPlans,[planId]:{name:bundle.name||t('Plan'),acceptedAt}}
   for(const r of state.routines)if(marker.routineIds.includes(r.id))r.planId=planId
   state.planDeliveries=mergePlanDeliveries(previous,[marker])
   return {...result,removed:eligible.routines.length!==bundle.routines.length,alreadyApplied:false}

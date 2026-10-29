@@ -14,6 +14,7 @@ vi.mock('./lib/media-ingest.js', () => ({ ingestMediaFile: (...a) => h.ingest(..
 import { registerCustom } from './lib/exercises.js'
 import { DEF, useStore } from './store/useStore.js'
 import { useUI } from './store/useUI.js'
+import { useSharedExercises } from './store/useSharedExercises.js'
 import { _setLangState } from './lib/i18n-core.js'
 import { bindUI } from './components/ui.jsx'
 import { createMediaStore, memoryBackend, _setMediaStore } from './lib/media-store.js'
@@ -64,9 +65,11 @@ function seed(ex) {
 }
 
 let media
+const sharedSave = useSharedExercises.getState().save
 beforeEach(() => {
   globalThis.IS_REACT_ACT_ENVIRONMENT = true
   useUI.setState({ sheets: [], toastMsg: '' })
+  useSharedExercises.setState({ canManage: false, save: sharedSave })
   useStore.setState({ S: structuredClone(DEF), user: null, config: null })
   registerCustom([])
   _setLangState('en', null, null, null)
@@ -83,6 +86,35 @@ afterEach(() => {
   act(() => { mounted.splice(0).forEach(root => root.unmount()) })
   _setMediaStore(null)
   registerCustom([])
+  useSharedExercises.setState({ canManage: false, save: sharedSave })
+})
+
+it.each([
+  [{ status: 413, code: 'proxy-too-large' }, 'The server refused the file as too large.'],
+  [{ status: 413, code: 'media-too-large', data: { maxMB: 50 } }, 'That file is too big. Max 50 MB.'],
+  [{ status: 413, code: 'media-quota' }, 'The server has no space available for more photos or videos.'],
+  [{ code: 'network' }, 'Could not save the shared exercise. Check connection and try again.'],
+])('keeps the shared exercise draft and allows retry after %j', async (error, message) => {
+  const save = vi.fn().mockRejectedValueOnce(error).mockResolvedValueOnce({ id: 'ft_test' })
+  useSharedExercises.setState({ canManage: true, status: 'ready', save })
+  customExSheet(null)
+  const form = renderTop()
+  act(() => type(form.querySelector('input.input'), 'Abductores'))
+  click(form, '.chip', 'back')
+  click(form, '.chip', 'barbell')
+  await pick(form)
+  click(form, 'button', 'Create exercise')
+  await settle()
+  expect(useUI.getState().toastMsg).toBe(message)
+  expect(useUI.getState().sheets).toHaveLength(1)
+  expect(form.querySelector('input.input').value).toBe('Abductores')
+  expect(form.querySelector('.cmf-thumb')).toBeTruthy()
+  expect([...form.querySelectorAll('button')].find(b => b.textContent === 'Create exercise').disabled).toBe(false)
+  click(form, 'button', 'Create exercise')
+  await settle()
+  expect(save).toHaveBeenCalledTimes(2)
+  expect(save.mock.calls[1]).toEqual(save.mock.calls[0])
+  expect(useUI.getState().sheets).toHaveLength(0)
 })
 
 describe('custom exercise photo, GIF or video, and link', () => {

@@ -4,6 +4,7 @@
 // says, and that what goes into the store is the scrubbed file under its own hash.
 import { describe, it, expect, vi } from 'vitest'
 import { ingestMediaFile } from './media-ingest.js'
+import { limitsFrom } from './media-limits.js'
 import { sha256Hex } from './sha256.js'
 import { bytes, latin1, fill, jpeg, png, gif, gce, frame, comment, appExt, box, mp4, webm } from './media-samples.test-util.js'
 
@@ -29,6 +30,17 @@ function deps(over = {}) {
   }
 }
 const file = (b, name = 'file') => new File([b], name)
+
+it('accepts an exact 50 MiB video with default limits and rejects one byte more', async () => {
+  const limits = limitsFrom(null)
+  const source = webm({})
+  const picked = new File([source, new Uint8Array(50 * MB - source.length)], 'camera.webm')
+  const out = await ingestMediaFile(picked, limits, deps())
+  expect(out.media.size).toBe(50 * MB)
+  expect(out.media.kind).toBe('video')
+  await expect(ingestMediaFile(new File([picked, new Uint8Array(1)], 'large.webm'), limits, deps()))
+    .rejects.toMatchObject({ code: 'too-large', mb: 50 })
+})
 
 describe('photos', () => {
   it('re-encodes to at most 1600 px plus a 480 px poster, and keeps neither the file nor its name', async () => {

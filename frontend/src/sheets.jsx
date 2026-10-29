@@ -18,6 +18,7 @@ import CustomMediaField from './components/CustomMediaField.jsx'
 import { ExerciseOriginBadge, ExerciseOriginFilter, useCatalogueRevision } from './components/ExerciseOrigin.jsx'
 import { isSharedEx, byOrigin } from './lib/exercises.js'
 import { useSharedExercises } from './store/useSharedExercises.js'
+import { sharedExerciseErrorText } from './lib/shared-exercise-error.js'
 import { api } from './lib/api.js'
 import { SharedMediaContext } from './components/CustomMedia.jsx'
 import { blankRepRows } from './lib/rep-reference.js'
@@ -1228,7 +1229,7 @@ function CustomExForm({ existing, prefill, onDone, close }) {
         if (link) payload.url = link
         const result = await shared.save(payload, sharedExisting ? existing : null, requestId.current)
         close(); toast(t('Saved')); onDone?.(EXIDX[result.id] || result)
-      } catch (error) { toast(t(error.code === 'exercise-semantics-immutable' ? 'Changing the movement type requires a new exercise.' : 'Could not save the shared exercise. Check connection and try again.')) }
+      } catch (error) { toast(sharedExerciseErrorText(error)) }
       finally { setSaving(false) }
       return
     }

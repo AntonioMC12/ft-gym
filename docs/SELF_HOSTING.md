@@ -524,12 +524,12 @@ set in `.env`:
 | `MEDIA_QUOTA_MB` | `200` | space per profile; `0` = no cap |
 | `MEDIA_IMAGE_MAX_MB` | `2` | a photo after the app shrank it to 1600 px, and every thumbnail |
 | `MEDIA_GIF_MAX_MB` | `8` | an animated GIF |
-| `MEDIA_VIDEO_MAX_MB` | `40` | a video, as recorded — the app does not re-encode videos |
+| `MEDIA_VIDEO_MAX_MB` | `50` | a video, as recorded — the app does not re-encode videos |
 | `MEDIA_VIDEO_MAX_SEC` | `60` | a video's length |
 | `MEDIA_GC_GRACE_DAYS` | `14` | how long a file nobody uses any more is kept |
 | `MEDIA_UPLOADS_PER_HOUR` | `600` | uploads per profile per hour; at most two run at once |
 | `MEDIA_MIN_FREE_MB` | `512` | uploads are refused while the disk under `./data` has less free; `0` = no floor |
-| `MEDIA_UPLOAD_MAX` | `48m` | the web container's body limit on `/api/media/` (nginx syntax); keep it above `MEDIA_VIDEO_MAX_MB` |
+| `MEDIA_UPLOAD_MAX` | `64m` | the web container's body limit on `/api/media/` and `/api/exercises/shared/media/` (nginx syntax); keep it above `MEDIA_VIDEO_MAX_MB` |
 
 Every MB here is 1024 × 1024 bytes. The API reads the `MEDIA_*` caps; the app gets them from
 `/api/config` and refuses a file the server would refuse before uploading it.
@@ -541,7 +541,7 @@ full disk is also a state save that cannot land, for everybody.
 **A reverse proxy in front** has to let the uploads through, or they fail with a 413 or a
 timeout the app can only report as "The server refused the file as too large":
 
-- **Body size**: at least `MEDIA_VIDEO_MAX_MB` on `/api/media/`. nginx allows 1 MiB unless told
+- **Body size**: at least `MEDIA_VIDEO_MAX_MB` on `/api/media/` and `/api/exercises/shared/media/`. nginx allows 1 MiB unless told
   otherwise (`client_max_body_size`); Cloudflare's free plan caps a request at 100 MB.
 - **Timeouts**: a 40 MB video over a slow mobile uplink takes minutes. Traefik v3 cuts a request
   whose body is still arriving after its entryPoint's `readTimeout`, 60 s by default — raise

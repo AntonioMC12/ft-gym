@@ -7415,6 +7415,38 @@ components:
         routines:
           type: array
           items: { $ref: '#/components/schemas/Routine' }
+        trainingFolders:
+          type: object
+          description: >-
+            Own-account library folders, synchronized per ID with edited timestamps.
+            Five stable category IDs (category-men, category-women, category-cardio,
+            category-mobility, category-core) are initialized idempotently by the app.
+            Subfolders require a category ancestor; cycles and nonempty deletion are
+            rejected by the library editor. Classification does not grant assignment permissions.
+          additionalProperties:
+            type: object
+            required: [name]
+            properties:
+              name: { type: string, minLength: 1, maxLength: 120 }
+              parentId: { type: string, nullable: true }
+              category: { type: boolean }
+        trainingPlans:
+          type: object
+          description: >-
+            Own-account weekly plan containers synchronized per ID. Missing/null folderId
+            means Unorganized, including all existing plans. Routine planId references,
+            routine contents and deliveries are unchanged when a plan moves.
+          additionalProperties:
+            type: object
+            required: [name]
+            properties:
+              name: { type: string, minLength: 1, maxLength: 120 }
+              folderId: { type: string, nullable: true }
+              routineOrder:
+                type: array
+                description: Optional order of routine IDs in this plan only; missing IDs are ignored and new members follow existing ones. Does not reorder the global routine library.
+                uniqueItems: true
+                items: { type: string }
         queue:
           type: object
           nullable: true

@@ -5,11 +5,11 @@ import {useStore} from '../store/useStore.js'
 import {useCenters} from '../store/useCenters.js'
 import {centersMe} from '../lib/centers-api.js'
 import {navBack} from '../lib/nav.js'
-import {plansOf,planOf} from '../lib/training-plans.js'
+import {plansOf,routinesForPlan} from '../lib/training-plans.js'
 import {t} from '../lib/i18n.js'
 import {Button,Section,SelectRow} from '../components/ui.jsx'
 import Icon from '../components/Icon.jsx'
-import {Routines} from './Plan.jsx'
+import TrainingLibraryWorkspace from '../components/TrainingLibraryWorkspace.jsx'
 import RoutineEdit from './RoutineEdit.jsx'
 import TrainingAssignments from '../components/TrainingAssignments.jsx'
 import CenterWorkspace from './centers/CenterWorkspace.jsx'
@@ -24,15 +24,15 @@ function Content({edit}){
  const rawPlan=params.has('plan')?params.get('plan')||null:'*'
  const planId=rawPlan&&rawPlan!=='*'&&!S.trainingPlans?.[rawPlan]?null:rawPlan
  const plan=plansOf(S).find(p=>p.id===planId)
- const routineIds=S.routines.filter(r=>(planId==='*'||planOf(S,r)===planId)&&r.ex?.length).map(r=>r.id)
+ const routineIds=(planId==='*'?S.routines:routinesForPlan(S,planId)).filter(r=>r.ex?.length).map(r=>r.id)
  const go=p=>requestNavigation(()=>{if(edit){nav('/training-admin?'+new URLSearchParams({pane:p}));return}const next=new URLSearchParams(params);next.set('pane',p);setParams(next)})
  const selectPlan=id=>{const next=new URLSearchParams(params);if(id==='*')next.delete('plan');else next.set('plan',id||'');setParams(next,{replace:true})}
  const assign=id=>requestNavigation(()=>{const next=new URLSearchParams(params);next.set('pane','assign');if(id==='*')next.delete('plan');else next.set('plan',id||'');setParams(next)})
  return <div className="narrow centers-page training-admin-page">
   <div className="hdr"><button className="iconbtn" aria-label={t('Back')} onClick={()=>requestNavigation(()=>navBack('/home',nav))}><Icon name="chevronLeft"/></button><h1>{t('Manage routines')}</h1></div>
   <CenterWorkspace label={t('Manage routines')} options={options} value={pane} onChange={go}>
-   {pane==='library'&&(edit?<RoutineEdit basePath="/training-admin"/>:<Routines S={S} update={update} nav={nav} management initialPlanId={planId} onPlanChange={selectPlan} onAssign={assign} basePath="/training-admin"/>)}
-   {pane!=='library'&&(pane==='assign'&&!routineIds.length?<Section title={t('Send plan')}><div className="centers-form"><p>{t('No routines yet.')}</p><Button onClick={()=>go('library')}>{t('Routines')}</Button></div></Section>:<TrainingAssignments routineIds={routineIds} planName={plan?.name||''} mode={pane} onManageAccounts={()=>go('accounts')} planPicker={<SelectRow variant="field" title={t('Training plans')} value={planId??''} options={[{value:'*',label:t('All routines')},{value:'',label:t('Unfiled')},...plansOf(S).map(p=>({value:p.id,label:p.name}))]} onChange={id=>selectPlan(id||null)}/>}/>)}
+   {pane==='library'&&(edit?<RoutineEdit basePath="/training-admin"/>:<TrainingLibraryWorkspace S={S} update={update} nav={nav} onAssign={assign}/>)}
+   {pane!=='library'&&(pane==='assign'&&!routineIds.length?<Section title={t('Send plan')}><div className="centers-form"><p>{t('No routines yet.')}</p><Button onClick={()=>go('library')}>{t('Routines')}</Button></div></Section>:<TrainingAssignments key={planId||'unassigned'} planId={planId} routineIds={routineIds} planName={plan?.name||''} mode={pane} onManageAccounts={()=>go('accounts')} planPicker={<SelectRow variant="field" title={t('Training plans')} value={planId??''} options={[{value:'*',label:t('All routines')},{value:'',label:t('No plan')},...plansOf(S).map(p=>({value:p.id,label:p.name}))]} onChange={id=>selectPlan(id||null)}/>}/>)}
   </CenterWorkspace>
  </div>
 }

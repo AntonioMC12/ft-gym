@@ -14,7 +14,8 @@ import {buildTrainingProposal} from '../lib/plan-share.js'
 import TrainingProposals from '../views/centers/TrainingProposals.jsx'
 import TrainingRoster from './TrainingRoster.jsx'
 import {t} from '../lib/i18n.js'
-export default function TrainingAssignments({routineIds,planName,mode='all',onManageAccounts,planPicker}){
+import {routinesForPlan} from '../lib/training-plans.js'
+export default function TrainingAssignments({routineIds,planName,planId,mode='all',onManageAccounts,planPicker}){
  const uid=useStore(s=>s.user?.id),state=useCenters(),platform=state.ownerUid===uid&&state.platformCapabilities.includes('centers.manage')
  const [centers,setCenters]=useState([]),[center,setCenter]=useState(''),[members,setMembers]=useState([]),[selected,setSelected]=useState([]),[query,setQuery]=useState(''),[cursor,setCursor]=useState(null),[busy,setBusy]=useState(false),[error,setError]=useState(null),[message,setMessage]=useState(''),[member,setMember]=useState(null),[linking,setLinking]=useState(false)
  const [expandedMembers,setExpandedMembers]=useState(false)
@@ -37,7 +38,7 @@ export default function TrainingAssignments({routineIds,planName,mode='all',onMa
  useEffect(()=>{for(const m of members)memberNames.current.set(m.id,m.name)},[members])
  const more=async()=>{if(busy||!cursor)return;const epoch=life.current;setBusy(true);try{const r=await centerMembers(center,{query,cursor});if(epoch===life.current){setMembers(rows=>[...rows,...r.members]);setCursor(r.nextCursor)}}catch(e){if(epoch===life.current)setError(e)}finally{if(epoch===life.current)setBusy(false)}}
  const assign=async()=>{if(busy||sending.current||!selected.length||!chosenRoutines.length)return;sending.current=true;const epoch=life.current;setBusy(true);setError(null);setMessage('');try{
-  const source=useStore.getState().S,ids=new Set(chosenRoutines),routines=source.routines.filter(r=>ids.has(r.id)),week={}
+  const source=useStore.getState().S,chosenIds=new Set(chosenRoutines),routines=planId&&planId!=='*'?routinesForPlan(source,planId).filter(r=>r.ex?.length):source.routines.filter(r=>chosenIds.has(r.id)),ids=new Set(routines.map(r=>r.id)),week={}
   for(const [day,rows] of Object.entries(source.week||{})){const kept=[].concat(rows).filter(id=>ids.has(id));if(kept.length)week[day]=kept}
   const bundle=buildTrainingProposal({...source,routines,week},planName)
   for(const id of selected){if(epoch!==life.current||useStore.getState().user?.id!==uid)return
@@ -77,10 +78,10 @@ export default function TrainingAssignments({routineIds,planName,mode='all',onMa
  </>
  if(mode==='tracking')return <Section title={t('Members with routines')}><div className="centers-form"><Row className={'select-field'+(center?' has-selection':'')} title={t('Centers')} value={centers.find(c=>c.id===center)?.name||center} accessory="dropdown" disabled={loadingCenters} onClick={openCenters}/>{loadingCenters&&<p role="status">{t('Loading centers')}</p>}{error&&<><p role="alert">{t(trainingErrorKey(error))}</p><Button onClick={()=>setRetry(n=>n+1)}>{t('Retry')}</Button></>}{!loadingCenters&&!center&&!error&&<p>{t('No centers available')}</p>}{center&&<TrainingRoster key={uid+':'+center} centerId={center} ownerUid={uid}/>}</div></Section>
  return <Section className="training-assignments" title={t(mode==='accounts'?'Link account':mode==='proposals'?'Sent proposals':'Send plan')}><div ref={formRef} className="centers-form">
-  {showAssign&&<p className="small muted">{t('Choose your routines to offer to this member. Their training stays unchanged until acceptance.')}</p>}
+  {showAssign&&<p className="small muted">{t(planId&&planId!=='*'?'This plan will be offered with the routines listed below. The member must accept it before their training changes.':'Choose your routines to offer to this member. Their training stays unchanged until acceptance.')}</p>}
   <Row className={'select-field'+(center?' has-selection':'')} title={t('Centers')} value={centers.find(c=>c.id===center)?.name||center} accessory="dropdown" disabled={busy||loadingCenters} onClick={openCenters}/>
   {showAssign&&<>{planPicker||planName&&<Row title={t('Plan')} value={planName}/>}
-  <div className="training-routine-choice"><MultiSelectRow title={t('Routines')} values={chosenRoutines} options={routines.filter(r=>routineIds.includes(r.id)).map(r=>({value:r.id,label:r.name}))} onToggle={id=>{if(!busy)setChosenRoutines(rows=>rows.includes(id)?rows.filter(x=>x!==id):[...rows,id])}}/></div></>}
+  <div className="training-routine-choice">{planId&&planId!=='*'?<div><h3>{t('Routines in {0}',planName)}</h3>{routineIds.map(id=><p key={id}>{routines.find(r=>r.id===id)?.name}</p>)}</div>:<MultiSelectRow title={t('Routines')} values={chosenRoutines} options={routines.filter(r=>routineIds.includes(r.id)).map(r=>({value:r.id,label:r.name}))} onToggle={id=>{if(!busy)setChosenRoutines(rows=>rows.includes(id)?rows.filter(x=>x!==id):[...rows,id])}}/>}</div></>}
   {proposalPicker&&member&&<div className="training-selected-member"><Row title={member.name} subtitle={number(member)} accessory="chevron" onClick={()=>setChoosingMember(value=>!value)}/><Button size="sm" variant="tinted" aria-expanded={choosingMember} onClick={()=>setChoosingMember(value=>!value)}>{t('Change member')}</Button></div>}
   {(!proposalPicker||!member||choosingMember)&&<>
   <SearchField ref={searchRef} aria-label={t('Search members')} placeholder={t('Search members')} value={query} readOnly={sending.current} aria-busy={busy} onChange={e=>{if(!sending.current)setQuery(e.target.value)}} onClear={()=>{if(!sending.current){setQuery('');searchRef.current?.focus()}}}/>

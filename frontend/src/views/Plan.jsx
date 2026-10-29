@@ -1,7 +1,5 @@
 import RoutineOriginBadge from '../components/RoutineOriginBadge.jsx'
 import {PLAN_VIEW_KEY,readPlanView as readView} from '../lib/plan-view.js'
-import TrainingPlanLibrary from '../components/TrainingPlanLibrary.jsx'
-import {planOf} from '../lib/training-plans.js'
 import { useEffect, useRef, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useStore } from '../store/useStore.js'
@@ -379,14 +377,11 @@ function Schedule({ S, update, nav, mode }) {
 
 /* ================================ Routines ================================ */
 
-export function Routines({ S, update, nav, management=false, initialPlanId='*', onPlanChange, onAssign, basePath='/plan' }) {
+export function Routines({ S, update, nav, basePath='/plan' }) {
   const [edit, setEdit] = useState(false)
   const [flash, setFlash] = useState(null)
   const swipe = workoutControls(S).swipeSets
-  const [planId,setPlanId]=useState(initialPlanId)
-  useEffect(()=>{if(management)setPlanId(initialPlanId)},[management,initialPlanId])
-  const selected=planId&&planId!=='*'&&!S.trainingPlans?.[planId]?null:planId
-  const routines = S.routines.filter(r=>selected==='*'||planOf(S,r)===selected)
+  const routines = S.routines
   // The order of this list is the order of `S.routines`, and every other screen reads the same
   // array (the Start screen, the day sheets, the routine pickers), so moving a routine here moves
   // it everywhere (#142). Reordering lives behind Edit, like on an iPhone.
@@ -398,7 +393,7 @@ export function Routines({ S, update, nav, management=false, initialPlanId='*', 
   }))
 
   const addRoutine = () => {
-    const r = { id: uid(), name: t('New routine'), emoji: DEFAULT_GLYPH, ex: [],...(selected&&selected!=='*'?{planId:selected}:{}) }
+    const r = { id: uid(), name: t('New routine'), emoji: DEFAULT_GLYPH, ex: [] }
     update(s => { s.routines.push(r) })
     nav(basePath+'/r/' + r.id)
   }
@@ -426,7 +421,6 @@ export function Routines({ S, update, nav, management=false, initialPlanId='*', 
   const sub = r => [exCount(r.ex.length), daysOf(r.id).join(', ')].filter(Boolean).join(' · ')
 
   return <>
-    <>{management&&<TrainingPlanLibrary S={S} update={update} value={selected} onChange={id=>{setPlanId(id);onPlanChange?.(id)}} canAssign onAssign={onAssign}/>}</>
     <div className="row between plan-sec-h plan-routines-bar">
       {routines.length > 0
         ? <button className="plan-textbtn" aria-pressed={edit} onClick={() => setEdit(e => !e)}>{edit ? t('Done') : t('Edit')}</button>

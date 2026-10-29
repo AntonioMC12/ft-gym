@@ -19,4 +19,84 @@ const words={
  "zh": "训练计划|新建计划|全部训练|未归档|重命名|删除计划|分配训练|训练将移至未归档。分配和训练历史将保留。|提议已保存。每位接收者必须接受提议。|没有可开始的训练。|请输入实际完成的次数。|次数目标|固定次数|次数范围|请输入正整数，最小值不得大于最大值。|分配计划|尚未满足分配条件的会员|请至少选择一位会员以继续。|刷新会员|管理训练",
  "zh-TW": "訓練計畫|新增計畫|全部訓練|未歸檔|重新命名|刪除計畫|分配訓練|訓練將移至未歸檔。分配和訓練歷史將保留。|提議已儲存。每位接收者必須接受提議。|沒有可開始的訓練。|請輸入實際完成的次數。|次數目標|固定次數|次數範圍|請輸入正整數，最小值不得大於最大值。|分配計畫|尚未滿足分配條件的會員|請至少選擇一位會員以繼續。|重新整理會員|管理訓練"
 }
-export function trainingLibraryStrings(lang){const values=words[lang]?.split("|");if(!values||values.length!==keys.length)throw new Error("incomplete training library translations: "+lang);return Object.fromEntries(keys.map((key,i)=>[key,values[i]]))}
+export function trainingLibraryStrings(lang){const values=words[lang]?.split("|");if(!values||values.length!==keys.length)throw new Error("incomplete training library translations: "+lang);return {...Object.fromEntries(keys.map((key,i)=>[key,values[i]])),...folderStrings(lang),...detailStrings(lang)}}
+
+// Folder library strings follow the shared module fallback convention.
+const folderEs = {
+  "Men": "Hombres",
+  "Women": "Mujeres",
+  "Cardio": "Cardio",
+  "Mobility": "Movilidad",
+  "Core": "Core",
+  "Unorganized": "Sin organizar",
+  "Library": "Biblioteca",
+  "New folder": "Nueva carpeta",
+  "Folder path": "Ruta de carpetas",
+  "Previous level": "Nivel anterior",
+  "Rename folder": "Renombrar carpeta",
+  "Move folder": "Mover carpeta",
+  "Delete folder": "Eliminar carpeta",
+  "{0} plans": "{0} planes",
+  "Weekly plan": "Plan semanal",
+  "Selected": "Seleccionado",
+  "Selected plan": "Plan seleccionado",
+  "Move plan": "Mover plan",
+  "Destination folder": "Carpeta de destino",
+  "Choose a folder": "Elige una carpeta",
+  "Folder name": "Nombre de carpeta",
+  "This folder is empty. Create a plan or move one here.": "Esta carpeta está vacía. Crea un plan o mueve uno aquí.",
+  "Open a category to create subfolders. Existing plans are in Unorganized.": "Abre una categoría para crear subcarpetas. Los planes existentes están en Sin organizar.",
+  "Move all subfolders and plans before deleting this folder": "Mueve primero todas las subcarpetas y los planes. Solo se pueden eliminar carpetas vacías para evitar perder contenido.",
+  "Initial categories cannot be changed": "Las categorías iniciales no se pueden modificar",
+  "Choose a category or subfolder": "Elige una categoría o subcarpeta",
+  "A folder cannot contain itself or its descendants": "Una carpeta no puede moverse dentro de sí misma ni de sus descendientes",
+  "Enter a name of 1 to 120 characters": "Introduce un nombre de entre 1 y 120 caracteres",
+  "This name already exists in this folder": "Este nombre ya existe en esta carpeta",
+  "Folder unavailable": "La carpeta ya no está disponible",
+  "Plan unavailable": "El plan ya no está disponible"
+}
+const folderStrings = lang => lang === 'es' ? folderEs : Object.fromEntries(Object.keys(folderEs).map(key => [key,key]))
+
+const detailEs = {
+  "Plans": "Planes",
+  "No plan": "Sin plan",
+  "Routine library": "Biblioteca de rutinas",
+  "Training library": "Biblioteca de entrenamiento",
+  "Independent routines and their current plan.": "Rutinas independientes y el plan al que pertenecen.",
+  "Filter routines": "Filtrar rutinas",
+  "Search routines": "Buscar rutinas",
+  "No matching routines.": "No hay rutinas que coincidan.",
+  "Create routine": "Crear rutina",
+  "Add existing routine": "Añadir rutina existente",
+  "Add selected routines": "Añadir rutinas seleccionadas",
+  "Already in this plan": "Ya está en este plan",
+  "Move routines to this plan?": "¿Mover las rutinas a este plan?",
+  "Each routine can belong to one plan. These routines will leave their current plans and move to {0}. Exercises and history are preserved.": "Cada rutina puede pertenecer a un solo plan. Estas rutinas saldrán de sus planes actuales y pasarán a {0}. Se conservan los ejercicios y el historial.",
+  "Each routine belongs to one plan. Selecting a routine from another plan will move it after confirmation.": "Cada rutina pertenece a un solo plan. Si eliges una de otro plan, se trasladará tras tu confirmación.",
+  "The library changed. Review your selection and try again.": "La biblioteca ha cambiado. Revisa la selección e inténtalo de nuevo.",
+  "Remove from plan": "Quitar del plan",
+  "Remove {0} from {1}? The routine and its exercises remain in the Routines library. Assignments and history are preserved.": "¿Quitar {0} de {1}? La rutina y sus ejercicios seguirán en la biblioteca de Rutinas. Se conservan las asignaciones y el historial.",
+  "Delete {0} from the library and its plan? Its exercises and calendar links will be removed from this library. Previously sent proposals, accepted assignments and saved workouts are preserved. Use Remove from plan to keep the routine.": "¿Eliminar {0} de la biblioteca y de su plan? Se eliminarán sus ejercicios y vínculos del calendario de esta biblioteca. Se conservan las propuestas enviadas, las asignaciones aceptadas y los entrenamientos guardados. Usa Quitar del plan para conservar la rutina.",
+  "Routines in {0}": "Rutinas de {0}",
+  "Reorder routines": "Reordenar rutinas",
+  "This plan has no routines yet.": "Este plan aún no tiene rutinas",
+  "Actions for {0}": "Acciones de {0}",
+  "Edit routine": "Editar rutina",
+  "Move {0} up": "Subir {0}",
+  "Move {0} down": "Bajar {0}",
+  "Move up": "Subir",
+  "Move down": "Bajar",
+  "{0} plan": "{0} plan",
+  "{0} routine": "{0} rutina",
+  "{0} routines": "{0} rutinas",
+  "{0} exercise": "{0} ejercicio",
+  "{0} exercises": "{0} ejercicios",
+  "Back to {0}": "Volver a {0}",
+  "Open plan": "Abrir plan",
+  "Categories and weekly plans": "Categorías y planes semanales",
+  "Folder actions": "Acciones de carpeta",
+  "Deleting this plan keeps its routines in No plan. Assignments and workout history are preserved.": "Al eliminar este plan, sus rutinas pasarán a Sin plan. Se conservan las asignaciones y el historial de entrenamientos.",
+  "Add exercises to a routine before assigning this plan.": "Añade ejercicios a una rutina antes de asignar este plan."
+}
+detailEs['This plan will be offered with the routines listed below. The member must accept it before their training changes.']='Se enviará este plan con las rutinas indicadas a continuación. El socio debe aceptarlo antes de que cambie su entrenamiento.'
+const detailStrings = lang => lang === 'es' ? detailEs : Object.fromEntries(Object.keys(detailEs).map(key => [key,key]))

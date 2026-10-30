@@ -25,10 +25,10 @@ export default function AccountPicker({selected,choose,showSelection=true}){
   }
   return <div className="centers-account-picker">
     <label className="centers-field"><span>{t('Search by name or email')}</span><SearchField value={query} onChange={e=>setQuery(e.target.value)} onClear={()=>setQuery('')} onKeyDown={e=>{if(e.key==='Enter')e.preventDefault()}}/></label>
-    {showSelection&&selected&&<div className="centers-selected"><div><strong>{selected.name}</strong><div className="small muted">{selected.email||selected.id}</div></div><Button type="button" onClick={()=>choose(null)}>{t('Cancel')}</Button></div>}
+    {showSelection&&selected&&<div className="centers-selected"><div><strong>{selected.name}</strong><div className="small muted">{selected.email||t('Mail unavailable')}</div></div><Button type="button" onClick={()=>choose(null)}>{t('Cancel')}</Button></div>}
     <div className="centers-accounts-list" aria-busy={busy}>
       {rows.map(account=><div key={account.id} className={account.disabled?'centers-account-disabled':''}>
-        <Row title={account.name} subtitle={(account.email||account.id)+(account.disabled?' · '+t('Disabled'):'')} value={selected?.id===account.id?t('Selected'):null} accessory={selected?.id===account.id?'check':null}
+        <Row title={account.name} subtitle={(account.email||t('Mail unavailable'))+(account.disabled?' · '+t('Disabled'):'')} value={selected?.id===account.id?t('Selected'):null} accessory={selected?.id===account.id?'check':null}
           onClick={account.disabled?undefined:()=>{if(!pending.current&&useStore.getState().user?.id===ownerUid)choose(account)}}/>
       </div>)}
     </div>

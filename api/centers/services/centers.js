@@ -146,12 +146,13 @@ export async function revokeRole({database,lookupAccount,user,checkSession},raw,
   return platform?database.platformTransaction(user.id,work,id):database.transaction({uid:user.id,centerId:id},work);
 }
 
-export async function listStaff(database,uid,centerId,{platform=false}={}) {
+export async function listStaff(database,uid,centerId,{platform=false,lookupAccount=()=>null}={}) {
   const work=async client=>{
     if(!platform)await requireCenter(client,uid,centerId,'staff.manage',{allowInactive:true});
-    const {rows}=await client.query(`SELECT id,account_uid,role,extra_capabilities,valid_from,valid_until,revoked_at,version
-      FROM centers.role_assignments WHERE center_id=$1 ORDER BY role,account_uid`,[centerId]);
-    return {staff:rows.map(r=>({id:r.id,accountUid:r.account_uid,role:r.role,extraCapabilities:r.extra_capabilities,revoked:!!r.revoked_at,version:r.version}))};
+    const {rows}=await client.query(`SELECT r.id,r.account_uid,r.role,r.extra_capabilities,r.valid_from,r.valid_until,r.revoked_at,r.version,
+      (SELECT m.national_document FROM centers.members m WHERE m.center_id=r.center_id AND m.account_uid=r.account_uid LIMIT 1) AS national_document
+      FROM centers.role_assignments r WHERE r.center_id=$1 ORDER BY r.role,r.account_uid`,[centerId]);
+    return {staff:rows.map(r=>({id:r.id,accountUid:r.account_uid,name:lookupAccount(r.account_uid)?.name||null,nationalDocument:r.national_document||null,role:r.role,extraCapabilities:r.extra_capabilities,revoked:!!r.revoked_at,version:r.version}))};
   };
   return platform?database.platformTransaction(uid,work,centerId):database.transaction({uid,centerId},work);
 }

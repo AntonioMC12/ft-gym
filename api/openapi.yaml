@@ -2949,7 +2949,7 @@ paths:
       tags: [centers]
       operationId: getCenterStaff
       summary: Staff assignments and revoked history
-      description: Requires staff.manage or explicit platform allowlist.
+      description: Requires staff.manage or explicit platform allowlist. Staff includes name (account display name or null) and nationalDocument (DNI/NIE from the linked member in this center or null), alongside assignment fields.
       parameters:
         - name: centerId
           in: query

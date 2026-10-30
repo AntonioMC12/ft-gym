@@ -440,7 +440,7 @@ export function centersRoutes({ config, database, json, readSession, readBody, d
       const user=guard(req,res);if(!user)return;const sv=user.sv||0;
       const centerId=new URL(req.url,'http://x').searchParams.get('centerId');
       if(!recordId(centerId))return json(res,404,{error:'not found',code:'not-found'});
-      try{const result=await listStaff(database,user.id,centerId,{platform:isPlatformUser(config,user)});if(!current(req,user,sv))return json(res,401,{error:'not signed in'});return json(res,200,result);}
+      try{const result=await listStaff(database,user.id,centerId,{platform:isPlatformUser(config,user),lookupAccount});if(!current(req,user,sv))return json(res,401,{error:'not signed in'});return json(res,200,result);}
       catch(error){return failure(res,error);}
     },
     'POST /api/platform/centers/create': mutate(true,createCenter),

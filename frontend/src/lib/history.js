@@ -1,3 +1,4 @@
+import { hasSetTargets, setTargetsLabel } from './set-targets.js'
 // Pure helpers over the state object S (ported 1:1 from the vanilla app).
 import { syncSupersetMeta } from './superset-meta.js'
 import { todayISO, isoOf, weekKey, weekStartOf, fmtNum } from './format.js'
@@ -226,6 +227,7 @@ export function setsRepsOf(cfg) {
   const n = cfg.sets || 1
   if (mode === 'cardio') return `${n} × ${cfg.min || 20} min`
   if (mode === 'time') return `${n} × ${fmtSec(cfg.sec || 45)}`
+  if (hasSetTargets(cfg)) return setTargetsLabel(cfg)
   if (isPyramid(cfg)) return pyramidLabel(cfg.pyramid)
   // Triple progression's set range reads as a range too: "3–5 × 8–12".
   const sets = cfg.setsMax > n ? `${n}–${cfg.setsMax}` : n
@@ -629,11 +631,15 @@ function buildWorkSets(S, cfg, options = {}) {
       if (planned > 0 && !(preferLast && usable)) row.w = planned
       else if (useTarget && seed) row.w = seed.w
     }
+    if (hasSetTargets(cfg)) {
+      const goal = cfg.setTargets[Math.min(i, cfg.setTargets.length - 1)]
+      row.r = goal.repsMin || goal.reps
+    }
     // A unilateral exercise logs each side on its own (issue #60): the row splits into L/R,
     // each seeded with half the total reps at the same weight. When "last time" was itself a
     // per-side set, carry its two sides over so an asymmetry you logged persists — both sides'
     // weights always, their reps only when the plan does not own them.
-    if (isPerSide(cfg)) sets.push(usable && isSideSet(usable) ? seedSideFromLast(row, usable, planReps) : makeSideSet(row))
+    if (isPerSide(cfg)) sets.push(usable && isSideSet(usable) ? seedSideFromLast(row, usable, planReps || hasSetTargets(cfg)) : makeSideSet(row))
     else sets.push(row)
   }
   return sets

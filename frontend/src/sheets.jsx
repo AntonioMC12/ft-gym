@@ -1,3 +1,4 @@
+import { hasSetTargets, validSetTarget, resizeSetTargets } from './lib/set-targets.js'
 import {useCenters} from './store/useCenters.js'
 import { useDeferredValue, useEffect, useMemo, useRef, useState, useId } from 'react'
 import { useStore } from './store/useStore.js'
@@ -1723,13 +1724,15 @@ function ExConfig({ ex, existing, onSave, onDelete, onReplace, close, routine, i
   const bw = !cardio && isBw({ ...c, id: ex.id })
   const perSide = isPerSide(c)
   // Pyramid sets: one rep target per set, in place of the flat Sets × Reps (CONTEXT.md).
+  const custom = mode === 'reps' && hasSetTargets(c)
+  const customError = custom && (c.setTargets.length !== c.sets || !c.setTargets.every(validSetTarget))
   const pyramid = mode === 'reps' && isPyramid({ ...c, mode })
   const setPyramidAt = (i, v) => setC(x => ({ ...x, pyramid: x.pyramid.map((p, j) => (j === i ? v : p)) }))
   const progressionPolicy =policyFor({ ...c, id: ex.id }, routine, mode)
   const progressionStepInvalid = !progressionStepIsValid(progressionStepOf(c, mode, ex, st.unit), progressionPolicy, c.backoff === true && backoffOffered(c, mode, ex, bw))
   const activePolicy = policyFor({ ...c, id: ex.id }, routine, mode)
   // Both climb a range: the flat Reps stepper gives way to "Reps from" / "Reps up to".
-  const ranged = mode === 'reps' && !pyramid && (manualRange||climbsRange(activePolicy))
+  const ranged = mode === 'reps' && !pyramid && !custom && (manualRange||climbsRange(activePolicy))
   const rangeError=ranged&&(!Number.isSafeInteger(c.repsMin)||!Number.isSafeInteger(c.reps)||c.repsMin<=0||c.reps<=0||c.repsMin>c.reps)?t('Enter a positive whole-number range with minimum no greater than maximum.'):null
   const triple = mode === 'reps' && activePolicy === 'triple'
   // Keep whatever the other mode already had (sets, weight) and fill only what is missing.
@@ -1740,7 +1743,7 @@ function ExConfig({ ex, existing, onSave, onDelete, onReplace, close, routine, i
       : next
   })
   const save = () => {
-    if (progressionStepInvalid||rangeError) return
+    if (progressionStepInvalid||rangeError||customError) return
     close()
     const sets = Math.max(1, Math.round(c.sets) || (cardio ? 1 : 3))
     // Only carry progression settings that differ from the inherited default, so a plan file
@@ -1817,6 +1820,15 @@ function ExConfig({ ex, existing, onSave, onDelete, onReplace, close, routine, i
       if (c.backoff === true && backoffOffered(out, 'reps', ex, bw) && isBackoff({ ...out, backoff: true })) out.backoff = true
       // A pyramid has its own Max set for this, so the flag is not offered (or kept) there.
       if (!list.length) Object.assign(out, withFailure)
+      if (custom) {
+        out.setTargets = c.setTargets.map(goal => ({ reps: goal.reps, ...(goal.repsMin != null ? { repsMin: goal.repsMin } : {}) }))
+        out.sets = out.setTargets.length
+        out.reps = out.setTargets[0].reps
+        out.prog = 'off'
+        delete out.repsMin
+        delete out.setsMax
+        delete out.backoff
+      }
       onSave(out)
     }
   }
@@ -1839,7 +1851,25 @@ function ExConfig({ ex, existing, onSave, onDelete, onReplace, close, routine, i
       <Segmented className="seg-range" value={mode} onChange={setMode}
         options={[{ value: 'reps', label: t('Reps') }, { value: 'time', label: t('Time') }]} />
     </div>}
-    {mode==='reps'&&!pyramid&&<div className="rep-target-mode"><Segmented label={t('Repetition target')} value={manualRange?'range':activePolicy==='off'?'fixed':'progression'} options={[{value:'fixed',label:t('Fixed repetitions')},{value:'range',label:t('Rep range')},{value:'progression',label:t('Progression')}]} onChange={v=>{setManualRange(v==='range');setC(x=>({...x,prog:v==='progression'?(x.prog&&x.prog!=='off'?x.prog:'linear'):'off',repsMin:v==='range'?(x.repsMin||8):undefined,reps:x.reps||12,pyramid:undefined}))}}/></div>}
+    {mode==='reps'&&!pyramid&&!custom&&<div className="rep-target-mode"><Segmented label={t('Repetition target')} value={manualRange?'range':activePolicy==='off'?'fixed':'progression'} options={[{value:'fixed',label:t('Fixed repetitions')},{value:'range',label:t('Rep range')},{value:'progression',label:t('Progression')}]} onChange={v=>{setManualRange(v==='range');setC(x=>({...x,prog:v==='progression'?(x.prog&&x.prog!=='off'?x.prog:'linear'):'off',repsMin:v==='range'?(x.repsMin||8):undefined,reps:x.reps||12,pyramid:undefined}))}}/></div>}
+    {mode === 'reps' && !pyramid && <div className="sect-b" style={{ margin: '20px 0 24px' }}>
+      <Row icon="steps" iconTint="var(--acc)" title={t('Customize sets')} subtitle={t('Choose fixed repetitions or a range for each set.')}>
+        <Switch checked={custom} onChange={enabled => setC(x => ({ ...x, setTargets: enabled ? resizeSetTargets(x, x.sets) : undefined, ...(enabled ? { prog: 'off', intensifier: undefined, backoff: undefined } : {}) }))} />
+      </Row>
+    </div>}
+    {custom && <div style={{ marginBottom: 18 }}>
+      {c.setTargets.map((goal, i) => <div key={i} style={{ marginBottom: 16 }}>
+        <strong>{t('Set {0}', i + 1)}</strong>
+        <Segmented label={t('Repetition target')} value={goal.repsMin != null ? 'range' : 'fixed'} options={[{value:'fixed',label:t('Fixed repetitions')},{value:'range',label:t('Rep range')}]}
+          onChange={value => setC(x => ({ ...x, setTargets: x.setTargets.map((g, j) => j !== i ? g : value === 'range' ? { ...g, repsMin: g.repsMin || g.reps } : { reps: g.reps }) }))} />
+        <div className="row cfgrow">
+          {(goal.repsMin != null ? ['repsMin', 'reps'] : ['reps']).map(key => <Stepper key={key} label={t(key === 'repsMin' ? 'Reps from' : goal.repsMin != null ? 'Reps up to' : 'Reps')} value={goal[key]} min={1} step={perSide ? 2 : 1} decimal={false}
+            onChange={value => setC(x => ({ ...x, setTargets: x.setTargets.map((g, j) => j === i ? { ...g, [key]: value } : g) }))} />)}
+        </div>
+      </div>)}
+      {customError && <p role="alert">{t('Enter a positive whole-number range with minimum no greater than maximum.')}</p>}
+      <p className="small dim">{t('Custom set targets stay fixed; automatic progression is disabled.')}</p>
+    </div>}
     {ranged && manualRange && <div className="rep-range-fields">
       {['repsMin', 'reps'].map((key, index) => {
         const label = t(index === 0 ? 'Reps from' : 'Reps up to')
@@ -1869,8 +1899,8 @@ function ExConfig({ ex, existing, onSave, onDelete, onReplace, close, routine, i
         {/* Rest-pause always trains as exactly two rows — a warm-up at this rep count, then one
             rest-pause work set — so "Sets" has nothing left to mean and only invites a mismatch. */}
         {c.intensifier?.type !== 'restpause' && !pyramid &&
-          <Stepper label={triple ? t('Sets from') : t('Sets')} value={c.sets} step={1} decimal={false} onChange={v => setC(x => ({ ...x, sets: v }))} />}
-        {!ranged && !pyramid && <Stepper label={t('Reps')} value={c.reps} step={perSide ? 2 : 1} decimal={false} onChange={v => setC(x => ({ ...x, reps: v }))} />}
+          <Stepper label={triple ? t('Sets from') : t('Sets')} value={c.sets} step={1} decimal={false} onChange={v => setC(x => ({ ...x, sets: v, ...(hasSetTargets(x) ? { setTargets: resizeSetTargets(x, v) } : {}) }))} />}
+        {!ranged && !pyramid && !custom && <Stepper label={t('Reps')} value={c.reps} step={perSide ? 2 : 1} decimal={false} onChange={v => setC(x => ({ ...x, reps: v }))} />}
         {/* On bodyweight work the weight stepper is the click #32 is about, so it is not here
             until there is a belt to describe — see the added-weight row below. */}
         {!bw && !pyramid && <Stepper label={t('Weight ({0})', st.unit)} value={c.weight} step={2.5} onChange={v => setC(x => ({ ...x, weight: v }))} />}
@@ -1994,7 +2024,7 @@ function ExConfig({ ex, existing, onSave, onDelete, onReplace, close, routine, i
         subtitle={c.lastToFailure ? t('The last set goes until nothing is left, and counts as all-out effort unless you rate it.') : t('Plan the final set as an all-out one.')}>
         <Switch checked={c.lastToFailure === true} onChange={v => setC(x => ({ ...x, lastToFailure: v || undefined }))} />
       </Row>}
-      {mode === 'reps' && <Row icon="steps" iconTint="var(--acc)" title={t('Pyramid sets')}
+      {mode === 'reps' && !custom && <Row icon="steps" iconTint="var(--acc)" title={t('Pyramid sets')}
         subtitle={t('A different rep target for each set, e.g. 12 · 8 · 6 · Max · 12.')}>
         <Switch checked={pyramid} onChange={v => setC(x => (v
           ? { ...x, pyramid: x.pyramidDraft || pyramidFromFlat(x), intensifier: undefined }
@@ -2024,7 +2054,7 @@ function ExConfig({ ex, existing, onSave, onDelete, onReplace, close, routine, i
         : t('Reps climb by one whenever every set was clean. Set a ceiling to add sets instead of reps forever.')}
     </div>}
     {/* A pyramid already shapes every set; a drop-set or rest-pause would reshape them again. */}
-    {mode === 'reps' && !pyramid && <>
+    {mode === 'reps' && !pyramid && !custom && <>
       <h4 className="sec">{t('Drop-set / rest-pause')}</h4>
       <div className="sect-b" style={{ marginBottom: 8 }}>
         <SelectRow title={t('Intensifier')} sheetTitle={t('Intensifier')} value={c.intensifier?.type || ''}
@@ -2076,14 +2106,14 @@ function ExConfig({ ex, existing, onSave, onDelete, onReplace, close, routine, i
     </>}
     {pyramid
       ? <div className="small dim" style={{ marginBottom: 18 }}>{t('Weight is up to you: pyramid sets are not progressed automatically.')}</div>
-      : <ProgressionFields ex={ex} mode={mode} c={c} setC={setC} routine={routine} unit={st.unit} perSide={perSide} bw={bw} />}
+      : !custom && <ProgressionFields ex={ex} mode={mode} c={c} setC={setC} routine={routine} unit={st.unit} perSide={perSide} bw={bw} />}
     <textarea className="input" rows={3} maxLength={500} style={{ marginBottom: 18 }}
       placeholder={t('Note (optional): loading cues, "bar only, then +1 plate/side each set", anything worth remembering')}
       value={c.note || ''} onChange={e => setC(x => ({ ...x, note: e.target.value }))} />
     {/* What saving does, when it is neither of the two usual things: the routine editor's
         Replace (#110) seeds this sheet with the slot it replaces, and saving puts the exercise
         into that slot. */}
-    <Button variant="primary" disabled={progressionStepInvalid||!!rangeError} onClick={save}>{saveLabel || (existing ? t('Save') : t('Add to routine'))}</Button>
+    <Button variant="primary" disabled={progressionStepInvalid||!!rangeError||!!customError} onClick={save}>{saveLabel || (existing ? t('Save') : t('Add to routine'))}</Button>
     {isCustomEx(ex) && (!isSharedEx(ex) || useSharedExercises.getState().canManage) && <><div style={{ height: 8 }} /><Button icon="pencil" onClick={() => { close(); customExSheet(ex) }}>{t('Edit or delete this exercise')}</Button></>}
     {/* The routine editor's counterpart to a workout's Swap (#110): another exercise in this
         slot, with the slot's sets, reps, weight, rule and note kept (lib/routines.js). What was

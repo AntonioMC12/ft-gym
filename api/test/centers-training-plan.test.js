@@ -58,3 +58,13 @@ test('repetition ranges persist and reject incomplete, fractional, negative and 
   assert.throws(()=>trainingPlan(next),{status:400,code:'invalid-training-plan'});
  }
 });
+
+test('per-set goals survive proposals and invalid ranges are rejected',()=>{
+  const p=plan(); const ex=p.routines[0].ex[0];
+  ex.sets=3;ex.setTargets=[{repsMin:8,reps:10},{repsMin:10,reps:12},{reps:12}];
+  assert.deepEqual(trainingPlan(p),p);
+  ex.setTargets[0].repsMin=11;
+  assert.throws(()=>trainingPlan(p),{status:400,code:'invalid-training-plan'});
+  ex.setTargets=[{reps:12}];
+  assert.throws(()=>trainingPlan(p),{status:400,code:'invalid-training-plan'});
+});

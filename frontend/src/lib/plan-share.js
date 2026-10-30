@@ -1,3 +1,4 @@
+import { hasSetTargets } from './set-targets.js'
 // Share a weekly plan.
 //
 // Two jobs:
@@ -112,6 +113,7 @@ function cleanEx(e) {
   // as a bare 20 and the other end counts half the volume.
   if (dbLoadOf(e.dbLoad)) o.dbLoad = dbLoadOf(e.dbLoad)
   if (e.repsMin != null) o.repsMin = e.repsMin
+  if (mode === 'reps' && hasSetTargets(e)) o.setTargets = e.setTargets.map(goal => ({ ...goal }))
   // Triple progression's set ceiling (progression.js tripleSetsOf), rep work only.
   if (mode === 'reps' && e.setsMax > 0) o.setsMax = Math.min(MAX_TRIPLE_SETS, Math.round(e.setsMax))
   if (e.repsMax != null) o.repsMax = e.repsMax

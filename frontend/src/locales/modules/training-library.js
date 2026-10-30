@@ -58,6 +58,9 @@ const folderEs = {
 const folderStrings = lang => lang === 'es' ? folderEs : Object.fromEntries(Object.keys(folderEs).map(key => [key,key]))
 
 const detailEs = {
+  'Customize sets': 'Personalizar series',
+  'Choose fixed repetitions or a range for each set.': 'Elige repeticiones fijas o un rango para cada serie.',
+  'Custom set targets stay fixed; automatic progression is disabled.': 'Los objetivos de cada serie se mantienen fijos; la progresión automática está desactivada.',
   "Plans": "Planes",
   "No plan": "Sin plan",
   "Routine library": "Biblioteca de rutinas",

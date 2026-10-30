@@ -1,3 +1,4 @@
+import { hasSetTargets } from './set-targets.js'
 // Automatic progression (issue #17).
 //
 // Everything here is a pure function of the workout history. Nothing writes back into a
@@ -97,7 +98,7 @@ export const MAX_BW_SETS = 6
 // the mode's default. Reps keeps behaving the way the app always did (all reps → add a step).
 export function policyFor(cfg, routine, mode) {
   // Pyramid sets are never progressed: the lifter picks every set's weight (CONTEXT.md).
-  if (isPyramid(cfg)) return 'off'
+  if (isPyramid(cfg) || hasSetTargets(cfg)) return 'off'
   const m = mode || modeOf(cfg || {})
   const allowed = POLICIES_FOR[m] || ['off']
   const pick = (cfg && cfg.prog) || (routine && routine.prog) || (m === 'reps' ? 'linear' : 'off')
@@ -223,6 +224,7 @@ export function plannedOf(cfg) {
   if (mode === 'time' && c.sec > 0) out.sec = c.sec
   // Triple progression's set ceiling is part of the plan: raising it changes where a cycle ends.
   if (mode === 'reps' && c.setsMax > 0) out.setsMax = c.setsMax
+  if (hasSetTargets(c)) out.setTargets = c.setTargets.map(goal => ({ ...goal }))
   if (c.weight != null) out.weight = c.weight
   return out
 }
@@ -237,7 +239,7 @@ const PLAN_KEYS = ['sets', 'reps', 'repsMin', 'sec', 'setsMax']
 const samePlan = (a, b) => PLAN_KEYS.every(k => (a[k] ?? null) === (b[k] ?? null))
 /** Did the routine's sets or reps change since the session that stamped `planned`? */
 export function planChanged(planned, cfg) {
-  return !!planned && !samePlan(planned, plannedOf(cfg))
+  return !!planned && (!samePlan(planned, plannedOf(cfg)) || JSON.stringify(planned.setTargets) !== JSON.stringify(cfg.setTargets))
 }
 
 /**

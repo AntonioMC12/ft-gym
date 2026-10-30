@@ -156,3 +156,42 @@ describe('manual repetition ranges use the existing prescription fields',()=>{
   const next=renderConfig({prog:'off',reps:12,repsMin:8});act(()=>[...next.host.querySelectorAll('button')].find(b=>b.textContent==='Fixed repetitions').click());act(()=>save(next.host));expect(next.onSave.mock.calls[0][0]).not.toHaveProperty('repsMin')
  })
 })
+
+
+describe('custom per-set repetition goals', () => {
+  beforeEach(() => {
+    globalThis.IS_REACT_ACT_ENVIRONMENT = true
+    useUI.setState({ sheets: [] })
+    useStore.setState(s => ({ S: { ...s.S, unit: 'kg' } }))
+    document.body.innerHTML = ''
+  })
+  afterEach(() => { act(() => { mounted.splice(0).forEach(root => root.unmount()) }) })
+  const goals = [{ repsMin: 8, reps: 10 }, { repsMin: 10, reps: 12 }, { reps: 12 }]
+  it('reopens and saves mixed ranges and fixed reps without flattening them', () => {
+    const { host, onSave } = renderConfig({ setTargets: goals, prog: 'off' })
+    expect(host.textContent).toContain('Customize sets')
+    expect(host.textContent).toContain('Set 3')
+    act(() => save(host))
+    expect(onSave.mock.calls[0][0]).toMatchObject({ setTargets: goals, sets: 3, prog: 'off' })
+  })
+  it('rejects an inverted per-set range', () => {
+    const { host, onSave } = renderConfig({ setTargets: [{ repsMin: 12, reps: 8 }, ...goals.slice(1)], prog: 'off' })
+    expect(host.querySelector('[role="alert"]')).not.toBeNull()
+    act(() => save(host))
+    expect(onSave).not.toHaveBeenCalled()
+  })
+  it('resizes the goals when changing the number of sets', () => {
+    const { host, onSave } = renderConfig({ setTargets: goals, prog: 'off' })
+    act(() => type(field(host, 'Sets'), '4'))
+    act(() => save(host))
+    expect(onSave.mock.calls[0][0].setTargets).toEqual([...goals, { reps: 12 }])
+  })
+  it('enables personalisation from a common target', () => {
+    const { host, onSave } = renderConfig({ prog: 'off' })
+    const row = [...host.querySelectorAll('[role="switch"]')].find(el => el.parentElement.textContent.includes('Customize sets') || el.closest('.row')?.textContent.includes('Customize sets'))
+    expect(row).toBeTruthy()
+    act(() => row.click())
+    act(() => save(host))
+    expect(onSave.mock.calls[0][0].setTargets).toEqual([{reps:10},{reps:10},{reps:10}])
+  })
+})

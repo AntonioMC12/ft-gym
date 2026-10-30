@@ -6752,7 +6752,7 @@ components:
       type: object
       additionalProperties: false
       required: [opengym_plan, unit, routines]
-      description: At most64KiB UTF-8,20routines,40exercises per routine and200total. Existing buildPlanBundle vocabulary with finite typed prescriptions, notes up to1000characters, valid progression/pyramids/rests/intensifiers and catalogue IDs. No profile fields, custom exercises or media. Unknown nested fields rejected. Exported date is ignored for authority and canonical content.
+      description: At most64KiB UTF-8,20routines,40exercises per routine and200total. Existing buildPlanBundle vocabulary with finite typed prescriptions, notes up to1000characters, valid progression/pyramids/rests/intensifiers and catalogue IDs. Optional exercise setTargets contains exactly sets objects with integer reps (1–1000) and optional repsMin (1–reps), for repetitions mode only and incompatible with pyramid. No profile fields, custom exercises or media. Unknown nested fields rejected. Exported date is ignored for authority and canonical content.
       properties:
         opengym_plan: { type: integer, enum: [1] }
         unit: { type: string, enum: [kg, lb] }

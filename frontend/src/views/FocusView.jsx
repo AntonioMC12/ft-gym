@@ -1,3 +1,4 @@
+import { hasSetTargets, setTargetLabel, setTargetsLabel } from '../lib/set-targets.js'
 import {repReference} from '../lib/rep-reference.js'
 import {sessionHistory} from '../lib/backfill.js'
 import { setFeedbackHistory, feedbackForSet } from '../lib/set-feedback.js'
@@ -70,7 +71,9 @@ const addBurstTo = (row, restSec) => {
 
 function Prescription({ entry, setIdx, unit, fallbackRest, children }) {
   const target = entry.target || {}
-  const reps = target.repsMin > 0 ? `${target.repsMin}–${target.reps}` : target.reps > 0 ? String(target.reps) : ''
+  const workIndex = entry.sets.slice(0, setIdx).filter(s => !isWarmupRow(s)).length
+  const goal = hasSetTargets(target) && !isWarmupRow(entry.sets[setIdx]) ? target.setTargets[Math.min(workIndex, target.setTargets.length - 1)] : null
+  const reps = goal ? setTargetLabel(goal) : target.repsMin > 0 ? `${target.repsMin}–${target.reps}` : target.reps > 0 ? String(target.reps) : ''
   const load = target.weight > 0
     ? `@ ${fmtNum(target.weight)}${target.weightMax > target.weight ? `–${fmtNum(target.weightMax)}` : ''} ${unit}`
     : ''
@@ -91,6 +94,7 @@ function PlanBadge({ entry, mode }) {
   const planned = entry.planned && mode !== 'cardio' ? entry.planned : null
   if (!planned) return null
   const today = entry.target || {}
+  if (hasSetTargets(today)) return <span className="rep-goal"><span>{t('Repetition target')}</span><strong>{setTargetsLabel(today)}</strong></span>
   if (mode === 'reps' && !today.pyramid && planned.repsMin > 0 && planned.repsMin < planned.reps)
     return <span className="rep-goal"><span>{t('Repetition target')}</span><strong>{planned.repsMin}–{planned.reps}</strong></span>
   const todaySets = today.sets || planned.sets || 1

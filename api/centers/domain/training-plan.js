@@ -5,7 +5,7 @@ const invalid=message=>{throw new CentersError(400,'invalid-training-plan',messa
 const policies=new Set(['off','linear','greyskull','double','triple','time']);
 const rootFields=['opengym_plan','name','unit','exported','routines','week','customEx'];
 const routineFields=['id','name','emoji','prog','excludeFromProgression','ex'];
-const exerciseFields=['id','sets','mode','reps','weight','sec','min','speed','pyramid','pyramidRest','pyramidWeight','bodyweight','side','prog','inc','backoff','lastToFailure','deloadFactor','dbLoad','repsMin','setsMax','repsMax','restSec','warmupRestSec','sg','note','warmupSets','intensifier'];
+const exerciseFields=['id','setTargets','sets','mode','reps','weight','sec','min','speed','pyramid','pyramidRest','pyramidWeight','bodyweight','side','prog','inc','backoff','lastToFailure','deloadFactor','dbLoad','repsMin','setsMax','repsMax','restSec','warmupRestSec','sg','note','warmupSets','intensifier'];
 const record=value=>!!value&&typeof value==='object'&&!Array.isArray(value);
 function shape(value,fields){try{return objectBody(value,fields)}catch{invalid('unexpected training plan field')}}
 function number(value,min,max,integer=false){if(typeof value!=='number'||!Number.isFinite(value)||value<min||value>max||(integer&&!Number.isSafeInteger(value)))invalid('invalid prescription number');return value}
@@ -18,6 +18,15 @@ function cleanExercise(value,hasExercise){
   if(value.mode!=null){if(!['reps','time','cardio'].includes(value.mode))invalid('invalid exercise mode');out.mode=value.mode}
   for(const key of ['reps','repsMin','repsMax'])if(value[key]!=null)out[key]=number(value[key],1,1000,true);
   if(out.repsMin!=null&&(out.reps==null||out.repsMin>out.reps||out.mode==='time'||out.mode==='cardio'))invalid('invalid repetition range');
+  if(value.setTargets!=null){
+    if(!Array.isArray(value.setTargets)||value.setTargets.length!==out.sets||out.mode==='time'||out.mode==='cardio'||value.pyramid!=null)invalid('invalid per-set targets');
+    out.setTargets=value.setTargets.map(goal=>{
+      shape(goal,['reps','repsMin']);
+      const target={reps:number(goal.reps,1,1000,true)};
+      if(goal.repsMin!=null)target.repsMin=number(goal.repsMin,1,target.reps,true);
+      return target;
+    });
+  }
   for(const key of ['weight','inc'])if(value[key]!=null)out[key]=number(value[key],0,10000);
   for(const key of ['sec','restSec','warmupRestSec'])if(value[key]!=null)out[key]=number(value[key],1,7200,true);
   if(value.min!=null)out.min=number(value.min,0.1,1440);

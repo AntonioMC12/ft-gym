@@ -1,3 +1,4 @@
+import { hasSetTargets, setTargetsLabel } from '../lib/set-targets.js'
 import {routineIsActive} from '../lib/training-plans.js'
 import RoutineOriginBadge from '../components/RoutineOriginBadge.jsx'
 import {tappable} from '../lib/use-sheet-keyboard.js'
@@ -244,6 +245,7 @@ function ExerciseBlock({ entryIdx, compact, dense, editing, onToggle, onToggleSi
     const today = entry.target || {}
     // A pyramid reads as its targets, as on the routine row: "12 · 8 · 6 · Max · 12", never the
     // set count times the first target (#367). Its rows are the plan; nothing moves them.
+    if (hasSetTargets(today)) return <div className="small dim planline">{t('Plan: {0}', setTargetsLabel(today))}</div>
     if (isPyramid(today)) return <div className="small dim planline" style={{ marginBottom: 4 }}>{t('Plan: {0}', pyramidLabel(today.pyramid))}</div>
     const todaySets = today.sets || planned.sets || 1
     const inPlan = timed
@@ -738,6 +740,7 @@ function ExerciseBlock({ entryIdx, compact, dense, editing, onToggle, onToggleSi
           {!warm && warmBefore && <div className="setsep" />}
           {/* A pyramid's Max set: the reps are what you managed, not a number to hit. */}
           {/* With the record to beat at this set's weight or heavier, from before this session. */}
+          {!warm && hasSetTargets(entry.target) && <div className="setph">{t('Repetition target')}: {setTargetsLabel({setTargets: [entry.target.setTargets[Math.min(phaseNum - 1, entry.target.setTargets.length - 1)]]})}</div>}
           {!warm && s.max && <div className="setph">{t('Max: as many reps as you can')}{(() => {
             const rec = maxRecordAt(H.workouts, entry.id, s.w)
             if (!rec) return null

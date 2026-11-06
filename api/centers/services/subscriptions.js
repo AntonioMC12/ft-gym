@@ -7,6 +7,9 @@ import {memberRecord} from './member-records.js';
 import {membershipHistory} from './membership-lifecycle.js';
 import {memberDto} from '../authz.js';
 import {commandHash,commandReplay,rememberCommand,businessAudit} from './commands.js';
+import {previewForContract} from './billing-preview.js';
+import {issueReceipt} from './receipts.js';
+import {appendPayment} from './payments.js';
 
 const conflict=code=>new CentersError(409,code,'subscription conflicts with current contract');
 async function terms(client,centerId,id) {
@@ -41,15 +44,24 @@ function input(raw,change) {
   if(!Number.isSafeInteger(discountBasisPoints)||discountBasisPoints<0||discountBasisPoints>10000)throw new CentersError(400,'invalid-input','invalid discount');
   return {centerId,memberId,memberVersion,priceVersionId,effectiveOn,requestId,discountBasisPoints,discountReason,...(change?{id:idField(raw.id)}:{})};
 }
-async function write(context,raw,change,{platform=false}={}) {
-  const values=input(raw,change),{centerId,memberId,memberVersion,priceVersionId,effectiveOn,requestId,discountBasisPoints,discountReason}=values,operation=change?'subscription.change':'subscription.create';
+async function write(context,raw,change,{platform=false,pay=false,preview=false}={}) {
+  const {quoteHash,...fields}=raw;
+  const values=input(pay?fields:raw,change),{centerId,memberId,memberVersion,priceVersionId,effectiveOn,requestId,discountBasisPoints,discountReason}=values,operation=pay?'subscription.pay':change?'subscription.change':'subscription.create';
   const {requestId:ignored,...content}=values,hash=commandHash(content);
   return businessTransaction(context.database,context.user.id,centerId,'billing.manage',async(client,scope)=>{
-    const replay=await commandReplay(client,centerId,context.user.id,operation,requestId,hash);if(replay)return replay;
+    if(pay&&!scope.capabilities.includes('payments.record'))throw new CentersError(403,'forbidden','forbidden');
+    if(preview)await client.query('SAVEPOINT payment_preview');
+    const replay=await commandReplay(client,centerId,context.user.id,operation,requestId,hash);if(replay){context.checkSession();return preview?{alreadyCovered:true}:replay;}
     const member=await memberRecord(client,centerId,memberId,{version:memberVersion});
     if(member.state==='ended')throw conflict('invalid-transition');
+    if(pay&&!['active','preactive'].includes(member.state))throw conflict('invalid-transition');
     if(effectiveOn<member.local_today||effectiveOn<member.joined_on)throw new CentersError(400,'invalid-input','retroactive subscription');
     if(member.ends_on&&effectiveOn>=member.ends_on)throw conflict('subscription-ended');
+    if(pay&&effectiveOn!==member.local_today)throw conflict('future-period');
+    if(pay){
+      const {rows}=await client.query("SELECT id FROM centers.receipts WHERE center_id=$1 AND member_id=$2 AND concept='membership' AND period_start<= $3 AND period_end>$3",[centerId,memberId,member.local_today]);
+      if(rows.length)throw conflict('receipt-review-required');
+    }
     const price=await terms(client,centerId,priceVersionId),existing=await subscriptionRows(client,centerId,memberId),id='su_'+commandHash([centerId,context.user.id,requestId]).slice(0,32);
     if(price.interval_months===1&&effectiveOn!==member.local_today)throw new CentersError(400,'invalid-input','monthly membership must start on registration day');
     let previous=null,activationId=null,noticeDays=null;
@@ -76,11 +88,25 @@ async function write(context,raw,change,{platform=false}={}) {
     await client.query(`INSERT INTO centers.subscriptions(id,center_id,member_id,plan_id,price_version_id,starts_on,ends_on,billing_day,anchor_on,timezone,discount_basis_points,discount_reason,replaces_id,previous_ends_on,activation_id,actor_uid,notice_days)
       VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17)`,[id,centerId,memberId,price.plan_id,priceVersionId,effectiveOn,previous?.ends_on||null,price.interval_months===1?1:calendar.billing_day,billingAnchor(effectiveOn,calendar.billing_day,price.interval_months),calendar.timezone,discountBasisPoints,discountReason,previous?.id||null,previous?.ends_on||null,activationId,context.user.id,noticeDays]);
     await businessAudit(client,centerId,context.user.id,operation,id,{memberId,priceVersionId,effectiveOn,replacesId:previous?.id||null});
-    const response=await result(client,scope,memberId,{bump:true});await rememberCommand(client,centerId,context.user.id,operation,requestId,hash,response);context.checkSession();return response;
+    const response=await result(client,scope,memberId,{bump:true});
+    if(pay){
+      const periodStart=price.interval_months===1?effectiveOn.slice(0,7)+'-01':effectiveOn;
+      const quote=await previewForContract(client,centerId,memberId,id,periodStart);
+      const review={name:price.name,amountMinor:quote.totalMinor,periodStart:quote.periodStart,periodEnd:quote.periodEnd,currency:quote.currency};
+      const expected=commandHash({content,quote});
+      if(preview){await client.query('ROLLBACK TO SAVEPOINT payment_preview');context.checkSession();return {...review,quoteHash:expected}}
+      if(quoteHash!==expected)throw conflict('quote-changed');
+      const issued=await issueReceipt(client,{centerId,memberId,subscriptionId:id,periodStart,uid:context.user.id,automatic:true});
+      if(issued.receipt&&BigInt(quote.totalMinor)>0n)await appendPayment(client,{id:'pay_'+commandHash([centerId,context.user.id,requestId]).slice(0,32),centerId,memberId,uid:context.user.id,amountMinor:quote.totalMinor,currency:quote.currency,paidOn:member.local_today,method:'cash',reference:null,allocations:[{receiptId:issued.receipt.id,amountMinor:quote.totalMinor}]});
+      response.receipt=issued.receipt;response.paymentRecorded=BigInt(quote.totalMinor)>0n;
+    }
+    await rememberCommand(client,centerId,context.user.id,operation,requestId,hash,response);context.checkSession();return response;
   },{platform});
 }
 export const createSubscription=(context,raw,options)=>write(context,raw,false,options);
 export const changeSubscription=(context,raw,options)=>write(context,raw,true,options);
+export const paySubscription=(context,raw,options)=>write(context,raw,!!raw.id,{...options,pay:true});
+export const previewSubscriptionPayment=(context,raw,options)=>write(context,raw,!!raw.id,{...options,pay:true,preview:true});
 export async function cancelSubscription({database,user,checkSession},raw,{platform=false}={}) {
   objectBody(raw,['centerId','memberId','memberVersion','id','requestId']);
   const centerId=idField(raw.centerId),memberId=idField(raw.memberId),memberVersion=versionField(raw.memberVersion),id=idField(raw.id),requestId=requestField(raw.requestId),hash=commandHash({memberId,memberVersion,id}),operation='subscription.cancel';

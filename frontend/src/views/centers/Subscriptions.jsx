@@ -10,11 +10,10 @@ import {t} from '../../lib/i18n.js'
 import ActionReason from '../../components/ActionReason.jsx'
 import {useUI} from '../../store/useUI.js'
 import {subscriptionFormErrors,focusCenterError} from './form-validation.js'
-import BillingPreview from './BillingPreview.jsx'
 import ContractSummary from './ContractSummary.jsx'
 import {useCenterNavigation,useUnsavedCenterForm} from './NavigationGuard.jsx'
 
-export default function Subscriptions({centerId,member,ownerUid,changed,receiptCreated,onManagePlans}) {
+export default function Subscriptions({centerId,member,ownerUid,changed,onManagePlans,canPay=false,onPaid}) {
   const prefix=useId(),navigate=useCenterNavigation(),pending=useRef(false),[errors,setErrors]=useState({})
   const [info,setInfo]=useState(null),[plans,setPlans]=useState([]),[cursor,setCursor]=useState(null),[query,setQuery]=useState(''),[search,setSearch]=useState('')
   const [priceVersionId,setPriceVersionId]=useState(''),[effectiveOn,setEffectiveOn]=useState(''),[discount,setDiscount]=useState('0'),[reason,setReason]=useState('')
@@ -67,6 +66,26 @@ export default function Subscriptions({centerId,member,ownerUid,changed,receiptC
       if(current(epoch)){setBaseline(signature);setInfo(result);useUI.getState().toast(t('Saved'));changed(result)}
     }catch(e){if(current(epoch))fail(e)}finally{pending.current=false;if(current(epoch))setBusy(false)}
   }
+  const pay=async()=>{
+    if(pending.current||busy)return;
+    const next=subscriptionFormErrors({priceVersionId,effectiveOn,discount,reason},info.today);setErrors(next);if(Object.keys(next).length){focusCenterError(saveForm.current,next);return}
+    const epoch=life.current,version=signature;
+    const unchanged=active&&priceVersionId===active.priceVersionId&&Number(priceToMinor(discount))===active.discountBasisPoints&&(reason||'')===(active.discountReason||'');
+    const body=unchanged?{centerId,memberId:member.id}:{centerId,memberId:member.id,memberVersion:member.version,priceVersionId,effectiveOn,discountBasisPoints:Number(priceToMinor(discount)),discountReason:reason||null,requestId,...(active?{id:active.id}:{})};
+    pending.current=true;setBusy(true);setError(null);
+    try{
+      const review=await centerCommand(unchanged?'/api/centers/renewals/preview':'/api/centers/subscriptions/pay-preview',body);
+      if(!current(epoch))return;
+      if(review.alreadyCovered){setBaseline(version);setRequestId(crypto.randomUUID());useUI.getState().toast(t('This period is already covered.'));onPaid?.(review);return}
+      confirmSheet({title:t('Confirm payment'),message:member.name+' · '+review.name+' · '+review.periodStart+' → '+review.periodEnd+' · '+minorToPrice(review.amountMinor)+' '+(review.currency||'EUR')+' · '+t('Confirm that you received this amount in cash.'),confirmText:t('Pay'),onConfirm:async()=>{
+        if(!current(epoch)||pending.current)return;pending.current=true;setBusy(true);setError(null);
+        try{
+          const result=await centerCommand(unchanged?'/api/centers/renewals/cash':'/api/centers/subscriptions/pay',{...body,requestId,quoteHash:review.quoteHash});
+          if(current(epoch)){setBaseline(version);setRequestId(crypto.randomUUID());useUI.getState().toast(t('Cash renewal recorded.'));onPaid?.(result)}
+        }catch(e){if(current(epoch))fail(e)}finally{if(current(epoch)){pending.current=false;setBusy(false)}}
+      }})
+    }catch(e){if(current(epoch))fail(e)}finally{if(current(epoch)){pending.current=false;setBusy(false)}}
+  }
   const cancel=row=>{
     const epoch=life.current;if(!cancelIds.current.has(row.id))cancelIds.current.set(row.id,crypto.randomUUID())
     confirmSheet({title:t('Cancel scheduled change'),message:row.name,confirmText:t('Cancel scheduled change'),danger:true,onConfirm:async()=>{
@@ -80,7 +99,7 @@ export default function Subscriptions({centerId,member,ownerUid,changed,receiptC
   const fieldProps=key=>({'data-error-field':key,'aria-invalid':!!errors[key]||undefined,'aria-describedby':errors[key]?prefix+key:undefined,onBlur:()=>{if(invalid[key])setErrors(old=>({...old,[key]:invalid[key]}))}})
   const history=(info?.subscriptions||[]).filter(row=>row.canceled||row.status==='ended'||row.effectiveEndsOn&&row.effectiveEndsOn<=info.today)
   const currentContracts=(info?.subscriptions||[]).filter(row=>!history.includes(row))
-  const contract=row=><div key={row.id} className="centers-subscription-card"><ContractSummary contract={row}>{row.canCancel&&<Button disabled={busy} onClick={()=>cancel(row)}>{t('Cancel scheduled change')}</Button>}</ContractSummary>{!row.canceled&&<BillingPreview key={member.version} centerId={centerId} memberId={member.id} contractId={row.id} ownerUid={ownerUid} today={info.today} intervalMonths={row.intervalMonths} canGenerate onGenerated={receiptCreated} policyMissing={row.priceIncludesTax===null||row.taxBasisPoints===null||row.proration===null} onConfigure={onManagePlans}/>}</div>
+  const contract=row=><div key={row.id} className="centers-subscription-card"><ContractSummary contract={row}>{row.canCancel&&<Button disabled={busy} onClick={()=>cancel(row)}>{t('Cancel scheduled change')}</Button>}</ContractSummary>{(row.priceIncludesTax===null||row.taxBasisPoints===null||row.proration===null)&&<div className="centers-import-notice"><p>{t('Tax and proration must be configured before calculating charges.')}</p><p>{t('Configure the fee, then assign its new version to this member. Existing subscriptions keep their original terms.')}</p>{onManagePlans&&<Button type="button" onClick={onManagePlans}>{t('Membership plans')}</Button>}</div>}</div>
   return <Section title={t('Subscriptions')} className="centers-subscriptions"><div className="centers-form">
     {!info&&!error&&<p role="status">{t('Loading…')}</p>}
     {currentContracts.map(contract)}
@@ -96,7 +115,7 @@ export default function Subscriptions({centerId,member,ownerUid,changed,receiptC
       <div className="centers-fields"><label className="centers-field"><span>{t('Effective date')}</span><TextField type="date" required disabled={busy||monthly} min={info.today} {...fieldProps('effectiveOn')} value={effectiveOn} onChange={e=>update(setEffectiveOn,e.target.value)}/>{fieldError('effectiveOn')}</label>
       <label className="centers-field"><span>{t('Discount (%)')}</span><TextField required disabled={busy} inputMode="decimal" {...fieldProps('discount')} value={discount} onChange={e=>update(setDiscount,e.target.value)}/>{fieldError('discount')}</label></div>
       <label className="centers-field"><span>{t('Discount reason')}</span><TextArea disabled={busy} maxLength={250} {...fieldProps('reason')} value={reason} onChange={e=>update(setReason,e.target.value)}/>{fieldError('reason')}</label>
-      <div className="centers-form-actions" data-center-form-actions><ActionReason reason={busy?t('Loading…'):null}><Button type="button" disabled={busy} onClick={()=>navigate(reset,{form:saveForm})}>{t('Cancel')}</Button></ActionReason><ActionReason reason={unavailable}><Button type="submit" variant="primary" disabled={!!unavailable}>{t(busy?'Saving…':'Save')}</Button></ActionReason></div>
+      <div className="centers-form-actions" data-center-form-actions><ActionReason reason={busy?t('Loading…'):null}><Button type="button" disabled={busy} onClick={()=>navigate(reset,{form:saveForm})}>{t('Cancel')}</Button></ActionReason><ActionReason reason={unavailable}><Button type="submit" variant={canPay?'tinted':'primary'} disabled={!!unavailable}>{t(busy?'Saving…':canPay?'Save without payment':'Save')}</Button></ActionReason>{canPay&&<ActionReason reason={unavailable||(effectiveOn!==info.today?t('Future periods cannot be issued yet.'):null)}><Button type="button" variant="primary" disabled={!!unavailable||effectiveOn!==info.today} onClick={pay}>{t('Pay')}</Button></ActionReason>}</div>
     </form>}
     {error&&<p role="alert">{t(subscriptionsErrorKey(error))}</p>}
   </div></Section>

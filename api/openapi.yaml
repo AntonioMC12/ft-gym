@@ -2431,6 +2431,50 @@ paths:
         '401': { $ref: '#/components/responses/Unauthorized' }
         '403': { description: Financial read capability unavailable. }
         '404': { description: Member inaccessible in selected center. }
+  /api/centers/subscriptions/pay-preview:
+    post:
+      tags: [centers]
+      operationId: previewSubscriptionPayment
+      summary: Review a selected fee and cash payment without persisting a contract
+      description: Requires billing.manage and payments.record. Uses SubscriptionInput, with optional id for replacing the current contract. Requires today's effectiveOn. Returns name, currency, amountMinor, periodStart, periodEnd and quoteHash. Performs and rolls back the same subscription validation inside a savepoint. Existing receipts covering today require review through the existing payment flow.
+      security: [{ session: [] }, { bearer: [] }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              allOf:
+                - { $ref: '#/components/schemas/SubscriptionInput' }
+                - type: object
+                  properties:
+                    id: { type: string }
+      responses:
+        '200': { description: Authoritative payment review; no subscription, receipt or payment persisted. }
+        '403': { description: Missing billing or payment permissions. }
+        '409': { description: Stale member, pending change, receipt requiring review or invalid effective date. }
+  /api/centers/subscriptions/pay:
+    post:
+      tags: [centers]
+      operationId: paySubscription
+      summary: Assign or change a fee, issue its receipt and record received cash atomically
+      description: Same input as pay-preview plus required quoteHash from its review and the same requestId. Revalidates all terms, member version, date and permissions before committing. Any failure rolls back the entire operation. Retries replay the recorded result. Zero charges create no payment. Existing unchanged contracts use renewals/preview and renewals/cash.
+      security: [{ session: [] }, { bearer: [] }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              allOf:
+                - { $ref: '#/components/schemas/SubscriptionInput' }
+                - type: object
+                  required: [quoteHash]
+                  properties:
+                    id: { type: string }
+                    quoteHash: { type: string }
+      responses:
+        '200': { description: Authoritative subscription result with receipt and paymentRecorded. }
+        '403': { description: Missing billing or payment permissions. }
+        '409': { description: Review changed, member version changed or receipt requiring review. }
   /api/centers/subscriptions/create:
     post:
       tags: [centers]

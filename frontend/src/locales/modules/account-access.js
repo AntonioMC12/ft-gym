@@ -1,4 +1,8 @@
 export const accountAccessTranslations = {
+ 'Confirm payment':'Confirmar pago',
+ 'Pay':'Pagar',
+ 'Save without payment':'Guardar sin cobrar',
+ 'Manual receipt management':'Gestión manual de recibos',
  'Wrong username or password.':'Usuario o contraseña incorrectos.',
  'Optional contact address. Account recovery is handled by your center manager.':'Correo de contacto opcional. El responsable del centro gestiona la recuperación de la cuenta.',
  'Choose a new password. Saving signs you out on your other devices.':'Elige una nueva contraseña. Se cerrará la sesión en tus otros dispositivos.',

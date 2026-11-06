@@ -93,6 +93,9 @@ export function paymentsErrorKey(error) {
 }
 export function subscriptionsErrorKey(error) {
   const code=error?.data?.code||error?.code
+  if(code==='receipt-review-required')return 'Review the receipt and its refunds before renewing.'
+  if(code==='quote-changed')return 'The amount changed. Preview it again before creating the receipt.'
+  if(code==='future-period')return 'Future periods cannot be issued yet.'
   if(code==='price-notice-required')return notificationErrorKey(error)
   if(['subscription-overlap','pending-subscription','pending-transition'].includes(code))return 'Cancel the pending change before adding another.'
   if(code==='price-version-changed')return 'Center changed. Reload and try again.'

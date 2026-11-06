@@ -23,7 +23,7 @@ import { memberListOptions } from './domain/member-validation.js';
 import { transitionMember,cancelMemberTransition } from './services/membership-lifecycle.js';
 import {createInvitation,listInvitations,revokeInvitation,inspectInvitation,acceptInvitation} from './services/invitations.js';
 import {createMembershipPlan,reviseMembershipPlan,duplicateMembershipPlan,archiveMembershipPlan,listMembershipPlans,getMembershipPlan,planListOptions} from './services/membership-plans.js';
-import {createSubscription,changeSubscription,cancelSubscription,listSubscriptions} from './services/subscriptions.js';
+import {createSubscription,changeSubscription,cancelSubscription,listSubscriptions,paySubscription,previewSubscriptionPayment} from './services/subscriptions.js';
 import {previewBilling} from './services/billing-preview.js';
 import {generateReceipt,listReceipts,receiptListOptions} from './services/receipts.js';
 import {recordPayment,recordRefund,listPayments,updateRefundCapability} from './services/payments.js';
@@ -351,6 +351,8 @@ export function centersRoutes({ config, database, json, readSession, readBody, d
     },
     'POST /api/centers/billing/preview': mutate(false,(context,body)=>previewBilling(context,body,{platform:isPlatformUser(config,context.user)})),
     'POST /api/centers/subscriptions/create': mutate(false,(context,body)=>createSubscription(context,body,{platform:isPlatformUser(config,context.user)})),
+    'POST /api/centers/subscriptions/pay-preview': mutate(false,(context,body)=>previewSubscriptionPayment(context,body,{platform:isPlatformUser(config,context.user)})),
+    'POST /api/centers/subscriptions/pay': mutate(false,(context,body)=>paySubscription(context,body,{platform:isPlatformUser(config,context.user)})),
     'POST /api/centers/subscriptions/change': mutate(false,(context,body)=>changeSubscription(context,body,{platform:isPlatformUser(config,context.user)})),
     'POST /api/centers/subscriptions/cancel': mutate(false,(context,body)=>cancelSubscription(context,body,{platform:isPlatformUser(config,context.user)})),
     'GET /api/centers/subscriptions': async(req,res)=>{

@@ -8,6 +8,7 @@ vi.mock('../../lib/centers-api.js',()=>({centerSubscriptions:vi.fn(),centerPlans
 vi.mock('../../sheets.jsx',()=>({confirmSheet:vi.fn(options=>options.onConfirm())}))
 import {centerSubscriptions,centerPlans,centerCommand} from '../../lib/centers-api.js'
 import Subscriptions from './Subscriptions.jsx'
+import {confirmSheet} from '../../sheets.jsx'
 import Guard from './NavigationGuard.jsx'
 globalThis.IS_REACT_ACT_ENVIRONMENT=true
 let host,root,changed
@@ -17,8 +18,21 @@ afterEach(()=>{act(()=>root.unmount());host.remove()})
 const render=(centerId='a',value=member)=>act(async()=>{root.render(<Subscriptions centerId={centerId} member={value} ownerUid="manager" changed={changed}/>);await Promise.resolve()})
 const click=text=>act(async()=>{[...host.querySelectorAll('button')].find(button=>button.textContent===text).click();await Promise.resolve()})
 const fill=(label,value)=>act(()=>{const field=[...host.querySelectorAll('label')].find(el=>el.textContent===label).querySelector('input,textarea'),prototype=field.tagName==='TEXTAREA'?HTMLTextAreaElement.prototype:HTMLInputElement.prototype;Object.getOwnPropertyDescriptor(prototype,'value').set.call(field,value);field.dispatchEvent(new Event('input',{bubbles:true}))})
-it('uses the pinned monthly interval to open a month selector for receipt issuance',async()=>{
- const row={id:'active',planId:'p',name:'Monthly',intervalMonths:1,priceMinor:'2999',currency:'EUR',startsOn:today,status:'active',discountBasisPoints:0};centerSubscriptions.mockResolvedValue({member,today,changes:[],subscriptions:[row]});await render();await click('Create receipt');expect(host.querySelector('input[type=month]').value).toBe('2026-10');
+it('previews a selected fee without saving and pays only after confirmation, refreshing receipts',async()=>{
+ const paid=vi.fn();confirmSheet.mockImplementationOnce(()=>{});
+ centerCommand.mockResolvedValueOnce({name:'Synthetic fee',amountMinor:'2999',currency:'EUR',periodStart:today,periodEnd:'2026-11-01',quoteHash:'digest'}).mockResolvedValueOnce({member,today,subscriptions:[],paymentRecorded:true});
+ await act(async()=>root.render(<Subscriptions centerId="a" member={{...member,name:'Fictional member'}} ownerUid="manager" changed={changed} canPay onPaid={paid}/>));
+ await click('Pay');expect(centerCommand).toHaveBeenCalledTimes(1);expect(centerCommand.mock.calls[0][0]).toBe('/api/centers/subscriptions/pay-preview');expect(changed).not.toHaveBeenCalled();
+ const confirmation=confirmSheet.mock.calls[0][0];expect(confirmation.message).toContain('29.99 EUR');expect(confirmation.message).toContain('Fictional member');
+ await act(async()=>confirmation.onConfirm());expect(centerCommand).toHaveBeenLastCalledWith('/api/centers/subscriptions/pay',expect.objectContaining({quoteHash:'digest',priceVersionId:'price1',memberVersion:1,requestId:expect.any(String)}));expect(paid).toHaveBeenCalledOnce();
+})
+it('pays the unchanged active fee through the existing atomic renewal instead of replacing it',async()=>{
+ const row={id:'active',planId:'p',priceVersionId:'price1',name:'Synthetic fee',startsOn:today,status:'active',discountBasisPoints:0};centerSubscriptions.mockResolvedValue({member,today,changes:[],subscriptions:[row]});
+ confirmSheet.mockImplementationOnce(()=>{});centerCommand.mockResolvedValueOnce({name:'Synthetic fee',amountMinor:'2999',periodStart:today,periodEnd:'2026-11-01',quoteHash:'digest'}).mockResolvedValueOnce({});
+ await act(async()=>root.render(<Subscriptions centerId="a" member={member} ownerUid="manager" changed={changed} canPay/>));await click('Pay');expect(centerCommand.mock.calls[0][0]).toBe('/api/centers/renewals/preview');await act(async()=>confirmSheet.mock.calls[0][0].onConfirm());expect(centerCommand.mock.calls[1][0]).toBe('/api/centers/renewals/cash');
+})
+it('does not offer manual receipt issuance for an assigned fee',async()=>{
+ const row={id:'active',planId:'p',name:'Monthly',intervalMonths:1,priceMinor:'2999',currency:'EUR',startsOn:today,status:'active',discountBasisPoints:0};centerSubscriptions.mockResolvedValue({member,today,changes:[],subscriptions:[row]});await render();expect(host.textContent).not.toContain('Create receipt');expect(host.textContent).not.toContain('Manual receipt management');expect(host.querySelector('input[type=month]')).toBeNull();
 })
 it('sends the selected immutable price, current member version and exact discount, retaining the retry id',async()=>{
   centerCommand.mockRejectedValue(new Error('temporary'));await render();fill('Discount (%)','12,50');fill('Discount reason','Synthetic reason');await click('Save');await click('Save')
@@ -75,17 +89,15 @@ it('does not forget incomplete selected terms when a catalogue search hides that
     await act(async()=>host.querySelector('form').dispatchEvent(new Event('submit',{bubbles:true,cancelable:true})));expect(centerCommand).not.toHaveBeenCalled();
   }finally{vi.useRealTimers()}
 })
-it('keeps current and scheduled contracts visible and folds history without losing its period previews',async()=>{
+it('keeps current and scheduled contracts visible and folds history without manual receipt actions',async()=>{
   const contract=(id,startsOn,status,end=null)=>({id,name:id,priceMinor:'2500',currency:'EUR',discountBasisPoints:0,startsOn,status,effectiveEndsOn:end,priceIncludesTax:true,taxBasisPoints:0,proration:'none'});
   centerSubscriptions.mockResolvedValue({member,today,changes:[],subscriptions:[contract('Current',today,'active'),contract('Old','2026-09-01','ended',today),contract('Future','2026-11-01','scheduled'),{...contract('Cancelled','2026-11-01','canceled'),canceled:true}]});await render();
   const history=host.querySelector('.centers-subscription-history');expect(history.open).toBe(false);expect(history.querySelector('summary').textContent).toBe('Subscription history (2)');
   expect(history.textContent).toContain('Old');expect(history.textContent).toContain('Ended subscription');expect(history.textContent).not.toContain('Ended member');
   expect(host.querySelectorAll('.centers-subscriptions .centers-form>.centers-subscription-card')).toHaveLength(2);
-  expect([...history.querySelectorAll('button')].filter(button=>button.textContent==='Preview charge')).toHaveLength(1);
+  expect(history.textContent).not.toContain('Preview charge');expect(history.textContent).not.toContain('Create receipt');
   await act(async()=>history.open=true);expect(history.open).toBe(true);expect(centerCommand).not.toHaveBeenCalled();
-  centerCommand.mockRejectedValueOnce({code:'billing-policy-required'});await act(async()=>[...history.querySelectorAll('button')].find(button=>button.textContent==='Preview charge').click());
-  await act(async()=>history.querySelector('form').dispatchEvent(new Event('submit',{bubbles:true,cancelable:true})));
-  expect(centerCommand).toHaveBeenCalledWith('/api/centers/billing/preview',{centerId:'a',memberId:member.id,id:'Old'});
+
 })
 
 it('monthly assignment fixes the effective date to today and explains the fifth-day validity',async()=>{

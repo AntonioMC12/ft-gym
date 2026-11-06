@@ -59,12 +59,18 @@ it('opens the existing routines view for the superadmin and hides it for technic
  await act(async()=>useCenters.setState({platformCapabilities:[]}));expect(button('Routines')).toBeUndefined();
 });
 
-it('places center management first on Home, followed by pending members and routines',async()=>{
+it('places payments directly after center management, followed by pending members and routines',async()=>{
  api.mockResolvedValue({total:2,center:{id:'c2',name:'Second center'}})
  await act(async()=>root.render(<Home/>))
  const cards=[...host.querySelectorAll('.narrow > .card')]
  expect(cards[0].getAttribute('aria-label')).toBe('Manage centers')
- expect(cards[1].getAttribute('aria-label')).toBe('Pending activations')
- expect(cards[2].textContent).toContain('Routines')
+ expect(cards[1].getAttribute('aria-label')).toBe('Payments')
+ expect(cards[2].getAttribute('aria-label')).toBe('Pending activations')
+ expect(cards[3].textContent).toContain('Routines')
  await click('Pending activations');expect(navigate).toHaveBeenCalledWith('/centers?centerId=c2&pane=activations')
+})
+
+it('opens the selected center members from payments',async()=>{
+ localStorage.setItem(key('super'),'c1');await render();await click('Payments')
+ expect(navigate).toHaveBeenCalledWith('/centers?centerId=c1&pane=members')
 })

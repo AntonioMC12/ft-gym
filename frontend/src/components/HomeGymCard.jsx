@@ -30,7 +30,7 @@ function CenterShortcut({uid}){
     return()=>{current=false}
   },[id,uid,retry])
   const choose=center=>{writePreference(uid,center.id);setId(center.id);setChoosing(false)}
-  return <section className="card home-center-shortcut" aria-label={t('Manage centers')}>
+  return <><section className="card home-center-shortcut" aria-label={t('Manage centers')}>
     <div className="home-center-shortcut-header">
       <span className="lrow-i home-center-shortcut-icon" style={{'--tint':'var(--blue)'}}><Icon name="house"/></span>
       <div className="home-center-shortcut-heading"><div className="home-center-shortcut-label">{t('Manage centers')}</div><h2>{center?.name||t(id?'Loading centers':'Choose center')}</h2></div>
@@ -42,4 +42,8 @@ function CenterShortcut({uid}){
     {error&&<><p role="alert">{t(centersErrorKey(error))}</p><Button type="button" onClick={()=>setRetry(n=>n+1)}>{t('Retry')}</Button></>}
     {choosing&&<CenterChoices ownerUid={uid} selectedId={id} choose={choose}/>}
   </section>
+    <section className="card" aria-label={t('Payments')}>
+      <Row icon="calculator" iconTint="var(--orange)" title={t('Payments')} subtitle={t(center?'Fees and payments':'Choose center')} accessory="chevron" disabled={!!id&&!center} onClick={()=>center?nav('/centers?'+new URLSearchParams({centerId:center.id,pane:'members'})):setChoosing(true)}/>
+    </section>
+  </>
 }

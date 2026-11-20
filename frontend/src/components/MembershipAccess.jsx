@@ -6,18 +6,50 @@ import {Button} from './ui.jsx'
 import {confirmSheet} from '../sheets.jsx'
 import {t} from '../lib/i18n.js'
 import {registrationCenterId} from '../lib/registration-center.js'
+import {isTransientError} from '../lib/transient-error.js'
 export function useMembershipAccess(user,config){
  const [state,setState]=useState(null),[revision,setRevision]=useState(0)
+ const server=useStore(s=>s.sync?.server||'')
  useEffect(()=>{
   if(!user||!config?.centers?.enabled){setState(null);return}
-  let current=true,pending=false;const uid=user.id
-  const refresh=async()=>{if(pending||document.visibilityState==='hidden')return;pending=true;try{const result=await api('/api/centers/app-access');if(current&&useStore.getState().user?.id===uid)setState({uid,...result})}catch(e){if(current&&useStore.getState().user?.id===uid)setState({uid,error:e})}finally{pending=false}}
-  const refused=()=>{if(current)refresh()}
-  refresh();window.addEventListener('focus',refresh);document.addEventListener('visibilitychange',refresh);window.addEventListener('membership-renewal-required',refused);const timer=setInterval(refresh,30000)
-  return()=>{current=false;clearInterval(timer);window.removeEventListener('focus',refresh);document.removeEventListener('visibilitychange',refresh);window.removeEventListener('membership-renewal-required',refused)}
- },[user?.id,config?.centers?.enabled,revision])
+  let current=true,pending=false,queued=false,version=0,failures=0,timer;const uid=user.id
+  const valid=()=>current&&useStore.getState().user?.id===uid&&(useStore.getState().sync?.server||'')===server
+  const schedule=delay=>{clearTimeout(timer);timer=setTimeout(refresh,delay)}
+  const refresh=async()=>{
+   if(!current||pending)return
+   if(document.visibilityState==='hidden'){schedule(30000);return}
+   clearTimeout(timer);pending=true;const request=version
+   try{
+    const result=await api('/api/centers/app-access')
+    if(typeof result?.blocked!=='boolean')throw Object.assign(new Error('Invalid access response'),{status:200})
+    if(valid()&&request===version){failures=0;setState({uid,server,...result})}
+   }catch(error){
+    if(valid()&&request===version){
+     failures++
+     setState(previous=>isTransientError(error)&&previous?.uid===uid&&previous?.server===server&&typeof previous.blocked==='boolean'
+      ?{...previous,connectionError:error}:{uid,server,error})
+    }
+   }finally{
+    pending=false
+    if(current){if(queued){queued=false;refresh()}else schedule(failures?Math.min(30000,2000*2**Math.min(failures-1,4))+Math.floor(Math.random()*500):30000)}
+   }
+  }
+  // A refusal is authoritative even when an older successful check is in flight.
+  const refused=event=>{
+   version++;const access=event.detail?.access
+   setState({uid,server,blocked:true,...(access?.blocked===true?access:{})})
+   if(pending)queued=true;else refresh()
+  }
+  refresh();window.addEventListener('focus',refresh);window.addEventListener('online',refresh);document.addEventListener('visibilitychange',refresh);window.addEventListener('membership-renewal-required',refused)
+  return()=>{current=false;clearTimeout(timer);window.removeEventListener('focus',refresh);window.removeEventListener('online',refresh);document.removeEventListener('visibilitychange',refresh);window.removeEventListener('membership-renewal-required',refused)}
+ },[user?.id,server,config?.centers?.enabled,revision])
  const enabled=!!user&&(config==null||!!config.centers?.enabled)
- return {allowed:!enabled||!!(state?.uid===user.id&&!state.error&&!state.blocked),blocked:state?.uid===user?.id&&state?.blocked,error:state?.uid===user?.id&&state?.error,reason:state?.uid===user?.id?state?.reason:null,registrationCenterId:state?.uid===user?.id?state?.registrationCenterId:null,warnings:state?.uid===user?.id?state?.warnings||[]:[],retry:()=>setRevision(n=>n+1)}
+ const own=state?.uid===user?.id&&state?.server===server?state:null
+ return {allowed:!enabled||!!(own&&!own.error&&own.blocked===false),blocked:own?.blocked,error:own?.error,connectionError:own?.connectionError,reason:own?.reason,registrationCenterId:own?.registrationCenterId,warnings:own?.warnings||[],retry:()=>setRevision(n=>n+1)}
+}
+export function MembershipConnectionNotice({access}){
+ if(!access.connectionError)return null
+ return <aside className="card membership-grace-notice" role="status"><span>{t('Centers are unavailable. Try again.')}</span> <Button onClick={access.retry}>{t('Reload centers')}</Button></aside>
 }
 export function MembershipAccessScreen({access}){
  const [busy,setBusy]=useState(false),[requests,setRequests]=useState([]),[requestError,setRequestError]=useState(false)

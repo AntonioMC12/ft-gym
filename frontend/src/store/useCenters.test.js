@@ -9,6 +9,13 @@ const payload = id => ({centers:[{id,name:id,capabilities:['center.read']}],plat
 beforeEach(() => {useCenters.getState().reset();centersMe.mockReset()})
 
 describe('administrative context is memory-only and owned by the current identity',()=>{
+  it('preserves selection during a temporary failure and clears the error on recovery',async()=>{
+    centersMe.mockResolvedValueOnce(payload('one'));await useCenters.getState().load('a');useCenters.getState().select('one')
+    const previous=useCenters.getState().centers
+    centersMe.mockRejectedValueOnce(Object.assign(new Error('temporary'),{status:503}));await useCenters.getState().load('a')
+    expect(useCenters.getState().status).toBe('ready');expect(useCenters.getState().centers).toBe(previous);expect(useCenters.getState().selectedId).toBe('one');expect(useCenters.getState().error).toBeTruthy()
+    centersMe.mockResolvedValueOnce(payload('one'));await useCenters.getState().load('a');expect(useCenters.getState().error).toBeNull()
+  })
   it('drops a late response from a previous account',async()=>{
     const old=deferred(),current=deferred();centersMe.mockReturnValueOnce(old.promise).mockReturnValueOnce(current.promise)
     const a=useCenters.getState().load('a'),b=useCenters.getState().load('b')

@@ -2,7 +2,7 @@ import AssignmentLifecycle from './components/AssignmentLifecycle.jsx'
 import MemberProgress from './views/MemberProgress.jsx'
 import Community from './views/Community.jsx'
 import TrainingAdmin from './views/TrainingAdmin.jsx'
-import {useMembershipAccess,MembershipAccessScreen,MembershipGraceNotice} from './components/MembershipAccess.jsx'
+import {useMembershipAccess,MembershipAccessScreen,MembershipGraceNotice,MembershipConnectionNotice} from './components/MembershipAccess.jsx'
 import { useEffect, useLayoutEffect, useRef } from 'react'
 import { HashRouter, Routes, Route, Navigate, useNavigate, useLocation, useNavigationType } from 'react-router-dom'
 import { useStore } from './store/useStore.js'
@@ -114,7 +114,7 @@ function Shell() {
     window.addEventListener('focus', refresh)
     const timer = window.setInterval(refresh, 30000)
     return () => { window.removeEventListener('focus', refresh); window.clearInterval(timer); useCenters.getState().reset() }
-  }, [user?.id, config?.centers?.enabled])
+  }, [user?.id, server, config?.centers?.enabled])
   // iOS: whether timer sounds get past the ring/silent switch (Settings → Sounds). Page-level,
   // so it is applied here on load and on change rather than at each beep.
   useEffect(() => { setPlayOnSilent(!!S.soundOnSilent) }, [S.soundOnSilent])
@@ -253,7 +253,7 @@ function Shell() {
         <ErrorBoundary>
           {!authed ? <Login /> : needsMobileOnboarding ? <MobileOnboarding /> : !membershipAccess.allowed ? <MembershipAccessScreen access={membershipAccess}/> : (
             <>
-            <AssignmentLifecycle/><MembershipGraceNotice warnings={membershipAccess.warnings}/>
+            <AssignmentLifecycle/><MembershipGraceNotice warnings={membershipAccess.warnings}/><MembershipConnectionNotice access={membershipAccess}/>
             <Routes>
               <Route path="/home" element={<Home />} />
               <Route path="/centers" element={<Centers />} />

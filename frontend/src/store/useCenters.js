@@ -1,5 +1,6 @@
 import { create } from 'zustand'
 import { centersMe } from '../lib/centers-api.js'
+import { isTransientError } from '../lib/transient-error.js'
 
 let generation = 0
 const empty = () => ({ ownerUid: null, status: 'idle', centers: [], platformCapabilities: [], selectedId: null, error: null })
@@ -22,11 +23,12 @@ export const useCenters = create((set, get) => ({
       const platformCapabilities = Array.isArray(result.platformCapabilities) ? result.platformCapabilities : []
       const previous = get()
       const selectedNow = preserve ? previous.selectedId : selected
-      set({ status: 'ready', centers: JSON.stringify(previous.centers) === JSON.stringify(centers) ? previous.centers : centers,
+      set({ status: 'ready', error: null, centers: JSON.stringify(previous.centers) === JSON.stringify(centers) ? previous.centers : centers,
         platformCapabilities: JSON.stringify(previous.platformCapabilities) === JSON.stringify(platformCapabilities) ? previous.platformCapabilities : platformCapabilities,
         selectedId: platformCapabilities.includes('centers.manage') || centers.some(c => c.id === selectedNow) ? selectedNow : null })
     } catch (error) {
       if (request !== generation || get().ownerUid !== uid) return
+      if (preserve && isTransientError(error)) { set({ error }); return }
       set({ ...empty(), ownerUid: uid, status: 'unavailable', error })
     }
   },

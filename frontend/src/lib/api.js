@@ -127,8 +127,9 @@ const timedOut = () => failure(t('The server did not answer in time.'), 'timeout
  * idle one: no bytes for `idleMs` and the download counts as offline (code 'timeout').
  * Errors carry { status, code } like api()'s: the server's code on a refusal (media-missing).
  */
-export async function apiBlob(path, { expectSize, idleMs = 30000, fetchImpl = globalThis.fetch } = {}) {
+export async function apiBlob(path, { expectSize, idleMs = 30000, fetchImpl = globalThis.fetch, signal } = {}) {
   if (MOBILE && !remoteBase) throw notPaired()
+  if (signal?.aborted) throw signal.reason
   const max = typeof expectSize === 'number' && expectSize >= 0 ? expectSize + 1024 : Infinity
   const ctl = typeof AbortController === 'function' ? new AbortController() : null
   let timer = null
@@ -138,6 +139,8 @@ export async function apiBlob(path, { expectSize, idleMs = 30000, fetchImpl = gl
   let stalled = null
   const stall = new Promise((_, reject) => { stalled = reject })
   stall.catch(() => {})
+  const cancel = () => { ctl?.abort(); stalled(signal.reason) }
+  signal?.addEventListener('abort', cancel, { once: true })
   const arm = () => { clearTimeout(timer); timer = setTimeout(() => { idle = true; ctl?.abort(); stalled(timedOut()) }, idleMs) }
   const tooBig = status => failure('HTTP ' + status, 'too-large', status)
   // What loses the race may still reject afterwards, with nobody left listening.
@@ -172,7 +175,10 @@ export async function apiBlob(path, { expectSize, idleMs = 30000, fetchImpl = gl
   } catch (e) {
     if (idle) throw timedOut()
     throw e
-  } finally { clearTimeout(timer) }
+  } finally {
+    clearTimeout(timer)
+    signal?.removeEventListener('abort', cancel)
+  }
 }
 
 /**

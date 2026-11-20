@@ -237,17 +237,28 @@ paths:
     get:
       tags: [data]
       summary: Read media referenced by a published definition or retained version
-      description: Session/application access required. Only referenced hashes can be read, never private user folders or unpublished drafts. Uses the existing safe media headers and supports byte ranges.
+      description: Session/application access required. Only referenced hashes can be read, never private user folders or unpublished drafts. Supports one byte range for videos.
       parameters:
         - name: hash
           in: path
           required: true
           schema: {type: string, pattern: '^[0-9a-f]{64}$'}
+        - name: Range
+          in: header
+          schema: {type: string}
+          example: bytes=0-1023
       responses:
         '200':
           description: Verified media stream
+        '206':
+          description: Requested video bytes
+          headers:
+            Content-Range:
+              schema: {type: string}
         '404':
           description: Unreferenced or missing media
+        '416':
+          description: Video range not satisfiable
     put:
       tags: [data]
       summary: Upload a shared media draft

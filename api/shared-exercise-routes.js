@@ -37,7 +37,7 @@ export function sharedExerciseRoutes({ catalogue, json, readSession, readBody, m
       if (!actor(req, res)) return;
       const file = catalogue.referenced(req.mediaHash) && catalogue.media.file('catalogue', req.mediaHash);
       if (!file) throw new SharedExerciseError(404, 'media-missing');
-      await sendFile(res, file, req.mediaHash);
+      await sendFile(res, file, req.mediaHash, req);
     },
     'POST /api/exercises/shared/publish': async (req, res) => {
       const user = actor(req, res, true); if (!user) return;

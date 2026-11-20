@@ -3,11 +3,9 @@
 // the routine editor and the muscle explorer. Media.jsx sends every custom exercise here, so no
 // call site needed to change.
 //
-// Nothing here ever loads a file from a server URL. Every file is shown from the local media
-// store (lib/media-store.js); when it is not there yet and this device is signed in to a server
-// that stores media, it is fetched into the store first, checked against its sha256, and shown
-// from there. That is what makes a paired phone work (an <img src> cannot carry its Bearer token)
-// and what keeps a workout showing its pictures offline. Lists only ever load posters.
+// Media is read from the local store when present. In the web app an uncached shared video
+// can play from the authenticated URL. Other content is downloaded and checked against its
+// sha256 first, which also works on paired devices that need to attach a Bearer token.
 //
 // Videos up to 15 s behave like the catalogue's GIFs: muted, looping, tap to pause — except in
 // the workout's list layout (several cards at once must not run several decoders), under reduced
@@ -17,8 +15,8 @@
 //
 // A link is only ever opened, after a tap, in a new browsing context without an opener or a
 // referrer. Nothing fetches it: no thumbnail, no favicon, no embed.
-import { createContext, useContext, useEffect, useRef, useState } from 'react'
-import { useSharedExercises, sharedMediaBlob } from '../store/useSharedExercises.js'
+import { createContext, useCallback, useContext, useEffect, useRef, useState, useSyncExternalStore } from 'react'
+import { useSharedExercises, sharedMediaBlob, sharedMediaKey } from '../store/useSharedExercises.js'
 export const SharedMediaContext = createContext(false)
 import { useStore } from '../store/useStore.js'
 import { t, exerciseNameFor } from '../lib/i18n.js'
@@ -27,6 +25,8 @@ import { mediaStore } from '../lib/media-store.js'
 import { fetchToStore, mayFetch } from '../lib/media-sync.js'
 import { prefetchAllowed } from '../lib/media-prefetch.js'
 import { LOOP_MAX_SEC } from '../lib/media-limits.js'
+import { MOBILE } from '../lib/mobile.js'
+import { claimSharedPlayer, currentSharedPlayer, subscribeSharedPlayer, sharedVideoScope, sharedVideoUrl, rememberSharedVideo } from '../lib/shared-video.js'
 import Icon from './Icon.jsx'
 
 /** Opens a link after a tap: sanitised again here, since plan files and backups can bring any
@@ -144,7 +144,7 @@ export function LinkCard({ url, compact, mini }) {
 
 /* ------------------------------------------------------------------ the big picture ------- */
 
-export default function CustomMedia({ ex, id, compact, minimizable }) {
+export default function CustomMedia({ ex, id, compact, minimizable, mediaPreview, mediaOnDemand }) {
   const gifSize = useStore(s => s.S.gifSize)
   const update = useStore(s => s.update)
   // The workout's list layout, from the store: only the workout card is minimizable.
@@ -162,7 +162,7 @@ export default function CustomMedia({ ex, id, compact, minimizable }) {
   const name = exerciseNameFor(ex)
   if (!m) return <LinkCard url={link} compact={compact} mini={mini} />
   const body = m.kind === 'video'
-    ? <CustomVideo key={m.hash} m={m} id={id} cls={cls} name={name} toggle={toggle} mini={mini} still={listLayout || reducedMotion()} />
+    ? <CustomVideo key={m.hash} m={m} id={id} cls={cls} name={name} toggle={toggle} mini={mini} mediaPreview={mediaPreview} mediaOnDemand={mediaOnDemand} still={listLayout || reducedMotion()} />
     : m.kind === 'gif'
       ? <CustomGif key={m.hash} m={m} id={id} cls={cls} name={name} toggle={toggle} mini={mini} />
       : <CustomImage key={m.hash} m={m} id={id} cls={cls} name={name} toggle={toggle} />
@@ -229,6 +229,47 @@ function CustomGif({ m, id, cls, name, toggle, mini }) {
   )
 }
 
+function useSharedVideo(ref, { enabled, auto }) {
+  const scope = useSharedExercises(sharedVideoScope)
+  const uid = useStore(s => s.user?.id)
+  const signedIn = useSharedExercises(s => !!(uid && s.owner === uid && s.instance))
+  const hash = ref?.hash
+  const owner = useSyncExternalStore(subscribeSharedPlayer, currentSharedPlayer)
+  const [player] = useState(() => Symbol())
+  const [requests, setRequests] = useState(0)
+  const [local, setLocal] = useState(null)
+  useEffect(() => {
+    if (!hash) return
+    let cancelled = false
+    let acquired = null
+    ;(async () => {
+      const key = await sharedMediaKey(hash)
+      const url = await mediaStore.url(key)
+      if (cancelled) {
+        if (url) mediaStore.release(key)
+        return
+      }
+      if (url) acquired = key
+      setLocal({ hash, scope, enabled, url })
+    })().catch(() => { if (!cancelled) setLocal({ hash, scope, enabled, url: null }) })
+    return () => { cancelled = true; if (acquired) mediaStore.release(acquired) }
+  }, [hash, scope, enabled])
+
+  const cached = local?.hash === hash && local?.scope === scope && local?.enabled === enabled ? local : null
+  const wantsNetwork = Boolean(signedIn && hash && cached && !cached.url && enabled && (auto || requests))
+  useEffect(() => {
+    if (wantsNetwork) return claimSharedPlayer(player, requests > 0)
+  }, [wantsNetwork, player, scope, hash, requests])
+  const streaming = wantsNetwork && owner === player
+  return {
+    url: cached?.url || (streaming ? sharedVideoUrl(hash) : null),
+    status: !cached || wantsNetwork ? 'loading' : 'idle',
+    load: () => setRequests(n => n + 1),
+    streamKey: streaming ? requests : null,
+    onPlaying: streaming ? () => rememberSharedVideo(ref, scope) : undefined
+  }
+}
+
 // iOS plays a video inline and unasked only when it is muted from the start, and React sets
 // `muted` as a property after the element exists — too late for Safari's autoplay check. So the
 // attribute is written by hand before the source is attached.
@@ -239,31 +280,51 @@ const mute = el => {
   el.setAttribute('muted', '')
 }
 
-function CustomVideo({ m, id, cls, name, toggle, mini, still }) {
+function CustomVideo({ m, id, cls, name, toggle, mini, still, mediaPreview, mediaOnDemand }) {
   const loop = m.dur != null && m.dur <= LOOP_MAX_SEC
   const poster = useMediaUrl(m.poster || null)
-  // The file itself only comes down unasked where a few MB cost nothing; otherwise on the tap.
-  const main = useMediaUrl(m, { auto: prefetchAllowed() })
+  const shared = useContext(SharedMediaContext)
+  const progressive = shared && !MOBILE
+  const local = useMediaUrl(progressive ? null : m, { auto: prefetchAllowed() })
   const ref = useRef(null)
+  const attachVideo = useCallback(el => {
+    ref.current = el
+    if (!el.hasAttribute('controls')) mute(el)
+    const remote = el.getAttribute('src')?.includes('/api/exercises/shared/media/')
+    return () => {
+      ref.current = null
+      // Strict Mode can detach and reattach the same ref without removing the player.
+      if (remote) queueMicrotask(() => {
+        if (ref.current === el) return
+        el.removeAttribute('src')
+        el.load()
+      })
+    }
+  }, [])
   const box = useRef(null)
-  // Whether the box is on screen. Taken as yes until the observer says otherwise, so a browser
-  // without one simply plays; with one, the first answer comes within a frame.
-  const [visible, setVisible] = useState(true)
+  // Wait for visibility before attaching a remote source, including during a swipe.
+  const [visible, setVisible] = useState(() => !progressive || typeof IntersectionObserver !== 'function')
   // What a tap asked for: null until the first tap, then play (true) or pause (false).
   const [asked, setAsked] = useState(null)
   const [playing, setPlaying] = useState(false)
   const [broken, setBroken] = useState(false)
   // A long video is playing with sound and controls since its tap.
   const [open, setOpen] = useState(false)
+  const network = useSharedVideo(progressive ? m : null, {
+    enabled: visible && !mediaPreview && !broken,
+    auto: loop && !still && !mediaOnDemand && !navigator.connection?.saveData
+  })
+  const main = progressive ? network : local
   // A short clip loops by itself where it may; a long one, or one that may not, waits for a tap.
   // Either way only while it can be seen: a card beside the one on screen (the swipe layout keeps
   // its neighbours rendered), one scrolled away in the list, or a sheet still sliding in does not
   // decode anything.
-  const shouldPlay = visible && (asked ?? (loop && !still))
+  const shouldPlay = visible && !(progressive && mediaPreview) && (asked ?? (loop && !still && !(progressive && mediaOnDemand)))
 
   useEffect(() => {
     const el = ref.current
     if (!el || !main.url) return
+    let current = true
     if (shouldPlay) {
       const p = el.play()
       // Refused (no user gesture where the browser wants one): it waits for a tap instead. Only a
@@ -271,13 +332,15 @@ function CustomVideo({ m, id, cls, name, toggle, mini, still }) {
       // sheet still sliding in is off screen for the observer's first answer — and once the box
       // is on screen the effect asks it to play again.
       if (p && typeof p.then === 'function') {
-        p.then(() => setPlaying(true), e => {
+        p.then(() => { if (current) setPlaying(true) }, e => {
+          if (!current) return
           if (e?.name === 'NotAllowedError') { setPlaying(false); setAsked(false) }
           else setPlaying(!el.paused)
         })
       }
     } else el.pause()
-  }, [shouldPlay, main.url])
+    return () => { current = false }
+  }, [shouldPlay, main.url, main.streamKey, broken])
 
   useEffect(() => {
     const el = box.current
@@ -306,14 +369,15 @@ function CustomVideo({ m, id, cls, name, toggle, mini, still }) {
   }
 
   const loading = !main.url && main.status === 'loading'
-  const hint = !mini && !broken && !(open && main.url)
+  const preview = progressive && mediaPreview
+  const hint = !preview && !mini && !broken && !(open && main.url)
   return (
-    <div ref={box} className={cls + (broken || (!main.url && !poster.url) ? ' broken' : '')} id={id} onClick={open && main.url ? undefined : onTap}>
-      {main.url && !broken
-        ? <video ref={el => { ref.current = el; if (el && !open) mute(el) }} src={main.url} poster={poster.url || undefined}
+    <div ref={box} className={cls + (broken || (!main.url && !poster.url) ? ' broken' : '')} id={id} onClick={preview || (open && main.url) ? undefined : onTap}>
+      {main.url && !broken && !preview
+        ? <video key={main.url + ':' + (main.streamKey ?? '')} ref={attachVideo} src={main.url} poster={poster.url || undefined}
             playsInline loop={loop && !open} controls={open} muted={!open}
             preload={loop ? 'auto' : 'metadata'} aria-label={name}
-            onPlay={() => setPlaying(true)} onPause={() => setPlaying(false)} onError={() => setBroken(true)} />
+            onPlay={() => setPlaying(true)} onPlaying={main.onPlaying} onPause={() => setPlaying(false)} onError={() => setBroken(true)} />
         : poster.url && !broken
           ? <img decoding="async" draggable={false} src={poster.url} alt={name} />
           : <Tile />}

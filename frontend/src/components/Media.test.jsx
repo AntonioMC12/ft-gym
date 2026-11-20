@@ -3,7 +3,9 @@ import React, { act } from 'react'
 import { createRoot } from 'react-dom/client'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import Media, { Thumb } from './Media.jsx'
-import { createMediaStore, memoryBackend, _setMediaStore } from '../lib/media-store.js'
+import { createMediaStore, mediaStore, memoryBackend, _setMediaStore } from '../lib/media-store.js'
+import { registerShared } from '../lib/exercises.js'
+import { sharedMediaKey, useSharedExercises } from '../store/useSharedExercises.js'
 
 globalThis.IS_REACT_ACT_ENVIRONMENT = true
 
@@ -11,6 +13,7 @@ const mocks = vi.hoisted(() => {
   const state = { S: { gifSize: 'full' } }
   state.snapshot = () => ({
     S: state.S,
+    user: state.user,
     update: mut => {
       const next = structuredClone(state.S)
       mut(next)
@@ -91,6 +94,61 @@ const mountCustom = async (ex, props = {}) => { act(() => root.render(<Media ex=
 async function holding(...hashes) {
   for (const h of hashes) await media.put(h, new Blob(['x']), { mime: h === MAIN ? 'image/webp' : 'image/webp', pending: false })
 }
+
+describe('shared video priority', () => {
+  const first = custom({ id: 'ft_first', media: clip(8, { poster: null }) })
+  const next = custom({ id: 'ft_next', media: clip(8, { hash: H('c'), poster: null }) })
+
+  beforeEach(() => {
+    mocks.user = { id: 'member' }
+    registerShared([first, next], 'installation')
+    useSharedExercises.setState({ owner: 'member', instance: 'installation' })
+    _setMediaStore(createMediaStore(memoryBackend(), {
+      objectURL: { createObjectURL: () => 'blob:cached-video', revokeObjectURL: () => {} }
+    }))
+    vi.stubGlobal('IntersectionObserver', undefined)
+    HTMLMediaElement.prototype.play = vi.fn(() => Promise.resolve())
+    HTMLMediaElement.prototype.pause = vi.fn()
+  })
+
+  afterEach(() => {
+    useSharedExercises.getState().reset()
+    _setMediaStore(null)
+    vi.unstubAllGlobals()
+    mocks.user = null
+  })
+
+  it('only attaches a remote source to the active card, and detaches it when swiping away', async () => {
+    const render = active => act(() => root.render(<>
+      <Media ex={first} mediaPreview={active !== first} />
+      <Media ex={next} mediaPreview={active !== next} />
+    </>))
+    render(first)
+    await settle()
+    const old = host.querySelector('video')
+    expect(old.getAttribute('src')).toBe('/api/exercises/shared/media/' + MAIN)
+    expect(host.querySelectorAll('video')).toHaveLength(1)
+
+    render(next)
+    await settle()
+    expect(old.hasAttribute('src')).toBe(false)
+    expect(host.querySelectorAll('video')).toHaveLength(1)
+    expect(host.querySelector('video').getAttribute('src')).toBe('/api/exercises/shared/media/' + next.media.hash)
+  })
+
+  it('waits for a tap in the list and uses an existing local clip directly', async () => {
+    mocks.S.workoutView = 'list'
+    await mountCustom(first, { minimizable: true })
+    expect(host.querySelector('video')).toBeNull()
+    act(() => host.querySelector('.exmedia').click())
+    await settle()
+    expect(host.querySelector('video').getAttribute('src')).toBe('/api/exercises/shared/media/' + MAIN)
+
+    await mediaStore.put(await sharedMediaKey(next.media.hash), new Blob(['clip']), { mime: 'video/mp4', pending: false })
+    await mountCustom(next)
+    expect(host.querySelector('video').getAttribute('src')).toBe('blob:cached-video')
+  })
+})
 
 describe('Media — a custom exercise', () => {
   beforeEach(() => {

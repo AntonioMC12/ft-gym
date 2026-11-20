@@ -6,10 +6,9 @@ import {useMembershipAccess,MembershipAccessScreen,MembershipGraceNotice,Members
 import { useEffect, useLayoutEffect, useRef } from 'react'
 import { HashRouter, Routes, Route, Navigate, useNavigate, useLocation, useNavigationType } from 'react-router-dom'
 import { useStore } from './store/useStore.js'
-import { useSharedExercises, sharedMediaBlob } from './store/useSharedExercises.js'
+import { useSharedExercises } from './store/useSharedExercises.js'
 import { useCatalogueRevision } from './components/ExerciseOrigin.jsx'
 import { EXIDX } from './lib/exercises.js'
-import { prefetchAllowed } from './lib/media-prefetch.js'
 import { useCenters } from './store/useCenters.js'
 import { useUI } from './store/useUI.js'
 import { bindUI } from './components/ui.jsx'
@@ -95,11 +94,6 @@ function Shell() {
       await useSharedExercises.getState().load(user.id, server)
       if (useStore.getState().user?.id !== user.id) return
       if (before !== `${useSharedExercises.getState().instance}:${useSharedExercises.getState().rev}`) useStore.getState().update(() => {}, false)
-      const state = useStore.getState().S
-      const ids = new Set([...(state.routines || []).flatMap(r => (r.ex || []).map(e => e.id)), ...(state.active?.entries || []).map(e => e.id)])
-      for (const id of ids) for (const ref of [EXIDX[id]?.media, EXIDX[id]?.media?.poster].filter(Boolean)) {
-        if (prefetchAllowed() && useSharedExercises.getState().entries.some(e => e.id === id)) sharedMediaBlob(ref).catch(() => {})
-      }
     }
     refresh(); window.addEventListener('focus', refresh); window.addEventListener('online', refresh)
     const timer = setInterval(refresh, 30000)

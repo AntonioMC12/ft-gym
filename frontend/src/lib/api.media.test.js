@@ -17,6 +17,17 @@ const answer = (status, { length, body, json } = {}) => ({
 })
 
 describe('apiBlob', () => {
+  it('cancels an in-flight body when the caller leaves', async () => {
+    const controller = new AbortController()
+    const fetchImpl = vi.fn(async () => answer(200, { body: stream([], { stall: true }) }))
+    const download = apiBlob('/api/media/abc', { fetchImpl, signal: controller.signal })
+    const rejected = expect(download).rejects.toMatchObject({ name: 'AbortError' })
+    await Promise.resolve()
+    controller.abort()
+    await rejected
+    expect(fetchImpl.mock.calls[0][1].signal.aborted).toBe(true)
+  })
+
   it('reads the body into a Blob, with the Bearer token of a paired phone', async () => {
     setRemoteAuth('https://gym.example.com', 'TOKEN')
     const fetchImpl = vi.fn(async () => answer(200, { length: 6, body: stream([new Uint8Array([1, 2, 3]), new Uint8Array([4, 5, 6])]) }))

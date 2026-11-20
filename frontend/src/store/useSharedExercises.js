@@ -50,11 +50,46 @@ export const useSharedExercises = create((set, get) => ({
 
 // Scoped keys prevent a private cached blob (or a different server) authorizing shared display.
 export const sharedMediaKey = hash => sha256Hex(new Blob([`shared:${useSharedExercises.getState().server}:${sharedInstanceId()}:${hash}`]))
-export async function sharedMediaBlob(ref) {
-  const key = await sharedMediaKey(ref.hash), stored = await mediaStore.get(key)
-  if (stored) return stored.blob
-  const blob = await apiBlob(`/api/exercises/shared/media/${ref.hash}`, { expectSize: ref.size })
-  if (await sha256Hex(blob) !== ref.hash) throw new Error('media-hash-mismatch')
-  await mediaStore.put(key, blob, { mime: ref.mime, pending: false })
-  return blob
+const downloading = new Map()
+
+export async function sharedMediaBlob(ref, { signal } = {}) {
+  const key = await sharedMediaKey(ref.hash)
+  if (signal?.aborted) throw signal.reason
+  let job = downloading.get(key)
+  if (!job) {
+    const controller = new AbortController()
+    job = { controller, readers: 0 }
+    downloading.set(key, job)
+    job.result = (async () => {
+      const stored = await mediaStore.get(key)
+      if (stored) return stored.blob
+      const blob = await apiBlob(`/api/exercises/shared/media/${ref.hash}`, { expectSize: ref.size, signal: controller.signal })
+      if (await sha256Hex(blob) !== ref.hash) throw new Error('media-hash-mismatch')
+      if (controller.signal.aborted) throw controller.signal.reason
+      await mediaStore.put(key, blob, { mime: ref.mime, pending: false })
+      return blob
+    })().finally(() => {
+      if (downloading.get(key) === job) downloading.delete(key)
+    })
+  }
+  job.readers++
+  return new Promise((resolve, reject) => {
+    const release = () => {
+      signal?.removeEventListener('abort', cancel)
+      job.readers--
+    }
+    const cancel = () => {
+      release()
+      if (!job.readers && downloading.get(key) === job) {
+        downloading.delete(key)
+        job.controller.abort()
+      }
+      reject(signal.reason)
+    }
+    signal?.addEventListener('abort', cancel, { once: true })
+    job.result.then(
+      blob => { if (!signal?.aborted) { release(); resolve(blob) } },
+      error => { if (!signal?.aborted) { release(); reject(error) } }
+    )
+  })
 }

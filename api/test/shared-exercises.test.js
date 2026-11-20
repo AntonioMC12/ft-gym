@@ -129,6 +129,25 @@ test('HTTP: roles, video/media, publication, ETag, archive, creator reset and re
     const downloaded = await req('/media/' + videoHash, 'other');
     assert.equal(downloaded.status, 200);
     assert.equal(sha(Buffer.from(await downloaded.arrayBuffer())), videoHash);
+    if (size === 50 * 1048576) {
+      const url = base + '/api/exercises/shared/media/' + videoHash;
+      const range = (value, extra) => fetch(url, { headers: { ...headers('other'), Range: value, ...extra } });
+      assert.equal((await fetch(url, { headers: { Range: 'bytes=0-1' } })).status, 401);
+      for (const [value, first, last] of [['bytes=0-1', 0, 1], ['bytes=-16', size - 16, size - 1], [`bytes=${size - 8}-`, size - 8, size - 1]]) {
+        const partial = await range(value);
+        assert.equal(partial.status, 206);
+        assert.equal(partial.headers.get('accept-ranges'), 'bytes');
+        assert.equal(partial.headers.get('content-range'), `bytes ${first}-${last}/${size}`);
+        assert.equal(Number(partial.headers.get('content-length')), last - first + 1);
+        assert.deepEqual(Buffer.from(await partial.arrayBuffer()), clip.subarray(first, last + 1));
+      }
+      const outside = await range(`bytes=${size}-`);
+      assert.equal(outside.status, 416);
+      assert.equal(outside.headers.get('content-range'), `bytes */${size}`);
+      const stale = await range('bytes=0-1', { 'If-Range': '"stale"' });
+      assert.equal(stale.status, 200);
+      await stale.body.cancel();
+    }
   }
   const oversized = await fetch(base + '/api/exercises/shared/media/' + 'f'.repeat(64), {
     method: 'PUT', headers: { ...headers('root'), 'Content-Type': 'video/mp4' }, body: Buffer.alloc(50 * 1048576 + 1)

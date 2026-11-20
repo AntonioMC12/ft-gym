@@ -1948,15 +1948,41 @@ if (MEDIA_ON) {
 // extension (never text/* or SVG), nosniff stops a browser second-guessing it, the sandbox CSP
 // neuters it even if opened as a page, CORP keeps other sites from embedding it, and no-store
 // keeps a copy out of the HTTP cache — the app's own media store is the only client cache, and
-// an HTTP-cache copy would outlive the sign-out purge. No Range and no ETag: nothing asks.
-async function sendMediaFile(res, f, hash) {
+// an HTTP-cache copy would outlive the sign-out purge.
+function mediaRange(header, size) {
+  const match = /^bytes=(\d*)-(\d*)$/i.exec(header || '');
+  if (!match || (!match[1] && !match[2])) return null;
+  if (!match[1]) {
+    const suffix = Number(match[2]);
+    return suffix && size ? { start: Math.max(0, size - suffix), end: size - 1 } : false;
+  }
+  const start = Number(match[1]);
+  const end = match[2] ? Number(match[2]) : size - 1;
+  if (match[2] && end < start) return null;
+  return start < size ? { start, end: Math.min(end, size - 1) } : false;
+}
+
+async function sendMediaFile(res, f, hash, req) {
   let fd;
   try { fd = fs.openSync(f.path, 'r'); }
   catch { throw new MediaError(404, 'media-missing'); }   // swept between the lookup and here
   const size = fs.fstatSync(fd).size;
-  res.writeHead(200, {
+  const seekable = req && f.mime.startsWith('video/');
+  // No validators are provided on this route, so an If-Range condition never matches.
+  const range = seekable && !req.headers['if-range'] ? mediaRange(req.headers.range, size) : null;
+  if (range === false) {
+    fs.closeSync(fd);
+    res.writeHead(416, {
+      'Accept-Ranges': 'bytes', 'Content-Range': `bytes */${size}`,
+      'Content-Length': '0', 'Cache-Control': 'private, no-store'
+    });
+    return res.end();
+  }
+  res.writeHead(range ? 206 : 200, {
     'Content-Type': f.mime,
-    'Content-Length': String(size),
+    'Content-Length': String(range ? range.end - range.start + 1 : size),
+    ...(seekable ? { 'Accept-Ranges': 'bytes' } : {}),
+    ...(range ? { 'Content-Range': `bytes ${range.start}-${range.end}/${size}` } : {}),
     'Cache-Control': 'private, no-store',
     'X-Content-Type-Options': 'nosniff',
     'Content-Security-Policy': "default-src 'none'; sandbox",
@@ -1967,7 +1993,7 @@ async function sendMediaFile(res, f, hash) {
     // CORS-safelisted already, this only spells it out for older WebViews.
     'Access-Control-Expose-Headers': 'Content-Length'
   });
-  try { await pipeline(fs.createReadStream(null, { fd }), res); }
+  try { await pipeline(fs.createReadStream(null, { fd, ...range }), res); }
   catch { res.destroy(); }   // the client went away mid-download; nothing left to answer
 }
 

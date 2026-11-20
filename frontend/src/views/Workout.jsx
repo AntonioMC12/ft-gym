@@ -111,7 +111,7 @@ const RTL_LETTER = /[֐-ࣿיִ-﷿ﹰ-﻿]/
 // enough to turn over, far shorter than the rest the set earns once both sides are held.
 const SWITCH_SIDES_SEC = 10
 
-function ExerciseBlock({ entryIdx, compact, dense, editing, onToggle, onToggleSide, onField, onAddSet, onRemoveSet, onAddWarmup, onRemoveSetAt, onCopySetAt, onStartTimed, onPairPrev, onPairNext, onSetRowRef, onProgressionSettings, onRest, onNoProg, routineUpdate, onSwap, onMoveUp, onMoveDown, canMoveUp, canMoveDown, onRemoveExercise, busy }) {
+function ExerciseBlock({ entryIdx, compact, dense, editing, onToggle, onToggleSide, onField, onAddSet, onRemoveSet, onAddWarmup, onRemoveSetAt, onCopySetAt, onStartTimed, onPairPrev, onPairNext, onSetRowRef, onProgressionSettings, onRest, onNoProg, routineUpdate, onSwap, onMoveUp, onMoveDown, canMoveUp, canMoveDown, onRemoveExercise, busy, mediaPreview, mediaOnDemand }) {
   const S = useStore(s => s.S)
   const update = useStore(s => s.update)
   const working = useUI(s => s.work)
@@ -662,7 +662,7 @@ function ExerciseBlock({ entryIdx, compact, dense, editing, onToggle, onToggleSi
   return <>
     {/* Animations set to Small: a thumbnail beside the name instead of a strip above it, so the
         first set is on screen without scrolling; a tap brings the full animation back. */}
-    {!dense && !thumb && <Media ex={ex} key={entry.id} compact={compact} minimizable />}
+    {!dense && !thumb && <Media ex={ex} key={entry.id} compact={compact} minimizable mediaPreview={mediaPreview} mediaOnDemand={mediaOnDemand} />}
     <div className="row between exhd" style={{ marginBottom: 6 }}>
       {thumb && <WorkoutThumb ex={ex} onExpand={() => update(s => { s.gifSize = 'full' })} />}
       <div style={{ flex: 1, minWidth: 0, fontSize: (compact || dense) ? 17 : 20, fontWeight: 600, letterSpacing: '-.02em', lineHeight: 1.2 }} className={exerciseNameClass(ex)}>{exerciseNameFor(ex)}</div>
@@ -2074,10 +2074,10 @@ function ActiveWorkout() {
               </div>
               {adjacent.map((idx, k) => <div key={idx} className="ss-ex" data-exidx={idx}>
                 {k > 0 && <div className="ss-amp">+</div>}
-                <ExerciseBlock entryIdx={idx} compact {...blockProps(idx)} />
+                <ExerciseBlock entryIdx={idx} compact mediaPreview {...blockProps(idx)} />
               </div>)}
             </div>
-          ) : <ExerciseBlock entryIdx={adjacent[0]}
+          ) : <ExerciseBlock entryIdx={adjacent[0]} mediaPreview
             onPairPrev={adjacent[0] > 0 ? () => pairAt(adjacent[0] - 1, adjacent[0]) : null}
             onPairNext={adjacent[0] < A.entries.length - 1 ? () => pairAt(adjacent[0], adjacent[0] + 1) : null}
             {...blockProps(adjacent[0])} />
@@ -2097,7 +2097,7 @@ function ActiveWorkout() {
             const entry = A.entries[idx]
             return <div key={idx} ref={el => bindExRef(entry, el)} className="ss-ex" data-exidx={idx}>
               {k > 0 && <div className="ss-amp">+</div>}
-              <ExerciseBlock entryIdx={idx} compact onSetRowRef={(setIdx, el) => bindSetRef(entry, setIdx, el)}
+              <ExerciseBlock entryIdx={idx} compact mediaOnDemand={idx !== cur} onSetRowRef={(setIdx, el) => bindSetRef(entry, setIdx, el)}
                 {...blockProps(idx)} />
             </div>
           })}

@@ -66,8 +66,8 @@ export function reorderPlanRoutine(S,id,rid,delta){
 export const PLAN_CATEGORIES=[['category-men','Men'],['category-women','Women'],['category-cardio','Cardio'],['category-mobility','Mobility'],['category-core','Core']]
 const categoryIds=new Set(PLAN_CATEGORIES.map(([id])=>id))
 export function foldersOf(S){
- const categories=PLAN_CATEGORIES.map(([id,name])=>({id,name,parentId:null,category:true}))
- return [...categories,...Object.entries(S.trainingFolders||{}).filter(([id,f])=>!categoryIds.has(id)&&f&&typeof f.name==='string').map(([id,f])=>({...f,id,category:false}))]
+ const categories=PLAN_CATEGORIES.map(([id,name])=>({id,name,parentId:null,category:true,initial:true}))
+ return [...categories,...Object.entries(S.trainingFolders||{}).filter(([id,f])=>!categoryIds.has(id)&&f&&typeof f.name==='string').map(([id,f])=>({...f,id,category:f.category===true&&f.parentId===null,initial:false}))]
 }
 export function initializePlanFolders(S){
  S.trainingFolders={...(S.trainingFolders||{})}
@@ -87,17 +87,40 @@ export const planFolder=(S,p)=>folderPath(S,p?.folderId).length?p.folderId:null
 export function validateLibraryName(S,name,parentId,except){
  const clean=String(name||'').trim()
  if(!clean||clean.length>120)throw new Error('Enter a name of 1 to 120 characters')
- const key=clean.normalize('NFKC').toLocaleLowerCase()
  const entries=[...foldersOf(S).filter(f=>f.parentId===parentId),...plansOf(S).filter(p=>planFolder(S,p)===parentId)]
- if(entries.some(x=>x.id!==except&&x.name.normalize('NFKC').toLocaleLowerCase()===key))throw new Error('This name already exists in this folder')
+ if(entries.some(x=>x.id!==except&&libraryNameKey(x.name)===libraryNameKey(clean)))throw new Error('This name already exists in this folder')
  return clean
+}
+const libraryNameKey=name=>name.normalize('NFKC').toLocaleLowerCase()
+
+// Match the member across visits without storing center or member IDs in training state.
+export async function memberTrainingPlanId(centerId,memberId){
+ const input=new TextEncoder().encode(JSON.stringify([centerId,memberId]))
+ const digest=new Uint8Array(await crypto.subtle.digest('SHA-256',input))
+ return 'member_plan_'+Array.from(digest,byte=>byte.toString(16).padStart(2,'0')).join('')
+}
+
+export function createMemberRoutine(S,{planId,memberName,routineName,routineId=uid()}){
+ if(!S.trainingPlans?.[planId]){
+  const rootNames=new Set(plansOf(S).filter(plan=>!planFolder(S,plan)).map(plan=>libraryNameKey(plan.name)))
+  const name=memberName.trim()
+  let title=name.slice(0,120).trimEnd(),index=2
+  while(rootNames.has(libraryNameKey(title))){
+   const suffix=' ('+index+')'
+   index++
+   title=name.slice(0,120-suffix.length).trimEnd()+suffix
+  }
+  createTrainingPlan(S,title,planId,null)
+ }
+ S.routines.push({id:routineId,name:routineName,emoji:'dumbbell',ex:[],planId})
+ return routineId
 }
 export function savePlanFolder(S,name,parentId,id=uid()){
  if(categoryIds.has(id))throw new Error('Initial categories cannot be changed')
- if(!folderPath(S,parentId).length)throw new Error('Choose a category or subfolder')
+ if(parentId!==null&&!folderPath(S,parentId).length)throw new Error('Choose a category or subfolder')
  if(folderPath(S,parentId).some(f=>f.id===id))throw new Error('A folder cannot contain itself or its descendants')
  const clean=validateLibraryName(S,name,parentId,id)
- S.trainingFolders={...(S.trainingFolders||{}),[id]:{name:clean,parentId}};return id
+ S.trainingFolders={...(S.trainingFolders||{}),[id]:{name:clean,parentId,category:parentId===null}};return id
 }
 export function removePlanFolder(S,id){
  if(categoryIds.has(id))throw new Error('Initial categories cannot be changed')

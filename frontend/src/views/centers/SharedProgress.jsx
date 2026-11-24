@@ -54,7 +54,7 @@ function Content({centerId,ownerUid,member,own=false,centerName=''}){
         {row.weeks.length>0&&<details><summary>{t('Sessions by week')}</summary>{row.weeks.map(week=><Row key={week.from} title={week.from} value={String(week.sessions)}/>)}</details>}
       </div>)}
     </>)}
-    <Button type="button" disabled={busy} onClick={()=>navigate(()=>setRevision(value=>value+1))}>{t('Reload centers')}</Button>
+    {(error||own||data?.shared)&&<Button type="button" disabled={busy} onClick={()=>navigate(()=>setRevision(value=>value+1))}>{t(error&&!data?'Retry':'Refresh progress')}</Button>}
   </div></Section>
 }
 export default function SharedProgress(props){return <Content key={JSON.stringify([props.centerId,props.ownerUid,!!props.own,props.member?.id])} {...props}/>}

@@ -15,15 +15,18 @@ import TrainingProposals from '../views/centers/TrainingProposals.jsx'
 import TrainingRoster from './TrainingRoster.jsx'
 import {t} from '../lib/i18n.js'
 import {routinesForPlan} from '../lib/training-plans.js'
-export default function TrainingAssignments({routineIds,planName,planId,mode='all',onManageAccounts,planPicker}){
+export default function TrainingAssignments({routineIds,planName,planId,mode='all',onManageAccounts,planPicker,recipient,onClose}){
  const uid=useStore(s=>s.user?.id),state=useCenters(),platform=state.ownerUid===uid&&state.platformCapabilities.includes('centers.manage')
- const [centers,setCenters]=useState([]),[center,setCenter]=useState(''),[members,setMembers]=useState([]),[selected,setSelected]=useState([]),[query,setQuery]=useState(''),[cursor,setCursor]=useState(null),[busy,setBusy]=useState(false),[error,setError]=useState(null),[message,setMessage]=useState(''),[member,setMember]=useState(null),[linking,setLinking]=useState(false)
+ const singleRoutine=mode==='routine',fixedMember=recipient?.member
+ const [centers,setCenters]=useState([]),[chosenCenter,setCenter]=useState(''),[members,setMembers]=useState([]),[selected,setSelected]=useState([]),[query,setQuery]=useState(''),[cursor,setCursor]=useState(null),[busy,setBusy]=useState(false),[error,setError]=useState(null),[message,setMessage]=useState(''),[member,setMember]=useState(null),[linking,setLinking]=useState(false)
+ const center=recipient?.centerId||chosenCenter
+ const targetIds=fixedMember?[fixedMember.id]:selected
  const [newAssignment,setNewAssignment]=useState(false)
  const [expandedMembers,setExpandedMembers]=useState(false)
  const [choosingMember,setChoosingMember]=useState(false)
  useEffect(()=>setChoosingMember(false),[member?.id,mode])
  const memberNames=useRef(new Map())
- const [loadingCenters,setLoadingCenters]=useState(true),[retry,setRetry]=useState(0)
+ const [loadingCenters,setLoadingCenters]=useState(!fixedMember),[retry,setRetry]=useState(0)
  const [chosenRoutines,setChosenRoutines]=useState(routineIds)
  useEffect(()=>{setSelected([]);setMessage('')},[mode])
  const signature=JSON.stringify(routineIds)
@@ -33,20 +36,39 @@ export default function TrainingAssignments({routineIds,planName,planId,mode='al
  useEffect(()=>{if(linking){linkRef.current?.focus({preventScroll:true});linkRef.current?.scrollIntoView?.({block:'start'})}},[linking,member?.id,mode])
  const navigate=useCenterNavigation()
  const life=useRef(0),sending=useRef(false),requests=useRef(new Map())
- useEffect(()=>{let current=true;setLoadingCenters(true);setCenters([]);setCenter('');setError(null);(platform?platformCenters():Promise.resolve({centers:state.centers.filter(c=>c.capabilities?.includes('training.assign'))})).then(r=>{if(current){setCenters(r.centers);setCenter(r.centers[0]?.id||'')}}).catch(e=>{if(current)setError(e)}).finally(()=>{if(current)setLoadingCenters(false)});return()=>{current=false}},[uid,platform,retry])
- useEffect(()=>{const epoch=++life.current;setMembers([]);setExpandedMembers(false);setMessage('');setCursor(null);setError(null);if(!center||mode==='accounts'||mode==='tracking'){setBusy(false);return}setBusy(true);const timer=setTimeout(()=>{centerMembers(center,{query}).then(r=>{if(epoch===life.current){setMembers(r.members);setCursor(r.nextCursor)}}).catch(e=>{if(epoch===life.current)setError(e)}).finally(()=>{if(epoch===life.current)setBusy(false)})},query?250:0);return()=>{clearTimeout(timer);life.current++}},[center,query,uid,mode])
+ useEffect(()=>{if(fixedMember)return;let current=true;setLoadingCenters(true);setCenters([]);setCenter('');setError(null);(platform?platformCenters():Promise.resolve({centers:state.centers.filter(c=>c.capabilities?.includes('training.assign'))})).then(r=>{if(current){setCenters(r.centers);setCenter(r.centers[0]?.id||'')}}).catch(e=>{if(current)setError(e)}).finally(()=>{if(current)setLoadingCenters(false)});return()=>{current=false}},[uid,platform,retry,fixedMember?.id])
+ useEffect(()=>{
+  const epoch=++life.current
+  setMembers([]);setExpandedMembers(false);setMessage('');setCursor(null);setError(null)
+  let timer
+  if(!center||fixedMember||mode==='accounts'||mode==='tracking')setBusy(false)
+  else{
+   setBusy(true)
+   timer=setTimeout(()=>{centerMembers(center,{query}).then(r=>{if(epoch===life.current){setMembers(r.members);setCursor(r.nextCursor)}}).catch(e=>{if(epoch===life.current)setError(e)}).finally(()=>{if(epoch===life.current)setBusy(false)})},query?250:0)
+  }
+  return()=>{clearTimeout(timer);life.current++}
+ },[center,query,uid,mode,fixedMember?.id])
  useEffect(()=>{setMember(null);setLinking(false);setSelected([]);memberNames.current.clear()},[center,uid])
  useEffect(()=>{for(const m of members)memberNames.current.set(m.id,m.name)},[members])
  const more=async()=>{if(busy||!cursor)return;const epoch=life.current;setBusy(true);try{const r=await centerMembers(center,{query,cursor});if(epoch===life.current){setMembers(rows=>[...rows,...r.members]);setCursor(r.nextCursor)}}catch(e){if(epoch===life.current)setError(e)}finally{if(epoch===life.current)setBusy(false)}}
- const assign=async()=>{if(busy||sending.current||!selected.length||!chosenRoutines.length)return;sending.current=true;const epoch=life.current;setBusy(true);setError(null);setMessage('');try{
+ const assign=async()=>{if(busy||sending.current||!targetIds.length||!chosenRoutines.length||(fixedMember&&message))return;sending.current=true;const epoch=life.current;setBusy(true);setError(null);setMessage('');try{
   const source=useStore.getState().S,chosenIds=new Set(chosenRoutines),routines=planId&&planId!=='*'?routinesForPlan(source,planId).filter(r=>r.ex?.length):source.routines.filter(r=>chosenIds.has(r.id)),ids=new Set(routines.map(r=>r.id)),week={}
-  for(const [day,rows] of Object.entries(source.week||{})){const kept=[].concat(rows).filter(id=>ids.has(id));if(kept.length)week[day]=kept}
-  const bundle=buildTrainingProposal({...source,routines,week},planName)
-  for(const id of selected){if(epoch!==life.current||useStore.getState().user?.id!==uid)return
-   const detail=await centerMember(center,id);if(epoch!==life.current||useStore.getState().user?.id!==uid)return;const key=JSON.stringify([center,id,bundle,newAssignment]);if(!requests.current.has(key))requests.current.set(key,crypto.randomUUID())
+  if(singleRoutine&&(routines.length!==1||!routines[0].ex?.length))throw {code:'invalid-training-plan'}
+  if(!singleRoutine)for(const [day,rows] of Object.entries(source.week||{})){const kept=[].concat(rows).filter(id=>ids.has(id));if(kept.length)week[day]=kept}
+  const bundle=buildTrainingProposal({...source,routines,week},singleRoutine?routines[0].name:planName)
+  for(const id of targetIds){if(epoch!==life.current||useStore.getState().user?.id!==uid)return
+   const detail=await centerMember(center,id)
+   if(epoch!==life.current||useStore.getState().user?.id!==uid)return
+   if(singleRoutine&&detail.member.state!=='active')throw {code:'training-member-inactive'}
+   if(singleRoutine&&detail.member.accountLinked===false)throw {code:'training-account-required'}
+   const key=JSON.stringify([center,id,detail.member.version,bundle,newAssignment])
+   if(!requests.current.has(key))requests.current.set(key,crypto.randomUUID())
    await centerCommand('/api/centers/training/propose',{centerId:center,memberId:id,memberVersion:detail.member.version,bundle,...(newAssignment?{newAssignment:true}:{}),requestId:requests.current.get(key)})
    requests.current.delete(key)
-   if(epoch===life.current){setSelected(old=>old.filter(x=>x!==id));setMessage(t('Training proposals saved. Each recipient must accept the proposal.'))}
+   if(epoch===life.current){
+    setSelected(old=>old.filter(x=>x!==id))
+    setMessage(t(singleRoutine?'Routine sent. The member must accept the proposal.':'Training proposals saved. Each recipient must accept the proposal.'))
+   }
   }
  }catch(e){if(epoch===life.current)setError(e)}finally{sending.current=false;if(epoch===life.current)setBusy(false)}}
  const inspect=async(id,link=false)=>{if(!id){setLinking(false);return setMember(null)}const epoch=life.current,requestedMode=modeRef.current;setBusy(true);try{const r=await centerMember(center,id);if(epoch===life.current&&modeRef.current===requestedMode){setMember(r.member);setLinking(link);return true}}catch(e){if(epoch===life.current)setError(e)}finally{if(epoch===life.current)setBusy(false)}}
@@ -67,29 +89,32 @@ export default function TrainingAssignments({routineIds,planName,planId,mode='al
  }
  const canLink=state.ownerUid===uid&&(platform||state.centers.some(c=>c.id===center&&c.capabilities?.includes('members.manage')))
  const isEligible=m=>m.state==='active'&&m.accountLinked!==false
- const toggleMember=id=>{if(!busy)setSelected(rows=>rows.includes(id)?rows.filter(x=>x!==id):[...rows,id])}
+ const toggleMember=id=>{if(!busy)setSelected(rows=>rows.includes(id)?rows.filter(x=>x!==id):singleRoutine?[id]:[...rows,id])}
  const number=m=>m.number||m.memberNumber||''
  const blockedReason=m=>[m.state!=='active'?t('Training proposals require an active member.'):null,m.accountLinked===false?t('Link this member to an account before proposing routines.'):null].filter(Boolean).join(' ')
  const proposalPicker=mode==='proposals'
- const showAssign=mode==='all'||mode==='assign',showProposals=mode==='all'||mode==='proposals',showAccounts=mode==='all'||mode==='accounts'
+ const showAssign=mode==='all'||mode==='assign'||singleRoutine,showProposals=mode==='all'||mode==='proposals',showAccounts=mode==='all'||mode==='accounts'
  const formRef=useUnsavedCenterForm(showAssign&&selected.length?JSON.stringify([selected,chosenRoutines,center]):null,sending.current)
- const reason=busy?t(sending.current?'Saving…':'Loading…'):!chosenRoutines.length?t('Choose your routines to offer to this member. Their training stays unchanged until acceptance.'):!selected.length?t('Select at least one member to continue.'):null
+ const fixedMemberReason=fixedMember?blockedReason(fixedMember):''
+ const reason=busy?t(sending.current?'Saving…':'Loading…'):fixedMember&&message?message:fixedMemberReason||(!chosenRoutines.length?t('Choose your routines to offer to this member. Their training stays unchanged until acceptance.'):!targetIds.length?t('Select at least one member to continue.'):null)
  if(mode==='accounts')return <>
   <Section><div className="centers-form"><Row className={'select-field'+(center?' has-selection':'')} title={t('Centers')} value={centers.find(c=>c.id===center)?.name||center} accessory="dropdown" disabled={loadingCenters} onClick={openCenters}/>{loadingCenters&&<p role="status">{t('Loading centers')}</p>}{!loadingCenters&&!center&&!error&&<p>{t('No centers available')}</p>}{error&&<><p role="alert">{t(trainingErrorKey(error))}</p><Button onClick={()=>setRetry(n=>n+1)}>{t('Retry')}</Button></>}</div></Section>
   {center&&<Activations key={uid+':'+center} centerId={center} ownerUid={uid}/>}
  </>
  if(mode==='tracking')return <Section title={t('Members with routines')}><div className="centers-form"><Row className={'select-field'+(center?' has-selection':'')} title={t('Centers')} value={centers.find(c=>c.id===center)?.name||center} accessory="dropdown" disabled={loadingCenters} onClick={openCenters}/>{loadingCenters&&<p role="status">{t('Loading centers')}</p>}{error&&<><p role="alert">{t(trainingErrorKey(error))}</p><Button onClick={()=>setRetry(n=>n+1)}>{t('Retry')}</Button></>}{!loadingCenters&&!center&&!error&&<p>{t('No centers available')}</p>}{center&&<TrainingRoster key={uid+':'+center} centerId={center} ownerUid={uid}/>}</div></Section>
- return <Section className="training-assignments" title={t(mode==='accounts'?'Link account':mode==='proposals'?'Sent proposals':'Send plan')}><div ref={formRef} className="centers-form">
+ return <Section className="training-assignments" title={t(singleRoutine?'Send routine':mode==='accounts'?'Link account':mode==='proposals'?'Sent proposals':'Send plan')}><div ref={formRef} className="centers-form">
   {showAssign&&<p className="small muted">{t(planId&&planId!=='*'?'This plan will be offered with the routines listed below. The member must accept it before their training changes.':'Choose your routines to offer to this member. Their training stays unchanged until acceptance.')}</p>}
-  <Row className={'select-field'+(center?' has-selection':'')} title={t('Centers')} value={centers.find(c=>c.id===center)?.name||center} accessory="dropdown" disabled={busy||loadingCenters} onClick={openCenters}/>
-  {showAssign&&<>{planPicker||planName&&<Row title={t('Plan')} value={planName}/>}
+  {fixedMember?<Row title={fixedMember.name} subtitle={number(fixedMember)} value={t('Selected')}/>:<Row className={'select-field'+(center?' has-selection':'')} title={t('Centers')} value={centers.find(c=>c.id===center)?.name||center} accessory="dropdown" disabled={busy||loadingCenters} onClick={openCenters}/>}
+  {fixedMemberReason&&<p role="status">{fixedMemberReason}</p>}
+  {singleRoutine&&<Row title={t('Routine')} value={planName}/>}
+  {showAssign&&!singleRoutine&&<>{planPicker||planName&&<Row title={t('Plan')} value={planName}/>}
   <div className="training-routine-choice">{planId&&planId!=='*'?<div><h3>{t('Routines in {0}',planName)}</h3>{routineIds.map(id=><p key={id}>{routines.find(r=>r.id===id)?.name}</p>)}</div>:<MultiSelectRow title={t('Routines')} values={chosenRoutines} options={routines.filter(r=>routineIds.includes(r.id)).map(r=>({value:r.id,label:r.name}))} onToggle={id=>{if(!busy)setChosenRoutines(rows=>rows.includes(id)?rows.filter(x=>x!==id):[...rows,id])}}/>}</div></>}
   {proposalPicker&&member&&<div className="training-selected-member"><Row title={member.name} subtitle={number(member)} accessory="chevron" onClick={()=>setChoosingMember(value=>!value)}/><Button size="sm" variant="tinted" aria-expanded={choosingMember} onClick={()=>setChoosingMember(value=>!value)}>{t('Change member')}</Button></div>}
-  {(!proposalPicker||!member||choosingMember)&&<>
+  {!fixedMember&&(!proposalPicker||!member||choosingMember)&&<>
   <SearchField ref={searchRef} aria-label={t('Search members')} placeholder={t('Search members')} value={query} readOnly={sending.current} aria-busy={busy} onChange={e=>{if(!sending.current)setQuery(e.target.value)}} onClear={()=>{if(!sending.current){setQuery('');searchRef.current?.focus()}}}/>
   {(showAssign||proposalPicker)&&<div className="training-recipient-picker">
    <div className="training-recipient-heading"><h3>{t('Members')}</h3><span className="small muted" role="status">{t('Selected')} · {proposalPicker?(member?1:0):selected.length}</span></div>
-   <p className="small muted">{t(proposalPicker?'Choose a member to view their sent proposals.':'Select one or more members. Search keeps your selection.')}</p>
+   <p className="small muted">{t(singleRoutine?'Select a member to send this routine.':proposalPicker?'Choose a member to view their sent proposals.':'Select one or more members. Search keeps your selection.')}</p>
    {proposalPicker&&member&&<div className="training-recipient-selection" aria-label={t('Selected')}><Button size="sm" disabled={busy} aria-label={t('Remove')+' · '+member.name} onClick={()=>navigate(()=>inspect(''))}>{member.name} ×</Button></div>}
    {showAssign&&selected.length>0&&<div className="training-recipient-selection" aria-label={t('Selected')}>{selected.map(id=><Button key={id} size="sm" disabled={busy} aria-label={t('Remove')+' · '+(memberNames.current.get(id)||id)} onClick={()=>toggleMember(id)}>{memberNames.current.get(id)||id} ×</Button>)}</div>}
    <div className="training-recipient-list" aria-busy={busy}>
@@ -97,7 +122,7 @@ export default function TrainingAssignments({routineIds,planName,planId,mode='al
      <Row title={m.name} subtitle={number(m)} disabled={busy} aria-pressed={available?chosen:undefined} onClick={available?()=>proposalPicker?navigate(()=>inspect(m.id)):toggleMember(m.id):undefined}>
       {available&&<span className={'training-recipient-mark'+(chosen?' on':'')} aria-hidden="true">{chosen&&<Icon name="check"/>}</span>}
      </Row>
-     {!available&&<div className="training-recipient-reason"><p className="small muted">{blockedReason(m)}</p>{m.accountLinked===false&&canLink&&<Button size="sm" aria-label={t('Link account')+' · '+m.name} disabled={busy} onClick={async()=>{const ready=await inspect(m.id,true);if(ready&&useStore.getState().user?.id===uid)onManageAccounts?.()}}>{t('Link account')} · {m.name}</Button>}</div>}
+     {!available&&<div className="training-recipient-reason"><p className="small muted">{blockedReason(m)}</p>{!singleRoutine&&m.accountLinked===false&&canLink&&<Button size="sm" aria-label={t('Link account')+' · '+m.name} disabled={busy} onClick={async()=>{const ready=await inspect(m.id,true);if(ready&&useStore.getState().user?.id===uid)onManageAccounts?.()}}>{t('Link account')} · {m.name}</Button>}</div>}
     </div>})}
    </div>
    {(members.length>5||cursor||expandedMembers)&&<div className="training-recipient-more">{!expandedMembers?<Button disabled={busy} aria-expanded={false} onClick={()=>{setExpandedMembers(true);if(members.length<=5&&cursor)more()}}>{t('View all members')}</Button>:<><Button disabled={busy} aria-expanded={true} onClick={()=>setExpandedMembers(false)}>{t('Show less')}</Button>{cursor&&<Button disabled={busy} onClick={more}>{t('Show more')}</Button>}</>}</div>}
@@ -106,11 +131,14 @@ export default function TrainingAssignments({routineIds,planName,planId,mode='al
   {!members.length&&!busy&&<p>{t('No members available')}</p>}
   {mode==='accounts'?<div className="training-member-results"><p className="small muted">{t('Choose a center member, with or without a linked account.')}</p><div className="centers-accounts-list">{members.map(m=><Row key={m.id} title={m.name} subtitle={number(m)+' · '+t(m.accountLinked?'Account linked':'No linked account')} value={member?.id===m.id?t('Selected'):null} accessory={member?.id===m.id?'check':'chevron'} disabled={busy} onClick={()=>navigate(()=>inspect(m.id,true))}/>)}</div><div className="training-member-toolbar"><Button variant="plain" disabled={busy||!center} onClick={reloadMembers}>{t('Refresh members')}</Button></div></div>:<Button className="training-refresh-members" disabled={busy||!center} onClick={reloadMembers}>{t('Refresh members')}</Button>}
   </>}
-  {!loadingCenters&&!centers.length&&!error&&<p role="status">{t('No centers available')}</p>}
+  {!fixedMember&&!loadingCenters&&!centers.length&&!error&&<p role="status">{t('No centers available')}</p>}
   {(busy||loadingCenters)&&<p role="status">{t('Loading…')}</p>}
-  {showAssign&&<Row title={t('Create a separate assignment even if this plan was sent before')}><Switch aria-label={t('Create a separate assignment even if this plan was sent before')} checked={newAssignment} disabled={busy} onChange={setNewAssignment}/></Row>}
-  {showAssign&&<div className="centers-form-actions training-assignment-actions" data-center-form-actions><ActionReason reason={reason}><Button variant="primary" disabled={!!reason} onClick={assign}>{t(sending.current?'Saving…':'Send plan')}{selected.length>0?' · '+selected.length:''}</Button></ActionReason></div>}
-  {message&&<p role="status">{message}</p>}{error&&<><p role="alert">{t(trainingErrorKey(error))}</p><Button disabled={busy} onClick={()=>setRetry(n=>n+1)}>{t('Retry')}</Button></>}
+  {showAssign&&!singleRoutine&&<Row title={t('Create a separate assignment even if this plan was sent before')}><Switch aria-label={t('Create a separate assignment even if this plan was sent before')} checked={newAssignment} disabled={busy} onChange={setNewAssignment}/></Row>}
+  {showAssign&&<div className="centers-form-actions training-assignment-actions" data-center-form-actions>
+   {!(fixedMember&&message)&&<ActionReason reason={reason}><Button variant="primary" disabled={!!reason} onClick={assign}>{t(sending.current?'Saving…':singleRoutine?'Send routine':'Send plan')}{!singleRoutine&&selected.length>0?' · '+selected.length:''}</Button></ActionReason>}
+   {onClose&&<Button disabled={sending.current} onClick={onClose}>{t('Back')}</Button>}
+  </div>}
+  {message&&<p role="status">{message}</p>}{error&&<><p role="alert">{t(trainingErrorKey(error))}</p>{!fixedMember&&<Button disabled={busy} onClick={()=>setRetry(n=>n+1)}>{t('Retry')}</Button>}</>}
   {(showProposals||showAccounts)&&mode!=='accounts'&&!proposalPicker&&<SelectRow variant="field" title={t(showAccounts&&!showProposals?'Members':'Training proposals')} value={member?.id||''} disabled={busy} options={[{value:'',label:t('Members')},...members.map(m=>({value:m.id,label:m.name}))]} onChange={id=>inspect(id,mode==='accounts')}/>}
   {showProposals&&member&&<TrainingProposals key={center+':'+member.id} centerId={center} member={member} ownerUid={uid} canAssign active/>}
   {showProposals&&mode!=='all'&&member?.accountLinked===false&&canLink&&<Button onClick={()=>{setLinking(true);onManageAccounts?.()}}>{t('Link account')}</Button>}

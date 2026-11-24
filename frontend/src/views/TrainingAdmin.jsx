@@ -1,6 +1,6 @@
 import CenterTabBar from './centers/CenterTabBar.jsx'
 import {useEffect,useState} from 'react'
-import {Navigate,useNavigate,useSearchParams} from 'react-router-dom'
+import {Navigate,useNavigate,useParams,useSearchParams} from 'react-router-dom'
 import {useStore} from '../store/useStore.js'
 import {useCenters} from '../store/useCenters.js'
 import {centersMe} from '../lib/centers-api.js'
@@ -10,7 +10,7 @@ import {t} from '../lib/i18n.js'
 import {Button,Section,SelectRow} from '../components/ui.jsx'
 import Icon from '../components/Icon.jsx'
 import TrainingLibraryWorkspace from '../components/TrainingLibraryWorkspace.jsx'
-import RoutineEdit from './RoutineEdit.jsx'
+import TrainingRoutineEditor from '../components/TrainingRoutineEditor.jsx'
 import TrainingAssignments from '../components/TrainingAssignments.jsx'
 import CenterWorkspace from './centers/CenterWorkspace.jsx'
 import CenterNavigationGuard,{useCenterNavigation} from './centers/NavigationGuard.jsx'
@@ -18,6 +18,7 @@ import ConfigPending from './centers/ConfigPending.jsx'
 
 function Content({edit}){
  const nav=useNavigate(),[params,setParams]=useSearchParams(),requestNavigation=useCenterNavigation()
+ const {id}=useParams()
  const S=useStore(s=>s.S),update=useStore(s=>s.update)
  const options=[{value:'library',label:t('Routines')},{value:'assign',label:t('Send plan')},{value:'tracking',label:t('Members with routines')},{value:'proposals',label:t('Sent proposals')},{value:'accounts',label:t('Pending activations')}]
  const pane=edit?'library':options.some(o=>o.value===params.get('pane'))?params.get('pane'):'library'
@@ -31,7 +32,7 @@ function Content({edit}){
  return <div className="narrow centers-page training-admin-page">
   <div className="hdr"><button className="iconbtn" aria-label={t('Back')} onClick={()=>requestNavigation(()=>navBack('/home',nav))}><Icon name="chevronLeft"/></button><h1>{t('Manage routines')}</h1></div>
   <CenterWorkspace label={t('Manage routines')} options={options} value={pane} onChange={go}>
-   {pane==='library'&&(edit?<RoutineEdit basePath="/training-admin"/>:<TrainingLibraryWorkspace S={S} update={update} nav={nav} onAssign={assign}/>)}
+   {pane==='library'&&(edit?<TrainingRoutineEditor key={id} routineId={id}/>:<TrainingLibraryWorkspace S={S} update={update} nav={nav} onAssign={assign}/>)}
    {pane!=='library'&&(pane==='assign'&&!routineIds.length?<Section title={t('Send plan')}><div className="centers-form"><p>{t('No routines yet.')}</p><Button onClick={()=>go('library')}>{t('Routines')}</Button></div></Section>:<TrainingAssignments key={planId||'unassigned'} planId={planId} routineIds={routineIds} planName={plan?.name||''} mode={pane} onManageAccounts={()=>go('accounts')} planPicker={<SelectRow variant="field" title={t('Training plans')} value={planId??''} options={[{value:'*',label:t('All routines')},{value:'',label:t('No plan')},...plansOf(S).map(p=>({value:p.id,label:p.name}))]} onChange={id=>selectPlan(id||null)}/>}/>)}
   </CenterWorkspace>
  </div>

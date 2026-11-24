@@ -5,7 +5,7 @@ import {MemoryRouter,Routes,Route} from 'react-router-dom'
 import {beforeEach,afterEach,it,expect,vi} from 'vitest'
 vi.mock('../lib/i18n.js',()=>({t:key=>key}))
 vi.mock('../lib/centers-api.js',()=>({centersMe:vi.fn()}))
-vi.mock('./Plan.jsx',()=>({Routines:({management,onAssign,basePath})=><div>Library {String(management)} {basePath}<button onClick={()=>onAssign('p')}>Assign selected plan</button></div>}))
+vi.mock('../components/TrainingLibraryWorkspace.jsx',()=>({default:({onAssign})=><div>Training library<button onClick={()=>onAssign('p')}>Assign selected plan</button></div>}))
 vi.mock('./RoutineEdit.jsx',()=>({default:({basePath})=><div>Routine editor {basePath}</div>}))
 vi.mock('../components/TrainingAssignments.jsx',()=>({default:({mode,planName})=><div>Panel {mode} {planName}</div>}))
 import TrainingAdmin from './TrainingAdmin.jsx'
@@ -23,8 +23,8 @@ afterEach(()=>{act(()=>root.unmount());host.remove()});
 const mount=async(path='/training-admin')=>act(async()=>root.render(<MemoryRouter initialEntries={[path]}><Routes><Route path="/home" element={<div>Home screen</div>}/><Route path="/training-admin" element={<TrainingAdmin/>}/><Route path="/training-admin/r/:id" element={<TrainingAdmin edit/>}/></Routes></MemoryRouter>));
 const click=async name=>act(async()=>[...host.querySelectorAll('button')].find(b=>b.textContent===name).click());
 it('verifies server capability before showing the management library and separates each panel',async()=>{
- await mount();expect(centersMe).toHaveBeenCalledOnce();expect(host.textContent).toContain('Library true /training-admin');expect(host.textContent).not.toContain('Panel assign');
- await click('Assign selected plan');expect(host.textContent).toContain('Panel assign Strength');expect(host.textContent).not.toContain('Library true');
+ await mount();expect(centersMe).toHaveBeenCalledOnce();expect(host.textContent).toContain('Training library');expect(host.textContent).not.toContain('Panel assign');
+ await click('Assign selected plan');expect(host.textContent).toContain('Panel assign Strength');expect(host.textContent).not.toContain('Training library');
  await click('Sent proposals');expect(host.textContent).toContain('Panel proposals');expect(host.textContent).not.toContain('Panel assign');
  await click('Pending activations');expect(host.textContent).toContain('Panel accounts');
 });

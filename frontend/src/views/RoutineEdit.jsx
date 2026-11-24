@@ -366,22 +366,23 @@ export function undoRemoveRoutineExercise({ routineId, i, before, after, base, d
   return true
 }
 
-export default function RoutineEdit({basePath='/plan'}) {
+export default function RoutineEdit({basePath='/plan',routineId,onClose,onOpenRoutine,onSend}) {
   const routeLocation=useLocation()
   const contextQuery=basePath==='/training-admin'?routeLocation.search:''
   const returnPath=basePath+contextQuery
   const nav = useNavigate()
-  const { id } = useParams()
+  const { id:routeId } = useParams()
+  const id = routineId ?? routeId
   const S = useStore(s => s.S)
   const config = useStore(s => s.config)
   const user = useStore(s => s.user)
   const centers = useCenters()
-  const canOrganize = config != null && (!config.centers?.enabled || (centers.ownerUid === user?.id && centers.status === 'ready' && centers.platformCapabilities.includes('centers.manage')))
+  const canOrganize = !onClose && config != null && (!config.centers?.enabled || (centers.ownerUid === user?.id && centers.status === 'ready' && centers.platformCapabilities.includes('centers.manage')))
   const controls = workoutControls(S)
   const update = useStore(s => s.update)
   const toast = useUI(s => s.toast)
   const r = S.routines.find(x => x.id === id)
-  useEffect(() => { if (!r) nav(returnPath,{replace:true}) }, [!!r])
+  useEffect(() => { if (!r) { if (onClose) onClose(); else nav(returnPath,{replace:true}) } }, [!!r])
   // Editing here has no explicit "save" — every field change persists immediately. A single
   // auto-backup on the way out (not per keystroke) covers the whole editing session, deletion
   // included: this still unmounts after the delete button navigates away.
@@ -476,17 +477,18 @@ export default function RoutineEdit({basePath='/plan'}) {
 
   return <div className="narrow">
     <div className="hdr">
-      <button className="iconbtn" onClick={() => navBack(returnPath,nav)} aria-label={t('Back')}><Icon name="chevronLeft" /></button>
+      <button className="iconbtn" onClick={onClose||(() => navBack(returnPath,nav))} aria-label={t('Back')}><Icon name="chevronLeft" /></button>
       <div style={{ flex: 1, margin: '0 12px' }}>
-        <input className="input" defaultValue={r.name} style={{ fontWeight: 600, fontSize: 20, letterSpacing: '-.021em' }}
+        <input className="input" autoFocus={!!onClose} aria-label={t('Routine name')} defaultValue={r.name} style={{ fontWeight: 600, fontSize: 20, letterSpacing: '-.021em' }}
           onChange={e => update(s => { s.routines.find(x => x.id === id).name = e.target.value.trim() || t('Routine') })} />
       </div>
       <button className="iconbtn" aria-label={t('Pick an icon')} onClick={() => glyphPicker(r.emoji, g => update(s => { s.routines.find(x => x.id === id).emoji = g }))}><Icon name={glyphOf(r.emoji)} /></button>
     </div>
 
     <div style={{marginBottom:16}}><RoutineOriginBadge state={S} routine={r}/></div>
-    {(canOrganize || controls.routineProgression || controls.routineDeload) && <div className="sect-b" style={{ marginBottom: 16 }}>
+    {(canOrganize || onClose || controls.routineProgression || controls.routineDeload) && <div className="sect-b" style={{ marginBottom: 16 }}>
       {canOrganize && <SelectRow variant="field" title={t('Training plans')} value={planOf(S,r)||''} options={[{value:'',label:t('No plan')},...plansOf(S).map(p=>({value:p.id,label:p.name}))]} onChange={value=>update(s=>moveRoutineToPlan(s,id,value||null))}/>}
+      {onClose&&<Row title={t('Training plans')} value={S.trainingPlans?.[r.planId]?.name||t('No plan')}/>}
       {controls.routineProgression && <SelectRow icon="chartLine" title={t('Progression')} sheetTitle={t('Progression')}
         value={r.prog || 'linear'} onChange={v => update(s => { s.routines.find(x => x.id === id).prog = v })}
         options={POLICIES_FOR.reps.map(p => ({ value: p, label: t(POLICY_NAME[p]), subtitle: t(POLICY_DESC[p]) }))} />}
@@ -596,10 +598,12 @@ export default function RoutineEdit({basePath='/plan'}) {
     })()}
 
     <div className="small dim row" style={{ margin: '10px 2px', gap: 5 }}><Icon name="link" style={{ fontSize: 13 }} />{t('Tap the link button on an exercise to superset it with the one above. You’ll do them back-to-back.')}</div>
+    {onSend&&<div style={{marginBottom:10}}><Button variant="tinted" icon="person" disabled={!r.ex.length} onClick={onSend}>{t('Send routine')}</Button></div>}
     <Button onClick={() => {
       const copy = copyRoutine(r, t('Copy'))
       update(s => { s.routines.push(copy) })
-      nav(basePath+'/r/' + copy.id+contextQuery)
+      if(onOpenRoutine)onOpenRoutine(copy.id)
+      else nav(basePath+'/r/' + copy.id+contextQuery)
     }}>{t('Copy routine')}</Button>
     <div style={{ height: 10 }} />
     <Button disabled={!r.ex.length} onClick={printRoutine}>{t('Print / Save as PDF')}</Button>
@@ -608,7 +612,8 @@ export default function RoutineEdit({basePath='/plan'}) {
       title: t('Delete routine?'), message: basePath==='/training-admin'?t('Delete {0} from the library and its plan? Its exercises and calendar links will be removed from this library. Previously sent proposals, accepted assignments and saved workouts are preserved. Use Remove from plan to keep the routine.',r.name):t('“{0}” and its exercises will be removed.', r.name), confirmText: t('Delete'), danger: true,
       onConfirm: () => {
         update(s => { deleteRoutine(s, id) })
-        nav(returnPath)
+        if(onClose)onClose()
+        else nav(returnPath)
       }
     })}>{t('Delete routine')}</Button>
   </div>

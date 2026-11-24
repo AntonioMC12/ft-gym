@@ -37,6 +37,29 @@ it('invalidates changed confirmations and drops responses after a center/account
   let release;centerProgressShare.mockImplementationOnce(()=>new Promise(resolve=>release=resolve));await render({centerId:'b'});await render({centerId:'c'});await act(async()=>release({...initial(),share:{...initial().share,enabled:true,routineIds:['secret']}}));expect(button('Stop sharing progress')).toBeUndefined();
 })
 it('staff sees no consent controls or private routines and only renders the aggregate projection',async()=>{
-  await render({own:false,member:{id:'member'}});expect(host.textContent).toContain('This member is not sharing training progress with this center.');expect(host.textContent).not.toContain('PRIVATE');expect(button('Share selected progress')).toBeUndefined();
-  centerSharedProgress.mockResolvedValue({shared:true,report:{period:{from:'2026-10-01',to:'2026-10-15'},routines:[{name:'Selected routine',sessions:2,days:1,lastSessionOn:'2026-10-15',weeks:[{from:'2026-10-12',sessions:2}]}]}});await click('Reload centers');expect(host.textContent).toContain('Saved sessions');expect(host.textContent).toContain('Selected routine');expect(host.textContent).not.toContain('PRIVATE');expect(centerSharedProgress).toHaveBeenLastCalledWith('a','member');
+  const props={own:false,member:{id:'member'}}
+  await render(props)
+  expect(host.textContent).toContain('This member is not sharing training progress with this center.')
+  expect(host.textContent).not.toContain('PRIVATE')
+  expect(host.querySelector('button')).toBeNull()
+  centerSharedProgress.mockResolvedValue({shared:true,report:{period:{from:'2026-10-01',to:'2026-10-15'},routines:[{name:'Selected routine',sessions:2,days:1,lastSessionOn:'2026-10-15',weeks:[{from:'2026-10-12',sessions:2}]}]}})
+  await render({...props,member:{...props.member,version:2}})
+  expect(host.textContent).toContain('Saved sessions')
+  expect(host.textContent).toContain('Selected routine')
+  expect(host.textContent).not.toContain('PRIVATE')
+  expect(button('Refresh progress')).toBeDefined()
+  centerSharedProgress.mockResolvedValue({shared:false})
+  await click('Refresh progress')
+  expect(centerSharedProgress).toHaveBeenLastCalledWith('a','member')
+  expect(host.textContent).not.toContain('Selected routine')
+  expect(host.querySelector('button')).toBeNull()
+})
+it('allows retry after a real fetch error and removes it after a successful private response',async()=>{
+  centerSharedProgress.mockRejectedValueOnce({code:'network'})
+  await render({own:false,member:{id:'member'}})
+  expect(host.querySelector('[role=alert]').textContent).toBe('network')
+  await click('Retry')
+  expect(centerSharedProgress).toHaveBeenCalledTimes(2)
+  expect(host.querySelector('[role=alert]')).toBeNull()
+  expect(host.querySelector('button')).toBeNull()
 })

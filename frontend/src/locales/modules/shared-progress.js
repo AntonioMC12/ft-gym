@@ -21,4 +21,6 @@ const words={
 }
 keys.push('Deleted routine')
 for(const [lang,value] of Object.entries({"es":"Rutina eliminada","de":"Gelöschtes Training","fr":"Routine supprimée","it":"Routine eliminata","pt":"Rotina removida","pt-BR":"Rotina excluída","pl":"Usunięty plan","hu":"Törölt rutin","tr":"Silinmiş rutin","ru":"Удалённая программа","uk":"Видалена програма","ar":"خطة محذوفة","hi":"हटाई गई दिनचर्या","bn":"মুছে ফেলা রুটিন","th":"กิจวัตรที่ลบแล้ว","ko":"삭제한 루틴","zh":"已删除的计划","zh-TW":"已刪除的計畫"}))words[lang]+='|'+value
+keys.push('Refresh progress')
+for(const [lang,value] of Object.entries({"es":"Actualizar progreso","de":"Fortschritt aktualisieren","fr":"Actualiser la progression","it":"Aggiorna i progressi","pt":"Atualizar progresso","pt-BR":"Atualizar progresso","pl":"Odśwież postępy","hu":"Haladás frissítése","tr":"İlerlemeyi yenile","ru":"Обновить прогресс","uk":"Оновити прогрес","ar":"تحديث التقدّم","hi":"प्रगति रीफ़्रेश करें","bn":"অগ্রগতি রিফ্রেশ করুন","th":"รีเฟรชความคืบหน้า","ko":"진행 상황 새로고침","zh":"刷新进度","zh-TW":"重新整理進度"}))words[lang]+='|'+value
 export function sharedProgressStrings(lang){const values=words[lang]?.split('|');if(values?.length!==keys.length)throw new Error('incomplete shared progress translations: '+lang);return Object.fromEntries(keys.map((key,i)=>[key,values[i]]))}

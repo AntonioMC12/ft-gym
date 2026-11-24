@@ -15,7 +15,8 @@ vi.mock('./ui.jsx',()=>({
  Button:({children,onClick,disabled})=><button disabled={disabled} onClick={onClick}>{children}</button>,
  SelectRow:({title,value,options,onChange})=><select aria-label={title} value={value} onChange={e=>onChange(e.target.value)}>{options.map(o=><option key={o.value} value={o.value}>{o.label}</option>)}</select>,
  MultiSelectRow:({title,options,values,onToggle})=><fieldset aria-label={title}>{options.map(o=><button key={o.value} aria-pressed={values.includes(o.value)} onClick={()=>onToggle(o.value)}>{o.label}</button>)}</fieldset>,
- SearchField:()=>null
+ SearchField:()=>null,
+ Switch:()=>null
 }))
 import {DEF,useStore} from '../store/useStore.js'
 import {useCenters} from '../store/useCenters.js'
@@ -81,3 +82,28 @@ it('compacts recipient selection when viewing sent proposals and can reopen it',
  await click('Alice');expect(host.querySelector('.training-selected-member').textContent).toContain('Alice');expect(host.querySelector('.training-recipient-list')).toBeNull();
  await click('Change member');expect(host.querySelector('.training-recipient-list')).not.toBeNull();
 });
+
+it('sends only the current routine without its schedule to one member chosen from the list',async()=>{
+ const state=useStore.getState().S
+ useStore.setState({S:{...state,week:{1:['r','other']},routines:[...state.routines,{id:'other',name:'Other',ex:[{id:'0025'}]}]}})
+ centerMember.mockResolvedValue({member:{id:'b',version:8,state:'active',accountLinked:true}})
+ await act(async()=>root.render(<TrainingAssignments routineIds={['r']} planName="Push" mode="routine"/>))
+ await act(async()=>vi.advanceTimersByTimeAsync(1))
+ await click('Alice');await click('Bob');await click('Send routine')
+ expect(centerCommand).toHaveBeenCalledExactlyOnceWith('/api/centers/training/propose',expect.objectContaining({
+  centerId:'c',memberId:'b',memberVersion:8,bundle:expect.objectContaining({name:'Push',week:{},routines:[expect.objectContaining({id:'r'})]})
+ }))
+})
+
+it('preselects the member and center from the profile, and rechecks eligibility before sending',async()=>{
+ const member={id:'b',name:'Bob',state:'active',accountLinked:true}
+ centerMember.mockResolvedValueOnce({member:{...member,state:'frozen',version:9}}).mockResolvedValueOnce({member:{...member,version:10}})
+ await act(async()=>root.render(<TrainingAssignments routineIds={['r']} planName="Push" mode="routine" recipient={{centerId:'member-center',member}}/>))
+ expect(host.textContent).toContain('Bob')
+ expect(platformCenters).not.toHaveBeenCalled()
+ expect(centerMembers).not.toHaveBeenCalled()
+ await click('Send routine');expect(centerCommand).not.toHaveBeenCalled()
+ await click('Send routine')
+ expect(centerMember).toHaveBeenLastCalledWith('member-center','b')
+ expect(centerCommand).toHaveBeenCalledExactlyOnceWith('/api/centers/training/propose',expect.objectContaining({centerId:'member-center',memberId:'b',memberVersion:10}))
+})

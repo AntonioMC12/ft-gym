@@ -15,7 +15,7 @@ import {useStore} from '../../store/useStore.js'
 import {useCenters} from '../../store/useCenters.js'
 import {confirmSheet} from '../../sheets.jsx'
 
-export default function TrainingProposals({centerId,member,ownerUid,own=false,active=true,canAssign=false,onLinkAccount,initialProposalId=null,initialVersionId=null,onCloseProposal}){
+export default function TrainingProposals({centerId,member,ownerUid,own=false,active=true,canAssign=false,onLinkAccount,initialProposalId=null,initialVersionId=null,onCloseProposal,createRoutineAction}){
   const centerState=useCenters(),[assignmentFilter,setAssignmentFilter]=useState('active')
   const platform=centerState.ownerUid===ownerUid&&centerState.status==='ready'&&centerState.platformCapabilities.includes('centers.manage')
   const S=useStore(s=>s.S),[rows,setRows]=useState([]),[cursor,setCursor]=useState(null),[detail,setDetail]=useState(null),[error,setError]=useState(null),[busy,setBusy]=useState(false),[revision,setRevision]=useState(0)
@@ -91,6 +91,7 @@ export default function TrainingProposals({centerId,member,ownerUid,own=false,ac
   }
   const sourceRoutines=S?.routines||[]
   return <Section className={own?'own-training-proposals':''} title={t('Training proposals')}><div className="centers-form">
+    {createRoutineAction}
     {detail?<>
       <Row title={detail.name||t('Plan')} subtitle={t('Proposal version')+' '+detail.revision} value={detail.unit}/>
       {detail.bundle.routines.map(row=><details className="training-proposal-routine" key={row.id}><summary><strong>{row.name}</strong><span className="small muted">{row.ex.length} {t('Exercises')}</span></summary>{(detail.retirements||[]).filter(r=>r.routineId===detail.routineIds?.[row.id]).map(r=><p key={r.reason} className="small muted">{t(r.reason==='platform'?'Withdrawn by superadmin':'Removed by member')}{r.at?' · '+new Date(r.at).toLocaleDateString():''}{r.pending?' · '+t('Pending synchronization'):''}</p>)}{platform&&detail.acceptedAt&&!(detail.retirements||[]).some(r=>r.routineId===detail.routineIds?.[row.id]&&r.reason==='platform')&&<Button className="training-retire-action" size="sm" variant="tinted" disabled={busy} onClick={()=>retireRoutine(row)}>{t('Retire assignment')}</Button>}{row.prog&&<p className="small muted">{t('Progression')}: {t(POLICY_NAME[row.prog]||'Off')}</p>}{row.ex.map((ex,index)=><div key={index}>

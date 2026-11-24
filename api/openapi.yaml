@@ -7480,6 +7480,8 @@ components:
             Own-account library folders, synchronized per ID with edited timestamps.
             Five stable category IDs (category-men, category-women, category-cardio,
             category-mobility, category-core) are initialized idempotently by the app.
+            Custom categories have category=true and parentId=null and can be created,
+            renamed, moved or deleted when empty. The five initial categories are protected.
             Subfolders require a category ancestor; cycles and nonempty deletion are
             rejected by the library editor. Classification does not grant assignment permissions.
           additionalProperties:
